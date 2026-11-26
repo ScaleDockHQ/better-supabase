@@ -147,7 +147,7 @@ export function createGoals<S extends StandardSchemaV1 | undefined = undefined>(
         .args(extra)
         .andThen((checked) =>
           call(
-            "save_goal",
+            "upsert_goal",
             {
               tenant: organizationId,
               target: id ?? null,

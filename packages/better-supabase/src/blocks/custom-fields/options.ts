@@ -6,7 +6,7 @@ import { blockOptions, option } from "../options.ts";
 export type CustomFieldsSqlOptions = {
   readonly layout?: string;
   /**
-   * Writes one `read` audit entry per `read_field_values` call that returns an
+   * Writes one `read` audit entry per `get_field_values` call that returns an
    * encrypted or sensitive value. Needs the audit block.
    */
   readonly auditReads?: boolean;
@@ -17,7 +17,7 @@ export type CustomFieldsSqlOptions = {
    */
   readonly rankType?: "text" | "integer";
   /**
-   * Keyed layout: what `read_field_values` checks. `tenant` (the default) needs
+   * Keyed layout: what `get_field_values` checks. `tenant` (the default) needs
    * `permissions.read` in the tenant; `record` needs only that the caller can
    * read the record, through `can_subject(type, id, 'read')`.
    */

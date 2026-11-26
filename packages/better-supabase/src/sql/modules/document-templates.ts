@@ -376,7 +376,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_document_template",
+      name: "upsert_document_template",
       args: ["{id}", "text", "text", "text", "text", "uuid", "boolean"],
       returns: "jsonb",
     },
@@ -397,7 +397,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_document_text_block",
+      name: "upsert_document_text_block",
       args: ["{id}", "text", "text", "text", "uuid"],
       returns: "jsonb",
     },

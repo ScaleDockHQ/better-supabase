@@ -1,5 +1,5 @@
 -- Archiving a field definition (ADR 1083): an archived field leaves
--- list_field_definitions, save_field_definition and set_field_value refuse it,
+-- list_field_definitions, upsert_field_definition and set_field_value refuse it,
 -- its values stay readable, restore brings it back and purge is the hard
 -- delete that takes the values with it. Run with `supabase test db`.
 begin;
@@ -18,7 +18,7 @@ set local role authenticated;
 
 select set_config('test.base',
   jsonb_array_length(better_supabase.list_field_definitions('00000000-0000-4000-8000-000000000001', 'person'))::text, true);
-select set_config('test.def', better_supabase.save_field_definition(
+select set_config('test.def', better_supabase.upsert_field_definition(
   '00000000-0000-4000-8000-000000000001', 'person', 'archive_plan', 'Plan', 'text', false) ->> 'id', true);
 select better_supabase.set_field_value(
   '00000000-0000-4000-8000-000000000001', 'contact', 'c-archive', current_setting('test.def')::uuid, 'basic');
@@ -44,11 +44,11 @@ select throws_ok(
   '55000', null, 'set_field_value refuses an archived field'
 );
 select throws_ok(
-  $$select better_supabase.save_field_definition('00000000-0000-4000-8000-000000000001', 'person', 'archive_plan', 'Plan', 'text', false)$$,
-  '55000', null, 'save_field_definition refuses an archived key'
+  $$select better_supabase.upsert_field_definition('00000000-0000-4000-8000-000000000001', 'person', 'archive_plan', 'Plan', 'text', false)$$,
+  '55000', null, 'upsert_field_definition refuses an archived key'
 );
 select is(
-  jsonb_array_length(better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-archive')),
+  jsonb_array_length(better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-archive')),
   1,
   'the values of an archived field stay readable'
 );
@@ -87,7 +87,7 @@ select is(
   'purge removes the field'
 );
 select is(
-  jsonb_array_length(better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-archive')),
+  jsonb_array_length(better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-archive')),
   0,
   'purge takes the values with it'
 );

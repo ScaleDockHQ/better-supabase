@@ -44,12 +44,12 @@ export function aiChatParticipants(
   const ch = names.c.chats;
   const pa = names.c.participants;
   const extras = names.extras.participants;
-  const fields = "coalesce(add_ai_chat_participant.fields, '{}'::jsonb)";
+  const fields = "coalesce(create_ai_chat_participant.fields, '{}'::jsonb)";
   const inserted = insertExtraColumns(t.participants, extras, fields);
 
   const [columns, values] = writtenPairs(ctx, "participants", [
     ["chat", "v_chat.id"],
-    ["user", "add_ai_chat_participant.participant"],
+    ["user", "create_ai_chat_participant.participant"],
     ...(ctx.has("participants", "kind")
       ? ([["kind", ctx.cast("participants", "kind", "'user'")]] as const)
       : []),
@@ -61,7 +61,7 @@ export function aiChatParticipants(
 
   return `-- Adds someone to a chat, or changes their role: viewer or editor. The
 -- chat's owner${names.tenantless ? "" : ` with ${perm.share}`}, or the service role.${extras.length > 0 ? " fields sets the\n-- app's extra columns." : ""}
-create or replace function ${fn("add_ai_chat_participant")}(chat uuid, participant uuid, participant_role text default 'viewer', fields jsonb default '{}')
+create or replace function ${fn("create_ai_chat_participant")}(chat uuid, participant uuid, participant_role text default 'viewer', fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -70,13 +70,13 @@ as $$
 ${variableConflict(ctx, "participants")}
 declare
   v_chat record;
-  v_role text := coalesce(add_ai_chat_participant.participant_role, 'viewer');
+  v_role text := coalesce(create_ai_chat_participant.participant_role, 'viewer');
   v_row ${t.participants};
 begin
   select x.${ch.id} as id, x.${ch.owner} as owner, x.${ch.tenant} as tenant into v_chat
-  from ${t.chats} x where x.${ch.id} = add_ai_chat_participant.chat for update;
+  from ${t.chats} x where x.${ch.id} = create_ai_chat_participant.chat for update;
   if not found or not (${SERVICE_CALLER} or coalesce(v_chat.owner = (select auth.uid()), false)) then
-    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "add_ai_chat_participant.chat")}
+    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "create_ai_chat_participant.chat")}
   end if;
   if not ${SERVICE_CALLER} and ${names.tenantless ? "v_chat.tenant is not null and " : ""}not ${share} then
     ${raise("You may not share chats here", "42501", "AI_CHAT_FORBIDDEN")}
@@ -84,26 +84,26 @@ begin
   if v_role not in ('viewer', 'editor') then
     ${raise("A participant is a viewer or an editor, not %", "22023", "AI_CHAT_INVALID", "v_role")}
   end if;
-  if add_ai_chat_participant.participant is null or add_ai_chat_participant.participant = v_chat.owner then
-    ${raise("The owner already takes part in chat %", "22023", "AI_CHAT_INVALID", "add_ai_chat_participant.chat")}
+  if create_ai_chat_participant.participant is null or create_ai_chat_participant.participant = v_chat.owner then
+    ${raise("The owner already takes part in chat %", "22023", "AI_CHAT_INVALID", "create_ai_chat_participant.chat")}
   end if;
-  if v_chat.tenant is not null and not ${ctx.scope.canUser("add_ai_chat_participant.participant", "v_chat.tenant", perm.read)} then
-    ${raise("% can't read chats in the chat's organization", "22023", "AI_CHAT_INVALID", "add_ai_chat_participant.participant")}
+  if v_chat.tenant is not null and not ${ctx.scope.canUser("create_ai_chat_participant.participant", "v_chat.tenant", perm.read)} then
+    ${raise("% can't read chats in the chat's organization", "22023", "AI_CHAT_INVALID", "create_ai_chat_participant.participant")}
   end if;
   insert into ${t.participants} (${columns}${inserted.columns})
   values (${values}${inserted.values})
   on conflict (${pa.chat}, ${pa.user})${ctx.has("participants", "kind") ? ` where ${pa.kind} = 'user'` : ""} do update set ${pa.role} = excluded.${pa.role}
   returning * into v_row;${writeExtraColumns(t.participants, extras, fields, `x.${pa.chat} = v_row.${pa.chat} and x.${pa.user} = v_row.${pa.user}`, "v_row")}
   ${markShared(ctx, names, "v_chat.id")}
-  perform ${fn("ai_chat_notify")}(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
+  perform ${fn("ai_chat_notify")}(v_chat.id, create_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', create_ai_chat_participant.participant, 'role', v_role), true);
   return ${participantJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("add_ai_chat_participant")}(uuid, uuid, text, jsonb)`)}
+${userGrant(`${fn("create_ai_chat_participant")}(uuid, uuid, text, jsonb)`)}
 
 -- Removes someone from a chat: the chat's owner, the service role, or the
 -- participant leaving. Returns whether they took part.
-create or replace function ${fn("remove_ai_chat_participant")}(chat uuid, participant uuid)
+create or replace function ${fn("delete_ai_chat_participant")}(chat uuid, participant uuid)
 returns boolean
 language plpgsql
 security definer
@@ -114,24 +114,24 @@ declare
   v_owner uuid;
   v_count integer;
 begin
-  select x.${ch.owner} into v_owner from ${t.chats} x where x.${ch.id} = remove_ai_chat_participant.chat;
+  select x.${ch.owner} into v_owner from ${t.chats} x where x.${ch.id} = delete_ai_chat_participant.chat;
   if not found or not (
     ${SERVICE_CALLER}
     or coalesce(v_owner = (select auth.uid()), false)
-    or coalesce(remove_ai_chat_participant.participant = (select auth.uid()), false)
+    or coalesce(delete_ai_chat_participant.participant = (select auth.uid()), false)
   ) then
-    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "remove_ai_chat_participant.chat")}
+    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "delete_ai_chat_participant.chat")}
   end if;
   delete from ${t.participants} x
-  where x.${pa.chat} = remove_ai_chat_participant.chat and x.${pa.user} = remove_ai_chat_participant.participant${ctx.has("participants", "kind") ? ` and x.${pa.kind}::text = 'user'` : ""};
+  where x.${pa.chat} = delete_ai_chat_participant.chat and x.${pa.user} = delete_ai_chat_participant.participant${ctx.has("participants", "kind") ? ` and x.${pa.kind}::text = 'user'` : ""};
   get diagnostics v_count = row_count;
   if v_count > 0 then
-    perform ${fn("ai_chat_notify")}(remove_ai_chat_participant.chat, remove_ai_chat_participant.participant, 'participant.removed', jsonb_build_object('userId', remove_ai_chat_participant.participant), true);
+    perform ${fn("ai_chat_notify")}(delete_ai_chat_participant.chat, delete_ai_chat_participant.participant, 'participant.removed', jsonb_build_object('userId', delete_ai_chat_participant.participant), true);
   end if;
   return v_count > 0;
 end;
 $$;
-${userGrant(`${fn("remove_ai_chat_participant")}(uuid, uuid)`)}
+${userGrant(`${fn("delete_ai_chat_participant")}(uuid, uuid)`)}
 
 -- The people who take part in a chat, for anyone who reads it: the owner
 -- first (role owner), then the rest oldest first.

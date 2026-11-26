@@ -118,7 +118,7 @@ ${lockTable(t)}
 
 -- Adds a key and makes it the owner's active one; the key it replaces is
 -- retired and stays published until its last token expires.
-create or replace function ${fn("add_signing_key")}(owner_type text, owner_id text, kid text, alg text, public_jwk jsonb, private_jwk text)
+create or replace function ${fn("create_signing_key")}(owner_type text, owner_id text, kid text, alg text, public_jwk jsonb, private_jwk text)
 returns jsonb
 language plpgsql
 security definer
@@ -129,24 +129,24 @@ declare
   v_row ${t};
   v_vault uuid;
 begin${guard}
-  if add_signing_key.private_jwk is null or length(add_signing_key.private_jwk) = 0 then
+  if create_signing_key.private_jwk is null or length(create_signing_key.private_jwk) = 0 then
     ${fail("SIGNING_KEY_INVALID", "a signing key needs its private JWK", "22023")}
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
-    'bs:signing:' || add_signing_key.owner_type || ':' || add_signing_key.owner_id, 0));
+    'bs:signing:' || create_signing_key.owner_type || ':' || create_signing_key.owner_id, 0));
   update ${t} k set ${retire}
-  where k.${c("ownerType")} = add_signing_key.owner_type
-    and k.${c("ownerId")} = add_signing_key.owner_id
+  where k.${c("ownerType")} = create_signing_key.owner_type
+    and k.${c("ownerId")} = create_signing_key.owner_id
     and k.${c("state")} = 'active'
   returning k.* into v_old;
   v_vault := vault.create_secret(
-    add_signing_key.private_jwk,
-    'bs:signing:' || add_signing_key.kid,
+    create_signing_key.private_jwk,
+    'bs:signing:' || create_signing_key.kid,
     'better-supabase signing key'
   );
   insert into ${t} (${c("ownerType")}, ${c("ownerId")}, ${c("kid")}, ${c("alg")}, ${c("publicJwk")}, ${c("vaultId")})
-  values (add_signing_key.owner_type, add_signing_key.owner_id, add_signing_key.kid, ${ctx.cast("keys", "alg", "add_signing_key.alg")},
-    add_signing_key.public_jwk, v_vault)
+  values (create_signing_key.owner_type, create_signing_key.owner_id, create_signing_key.kid, ${ctx.cast("keys", "alg", "create_signing_key.alg")},
+    create_signing_key.public_jwk, v_vault)
   returning * into v_row;
   if v_old.${c("kid")} is not null then
     ${keyEvent(ctx, "signing_key.retired", "v_old")}
@@ -155,7 +155,7 @@ begin${guard}
   return jsonb_build_object('kid', v_row.${c("kid")}, 'alg', v_row.${c("alg")}, 'retired', v_old.${c("kid")});
 end;
 $$;
-${serviceGrant(`${fn("add_signing_key")}(text, text, text, text, jsonb, text)`)}
+${serviceGrant(`${fn("create_signing_key")}(text, text, text, text, jsonb, text)`)}
 
 -- The owner's active key with its private JWK, or null.
 create or replace function ${fn("signing_key")}(owner_type text, owner_id text)
@@ -296,7 +296,7 @@ create trigger ${ctx.trigger("signing_key_vault")} after delete on ${t}
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "add_signing_key",
+      name: "create_signing_key",
       args: ["text", "text", "text", "text", "jsonb", "text"],
       returns: "jsonb",
     },

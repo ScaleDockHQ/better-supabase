@@ -60,7 +60,7 @@ const PERSON = {
 
 describe("parties block", () => {
   it("sends only the keys a write sets, nulls and fields included", async () => {
-    const t = transport({ save_company: () => COMPANY });
+    const t = transport({ upsert_company: () => COMPANY });
 
     const company = await createContacts({ transport: t })
       .saveCompany({
@@ -70,7 +70,7 @@ describe("parties block", () => {
       .orThrow();
 
     expect(t.calls[0]).toEqual([
-      "save_company",
+      "upsert_company",
       { tenant: "o", company: "c1", attrs: { website: null, segment: "smb" } },
     ]);
     expect(company).toEqual({
@@ -89,13 +89,13 @@ describe("parties block", () => {
 
   it("reads a company's legal name, register number and phone and a person's mode", async () => {
     const t = transport({
-      save_company: () => ({
+      upsert_company: () => ({
         ...COMPANY,
         legal_name: "Acme Holding B.V.",
         registration_id: "12345678",
         phone: "+31 10 555 0100",
       }),
-      save_person: () => ({ ...PERSON, mode: "tenant", user_id: "u9" }),
+      upsert_person: () => ({ ...PERSON, mode: "tenant", user_id: "u9" }),
     });
 
     const parties = createContacts({ transport: t });
@@ -129,7 +129,9 @@ describe("parties block", () => {
   });
 
   it("leaves out a mode it does not know", async () => {
-    const t = transport({ save_person: () => ({ ...PERSON, mode: "guest" }) });
+    const t = transport({
+      upsert_person: () => ({ ...PERSON, mode: "guest" }),
+    });
 
     const person = await createContacts({ transport: t })
       .savePerson({ organizationId: "o", input: { name: "Ada" } })
@@ -202,7 +204,7 @@ describe("parties block", () => {
   it("links, unlinks, archives and merges", async () => {
     const t = transport({
       set_company_person: () => true,
-      remove_company_person: () => true,
+      delete_company_person: () => true,
       archive_person: () => true,
       merge_companies: () => COMPANY,
       merge_people: () => PERSON,
@@ -221,7 +223,7 @@ describe("parties block", () => {
         "set_company_person",
         { company: "c1", person: "p1", role: null, is_primary: false },
       ],
-      ["remove_company_person", { company: "c1", person: "p1" }],
+      ["delete_company_person", { company: "c1", person: "p1" }],
       ["archive_person", { id: "p1", archived: true }],
     ]);
   });
@@ -262,7 +264,7 @@ describe("parties block, roles and suppliers", () => {
   });
 
   it("sends a credit limit as minor units and its currency", async () => {
-    const t = transport({ save_person: () => PERSON });
+    const t = transport({ upsert_person: () => PERSON });
     const parties = createContacts({ transport: t });
 
     await parties
@@ -355,7 +357,7 @@ describe("parties block, roles and suppliers", () => {
 describe("parties block, optional fields", () => {
   it("reads every optional field of a person and a company", async () => {
     const t = transport({
-      save_person: () => ({
+      upsert_person: () => ({
         ...PERSON,
         phone: "+31",
         owner_id: "u2",
@@ -363,7 +365,7 @@ describe("parties block, optional fields", () => {
         merged_into: "p9",
         archived_at: "2026-10-14T00:00:00Z",
       }),
-      save_company: () => ({
+      upsert_company: () => ({
         ...COMPANY,
         website: "https://acme.com",
         vat_id: "NL1",
@@ -465,8 +467,8 @@ describe("person identities", () => {
   it("lists, adds, removes and finds a person by an address", async () => {
     const t = transport({
       list_person_identities: () => [IDENTITY],
-      add_person_identity: () => ({ ...IDENTITY, verified_at: null }),
-      remove_person_identity: () => false,
+      create_person_identity: () => ({ ...IDENTITY, verified_at: null }),
+      delete_person_identity: () => false,
       find_person_by_identity: (args) =>
         args["address"] === "+3161" ? PERSON : null,
     });
@@ -612,7 +614,7 @@ describe("payment terms, credit block and delivery", () => {
 
   it("reads the terms columns of a company", async () => {
     const t = transport({
-      save_company: () => ({
+      upsert_company: () => ({
         ...COMPANY,
         customer_terms_id: "t1",
         supplier_terms_id: "t2",
@@ -641,7 +643,7 @@ describe("payment terms, credit block and delivery", () => {
 
   it("rejects an unknown credit block", async () => {
     const t = transport({
-      save_company: () => ({ ...COMPANY, credit_block: "maybe" }),
+      upsert_company: () => ({ ...COMPANY, credit_block: "maybe" }),
     });
 
     await expect(
@@ -653,7 +655,7 @@ describe("payment terms, credit block and delivery", () => {
 
   it("saves, lists and deletes payment terms", async () => {
     const t = transport({
-      save_payment_term: () => TERM,
+      upsert_payment_term: () => TERM,
       list_payment_terms: () => [TERM],
       delete_payment_term: () => true,
     });
@@ -671,7 +673,7 @@ describe("payment terms, credit block and delivery", () => {
     expect(await parties.paymentTerms("o").orThrow()).toEqual([TERM]);
     expect(await parties.deletePaymentTerm("t1").orThrow()).toBe(true);
     expect(t.calls[0]).toEqual([
-      "save_payment_term",
+      "upsert_payment_term",
       { tenant: "o", attrs: { code: "NET30", name: "Net 30" } },
     ]);
   });
@@ -711,8 +713,8 @@ describe("optional record keys", () => {
     };
 
     const t = transport({
-      save_person: () => full,
-      add_person_identity: () => ({
+      upsert_person: () => full,
+      create_person_identity: () => ({
         id: "i1",
         tenant_id: "o",
         person_id: "p1",

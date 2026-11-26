@@ -427,7 +427,7 @@ export function createDocumentTemplates(
     saveTemplate: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_document_template",
+          "upsert_document_template",
           {
             tenant: organizationId,
             document_type: input.documentType,
@@ -437,7 +437,7 @@ export function createDocumentTemplates(
             legal_entity_id: input.legalEntityId ?? null,
             active: input.active ?? true,
           },
-          one("save_document_template"),
+          one("upsert_document_template"),
         ),
       ),
     setTemplateActive: ({ id, active }) =>
@@ -475,7 +475,7 @@ export function createDocumentTemplates(
     saveTextBlock: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_document_text_block",
+          "upsert_document_text_block",
           {
             tenant: organizationId,
             key: input.key,
@@ -483,7 +483,7 @@ export function createDocumentTemplates(
             language: input.language ?? null,
             legal_entity_id: input.legalEntityId ?? null,
           },
-          (value) => blockOf(value, "save_document_text_block"),
+          (value) => blockOf(value, "upsert_document_text_block"),
         ),
       ),
     listTextBlocks: (filter = {}) =>

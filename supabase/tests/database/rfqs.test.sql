@@ -26,12 +26,12 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Pallets', 'pallets-rfq', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'PALLET-RFQ', null, 'Pallet', null, null, true, false, null) ->> 'id', true);
-select set_config('t.l', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'RFQ', 'Receiving dock', null, null) ->> 'id', true);
-select set_config('t.a', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Cheap pallets"}') ->> 'id', true);
-select set_config('t.b', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Fast pallets"}') ->> 'id', true);
-select set_config('t.c', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Plain customer"}') ->> 'id', true);
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Pallets', 'pallets-rfq', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'PALLET-RFQ', null, 'Pallet', null, null, true, false, null) ->> 'id', true);
+select set_config('t.l', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'RFQ', 'Receiving dock', null, null) ->> 'id', true);
+select set_config('t.a', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Cheap pallets"}') ->> 'id', true);
+select set_config('t.b', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Fast pallets"}') ->> 'id', true);
+select set_config('t.c', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Plain customer"}') ->> 'id', true);
 select better_supabase.set_party_roles(current_setting('t.a')::uuid, array['supplier']);
 select better_supabase.set_party_roles(current_setting('t.b')::uuid, array['supplier']);
 select better_supabase.set_party_roles(current_setting('t.c')::uuid, array['customer']);

@@ -25,16 +25,16 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Bolts', 'bolts-purchasing', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'BOLT-PUR', null, 'Bolts', null, null, true, false, null) ->> 'id', true);
-select set_config('t.l', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'PUR', 'Purchasing dock', null, null) ->> 'id', true);
-select set_config('t.supplier', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Purchasing supplier"}') ->> 'id', true);
-select set_config('t.customer', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null,
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Bolts', 'bolts-purchasing', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'BOLT-PUR', null, 'Bolts', null, null, true, false, null) ->> 'id', true);
+select set_config('t.l', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'PUR', 'Purchasing dock', null, null) ->> 'id', true);
+select set_config('t.supplier', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Purchasing supplier"}') ->> 'id', true);
+select set_config('t.customer', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null,
   '{"name": "Purchasing customer", "creditLimit": "1000", "creditCurrency": "EUR"}') ->> 'id', true);
 select better_supabase.set_supplier_status(current_setting('t.supplier')::uuid, 'blocked', 'Failed the audit');
 
 select throws_ok(
-  format($$select better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', null, %L, 'company', %L, 'EUR', null, %L, null)$$,
+  format($$select better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', null, %L, 'company', %L, 'EUR', null, %L, null)$$,
     current_setting('t.l'), current_setting('t.supplier'), jsonb_build_array(jsonb_build_object('variantId', current_setting('t.v'), 'quantity', 5))),
   '55000',
   'the supplier is blocked and can''t get a purchase order',

@@ -106,7 +106,7 @@ describe("inventory tracking", () => {
         },
       },
       {
-        fn: "save_bin",
+        fn: "upsert_bin",
         args: {
           location: "l1",
           bin: null,
@@ -117,10 +117,13 @@ describe("inventory tracking", () => {
         },
       },
       {
-        fn: "save_lot",
+        fn: "upsert_lot",
         args: { variant: "v1", code: "L1", expires_on: "2030-02-01" },
       },
-      { fn: "save_lot", args: { variant: "v1", code: "L2", expires_on: null } },
+      {
+        fn: "upsert_lot",
+        args: { variant: "v1", code: "L2", expires_on: null },
+      },
     ]);
   });
 

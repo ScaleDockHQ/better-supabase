@@ -1159,14 +1159,14 @@ export function createApprovals<
     savePolicy: ({ input, ...saveOptions }) =>
       tenantOr(saveOptions.platform).andThen((organizationId) =>
         call(
-          "save_approval_policy",
+          "upsert_approval_policy",
           { tenant: organizationId, policy: input },
-          (value) => tenantPolicyOf(value, "save_approval_policy"),
+          (value) => tenantPolicyOf(value, "upsert_approval_policy"),
         ),
       ),
     removePolicy: (id) =>
       call(
-        "remove_approval_policy",
+        "delete_approval_policy",
         { policy_id: id },
         (value) => value === true,
       ),

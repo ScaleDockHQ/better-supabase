@@ -67,7 +67,7 @@ describe("createLims", () => {
 
   it("saves, archives and lists methods", async () => {
     const t = fieldsTransport({
-      save_lims_method: () => METHOD,
+      upsert_lims_method: () => METHOD,
       archive_lims_method: () => ({ ...METHOD, archivedAt: AT }),
       list_lims_methods: () => [METHOD],
     });
@@ -91,7 +91,7 @@ describe("createLims", () => {
     expect(archived.archivedAt).toBeDefined();
     expect(listed).toHaveLength(1);
     expect(t.calls[0]).toEqual([
-      "save_lims_method",
+      "upsert_lims_method",
       {
         tenant: "org-1",
         input: { key: "ph", name: "pH", lowerLimit: 6.5, upperLimit: 8.5 },
@@ -284,7 +284,7 @@ describe("createLims", () => {
 
   it("passes a method id and defaults the list and date arguments", async () => {
     const t = fieldsTransport({
-      save_lims_method: () => ({
+      upsert_lims_method: () => ({
         ...METHOD,
         lowerLimit: "x",
         upperLimit: null,

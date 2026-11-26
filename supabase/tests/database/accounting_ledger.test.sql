@@ -19,7 +19,7 @@ select set_config('test.journal', (
   select id::text from better_supabase.accounting_journals
   where tenant_id = '00000000-0000-4000-8000-000000000001' and code = 'SAL'
 ), true);
-select set_config('test.entry', better_supabase.save_accounting_entry(
+select set_config('test.entry', better_supabase.upsert_accounting_entry(
   current_setting('test.journal')::uuid, '2026-03-05',
   '[{"accountCode":"1200","debit":"12100"},{"accountCode":"4000","credit":"12100"}]'
 ) ->> 'id', true);
@@ -48,7 +48,7 @@ select is(
   'a revenue account is credit normal'
 );
 select throws_ok(
-  $$select better_supabase.save_accounting_account('00000000-0000-4000-8000-000000000001', '9999', 'Odd', 'asset', null, null, null, false, null, 'sideways')$$,
+  $$select better_supabase.upsert_accounting_account('00000000-0000-4000-8000-000000000001', '9999', 'Odd', 'asset', null, null, null, false, null, 'sideways')$$,
   null,
   null,
   'an unknown normal side is refused'
@@ -97,7 +97,7 @@ select is(
 );
 select throws_ok(
   format(
-    $$select better_supabase.post_accounting_entry((better_supabase.save_accounting_entry(%L::uuid, '2026-03-20', '[{"accountCode":"1200","debit":"100"},{"accountCode":"4000","credit":"100"}]') ->> 'id')::uuid)$$,
+    $$select better_supabase.post_accounting_entry((better_supabase.upsert_accounting_entry(%L::uuid, '2026-03-20', '[{"accountCode":"1200","debit":"100"},{"accountCode":"4000","credit":"100"}]') ->> 'id')::uuid)$$,
     current_setting('test.journal')
   ),
   '55000',
@@ -207,7 +207,7 @@ select is(
   'posting the opening balances twice returns one entry'
 );
 select throws_ok(
-  $$select better_supabase.save_accounting_opening_balances('00000000-0000-4000-8000-000000000001', 2026, '[{"accountCode":"1200","amount":"1"}]')$$,
+  $$select better_supabase.upsert_accounting_opening_balances('00000000-0000-4000-8000-000000000001', 2026, '[{"accountCode":"1200","amount":"1"}]')$$,
   null,
   null,
   'a posted year takes no more opening balances'

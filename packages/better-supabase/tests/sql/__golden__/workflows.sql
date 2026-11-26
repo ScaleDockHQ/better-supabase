@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:bb2a5752dc8b4aff409a1dd1abe3113d2e467ea7925c4afb5e6795d4f7ece616
+-- @bsb-hash sha256:a7fb69df73775d04989bf7ba2dbb7aa502ee292dabafa686e8793c67c9c52167
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -695,7 +695,7 @@ $$;
 revoke execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_schedule"(schedule uuid)
+create or replace function "better_supabase"."delete_workflow_schedule"(schedule uuid)
 returns boolean
 language plpgsql
 security definer
@@ -712,8 +712,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_schedule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_schedule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_schedule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_schedule"(uuid) to authenticated, service_role;
 
 -- Leases up to batch due schedules for lease seconds:
 -- [{ id, tenant, name, workflow, input, cron, timezone, fireAt }].
@@ -1038,7 +1038,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:2928b3c065c22f312f1484650460684d7df4348679e4bc5f73af49d27a457fb4
+-- @bsb-hash sha256:ecc0f809936bb03e90e2422be152ed81e16480ce45a355b900421deb744efc28
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1746,7 +1746,7 @@ $$;
 revoke execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_schedule"(schedule uuid)
+create or replace function "better_supabase"."delete_workflow_schedule"(schedule uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1763,8 +1763,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_schedule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_schedule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_schedule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_schedule"(uuid) to authenticated, service_role;
 
 -- Leases up to batch due schedules for lease seconds:
 -- [{ id, tenant, name, workflow, input, cron, timezone, fireAt }].
@@ -2089,7 +2089,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:e85c902759328731eb624e1c0709fced79b332f0bb4164e2af5686170b87e3f3
+-- @bsb-hash sha256:a9e06f19d0f2db4107d803c3329ab3424136afa7b0edf19ca6ed3f66aded9f98
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2788,7 +2788,7 @@ $$;
 revoke execute on function "app_private"."pause_workflow_schedule"(uuid, boolean) from public, anon;
 grant execute on function "app_private"."pause_workflow_schedule"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "app_private"."remove_workflow_schedule"(schedule uuid)
+create or replace function "app_private"."delete_workflow_schedule"(schedule uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2805,8 +2805,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "app_private"."remove_workflow_schedule"(uuid) from public, anon;
-grant execute on function "app_private"."remove_workflow_schedule"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_workflow_schedule"(uuid) from public, anon;
+grant execute on function "app_private"."delete_workflow_schedule"(uuid) to authenticated, service_role;
 
 -- Leases up to batch due schedules for lease seconds:
 -- [{ id, tenant, name, workflow, input, cron, timezone, fireAt }].
@@ -3131,7 +3131,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:beac38cd294238cc2d405f45f222b1ff090103c3560dfea2354d12fc0afc9a5a
+-- @bsb-hash sha256:9ace761367dc54ad0b6dfc2e83cacd5362ba67cb0c22ead3d404b4cf1f6ea84b
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3825,7 +3825,7 @@ $$;
 revoke execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_schedule"(schedule uuid)
+create or replace function "better_supabase"."delete_workflow_schedule"(schedule uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3842,8 +3842,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_schedule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_schedule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_schedule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_schedule"(uuid) to authenticated, service_role;
 
 -- Leases up to batch due schedules for lease seconds:
 -- [{ id, tenant, name, workflow, input, cron, timezone, fireAt }].
@@ -4248,14 +4248,14 @@ as $$ select "better_supabase"."pause_workflow_schedule"($1, $2) $$;
 revoke execute on function "api"."pause_workflow_schedule"(uuid, boolean) from public, anon;
 grant execute on function "api"."pause_workflow_schedule"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_workflow_schedule"(schedule uuid)
+create or replace function "api"."delete_workflow_schedule"(schedule uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_workflow_schedule"($1) $$;
-revoke execute on function "api"."remove_workflow_schedule"(uuid) from public, anon;
-grant execute on function "api"."remove_workflow_schedule"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_workflow_schedule"($1) $$;
+revoke execute on function "api"."delete_workflow_schedule"(uuid) from public, anon;
+grant execute on function "api"."delete_workflow_schedule"(uuid) to authenticated, service_role;
 
 create or replace function "api"."claim_due_workflow_schedules"(lease integer default 60, batch integer default 50)
 returns jsonb
@@ -4347,7 +4347,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:82951c5eaf73eebd1ff720c8321fbc2f46e2c347f1438874f496de59ab2e286a
+-- @bsb-hash sha256:cf95add0b188bbdd6b3127061309c553d5446ada057eb355a5d71e52d448712b
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5030,7 +5030,7 @@ $$;
 revoke execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_schedule"(schedule uuid)
+create or replace function "better_supabase"."delete_workflow_schedule"(schedule uuid)
 returns boolean
 language plpgsql
 security definer
@@ -5047,8 +5047,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_schedule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_schedule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_schedule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_schedule"(uuid) to authenticated, service_role;
 
 -- Leases up to batch due schedules for lease seconds:
 -- [{ id, tenant, name, workflow, input, cron, timezone, fireAt }].
@@ -5373,7 +5373,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:757dcfdf6a4866e4197a4b60dd41d85b9c49982b9986a538a0170061e63fe469
+-- @bsb-hash sha256:97e9f1d0aa2e81a526de2f1d68a3c14ed394542df3216f8b7943c22322930e95
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6067,7 +6067,7 @@ $$;
 revoke execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."pause_workflow_schedule"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_schedule"(schedule uuid)
+create or replace function "better_supabase"."delete_workflow_schedule"(schedule uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6084,8 +6084,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_schedule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_schedule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_schedule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_schedule"(uuid) to authenticated, service_role;
 
 -- Leases up to batch due schedules for lease seconds:
 -- [{ id, tenant, name, workflow, input, cron, timezone, fireAt }].

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:5e70c8e881a005d22bc74e4fbfdb4521e5f0c3835e779d3f484997f4cc6a2e26
+-- @bsb-hash sha256:f859e6819458caaebbc828a65e013488187ce09bb07b5d20fd8aa087a965aad0
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -294,7 +294,7 @@ revoke execute on function "better_supabase"."bom_reaches"(uuid, uuid) from publ
 -- inspectionTemplate }], components: [{ variantId, quantity, scrapBps,
 -- operation }] }; a component's operation is the sequence of the operation
 -- that uses it.
-create or replace function "better_supabase"."save_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function "better_supabase"."upsert_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -310,21 +310,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bom.tenant is not null and coalesce(better_supabase.can('tenant', save_bom.tenant, 'manufacturing.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bom.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bom.tenant, 'manufacturing.write'), false))) then
     raise exception 'not allowed to change bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bom.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bom.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = save_bom.variant and cv."tenant_id" = save_bom.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = upsert_bom.variant and cv."tenant_id" = upsert_bom.tenant) then
     raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
+  v_quantity := coalesce(nullif(upsert_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
     raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_components := save_bom.input -> 'components';
-  v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
+  v_components := upsert_bom.input -> 'components';
+  v_operations := coalesce(upsert_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
     raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
@@ -337,10 +337,10 @@ begin
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
     raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = upsert_bom.variant) then
     raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_bom.tenant)) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_bom.tenant)) then
     raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
@@ -353,7 +353,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from "better_supabase"."work_centers" x where x."id" = nullif(e ->> 'workCenterId', '')::uuid
-      and x."tenant_id" = save_bom.tenant and x."archived_at" is null)) then
+      and x."tenant_id" = upsert_bom.tenant and x."archived_at" is null)) then
     raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
@@ -363,35 +363,35 @@ begin
   
   
 
-  if save_bom.bom_id is null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || save_bom.variant::text, 0));
+  if upsert_bom.bom_id is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || upsert_bom.variant::text, 0));
     insert into "better_supabase"."boms" ("tenant_id", "variant_id", "version", "quantity", "note", "created_by")
-    values (save_bom.tenant, save_bom.variant,
-      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = save_bom.variant), 0) + 1,
-      v_quantity, nullif(trim(save_bom.input ->> 'note'), ''), auth.uid())
+    values (upsert_bom.tenant, upsert_bom.variant,
+      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = upsert_bom.variant), 0) + 1,
+      v_quantity, nullif(trim(upsert_bom.input ->> 'note'), ''), auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."boms" x where x."id" = save_bom.bom_id and x."tenant_id" = save_bom.tenant for update;
+    select * into v_row from "better_supabase"."boms" x where x."id" = upsert_bom.bom_id and x."tenant_id" = upsert_bom.tenant for update;
     if not found then
       raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
     end if;
-    if v_row."variant_id" <> save_bom.variant or v_row."status" <> 'draft' then
+    if v_row."variant_id" <> upsert_bom.variant or v_row."status" <> 'draft' then
       raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
     end if;
     delete from "better_supabase"."bom_components" x where x."bom_id" = v_row."id";
     delete from "better_supabase"."bom_operations" x where x."bom_id" = v_row."id";
-    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(save_bom.input ->> 'note'), ''), "updated_at" = now()
+    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(upsert_bom.input ->> 'note'), ''), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
 
   insert into "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence", "work_center_id", "title", "setup_minutes", "run_minutes_per_unit", "instructions_node_id", "inspection_template")
-  select save_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
+  select upsert_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
     coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0), coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0),
     nullif(e ->> 'instructionsNodeId', '')::uuid, nullif(e ->> 'inspectionTemplate', '')
   from jsonb_array_elements(v_operations) e;
   insert into "better_supabase"."bom_components" ("tenant_id", "bom_id", "position", "variant_id", "quantity", "scrap_bps", "operation_id")
-  select save_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
+  select upsert_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
     coalesce(nullif(e.value ->> 'scrapBps', '')::integer, 0),
     (select y."id" from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id" and y."sequence" = nullif(e.value ->> 'operation', '')::integer)
   from jsonb_array_elements(v_components) with ordinality e(value, n);
@@ -405,8 +405,8 @@ begin
       from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id"), '[]'::jsonb)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Makes a version its variant's active bill of materials; the version that was
 -- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
@@ -870,7 +870,7 @@ grant execute on function "better_supabase"."bom_where_used"(uuid) to authentica
 -- Creates a work center (work_center_id null) or changes one. input is {
 -- name, assetId, hoursPerDay, costRate (minor units per hour), currency,
 -- archived }; keys left out keep their value.
-create or replace function "better_supabase"."save_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
+create or replace function "better_supabase"."upsert_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -884,37 +884,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_work_center.tenant is not null and coalesce(better_supabase.can('tenant', save_work_center.tenant, 'manufacturing.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_work_center.tenant is not null and coalesce(better_supabase.can('tenant', upsert_work_center.tenant, 'manufacturing.manage'), false))) then
     raise exception 'not allowed to change work centers' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_work_center.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_work_center.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if save_work_center.work_center_id is not null then
+  if upsert_work_center.work_center_id is not null then
     select * into v_row from "better_supabase"."work_centers" x
-    where x."id" = save_work_center.work_center_id and x."tenant_id" = save_work_center.tenant for update;
+    where x."id" = upsert_work_center.work_center_id and x."tenant_id" = upsert_work_center.tenant for update;
     if not found then
       raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
     end if;
   end if;
-  v_asset := case when save_work_center.input ? 'assetId' then nullif(save_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
+  v_asset := case when upsert_work_center.input ? 'assetId' then nullif(upsert_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
   
-  if save_work_center.work_center_id is null then
+  if upsert_work_center.work_center_id is null then
     insert into "better_supabase"."work_centers" ("tenant_id", "name", "asset_id", "hours_per_day", "cost_rate", "currency")
-    values (save_work_center.tenant, trim(save_work_center.input ->> 'name'), v_asset,
-      coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
-      coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, 0),
-      upper(nullif(save_work_center.input ->> 'currency', '')))
+    values (upsert_work_center.tenant, trim(upsert_work_center.input ->> 'name'), v_asset,
+      coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
+      coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, 0),
+      upper(nullif(upsert_work_center.input ->> 'currency', '')))
     returning * into v_row;
   else
     update "better_supabase"."work_centers" x set
-      "name" = case when save_work_center.input ? 'name' then trim(save_work_center.input ->> 'name') else x."name" end,
+      "name" = case when upsert_work_center.input ? 'name' then trim(upsert_work_center.input ->> 'name') else x."name" end,
       "asset_id" = v_asset,
-      "hours_per_day" = coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
-      "cost_rate" = coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
-      "currency" = case when save_work_center.input ? 'currency' then upper(nullif(save_work_center.input ->> 'currency', '')) else x."currency" end,
-      "archived_at" = case when not save_work_center.input ? 'archived' then x."archived_at"
-        when (save_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
+      "hours_per_day" = coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
+      "cost_rate" = coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
+      "currency" = case when upsert_work_center.input ? 'currency' then upper(nullif(upsert_work_center.input ->> 'currency', '')) else x."currency" end,
+      "archived_at" = case when not upsert_work_center.input ? 'archived' then x."archived_at"
+        when (upsert_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -922,8 +922,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'assetId', v_row."asset_id", 'hoursPerDay', v_row."hours_per_day"::text, 'costRate', v_row."cost_rate"::text, 'currency', v_row."currency", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- The organization's work centers by name, archived ones included.
 create or replace function "better_supabase"."list_work_centers"(tenant uuid)
@@ -2423,7 +2423,7 @@ begin
     end if;
     v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  v_purchase := "better_supabase"."save_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
       v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
@@ -2583,7 +2583,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:6d98f8ea8b8e4de2c7eda8a952f430d93bd1da74aed586971255754b186ca151
+-- @bsb-hash sha256:643c9f65c9a876571937ee2ea8d511709230de7ac824501184642eb4746e6c65
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2876,7 +2876,7 @@ revoke execute on function "better_supabase"."bom_reaches"(uuid, uuid) from publ
 -- inspectionTemplate }], components: [{ variantId, quantity, scrapBps,
 -- operation }] }; a component's operation is the sequence of the operation
 -- that uses it.
-create or replace function "better_supabase"."save_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function "better_supabase"."upsert_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2892,21 +2892,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bom.tenant is not null and coalesce(better_supabase.can('tenant', save_bom.tenant, 'manufacturing.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bom.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bom.tenant, 'manufacturing.write'), false))) then
     raise exception 'not allowed to change bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bom.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bom.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = save_bom.variant and cv."tenant_id" = save_bom.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = upsert_bom.variant and cv."tenant_id" = upsert_bom.tenant) then
     raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
+  v_quantity := coalesce(nullif(upsert_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
     raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_components := save_bom.input -> 'components';
-  v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
+  v_components := upsert_bom.input -> 'components';
+  v_operations := coalesce(upsert_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
     raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
@@ -2919,10 +2919,10 @@ begin
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
     raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = upsert_bom.variant) then
     raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_bom.tenant)) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_bom.tenant)) then
     raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
@@ -2935,7 +2935,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from "better_supabase"."work_centers" x where x."id" = nullif(e ->> 'workCenterId', '')::uuid
-      and x."tenant_id" = save_bom.tenant and x."archived_at" is null)) then
+      and x."tenant_id" = upsert_bom.tenant and x."archived_at" is null)) then
     raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
@@ -2943,7 +2943,7 @@ begin
     raise exception 'a component names an operation sequence the bill of materials doesn''t have' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e where nullif(e ->> 'instructionsNodeId', '') is not null
-      and not exists (select 1 from "better_supabase"."drive_nodes" d where d."id" = (e ->> 'instructionsNodeId')::uuid and d."tenant_id" = save_bom.tenant)) then
+      and not exists (select 1 from "better_supabase"."drive_nodes" d where d."id" = (e ->> 'instructionsNodeId')::uuid and d."tenant_id" = upsert_bom.tenant)) then
     raise exception 'an operation''s instructions aren''t a drive node of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e where nullif(e ->> 'inspectionTemplate', '') is not null
@@ -2951,35 +2951,35 @@ begin
     raise exception 'an operation''s inspection template isn''t one of the inspection kinds' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
 
-  if save_bom.bom_id is null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || save_bom.variant::text, 0));
+  if upsert_bom.bom_id is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || upsert_bom.variant::text, 0));
     insert into "better_supabase"."boms" ("tenant_id", "variant_id", "version", "quantity", "note", "created_by")
-    values (save_bom.tenant, save_bom.variant,
-      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = save_bom.variant), 0) + 1,
-      v_quantity, nullif(trim(save_bom.input ->> 'note'), ''), auth.uid())
+    values (upsert_bom.tenant, upsert_bom.variant,
+      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = upsert_bom.variant), 0) + 1,
+      v_quantity, nullif(trim(upsert_bom.input ->> 'note'), ''), auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."boms" x where x."id" = save_bom.bom_id and x."tenant_id" = save_bom.tenant for update;
+    select * into v_row from "better_supabase"."boms" x where x."id" = upsert_bom.bom_id and x."tenant_id" = upsert_bom.tenant for update;
     if not found then
       raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
     end if;
-    if v_row."variant_id" <> save_bom.variant or v_row."status" <> 'draft' then
+    if v_row."variant_id" <> upsert_bom.variant or v_row."status" <> 'draft' then
       raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
     end if;
     delete from "better_supabase"."bom_components" x where x."bom_id" = v_row."id";
     delete from "better_supabase"."bom_operations" x where x."bom_id" = v_row."id";
-    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(save_bom.input ->> 'note'), ''), "updated_at" = now()
+    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(upsert_bom.input ->> 'note'), ''), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
 
   insert into "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence", "work_center_id", "title", "setup_minutes", "run_minutes_per_unit", "instructions_node_id", "inspection_template")
-  select save_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
+  select upsert_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
     coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0), coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0),
     nullif(e ->> 'instructionsNodeId', '')::uuid, nullif(e ->> 'inspectionTemplate', '')
   from jsonb_array_elements(v_operations) e;
   insert into "better_supabase"."bom_components" ("tenant_id", "bom_id", "position", "variant_id", "quantity", "scrap_bps", "operation_id")
-  select save_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
+  select upsert_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
     coalesce(nullif(e.value ->> 'scrapBps', '')::integer, 0),
     (select y."id" from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id" and y."sequence" = nullif(e.value ->> 'operation', '')::integer)
   from jsonb_array_elements(v_components) with ordinality e(value, n);
@@ -2993,8 +2993,8 @@ begin
       from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id"), '[]'::jsonb)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Makes a version its variant's active bill of materials; the version that was
 -- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
@@ -3468,7 +3468,7 @@ grant execute on function "better_supabase"."bom_where_used"(uuid) to authentica
 -- Creates a work center (work_center_id null) or changes one. input is {
 -- name, assetId, hoursPerDay, costRate (minor units per hour), currency,
 -- archived }; keys left out keep their value.
-create or replace function "better_supabase"."save_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
+create or replace function "better_supabase"."upsert_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3482,39 +3482,39 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_work_center.tenant is not null and coalesce(better_supabase.can('tenant', save_work_center.tenant, 'manufacturing.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_work_center.tenant is not null and coalesce(better_supabase.can('tenant', upsert_work_center.tenant, 'manufacturing.manage'), false))) then
     raise exception 'not allowed to change work centers' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_work_center.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_work_center.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if save_work_center.work_center_id is not null then
+  if upsert_work_center.work_center_id is not null then
     select * into v_row from "better_supabase"."work_centers" x
-    where x."id" = save_work_center.work_center_id and x."tenant_id" = save_work_center.tenant for update;
+    where x."id" = upsert_work_center.work_center_id and x."tenant_id" = upsert_work_center.tenant for update;
     if not found then
       raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
     end if;
   end if;
-  v_asset := case when save_work_center.input ? 'assetId' then nullif(save_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
-  if v_asset is not null and not exists (select 1 from "better_supabase"."assets" a where a."id" = v_asset and a."tenant_id" = save_work_center.tenant) then
+  v_asset := case when upsert_work_center.input ? 'assetId' then nullif(upsert_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
+  if v_asset is not null and not exists (select 1 from "better_supabase"."assets" a where a."id" = v_asset and a."tenant_id" = upsert_work_center.tenant) then
     raise exception 'the asset isn''t an asset of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if save_work_center.work_center_id is null then
+  if upsert_work_center.work_center_id is null then
     insert into "better_supabase"."work_centers" ("tenant_id", "name", "asset_id", "hours_per_day", "cost_rate", "currency")
-    values (save_work_center.tenant, trim(save_work_center.input ->> 'name'), v_asset,
-      coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
-      coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, 0),
-      upper(nullif(save_work_center.input ->> 'currency', '')))
+    values (upsert_work_center.tenant, trim(upsert_work_center.input ->> 'name'), v_asset,
+      coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
+      coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, 0),
+      upper(nullif(upsert_work_center.input ->> 'currency', '')))
     returning * into v_row;
   else
     update "better_supabase"."work_centers" x set
-      "name" = case when save_work_center.input ? 'name' then trim(save_work_center.input ->> 'name') else x."name" end,
+      "name" = case when upsert_work_center.input ? 'name' then trim(upsert_work_center.input ->> 'name') else x."name" end,
       "asset_id" = v_asset,
-      "hours_per_day" = coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
-      "cost_rate" = coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
-      "currency" = case when save_work_center.input ? 'currency' then upper(nullif(save_work_center.input ->> 'currency', '')) else x."currency" end,
-      "archived_at" = case when not save_work_center.input ? 'archived' then x."archived_at"
-        when (save_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
+      "hours_per_day" = coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
+      "cost_rate" = coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
+      "currency" = case when upsert_work_center.input ? 'currency' then upper(nullif(upsert_work_center.input ->> 'currency', '')) else x."currency" end,
+      "archived_at" = case when not upsert_work_center.input ? 'archived' then x."archived_at"
+        when (upsert_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -3522,8 +3522,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'assetId', v_row."asset_id", 'hoursPerDay', v_row."hours_per_day"::text, 'costRate', v_row."cost_rate"::text, 'currency', v_row."currency", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- The organization's work centers by name, archived ones included.
 create or replace function "better_supabase"."list_work_centers"(tenant uuid)
@@ -5063,7 +5063,7 @@ begin
     end if;
     v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  v_purchase := "better_supabase"."save_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
       v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
@@ -5258,7 +5258,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:292e8b30b4f9d3c0bd6980b68f034a69138a6a92ef4a8023bedd525560a67fce
+-- @bsb-hash sha256:964b4ea94b11ae9ccc7a074440d818ff7f686b65281bfeb3da8dd8943a1e63e2
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5556,7 +5556,7 @@ revoke execute on function "app_private"."bom_reaches"(uuid, uuid) from public, 
 -- inspectionTemplate }], components: [{ variantId, quantity, scrapBps,
 -- operation }] }; a component's operation is the sequence of the operation
 -- that uses it.
-create or replace function "app_private"."save_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function "app_private"."upsert_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5572,21 +5572,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bom.tenant is not null and coalesce(better_supabase.can('tenant', save_bom.tenant, 'manufacturing.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bom.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bom.tenant, 'manufacturing.write'), false))) then
     raise exception 'not allowed to change bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bom.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bom.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = save_bom.variant and cv."tenant_id" = save_bom.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = upsert_bom.variant and cv."tenant_id" = upsert_bom.tenant) then
     raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
+  v_quantity := coalesce(nullif(upsert_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
     raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_components := save_bom.input -> 'components';
-  v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
+  v_components := upsert_bom.input -> 'components';
+  v_operations := coalesce(upsert_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
     raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
@@ -5599,10 +5599,10 @@ begin
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
     raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = upsert_bom.variant) then
     raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_bom.tenant)) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_bom.tenant)) then
     raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
@@ -5615,7 +5615,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from "app_private"."work_centers" x where x."id" = nullif(e ->> 'workCenterId', '')::uuid
-      and x."tenant_id" = save_bom.tenant and x."archived_at" is null)) then
+      and x."tenant_id" = upsert_bom.tenant and x."archived_at" is null)) then
     raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
@@ -5625,35 +5625,35 @@ begin
   
   
 
-  if save_bom.bom_id is null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || save_bom.variant::text, 0));
+  if upsert_bom.bom_id is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || upsert_bom.variant::text, 0));
     insert into "app_private"."boms" ("tenant_id", "variant_id", "version", "quantity", "note", "created_by")
-    values (save_bom.tenant, save_bom.variant,
-      coalesce((select max(x."version") from "app_private"."boms" x where x."variant_id" = save_bom.variant), 0) + 1,
-      v_quantity, nullif(trim(save_bom.input ->> 'note'), ''), auth.uid())
+    values (upsert_bom.tenant, upsert_bom.variant,
+      coalesce((select max(x."version") from "app_private"."boms" x where x."variant_id" = upsert_bom.variant), 0) + 1,
+      v_quantity, nullif(trim(upsert_bom.input ->> 'note'), ''), auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "app_private"."boms" x where x."id" = save_bom.bom_id and x."tenant_id" = save_bom.tenant for update;
+    select * into v_row from "app_private"."boms" x where x."id" = upsert_bom.bom_id and x."tenant_id" = upsert_bom.tenant for update;
     if not found then
       raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
     end if;
-    if v_row."variant_id" <> save_bom.variant or v_row."status" <> 'draft' then
+    if v_row."variant_id" <> upsert_bom.variant or v_row."status" <> 'draft' then
       raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
     end if;
     delete from "app_private"."bom_components" x where x."bom_id" = v_row."id";
     delete from "app_private"."bom_operations" x where x."bom_id" = v_row."id";
-    update "app_private"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(save_bom.input ->> 'note'), ''), "updated_at" = now()
+    update "app_private"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(upsert_bom.input ->> 'note'), ''), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
 
   insert into "app_private"."bom_operations" ("tenant_id", "bom_id", "sequence", "work_center_id", "title", "setup_minutes", "run_minutes_per_unit", "instructions_node_id", "inspection_template")
-  select save_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
+  select upsert_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
     coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0), coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0),
     nullif(e ->> 'instructionsNodeId', '')::uuid, nullif(e ->> 'inspectionTemplate', '')
   from jsonb_array_elements(v_operations) e;
   insert into "app_private"."bom_components" ("tenant_id", "bom_id", "position", "variant_id", "quantity", "scrap_bps", "operation_id")
-  select save_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
+  select upsert_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
     coalesce(nullif(e.value ->> 'scrapBps', '')::integer, 0),
     (select y."id" from "app_private"."bom_operations" y where y."bom_id" = v_row."id" and y."sequence" = nullif(e.value ->> 'operation', '')::integer)
   from jsonb_array_elements(v_components) with ordinality e(value, n);
@@ -5667,8 +5667,8 @@ begin
       from "app_private"."bom_operations" y where y."bom_id" = v_row."id"), '[]'::jsonb)));
 end;
 $$;
-revoke execute on function "app_private"."save_bom"(uuid, uuid, jsonb, uuid) from public, anon;
-grant execute on function "app_private"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_bom"(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function "app_private"."upsert_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Makes a version its variant's active bill of materials; the version that was
 -- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
@@ -6132,7 +6132,7 @@ grant execute on function "app_private"."bom_where_used"(uuid) to authenticated,
 -- Creates a work center (work_center_id null) or changes one. input is {
 -- name, assetId, hoursPerDay, costRate (minor units per hour), currency,
 -- archived }; keys left out keep their value.
-create or replace function "app_private"."save_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
+create or replace function "app_private"."upsert_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6146,37 +6146,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_work_center.tenant is not null and coalesce(better_supabase.can('tenant', save_work_center.tenant, 'manufacturing.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_work_center.tenant is not null and coalesce(better_supabase.can('tenant', upsert_work_center.tenant, 'manufacturing.manage'), false))) then
     raise exception 'not allowed to change work centers' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_work_center.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_work_center.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if save_work_center.work_center_id is not null then
+  if upsert_work_center.work_center_id is not null then
     select * into v_row from "app_private"."work_centers" x
-    where x."id" = save_work_center.work_center_id and x."tenant_id" = save_work_center.tenant for update;
+    where x."id" = upsert_work_center.work_center_id and x."tenant_id" = upsert_work_center.tenant for update;
     if not found then
       raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
     end if;
   end if;
-  v_asset := case when save_work_center.input ? 'assetId' then nullif(save_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
+  v_asset := case when upsert_work_center.input ? 'assetId' then nullif(upsert_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
   
-  if save_work_center.work_center_id is null then
+  if upsert_work_center.work_center_id is null then
     insert into "app_private"."work_centers" ("tenant_id", "name", "asset_id", "hours_per_day", "cost_rate", "currency")
-    values (save_work_center.tenant, trim(save_work_center.input ->> 'name'), v_asset,
-      coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
-      coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, 0),
-      upper(nullif(save_work_center.input ->> 'currency', '')))
+    values (upsert_work_center.tenant, trim(upsert_work_center.input ->> 'name'), v_asset,
+      coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
+      coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, 0),
+      upper(nullif(upsert_work_center.input ->> 'currency', '')))
     returning * into v_row;
   else
     update "app_private"."work_centers" x set
-      "name" = case when save_work_center.input ? 'name' then trim(save_work_center.input ->> 'name') else x."name" end,
+      "name" = case when upsert_work_center.input ? 'name' then trim(upsert_work_center.input ->> 'name') else x."name" end,
       "asset_id" = v_asset,
-      "hours_per_day" = coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
-      "cost_rate" = coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
-      "currency" = case when save_work_center.input ? 'currency' then upper(nullif(save_work_center.input ->> 'currency', '')) else x."currency" end,
-      "archived_at" = case when not save_work_center.input ? 'archived' then x."archived_at"
-        when (save_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
+      "hours_per_day" = coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
+      "cost_rate" = coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
+      "currency" = case when upsert_work_center.input ? 'currency' then upper(nullif(upsert_work_center.input ->> 'currency', '')) else x."currency" end,
+      "archived_at" = case when not upsert_work_center.input ? 'archived' then x."archived_at"
+        when (upsert_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -6184,8 +6184,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'assetId', v_row."asset_id", 'hoursPerDay', v_row."hours_per_day"::text, 'costRate', v_row."cost_rate"::text, 'currency', v_row."currency", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_work_center"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "app_private"."save_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_work_center"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "app_private"."upsert_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- The organization's work centers by name, archived ones included.
 create or replace function "app_private"."list_work_centers"(tenant uuid)
@@ -7685,7 +7685,7 @@ begin
     end if;
     v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  v_purchase := "better_supabase"."save_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
       v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
@@ -7845,7 +7845,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:4d7d860299b45faa2c75074d984402872edf94d6966fd311804b1ac81ea37d8c
+-- @bsb-hash sha256:97323e3ef779eb0a66f198b2263fafcf8b2080348ff70c150e2205367ae32129
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8138,7 +8138,7 @@ revoke execute on function "better_supabase"."bom_reaches"(uuid, uuid) from publ
 -- inspectionTemplate }], components: [{ variantId, quantity, scrapBps,
 -- operation }] }; a component's operation is the sequence of the operation
 -- that uses it.
-create or replace function "better_supabase"."save_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function "better_supabase"."upsert_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8154,21 +8154,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bom.tenant is not null and coalesce(better_supabase.can('tenant', save_bom.tenant, 'manufacturing.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bom.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bom.tenant, 'manufacturing.write'), false))) then
     raise exception 'not allowed to change bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bom.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bom.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = save_bom.variant and cv."tenant_id" = save_bom.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = upsert_bom.variant and cv."tenant_id" = upsert_bom.tenant) then
     raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
+  v_quantity := coalesce(nullif(upsert_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
     raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_components := save_bom.input -> 'components';
-  v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
+  v_components := upsert_bom.input -> 'components';
+  v_operations := coalesce(upsert_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
     raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
@@ -8181,10 +8181,10 @@ begin
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
     raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = upsert_bom.variant) then
     raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_bom.tenant)) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_bom.tenant)) then
     raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
@@ -8197,7 +8197,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from "better_supabase"."work_centers" x where x."id" = nullif(e ->> 'workCenterId', '')::uuid
-      and x."tenant_id" = save_bom.tenant and x."archived_at" is null)) then
+      and x."tenant_id" = upsert_bom.tenant and x."archived_at" is null)) then
     raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
@@ -8207,35 +8207,35 @@ begin
   
   
 
-  if save_bom.bom_id is null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || save_bom.variant::text, 0));
+  if upsert_bom.bom_id is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || upsert_bom.variant::text, 0));
     insert into "better_supabase"."boms" ("tenant_id", "variant_id", "version", "quantity", "note", "created_by")
-    values (save_bom.tenant, save_bom.variant,
-      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = save_bom.variant), 0) + 1,
-      v_quantity, nullif(trim(save_bom.input ->> 'note'), ''), auth.uid())
+    values (upsert_bom.tenant, upsert_bom.variant,
+      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = upsert_bom.variant), 0) + 1,
+      v_quantity, nullif(trim(upsert_bom.input ->> 'note'), ''), auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."boms" x where x."id" = save_bom.bom_id and x."tenant_id" = save_bom.tenant for update;
+    select * into v_row from "better_supabase"."boms" x where x."id" = upsert_bom.bom_id and x."tenant_id" = upsert_bom.tenant for update;
     if not found then
       raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
     end if;
-    if v_row."variant_id" <> save_bom.variant or v_row."status" <> 'draft' then
+    if v_row."variant_id" <> upsert_bom.variant or v_row."status" <> 'draft' then
       raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
     end if;
     delete from "better_supabase"."bom_components" x where x."bom_id" = v_row."id";
     delete from "better_supabase"."bom_operations" x where x."bom_id" = v_row."id";
-    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(save_bom.input ->> 'note'), ''), "updated_at" = now()
+    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(upsert_bom.input ->> 'note'), ''), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
 
   insert into "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence", "work_center_id", "title", "setup_minutes", "run_minutes_per_unit", "instructions_node_id", "inspection_template")
-  select save_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
+  select upsert_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
     coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0), coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0),
     nullif(e ->> 'instructionsNodeId', '')::uuid, nullif(e ->> 'inspectionTemplate', '')
   from jsonb_array_elements(v_operations) e;
   insert into "better_supabase"."bom_components" ("tenant_id", "bom_id", "position", "variant_id", "quantity", "scrap_bps", "operation_id")
-  select save_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
+  select upsert_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
     coalesce(nullif(e.value ->> 'scrapBps', '')::integer, 0),
     (select y."id" from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id" and y."sequence" = nullif(e.value ->> 'operation', '')::integer)
   from jsonb_array_elements(v_components) with ordinality e(value, n);
@@ -8249,8 +8249,8 @@ begin
       from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id"), '[]'::jsonb)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Makes a version its variant's active bill of materials; the version that was
 -- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
@@ -8714,7 +8714,7 @@ grant execute on function "better_supabase"."bom_where_used"(uuid) to authentica
 -- Creates a work center (work_center_id null) or changes one. input is {
 -- name, assetId, hoursPerDay, costRate (minor units per hour), currency,
 -- archived }; keys left out keep their value.
-create or replace function "better_supabase"."save_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
+create or replace function "better_supabase"."upsert_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8728,37 +8728,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_work_center.tenant is not null and coalesce(better_supabase.can('tenant', save_work_center.tenant, 'manufacturing.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_work_center.tenant is not null and coalesce(better_supabase.can('tenant', upsert_work_center.tenant, 'manufacturing.manage'), false))) then
     raise exception 'not allowed to change work centers' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_work_center.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_work_center.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if save_work_center.work_center_id is not null then
+  if upsert_work_center.work_center_id is not null then
     select * into v_row from "better_supabase"."work_centers" x
-    where x."id" = save_work_center.work_center_id and x."tenant_id" = save_work_center.tenant for update;
+    where x."id" = upsert_work_center.work_center_id and x."tenant_id" = upsert_work_center.tenant for update;
     if not found then
       raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
     end if;
   end if;
-  v_asset := case when save_work_center.input ? 'assetId' then nullif(save_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
+  v_asset := case when upsert_work_center.input ? 'assetId' then nullif(upsert_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
   
-  if save_work_center.work_center_id is null then
+  if upsert_work_center.work_center_id is null then
     insert into "better_supabase"."work_centers" ("tenant_id", "name", "asset_id", "hours_per_day", "cost_rate", "currency")
-    values (save_work_center.tenant, trim(save_work_center.input ->> 'name'), v_asset,
-      coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
-      coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, 0),
-      upper(nullif(save_work_center.input ->> 'currency', '')))
+    values (upsert_work_center.tenant, trim(upsert_work_center.input ->> 'name'), v_asset,
+      coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
+      coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, 0),
+      upper(nullif(upsert_work_center.input ->> 'currency', '')))
     returning * into v_row;
   else
     update "better_supabase"."work_centers" x set
-      "name" = case when save_work_center.input ? 'name' then trim(save_work_center.input ->> 'name') else x."name" end,
+      "name" = case when upsert_work_center.input ? 'name' then trim(upsert_work_center.input ->> 'name') else x."name" end,
       "asset_id" = v_asset,
-      "hours_per_day" = coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
-      "cost_rate" = coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
-      "currency" = case when save_work_center.input ? 'currency' then upper(nullif(save_work_center.input ->> 'currency', '')) else x."currency" end,
-      "archived_at" = case when not save_work_center.input ? 'archived' then x."archived_at"
-        when (save_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
+      "hours_per_day" = coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
+      "cost_rate" = coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
+      "currency" = case when upsert_work_center.input ? 'currency' then upper(nullif(upsert_work_center.input ->> 'currency', '')) else x."currency" end,
+      "archived_at" = case when not upsert_work_center.input ? 'archived' then x."archived_at"
+        when (upsert_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -8766,8 +8766,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'assetId', v_row."asset_id", 'hoursPerDay', v_row."hours_per_day"::text, 'costRate', v_row."cost_rate"::text, 'currency', v_row."currency", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- The organization's work centers by name, archived ones included.
 create or replace function "better_supabase"."list_work_centers"(tenant uuid)
@@ -10267,7 +10267,7 @@ begin
     end if;
     v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  v_purchase := "better_supabase"."save_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
       v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
@@ -10414,14 +10414,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_lot_links" as 
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function "api"."upsert_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_bom"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_bom"(uuid, uuid, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_bom"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_bom"(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."activate_bom"(bom_id uuid)
 returns jsonb
@@ -10482,14 +10482,14 @@ as $$ select "better_supabase"."bom_where_used"($1) $$;
 revoke execute on function "api"."bom_where_used"(uuid) from public, anon;
 grant execute on function "api"."bom_where_used"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
+create or replace function "api"."upsert_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_work_center"($1, $2, $3) $$;
-revoke execute on function "api"."save_work_center"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_work_center"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_work_center"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_work_centers"(tenant uuid)
 returns jsonb
@@ -10660,7 +10660,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:b7ada82876f61505901b0e4688f45f1c18eec82f89cdbcc2b79f2ddbf55c5208
+-- @bsb-hash sha256:b7131503f4fe5d4d90e6dc6359cc52490f8a4148c5f64f84bdcfbaf4b6da870b
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10906,7 +10906,7 @@ revoke execute on function "better_supabase"."bom_reaches"(uuid, uuid) from publ
 -- inspectionTemplate }], components: [{ variantId, quantity, scrapBps,
 -- operation }] }; a component's operation is the sequence of the operation
 -- that uses it.
-create or replace function "better_supabase"."save_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function "better_supabase"."upsert_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10922,21 +10922,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bom.tenant is not null and coalesce(better_supabase.can('tenant', save_bom.tenant, 'manufacturing.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bom.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bom.tenant, 'manufacturing.write'), false))) then
     raise exception 'not allowed to change bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bom.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bom.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = save_bom.variant and cv."tenant_id" = save_bom.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = upsert_bom.variant and cv."tenant_id" = upsert_bom.tenant) then
     raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
+  v_quantity := coalesce(nullif(upsert_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
     raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_components := save_bom.input -> 'components';
-  v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
+  v_components := upsert_bom.input -> 'components';
+  v_operations := coalesce(upsert_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
     raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
@@ -10949,10 +10949,10 @@ begin
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
     raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = upsert_bom.variant) then
     raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_bom.tenant)) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_bom.tenant)) then
     raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
@@ -10965,7 +10965,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from "better_supabase"."work_centers" x where x."id" = nullif(e ->> 'workCenterId', '')::uuid
-      and x."tenant_id" = save_bom.tenant and x."archived_at" is null)) then
+      and x."tenant_id" = upsert_bom.tenant and x."archived_at" is null)) then
     raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
@@ -10975,35 +10975,35 @@ begin
   
   
 
-  if save_bom.bom_id is null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || save_bom.variant::text, 0));
+  if upsert_bom.bom_id is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || upsert_bom.variant::text, 0));
     insert into "better_supabase"."boms" ("tenant_id", "variant_id", "version", "quantity", "note", "created_by")
-    values (save_bom.tenant, save_bom.variant,
-      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = save_bom.variant), 0) + 1,
-      v_quantity, nullif(trim(save_bom.input ->> 'note'), ''), auth.uid())
+    values (upsert_bom.tenant, upsert_bom.variant,
+      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = upsert_bom.variant), 0) + 1,
+      v_quantity, nullif(trim(upsert_bom.input ->> 'note'), ''), auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."boms" x where x."id" = save_bom.bom_id and x."tenant_id" = save_bom.tenant for update;
+    select * into v_row from "better_supabase"."boms" x where x."id" = upsert_bom.bom_id and x."tenant_id" = upsert_bom.tenant for update;
     if not found then
       raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
     end if;
-    if v_row."variant_id" <> save_bom.variant or v_row."status" <> 'draft' then
+    if v_row."variant_id" <> upsert_bom.variant or v_row."status" <> 'draft' then
       raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
     end if;
     delete from "better_supabase"."bom_components" x where x."bom_id" = v_row."id";
     delete from "better_supabase"."bom_operations" x where x."bom_id" = v_row."id";
-    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(save_bom.input ->> 'note'), ''), "updated_at" = now()
+    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(upsert_bom.input ->> 'note'), ''), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
 
   insert into "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence", "work_center_id", "title", "setup_minutes", "run_minutes_per_unit", "instructions_node_id", "inspection_template")
-  select save_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
+  select upsert_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
     coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0), coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0),
     nullif(e ->> 'instructionsNodeId', '')::uuid, nullif(e ->> 'inspectionTemplate', '')
   from jsonb_array_elements(v_operations) e;
   insert into "better_supabase"."bom_components" ("tenant_id", "bom_id", "position", "variant_id", "quantity", "scrap_bps", "operation_id")
-  select save_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
+  select upsert_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
     coalesce(nullif(e.value ->> 'scrapBps', '')::integer, 0),
     (select y."id" from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id" and y."sequence" = nullif(e.value ->> 'operation', '')::integer)
   from jsonb_array_elements(v_components) with ordinality e(value, n);
@@ -11017,8 +11017,8 @@ begin
       from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id"), '[]'::jsonb)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Makes a version its variant's active bill of materials; the version that was
 -- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
@@ -11482,7 +11482,7 @@ grant execute on function "better_supabase"."bom_where_used"(uuid) to authentica
 -- Creates a work center (work_center_id null) or changes one. input is {
 -- name, assetId, hoursPerDay, costRate (minor units per hour), currency,
 -- archived }; keys left out keep their value.
-create or replace function "better_supabase"."save_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
+create or replace function "better_supabase"."upsert_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -11496,37 +11496,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_work_center.tenant is not null and coalesce(better_supabase.can('tenant', save_work_center.tenant, 'manufacturing.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_work_center.tenant is not null and coalesce(better_supabase.can('tenant', upsert_work_center.tenant, 'manufacturing.manage'), false))) then
     raise exception 'not allowed to change work centers' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_work_center.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_work_center.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if save_work_center.work_center_id is not null then
+  if upsert_work_center.work_center_id is not null then
     select * into v_row from "better_supabase"."work_centers" x
-    where x."id" = save_work_center.work_center_id and x."tenant_id" = save_work_center.tenant for update;
+    where x."id" = upsert_work_center.work_center_id and x."tenant_id" = upsert_work_center.tenant for update;
     if not found then
       raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
     end if;
   end if;
-  v_asset := case when save_work_center.input ? 'assetId' then nullif(save_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
+  v_asset := case when upsert_work_center.input ? 'assetId' then nullif(upsert_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
   
-  if save_work_center.work_center_id is null then
+  if upsert_work_center.work_center_id is null then
     insert into "better_supabase"."work_centers" ("tenant_id", "name", "asset_id", "hours_per_day", "cost_rate", "currency")
-    values (save_work_center.tenant, trim(save_work_center.input ->> 'name'), v_asset,
-      coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
-      coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, 0),
-      upper(nullif(save_work_center.input ->> 'currency', '')))
+    values (upsert_work_center.tenant, trim(upsert_work_center.input ->> 'name'), v_asset,
+      coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
+      coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, 0),
+      upper(nullif(upsert_work_center.input ->> 'currency', '')))
     returning * into v_row;
   else
     update "better_supabase"."work_centers" x set
-      "name" = case when save_work_center.input ? 'name' then trim(save_work_center.input ->> 'name') else x."name" end,
+      "name" = case when upsert_work_center.input ? 'name' then trim(upsert_work_center.input ->> 'name') else x."name" end,
       "asset_id" = v_asset,
-      "hours_per_day" = coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
-      "cost_rate" = coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
-      "currency" = case when save_work_center.input ? 'currency' then upper(nullif(save_work_center.input ->> 'currency', '')) else x."currency" end,
-      "archived_at" = case when not save_work_center.input ? 'archived' then x."archived_at"
-        when (save_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
+      "hours_per_day" = coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
+      "cost_rate" = coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
+      "currency" = case when upsert_work_center.input ? 'currency' then upper(nullif(upsert_work_center.input ->> 'currency', '')) else x."currency" end,
+      "archived_at" = case when not upsert_work_center.input ? 'archived' then x."archived_at"
+        when (upsert_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -11534,8 +11534,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'assetId', v_row."asset_id", 'hoursPerDay', v_row."hours_per_day"::text, 'costRate', v_row."cost_rate"::text, 'currency', v_row."currency", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- The organization's work centers by name, archived ones included.
 create or replace function "better_supabase"."list_work_centers"(tenant uuid)
@@ -13035,7 +13035,7 @@ begin
     end if;
     v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  v_purchase := "better_supabase"."save_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
       v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);
@@ -13195,7 +13195,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:15de89ecc4a27b5d8a9b485eca5b3914093b6f41283ad2a778805fb3b3272b81
+-- @bsb-hash sha256:3625dc812708f53a8ea139f4fbc9512c4346ebc04614e97ae0488d4705d91494
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13488,7 +13488,7 @@ revoke execute on function "better_supabase"."bom_reaches"(uuid, uuid) from publ
 -- inspectionTemplate }], components: [{ variantId, quantity, scrapBps,
 -- operation }] }; a component's operation is the sequence of the operation
 -- that uses it.
-create or replace function "better_supabase"."save_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function "better_supabase"."upsert_bom"(tenant uuid, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -13504,21 +13504,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bom.tenant is not null and coalesce(better_supabase.can('tenant', save_bom.tenant, 'manufacturing.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bom.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bom.tenant, 'manufacturing.write'), false))) then
     raise exception 'not allowed to change bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bom.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bom.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = save_bom.variant and cv."org_id" = save_bom.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = upsert_bom.variant and cv."org_id" = upsert_bom.tenant) then
     raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
+  v_quantity := coalesce(nullif(upsert_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
     raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  v_components := save_bom.input -> 'components';
-  v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
+  v_components := upsert_bom.input -> 'components';
+  v_operations := coalesce(upsert_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
     raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
@@ -13531,10 +13531,10 @@ begin
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
     raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = upsert_bom.variant) then
     raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."org_id" = save_bom.tenant)) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."org_id" = upsert_bom.tenant)) then
     raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
@@ -13547,7 +13547,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from "better_supabase"."work_centers" x where x."id" = nullif(e ->> 'workCenterId', '')::uuid
-      and x."org_id" = save_bom.tenant and x."archived_at" is null)) then
+      and x."org_id" = upsert_bom.tenant and x."archived_at" is null)) then
     raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
@@ -13557,35 +13557,35 @@ begin
   
   
 
-  if save_bom.bom_id is null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || save_bom.variant::text, 0));
+  if upsert_bom.bom_id is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || upsert_bom.variant::text, 0));
     insert into "better_supabase"."boms" ("org_id", "variant_id", "version", "quantity", "note", "created_by")
-    values (save_bom.tenant, save_bom.variant,
-      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = save_bom.variant), 0) + 1,
-      v_quantity, nullif(trim(save_bom.input ->> 'note'), ''), auth.uid())
+    values (upsert_bom.tenant, upsert_bom.variant,
+      coalesce((select max(x."version") from "better_supabase"."boms" x where x."variant_id" = upsert_bom.variant), 0) + 1,
+      v_quantity, nullif(trim(upsert_bom.input ->> 'note'), ''), auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."boms" x where x."id" = save_bom.bom_id and x."org_id" = save_bom.tenant for update;
+    select * into v_row from "better_supabase"."boms" x where x."id" = upsert_bom.bom_id and x."org_id" = upsert_bom.tenant for update;
     if not found then
       raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
     end if;
-    if v_row."variant_id" <> save_bom.variant or v_row."status" <> 'draft' then
+    if v_row."variant_id" <> upsert_bom.variant or v_row."status" <> 'draft' then
       raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
     end if;
     delete from "better_supabase"."bom_components" x where x."bom_id" = v_row."id";
     delete from "better_supabase"."bom_operations" x where x."bom_id" = v_row."id";
-    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(save_bom.input ->> 'note'), ''), "updated_at" = now()
+    update "better_supabase"."boms" x set "quantity" = v_quantity, "note" = nullif(trim(upsert_bom.input ->> 'note'), ''), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
 
   insert into "better_supabase"."bom_operations" ("org_id", "bom_id", "sequence", "work_center_id", "title", "setup_minutes", "run_minutes_per_unit", "instructions_node_id", "inspection_template")
-  select save_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
+  select upsert_bom.tenant, v_row."id", (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
     coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0), coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0),
     nullif(e ->> 'instructionsNodeId', '')::uuid, nullif(e ->> 'inspectionTemplate', '')
   from jsonb_array_elements(v_operations) e;
   insert into "better_supabase"."bom_components" ("org_id", "bom_id", "position", "variant_id", "quantity", "scrap_bps", "operation_id")
-  select save_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
+  select upsert_bom.tenant, v_row."id", e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
     coalesce(nullif(e.value ->> 'scrapBps', '')::integer, 0),
     (select y."id" from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id" and y."sequence" = nullif(e.value ->> 'operation', '')::integer)
   from jsonb_array_elements(v_components) with ordinality e(value, n);
@@ -13599,8 +13599,8 @@ begin
       from "better_supabase"."bom_operations" y where y."bom_id" = v_row."id"), '[]'::jsonb)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Makes a version its variant's active bill of materials; the version that was
 -- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
@@ -14064,7 +14064,7 @@ grant execute on function "better_supabase"."bom_where_used"(uuid) to authentica
 -- Creates a work center (work_center_id null) or changes one. input is {
 -- name, assetId, hoursPerDay, costRate (minor units per hour), currency,
 -- archived }; keys left out keep their value.
-create or replace function "better_supabase"."save_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
+create or replace function "better_supabase"."upsert_work_center"(tenant uuid, input jsonb, work_center_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -14078,37 +14078,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_work_center.tenant is not null and coalesce(better_supabase.can('tenant', save_work_center.tenant, 'manufacturing.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_work_center.tenant is not null and coalesce(better_supabase.can('tenant', upsert_work_center.tenant, 'manufacturing.manage'), false))) then
     raise exception 'not allowed to change work centers' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_work_center.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_work_center.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
-  if save_work_center.work_center_id is not null then
+  if upsert_work_center.work_center_id is not null then
     select * into v_row from "better_supabase"."work_centers" x
-    where x."id" = save_work_center.work_center_id and x."org_id" = save_work_center.tenant for update;
+    where x."id" = upsert_work_center.work_center_id and x."org_id" = upsert_work_center.tenant for update;
     if not found then
       raise exception 'no such work center in this organization' using errcode = 'P0002', hint = 'WORK_CENTER_NOT_FOUND';
     end if;
   end if;
-  v_asset := case when save_work_center.input ? 'assetId' then nullif(save_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
+  v_asset := case when upsert_work_center.input ? 'assetId' then nullif(upsert_work_center.input ->> 'assetId', '')::uuid else v_row."asset_id" end;
   
-  if save_work_center.work_center_id is null then
+  if upsert_work_center.work_center_id is null then
     insert into "better_supabase"."work_centers" ("org_id", "name", "asset_id", "hours_per_day", "cost_rate", "currency")
-    values (save_work_center.tenant, trim(save_work_center.input ->> 'name'), v_asset,
-      coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
-      coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, 0),
-      upper(nullif(save_work_center.input ->> 'currency', '')))
+    values (upsert_work_center.tenant, trim(upsert_work_center.input ->> 'name'), v_asset,
+      coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
+      coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, 0),
+      upper(nullif(upsert_work_center.input ->> 'currency', '')))
     returning * into v_row;
   else
     update "better_supabase"."work_centers" x set
-      "name" = case when save_work_center.input ? 'name' then trim(save_work_center.input ->> 'name') else x."name" end,
+      "name" = case when upsert_work_center.input ? 'name' then trim(upsert_work_center.input ->> 'name') else x."name" end,
       "asset_id" = v_asset,
-      "hours_per_day" = coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
-      "cost_rate" = coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
-      "currency" = case when save_work_center.input ? 'currency' then upper(nullif(save_work_center.input ->> 'currency', '')) else x."currency" end,
-      "archived_at" = case when not save_work_center.input ? 'archived' then x."archived_at"
-        when (save_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
+      "hours_per_day" = coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, x."hours_per_day"),
+      "cost_rate" = coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, x."cost_rate"),
+      "currency" = case when upsert_work_center.input ? 'currency' then upper(nullif(upsert_work_center.input ->> 'currency', '')) else x."currency" end,
+      "archived_at" = case when not upsert_work_center.input ? 'archived' then x."archived_at"
+        when (upsert_work_center.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) else null end,
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -14116,8 +14116,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'name', v_row."name", 'assetId', v_row."asset_id", 'hoursPerDay', v_row."hours_per_day"::text, 'costRate', v_row."cost_rate"::text, 'currency', v_row."currency", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_work_center"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- The organization's work centers by name, archived ones included.
 create or replace function "better_supabase"."list_work_centers"(tenant uuid)
@@ -15617,7 +15617,7 @@ begin
     end if;
     v_claims := current_setting('request.jwt.claims', true);
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  v_purchase := "better_supabase"."save_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
       v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     v_purchases := v_purchases || jsonb_build_array(v_purchase);

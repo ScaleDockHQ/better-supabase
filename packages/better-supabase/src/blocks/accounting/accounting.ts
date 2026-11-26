@@ -776,7 +776,7 @@ export function createAccounting<
       ),
     saveAccount: ({ organizationId, input }) =>
       call(
-        "save_accounting_account",
+        "upsert_accounting_account",
         {
           tenant: organizationId,
           code: input.code,
@@ -791,7 +791,7 @@ export function createAccounting<
           default_tax_code_id: input.defaultTaxCodeId ?? null,
           active: input.active ?? null,
         },
-        (value) => accountOf(value, "save_accounting_account"),
+        (value) => accountOf(value, "upsert_accounting_account"),
       ),
     archiveAccount: ({ accountId, archived = true }) =>
       call(
@@ -826,7 +826,7 @@ export function createAccounting<
       ),
     saveJournal: ({ organizationId, input }) =>
       call(
-        "save_accounting_journal",
+        "upsert_accounting_journal",
         {
           tenant: organizationId,
           code: input.code,
@@ -838,7 +838,7 @@ export function createAccounting<
           contra_account_id: input.contraAccountId ?? null,
           bank_account_id: input.bankAccountId ?? null,
         },
-        (value) => journalOf(value, "save_accounting_journal"),
+        (value) => journalOf(value, "upsert_accounting_journal"),
       ),
     journals: (organizationId) =>
       call(
@@ -860,20 +860,20 @@ export function createAccounting<
       ),
     saveDimension: ({ organizationId, key, name }) =>
       call(
-        "save_accounting_dimension",
+        "upsert_accounting_dimension",
         { tenant: organizationId, key, name },
-        (value) => dimensionOf(value, "save_accounting_dimension"),
+        (value) => dimensionOf(value, "upsert_accounting_dimension"),
       ),
     saveDimensionValue: ({ dimensionId, input }) =>
       call(
-        "save_accounting_dimension_value",
+        "upsert_accounting_dimension_value",
         {
           dimension_id: dimensionId,
           code: input.code,
           name: input.name,
           archived: input.archived ?? false,
         },
-        (value) => dimensionOf(value, "save_accounting_dimension_value"),
+        (value) => dimensionOf(value, "upsert_accounting_dimension_value"),
       ),
     dimensions: (organizationId) =>
       call(
@@ -904,7 +904,7 @@ export function createAccounting<
         .args(input.fields)
         .andThen((checked) =>
           call(
-            "save_accounting_entry",
+            "upsert_accounting_entry",
             {
               journal_id: input.journalId,
               entry_date: input.entryDate.toString(),
@@ -916,7 +916,7 @@ export function createAccounting<
               entry_id: input.entryId ?? null,
               ...(checked === undefined ? {} : { fields: checked }),
             },
-            entry("save_accounting_entry"),
+            entry("upsert_accounting_entry"),
           ).andThen(fields.row),
         ),
     postEntry: (entryId) =>

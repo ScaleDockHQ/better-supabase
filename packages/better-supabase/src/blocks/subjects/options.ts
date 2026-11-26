@@ -11,7 +11,7 @@ export const DEFAULT_READ_COLLAPSE_SECONDS = 60;
 /** `blocks.subjects.options.recordTeam`. */
 export interface RecordTeamOptions {
   /**
-   * The roles a `subject_members` row may hold. `add_subject_member` refuses
+   * The roles a `subject_members` row may hold. `create_subject_member` refuses
    * any other with `SUBJECT_MEMBER_INVALID`. Default `["lead", "member"]`.
    */
   readonly roles?: readonly string[];

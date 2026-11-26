@@ -155,7 +155,7 @@ describe("purchase orders without the optional columns (ADR 0668)", () => {
     const full = sqlOf(["catalog", "inventory", "outbox"], "inventory");
     const sql = sqlOf(["catalog", "inventory", "outbox"], "inventory", bare);
 
-    expect(sql).toContain('"better_supabase"."save_purchase_order"(');
+    expect(sql).toContain('"better_supabase"."upsert_purchase_order"(');
     expect(sql).not.toContain("purchase_order_tax_lines");
     expect(sql).not.toContain("quantity_canceled");
     expect(full).toContain("purchase_order_tax_lines");

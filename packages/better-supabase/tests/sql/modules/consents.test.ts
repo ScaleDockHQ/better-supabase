@@ -119,7 +119,7 @@ describe("consents module", () => {
     const [contract] = customContracts(["consents"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "save_consent_purpose",
+        "upsert_consent_purpose",
         "record_consent",
         "withdraw_consent",
         "consent_active",

@@ -164,7 +164,7 @@ ${serviceGrant(`${fn("commission_tiers_valid")}(jsonb)`)}
 -- Creates a plan, or changes the one with plan_id. A flat plan sets rate_bps, a
 -- tiered plan sets tiers. archived hides a plan from new assignments. Needs
 -- commissions.manage.
-create or replace function ${fn("save_commission_plan")}(tenant ${idType}, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function ${fn("upsert_commission_plan")}(tenant ${idType}, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -173,20 +173,20 @@ as $$
 #variable_conflict use_variable
 declare
   v_plan ${plans};
-  v_created boolean := save_commission_plan.plan_id is null;
+  v_created boolean := upsert_commission_plan.plan_id is null;
 begin
-  if not ${k.allowed("save_commission_plan.tenant", k.manage)} then
+  if not ${k.allowed("upsert_commission_plan.tenant", k.manage)} then
     ${forbidden("not allowed to manage commission plans")}
   end if;
-  if nullif(trim(save_commission_plan.name), '') is null or length(trim(save_commission_plan.name)) > 200 then
+  if nullif(trim(upsert_commission_plan.name), '') is null or length(trim(upsert_commission_plan.name)) > 200 then
     ${invalid("a plan needs a name of at most 200 characters")}
   end if;
-  if save_commission_plan.kind = 'flat' then
-    if save_commission_plan.rate_bps is null or save_commission_plan.rate_bps not between 0 and 10000 or save_commission_plan.tiers is not null then
+  if upsert_commission_plan.kind = 'flat' then
+    if upsert_commission_plan.rate_bps is null or upsert_commission_plan.rate_bps not between 0 and 10000 or upsert_commission_plan.tiers is not null then
       ${invalid("a flat plan takes rate_bps from 0 to 10000 and no tiers")}
     end if;
-  elsif save_commission_plan.kind = 'tiered' then
-    if save_commission_plan.rate_bps is not null or not ${fn("commission_tiers_valid")}(save_commission_plan.tiers) then
+  elsif upsert_commission_plan.kind = 'tiered' then
+    if upsert_commission_plan.rate_bps is not null or not ${fn("commission_tiers_valid")}(upsert_commission_plan.tiers) then
       ${invalid("a tiered plan takes rising { upTo, bps } tiers with a last tier that has no upTo")}
     end if;
   else
@@ -194,16 +194,16 @@ begin
   end if;
   if v_created then
     insert into ${plans} (${p("tenant")}, ${p("name")}, ${p("kind")}, ${p("rateBps")}, ${p("tiers")}, ${p("archivedAt")})
-    values (save_commission_plan.tenant, trim(save_commission_plan.name), save_commission_plan.kind, save_commission_plan.rate_bps, save_commission_plan.tiers,
-      case when save_commission_plan.archived then now() end)
+    values (upsert_commission_plan.tenant, trim(upsert_commission_plan.name), upsert_commission_plan.kind, upsert_commission_plan.rate_bps, upsert_commission_plan.tiers,
+      case when upsert_commission_plan.archived then now() end)
     returning * into v_plan;
     ${records.plan("commission_plan.created")}
   else
-    update ${plans} x set ${p("name")} = trim(save_commission_plan.name), ${p("kind")} = save_commission_plan.kind,
-      ${p("rateBps")} = save_commission_plan.rate_bps, ${p("tiers")} = save_commission_plan.tiers,
-      ${p("archivedAt")} = case when save_commission_plan.archived then coalesce(x.${p("archivedAt")}, now()) end,
+    update ${plans} x set ${p("name")} = trim(upsert_commission_plan.name), ${p("kind")} = upsert_commission_plan.kind,
+      ${p("rateBps")} = upsert_commission_plan.rate_bps, ${p("tiers")} = upsert_commission_plan.tiers,
+      ${p("archivedAt")} = case when upsert_commission_plan.archived then coalesce(x.${p("archivedAt")}, now()) end,
       ${p("updatedAt")} = now()
-    where x.${p("id")} = save_commission_plan.plan_id and x.${p("tenant")} = save_commission_plan.tenant
+    where x.${p("id")} = upsert_commission_plan.plan_id and x.${p("tenant")} = upsert_commission_plan.tenant
     returning * into v_plan;
     if not found then
       ${fail("COMMISSION_PLAN_NOT_FOUND", "no such commission plan", "P0002")}
@@ -213,7 +213,7 @@ begin
   return ${json.plan("v_plan")};
 end;
 $$;
-${userGrant(`${fn("save_commission_plan")}(${idType}, text, text, integer, jsonb, uuid, boolean)`)}
+${userGrant(`${fn("upsert_commission_plan")}(${idType}, text, text, integer, jsonb, uuid, boolean)`)}
 
 -- Puts a seller on a plan from starts_on until ends_on. With a subject the
 -- plan applies to sales on that record only, and wins over the seller's own

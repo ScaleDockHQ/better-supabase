@@ -270,12 +270,12 @@ export function purchaseOrderFunctions(
     ? `
   delete from ${taxTable} x where x.${pt("order")} = v_id;
   insert into ${taxTable} (${pt("tenant")}, ${pt("order")}${codeOn ? `, ${pt("taxCode")}` : ""}, ${pt("taxRateBps")}, ${pt("net")}, ${pt("tax")}, ${pt("gross")})
-  select save_purchase_order.tenant, v_id${codeOn ? `, g.code` : ""}, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  select upsert_purchase_order.tenant, v_id${codeOn ? `, g.code` : ""}, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
   from (
     select ${codeOn ? `nullif(trim(e ->> 'taxCode'), '') as code, ` : ""}coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
-    from jsonb_array_elements(save_purchase_order.lines) e
+    from jsonb_array_elements(upsert_purchase_order.lines) e
   ) g
   where g.rate > 0
   group by ${codeOn ? "g.code, " : ""}g.rate;`
@@ -321,22 +321,22 @@ ${userGrant(`${fn("purchase_order_tax_lines")}(uuid)`)}
 -- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units"
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.recordTypes record, or are both null.
-${numbered ? `drop function if exists ${fn("save_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text);\n` : ""}create or replace function ${fn("save_purchase_order")}(tenant ${ctx.idType}, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text${numbered ? ", number text default null" : ""})
+${numbered ? `drop function if exists ${fn("upsert_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text);\n` : ""}create or replace function ${fn("upsert_purchase_order")}(tenant ${ctx.idType}, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text${numbered ? ", number text default null" : ""})
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;${numbered ? "\n  v_number text := nullif(btrim(save_purchase_order.number), '');" : ""}
+  v_id uuid := upsert_purchase_order.purchase_order;${numbered ? "\n  v_number text := nullif(btrim(upsert_purchase_order.number), '');" : ""}
 begin
-  ${guard(names.scope, names.purchase, "save_purchase_order.tenant")}
-  if not exists (select 1 from ${locations} x where x.${l("id")} = save_purchase_order.location and x.${l("tenant")} = save_purchase_order.tenant) then
+  ${guard(names.scope, names.purchase, "upsert_purchase_order.tenant")}
+  if not exists (select 1 from ${locations} x where x.${l("id")} = upsert_purchase_order.location and x.${l("tenant")} = upsert_purchase_order.tenant) then
     ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found in this organization", "P0002")}
   end if;
-  if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
+  if (upsert_purchase_order.supplier_type is null) <> (upsert_purchase_order.supplier_id is null) then
     ${fail("INVENTORY_SUPPLIER_INVALID", "supplier_type and supplier_id go together", "22023")}
-  end if;${blocked("save_purchase_order.supplier_id", "save_purchase_order.tenant")}
+  end if;${blocked("upsert_purchase_order.supplier_id", "upsert_purchase_order.tenant")}
 ${
   numbered
     ? `  if v_number is not null and length(v_number) > 50 then
@@ -344,24 +344,24 @@ ${
   end if;
 `
     : ""
-}  if save_purchase_order.currency is null or ${currencyUnits}(save_purchase_order.currency) is null then
+}  if upsert_purchase_order.currency is null or ${currencyUnits}(upsert_purchase_order.currency) is null then
     ${fail("INVENTORY_CURRENCY_INVALID", "the currency must be an ISO 4217 code", "22023")}
   end if;
-  ${linesCheck("save_purchase_order.lines", "variantId", `\n        or coalesce(e ->> 'unitCost', '') !~ ${UNIT_COST}${taxLines ? `\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)` : ""}`)}
-  ${linesVariantCheck(ctx, "save_purchase_order.lines", "save_purchase_order.tenant")}
+  ${linesCheck("upsert_purchase_order.lines", "variantId", `\n        or coalesce(e ->> 'unitCost', '') !~ ${UNIT_COST}${taxLines ? `\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')\n        or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)` : ""}`)}
+  ${linesVariantCheck(ctx, "upsert_purchase_order.lines", "upsert_purchase_order.tenant")}
   if v_id is null then
     insert into ${orders} (${po("tenant")}, ${po("location")}, ${po("supplierType")}, ${po("supplierId")}, ${po("currency")}, ${po("expectedAt")}, ${po("note")}${numbered ? `, ${po("number")}` : ""})
-    values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note${numbered ? ", v_number" : ""})
+    values (upsert_purchase_order.tenant, upsert_purchase_order.location, upsert_purchase_order.supplier_type, upsert_purchase_order.supplier_id,
+      upsert_purchase_order.currency, upsert_purchase_order.expected_at, upsert_purchase_order.note${numbered ? ", v_number" : ""})
     returning ${po("id")} into v_id;
   else
-    perform 1 from ${orders} x where x.${po("id")} = v_id and x.${po("tenant")} = save_purchase_order.tenant for update;
+    perform 1 from ${orders} x where x.${po("id")} = v_id and x.${po("tenant")} = upsert_purchase_order.tenant for update;
     if not found then
       ${fail("INVENTORY_PURCHASE_ORDER_NOT_FOUND", "purchase order not found", "P0002")}
     end if;
-    update ${orders} x set ${po("location")} = save_purchase_order.location, ${po("supplierType")} = save_purchase_order.supplier_type,
-      ${po("supplierId")} = save_purchase_order.supplier_id, ${po("currency")} = save_purchase_order.currency,
-      ${po("expectedAt")} = save_purchase_order.expected_at, ${po("note")} = save_purchase_order.note,${numbered ? ` ${po("number")} = coalesce(v_number, x.${po("number")}),` : ""} ${po("updatedAt")} = now()
+    update ${orders} x set ${po("location")} = upsert_purchase_order.location, ${po("supplierType")} = upsert_purchase_order.supplier_type,
+      ${po("supplierId")} = upsert_purchase_order.supplier_id, ${po("currency")} = upsert_purchase_order.currency,
+      ${po("expectedAt")} = upsert_purchase_order.expected_at, ${po("note")} = upsert_purchase_order.note,${numbered ? ` ${po("number")} = coalesce(v_number, x.${po("number")}),` : ""} ${po("updatedAt")} = now()
     where x.${po("id")} = v_id and ${ctx.is("purchaseOrders", "status", `x.${po("status")}`, ["draft"])};
     if not found then
       ${fail("INVENTORY_PURCHASE_ORDER_LOCKED", "only a draft purchase order can change", "55000")}
@@ -369,8 +369,8 @@ ${
     delete from ${lines} x where x.${pl("order")} = v_id;
   end if;
   insert into ${lines} (${pl("tenant")}, ${pl("order")}, ${pl("variant")}, ${pl("quantity")}, ${pl("unitCost")}${taxLines ? `, ${pl("taxRateBps")}${ctx.has("purchaseOrderLines", "taxCode") ? `, ${pl("taxCode")}` : ""}` : ""})
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint${taxLines ? `, (e ->> 'taxRateBps')::integer${ctx.has("purchaseOrderLines", "taxCode") ? ", nullif(trim(e ->> 'taxCode'), '')" : ""}` : ""}
-  from jsonb_array_elements(save_purchase_order.lines) e;${taxLines ? rebuildTaxLines : ""}
+  select upsert_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint${taxLines ? `, (e ->> 'taxRateBps')::integer${ctx.has("purchaseOrderLines", "taxCode") ? ", nullif(trim(e ->> 'taxCode'), '')" : ""}` : ""}
+  from jsonb_array_elements(upsert_purchase_order.lines) e;${taxLines ? rebuildTaxLines : ""}
   return jsonb_build_object('id', v_id, 'status', 'draft'${numbered ? `, 'number', (select x.${po("number")} from ${orders} x where x.${po("id")} = v_id)` : ""});${
     numbered
       ? `
@@ -380,7 +380,7 @@ exception when unique_violation then
   }
 end;
 $$;
-${userGrant(`${fn("save_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text${numbered ? ", text" : ""})`)}
+${userGrant(`${fn("upsert_purchase_order")}(${ctx.idType}, uuid, uuid, text, text, text, timestamptz, jsonb, text${numbered ? ", text" : ""})`)}
 ${taxReader}
 -- Sends a draft purchase order: its quantities count as incoming at its location.
 -- An order without a number gets the next one: one more than the organization's

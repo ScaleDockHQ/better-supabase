@@ -598,7 +598,7 @@ export function createShifts<
   const client: Shifts<F> = {
     saveTemplate: ({ organizationId, input }) =>
       call(
-        "save_shift_template",
+        "upsert_shift_template",
         {
           tenant: organizationId,
           name: input.name,
@@ -612,7 +612,7 @@ export function createShifts<
           required_qualifications: input.requiredQualifications ?? [],
           template_id: input.templateId ?? null,
         },
-        one("save_shift_template", templateOf),
+        one("upsert_shift_template", templateOf),
       ),
     archiveTemplate: (templateId) =>
       call(
@@ -651,7 +651,7 @@ export function createShifts<
         .args(input.fields)
         .andThen((checked) =>
           call(
-            "save_shift",
+            "upsert_shift",
             {
               tenant: organizationId,
               starts_at: instantArg(input.startsAt),
@@ -665,7 +665,7 @@ export function createShifts<
               shift_id: input.shiftId ?? null,
               ...(checked === undefined ? {} : { fields: checked }),
             },
-            one("save_shift", shiftOf),
+            one("upsert_shift", shiftOf),
           ).andThen(fields.row),
         ),
     cancel: ({ shiftId, reason }) =>

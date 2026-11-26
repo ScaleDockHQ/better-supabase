@@ -81,7 +81,7 @@ declare
   v_request better_supabase.approval_requests%rowtype;
 begin
   ${AS_ALICE}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
   select a.* into v_request from better_supabase.approval_requests a
     join better_supabase.leave_requests r on r.approval_id = a.id where r.id = v_id;

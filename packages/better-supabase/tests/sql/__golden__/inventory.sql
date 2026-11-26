@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@6 managed
--- @bsb-hash sha256:2041d193c2242477920aefed4e65ad2322295091e01f27700d99af3c8dcda533
+-- @bsb-hash sha256:cfd018baec50c552bd47221fb738bb1ca04018c0b00a797f4dad9fb773658877
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -797,7 +797,7 @@ grant execute on function "better_supabase"."set_stock_item"(uuid, text, smallin
 
 -- Creates a bin at a location (bin null) or updates one. Stock in a hold bin
 -- counts as held: on hand, but not available to sell.
-create or replace function "better_supabase"."save_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function "better_supabase"."upsert_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -806,36 +806,36 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
-  v_id uuid := save_bin.bin;
+  v_id uuid := upsert_bin.bin;
   v_hold boolean;
   v_was boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = save_bin.location;
+  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = upsert_bin.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_bin.code is null or save_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_bin.code is null or upsert_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_BIN_CODE_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."stock_bins" ("tenant_id", "location_id", "code", "name", "hold", "active")
-      values (v_tenant, save_bin.location, save_bin.code, save_bin.name, coalesce(save_bin.hold, false), coalesce(save_bin.active, true))
+      values (v_tenant, upsert_bin.location, upsert_bin.code, upsert_bin.name, coalesce(upsert_bin.hold, false), coalesce(upsert_bin.active, true))
       returning "id", "hold" into v_id, v_hold;
       v_was := v_hold;
     else
-      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = save_bin.location for update;
+      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = upsert_bin.location for update;
       if not found then
         raise exception 'bin not found at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
       end if;
-      update "better_supabase"."stock_bins" x set "code" = save_bin.code, "name" = save_bin.name,
-        "hold" = coalesce(save_bin.hold, x."hold"), "active" = coalesce(save_bin.active, x."active")
+      update "better_supabase"."stock_bins" x set "code" = upsert_bin.code, "name" = upsert_bin.name,
+        "hold" = coalesce(upsert_bin.hold, x."hold"), "active" = coalesce(upsert_bin.active, x."active")
       where x."id" = v_id
       returning x."hold" into v_hold;
     end if;
@@ -846,13 +846,13 @@ begin
     update "better_supabase"."stock_levels" x set "held" = greatest(x."held" + case when v_hold then y.on_hand else -y.on_hand end, 0), "updated_at" = now()
     from (select z."variant_id" as variant, sum(z."on_hand") as on_hand from "better_supabase"."stock_buckets" z
       where z."bin_id" = v_id and z."on_hand" > 0 group by z."variant_id") y
-    where x."variant_id" = y.variant and x."location_id" = save_bin.location;
+    where x."variant_id" = y.variant and x."location_id" = upsert_bin.location;
   end if;
-  return jsonb_build_object('id', v_id, 'code', save_bin.code, 'hold', v_hold, 'active', coalesce(save_bin.active, true));
+  return jsonb_build_object('id', v_id, 'code', upsert_bin.code, 'hold', v_hold, 'active', coalesce(upsert_bin.active, true));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
 
 -- The lot of a variant with this code, created when missing. A given
 -- expires_on replaces the stored one.
@@ -880,7 +880,7 @@ $$;
 revoke execute on function "better_supabase"."stock_lot_for"(uuid, uuid, text, date) from public, anon, authenticated;
 
 -- Creates a lot of a variant or updates its expiry date. Returns the lot.
-create or replace function "better_supabase"."save_lot"(variant uuid, code text, expires_on date)
+create or replace function "better_supabase"."upsert_lot"(variant uuid, code text, expires_on date)
 returns jsonb
 language plpgsql
 security definer
@@ -890,20 +890,20 @@ declare
   v_tenant uuid;
   v_id uuid;
 begin
-  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = save_lot.variant;
+  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = upsert_lot.variant;
   if v_tenant is null then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  v_id := "better_supabase"."stock_lot_for"(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
+  v_id := "better_supabase"."stock_lot_for"(v_tenant, upsert_lot.variant, upsert_lot.code, upsert_lot.expires_on);
   return (select jsonb_build_object('id', x."id", 'code', x."code", 'expiresOn', x."expires_on")
     from "better_supabase"."stock_lots" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_lot"(uuid, text, date) from public, anon;
-grant execute on function "better_supabase"."save_lot"(uuid, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lot"(uuid, text, date) from public, anon;
+grant execute on function "better_supabase"."upsert_lot"(uuid, text, date) to authenticated, service_role;
 
 -- A variant's stock at a location: the level, each bin and lot bucket, the
 -- stock outside any bin or lot, and the serial numbers in stock there.
@@ -1704,37 +1704,37 @@ alter table "better_supabase"."inventory_locations" add constraint bsb_inventory
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
 
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
+create or replace function "better_supabase"."upsert_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_location.location;
+  v_id uuid := upsert_location.location;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_location.tenant, 'inventory.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_location.tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_location.code is null or upsert_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_LOCATION_CODE_INVALID';
   end if;
-  if coalesce(save_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
+  if coalesce(upsert_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
     raise exception 'the kind must be warehouse, store or virtual' using errcode = '22023', hint = 'INVENTORY_LOCATION_KIND_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."inventory_locations" ("tenant_id", "code", "name", "kind")
-      values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
+      values (upsert_location.tenant, upsert_location.code, upsert_location.name, coalesce(upsert_location.kind, 'warehouse'))
       returning "id", "active" into v_id, v_active;
     else
-      update "better_supabase"."inventory_locations" x set "code" = save_location.code, "name" = save_location.name,
-        "kind" = coalesce(save_location.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_location.location and x."tenant_id" = save_location.tenant
+      update "better_supabase"."inventory_locations" x set "code" = upsert_location.code, "name" = upsert_location.name,
+        "kind" = coalesce(upsert_location.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_location.location and x."tenant_id" = upsert_location.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
@@ -1743,11 +1743,11 @@ begin
   exception when unique_violation then
     raise exception 'another location has this code' using errcode = '23505', hint = 'INVENTORY_LOCATION_CODE_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -2894,37 +2894,37 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 
-create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
+create or replace function "better_supabase"."upsert_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;
-  v_number text := nullif(btrim(save_purchase_order.number), '');
+  v_id uuid := upsert_purchase_order.purchase_order;
+  v_number text := nullif(btrim(upsert_purchase_order.number), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_purchase_order.tenant, 'inventory.purchase'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_purchase_order.tenant, 'inventory.purchase'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = save_purchase_order.location and x."tenant_id" = save_purchase_order.tenant) then
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = upsert_purchase_order.location and x."tenant_id" = upsert_purchase_order.tenant) then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
-  if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
+  if (upsert_purchase_order.supplier_type is null) <> (upsert_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
   if v_number is not null and length(v_number) > 50 then
     raise exception 'a purchase order number is up to 50 characters' using errcode = '22023', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_INVALID';
   end if;
-  if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
+  if upsert_purchase_order.currency is null or "better_supabase"."currency_minor_units"(upsert_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
-  if jsonb_typeof(save_purchase_order.lines) is distinct from 'array' or jsonb_array_length(save_purchase_order.lines) = 0
+  if jsonb_typeof(upsert_purchase_order.lines) is distinct from 'array' or jsonb_array_length(upsert_purchase_order.lines) = 0
     or exists (
-      select 1 from jsonb_array_elements(save_purchase_order.lines) e
+      select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
       where jsonb_typeof(e) <> 'object'
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
@@ -2932,28 +2932,28 @@ begin
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
-    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(upsert_purchase_order.lines) e) <> jsonb_array_length(upsert_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_purchase_order.lines) e
-    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_purchase_order.tenant)
+    select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_purchase_order.tenant)
   ) then
     raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if v_id is null then
     insert into "better_supabase"."purchase_orders" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note", "number")
-    values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note, v_number)
+    values (upsert_purchase_order.tenant, upsert_purchase_order.location, upsert_purchase_order.supplier_type, upsert_purchase_order.supplier_id,
+      upsert_purchase_order.currency, upsert_purchase_order.expected_at, upsert_purchase_order.note, v_number)
     returning "id" into v_id;
   else
-    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = save_purchase_order.tenant for update;
+    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = upsert_purchase_order.tenant for update;
     if not found then
       raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
     end if;
-    update "better_supabase"."purchase_orders" x set "location_id" = save_purchase_order.location, "supplier_type" = save_purchase_order.supplier_type,
-      "supplier_id" = save_purchase_order.supplier_id, "currency" = save_purchase_order.currency,
-      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
+    update "better_supabase"."purchase_orders" x set "location_id" = upsert_purchase_order.location, "supplier_type" = upsert_purchase_order.supplier_type,
+      "supplier_id" = upsert_purchase_order.supplier_id, "currency" = upsert_purchase_order.currency,
+      "expected_at" = upsert_purchase_order.expected_at, "note" = upsert_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
     where x."id" = v_id and x."status" = 'draft';
     if not found then
       raise exception 'only a draft purchase order can change' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_LOCKED';
@@ -2961,16 +2961,16 @@ begin
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
   insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
-  from jsonb_array_elements(save_purchase_order.lines) e;
+  select upsert_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
+  from jsonb_array_elements(upsert_purchase_order.lines) e;
   delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
   insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
-  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  select upsert_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
   from (
     select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
-    from jsonb_array_elements(save_purchase_order.lines) e
+    from jsonb_array_elements(upsert_purchase_order.lines) e
   ) g
   where g.rate > 0
   group by g.code, g.rate;
@@ -2979,8 +2979,8 @@ exception when unique_violation then
   raise exception 'another purchase order has this number' using errcode = '23505', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
 
 -- The tax of a purchase order per code and rate, with the order's currency.
 -- Amounts are text in minor units.
@@ -3432,7 +3432,7 @@ begin
     from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
     group by 1
   ) y;
-  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  v_order := "better_supabase"."upsert_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
   update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
   where x."id" = any (purchase_order_from_requisitions.requisitions);
   return v_order;
@@ -5639,7 +5639,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@6 managed
--- @bsb-hash sha256:dc7e536d856a75aaa05c88a4f7ca351be75b8b73b3e94a91e1bdce957da98dfe
+-- @bsb-hash sha256:491be8508dd955a4682cf28ebb81e62bdb0f4d4b2bf3d8c5f18e908057a2590f
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6440,7 +6440,7 @@ grant execute on function "better_supabase"."set_stock_item"(uuid, text, smallin
 
 -- Creates a bin at a location (bin null) or updates one. Stock in a hold bin
 -- counts as held: on hand, but not available to sell.
-create or replace function "better_supabase"."save_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function "better_supabase"."upsert_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -6449,36 +6449,36 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
-  v_id uuid := save_bin.bin;
+  v_id uuid := upsert_bin.bin;
   v_hold boolean;
   v_was boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = save_bin.location;
+  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = upsert_bin.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_bin.code is null or save_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_bin.code is null or upsert_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_BIN_CODE_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."stock_bins" ("tenant_id", "location_id", "code", "name", "hold", "active")
-      values (v_tenant, save_bin.location, save_bin.code, save_bin.name, coalesce(save_bin.hold, false), coalesce(save_bin.active, true))
+      values (v_tenant, upsert_bin.location, upsert_bin.code, upsert_bin.name, coalesce(upsert_bin.hold, false), coalesce(upsert_bin.active, true))
       returning "id", "hold" into v_id, v_hold;
       v_was := v_hold;
     else
-      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = save_bin.location for update;
+      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = upsert_bin.location for update;
       if not found then
         raise exception 'bin not found at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
       end if;
-      update "better_supabase"."stock_bins" x set "code" = save_bin.code, "name" = save_bin.name,
-        "hold" = coalesce(save_bin.hold, x."hold"), "active" = coalesce(save_bin.active, x."active")
+      update "better_supabase"."stock_bins" x set "code" = upsert_bin.code, "name" = upsert_bin.name,
+        "hold" = coalesce(upsert_bin.hold, x."hold"), "active" = coalesce(upsert_bin.active, x."active")
       where x."id" = v_id
       returning x."hold" into v_hold;
     end if;
@@ -6489,13 +6489,13 @@ begin
     update "better_supabase"."stock_levels" x set "held" = greatest(x."held" + case when v_hold then y.on_hand else -y.on_hand end, 0), "updated_at" = now()
     from (select z."variant_id" as variant, sum(z."on_hand") as on_hand from "better_supabase"."stock_buckets" z
       where z."bin_id" = v_id and z."on_hand" > 0 group by z."variant_id") y
-    where x."variant_id" = y.variant and x."location_id" = save_bin.location;
+    where x."variant_id" = y.variant and x."location_id" = upsert_bin.location;
   end if;
-  return jsonb_build_object('id', v_id, 'code', save_bin.code, 'hold', v_hold, 'active', coalesce(save_bin.active, true));
+  return jsonb_build_object('id', v_id, 'code', upsert_bin.code, 'hold', v_hold, 'active', coalesce(upsert_bin.active, true));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
 
 -- The lot of a variant with this code, created when missing. A given
 -- expires_on replaces the stored one.
@@ -6523,7 +6523,7 @@ $$;
 revoke execute on function "better_supabase"."stock_lot_for"(uuid, uuid, text, date) from public, anon, authenticated;
 
 -- Creates a lot of a variant or updates its expiry date. Returns the lot.
-create or replace function "better_supabase"."save_lot"(variant uuid, code text, expires_on date)
+create or replace function "better_supabase"."upsert_lot"(variant uuid, code text, expires_on date)
 returns jsonb
 language plpgsql
 security definer
@@ -6533,20 +6533,20 @@ declare
   v_tenant uuid;
   v_id uuid;
 begin
-  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = save_lot.variant;
+  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = upsert_lot.variant;
   if v_tenant is null then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  v_id := "better_supabase"."stock_lot_for"(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
+  v_id := "better_supabase"."stock_lot_for"(v_tenant, upsert_lot.variant, upsert_lot.code, upsert_lot.expires_on);
   return (select jsonb_build_object('id', x."id", 'code', x."code", 'expiresOn', x."expires_on")
     from "better_supabase"."stock_lots" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_lot"(uuid, text, date) from public, anon;
-grant execute on function "better_supabase"."save_lot"(uuid, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lot"(uuid, text, date) from public, anon;
+grant execute on function "better_supabase"."upsert_lot"(uuid, text, date) to authenticated, service_role;
 
 -- A variant's stock at a location: the level, each bin and lot bucket, the
 -- stock outside any bin or lot, and the serial numbers in stock there.
@@ -7352,37 +7352,37 @@ alter table "better_supabase"."inventory_locations" add constraint bsb_inventory
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
 
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
+create or replace function "better_supabase"."upsert_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_location.location;
+  v_id uuid := upsert_location.location;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_location.tenant, 'inventory.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_location.tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_location.code is null or upsert_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_LOCATION_CODE_INVALID';
   end if;
-  if coalesce(save_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
+  if coalesce(upsert_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
     raise exception 'the kind must be warehouse, store or virtual' using errcode = '22023', hint = 'INVENTORY_LOCATION_KIND_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."inventory_locations" ("tenant_id", "code", "name", "kind")
-      values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
+      values (upsert_location.tenant, upsert_location.code, upsert_location.name, coalesce(upsert_location.kind, 'warehouse'))
       returning "id", "active" into v_id, v_active;
     else
-      update "better_supabase"."inventory_locations" x set "code" = save_location.code, "name" = save_location.name,
-        "kind" = coalesce(save_location.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_location.location and x."tenant_id" = save_location.tenant
+      update "better_supabase"."inventory_locations" x set "code" = upsert_location.code, "name" = upsert_location.name,
+        "kind" = coalesce(upsert_location.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_location.location and x."tenant_id" = upsert_location.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
@@ -7391,11 +7391,11 @@ begin
   exception when unique_violation then
     raise exception 'another location has this code' using errcode = '23505', hint = 'INVENTORY_LOCATION_CODE_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -8542,40 +8542,40 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 
-create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
+create or replace function "better_supabase"."upsert_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;
-  v_number text := nullif(btrim(save_purchase_order.number), '');
+  v_id uuid := upsert_purchase_order.purchase_order;
+  v_number text := nullif(btrim(upsert_purchase_order.number), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_purchase_order.tenant, 'inventory.purchase'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_purchase_order.tenant, 'inventory.purchase'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = save_purchase_order.location and x."tenant_id" = save_purchase_order.tenant) then
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = upsert_purchase_order.location and x."tenant_id" = upsert_purchase_order.tenant) then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
-  if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
+  if (upsert_purchase_order.supplier_type is null) <> (upsert_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
-  if save_purchase_order.supplier_id is not null and exists (select 1 from (select p."supplier_status" from "better_supabase"."companies" p where p."id"::text = save_purchase_order.supplier_id and p."tenant_id" = save_purchase_order.tenant and p."merged_into" is null union all select p."supplier_status" from "better_supabase"."people" p where p."id"::text = save_purchase_order.supplier_id and p."tenant_id" = save_purchase_order.tenant and p."merged_into" is null) s(status) where s.status = 'blocked') then
+  if upsert_purchase_order.supplier_id is not null and exists (select 1 from (select p."supplier_status" from "better_supabase"."companies" p where p."id"::text = upsert_purchase_order.supplier_id and p."tenant_id" = upsert_purchase_order.tenant and p."merged_into" is null union all select p."supplier_status" from "better_supabase"."people" p where p."id"::text = upsert_purchase_order.supplier_id and p."tenant_id" = upsert_purchase_order.tenant and p."merged_into" is null) s(status) where s.status = 'blocked') then
     raise exception 'the supplier is blocked and can''t get a purchase order' using errcode = '55000', hint = 'PURCHASE_ORDER_SUPPLIER_BLOCKED';
   end if;
   if v_number is not null and length(v_number) > 50 then
     raise exception 'a purchase order number is up to 50 characters' using errcode = '22023', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_INVALID';
   end if;
-  if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
+  if upsert_purchase_order.currency is null or "better_supabase"."currency_minor_units"(upsert_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
-  if jsonb_typeof(save_purchase_order.lines) is distinct from 'array' or jsonb_array_length(save_purchase_order.lines) = 0
+  if jsonb_typeof(upsert_purchase_order.lines) is distinct from 'array' or jsonb_array_length(upsert_purchase_order.lines) = 0
     or exists (
-      select 1 from jsonb_array_elements(save_purchase_order.lines) e
+      select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
       where jsonb_typeof(e) <> 'object'
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
@@ -8583,28 +8583,28 @@ begin
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
-    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(upsert_purchase_order.lines) e) <> jsonb_array_length(upsert_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_purchase_order.lines) e
-    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_purchase_order.tenant)
+    select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_purchase_order.tenant)
   ) then
     raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if v_id is null then
     insert into "better_supabase"."purchase_orders" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note", "number")
-    values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note, v_number)
+    values (upsert_purchase_order.tenant, upsert_purchase_order.location, upsert_purchase_order.supplier_type, upsert_purchase_order.supplier_id,
+      upsert_purchase_order.currency, upsert_purchase_order.expected_at, upsert_purchase_order.note, v_number)
     returning "id" into v_id;
   else
-    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = save_purchase_order.tenant for update;
+    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = upsert_purchase_order.tenant for update;
     if not found then
       raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
     end if;
-    update "better_supabase"."purchase_orders" x set "location_id" = save_purchase_order.location, "supplier_type" = save_purchase_order.supplier_type,
-      "supplier_id" = save_purchase_order.supplier_id, "currency" = save_purchase_order.currency,
-      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
+    update "better_supabase"."purchase_orders" x set "location_id" = upsert_purchase_order.location, "supplier_type" = upsert_purchase_order.supplier_type,
+      "supplier_id" = upsert_purchase_order.supplier_id, "currency" = upsert_purchase_order.currency,
+      "expected_at" = upsert_purchase_order.expected_at, "note" = upsert_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
     where x."id" = v_id and x."status" = 'draft';
     if not found then
       raise exception 'only a draft purchase order can change' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_LOCKED';
@@ -8612,16 +8612,16 @@ begin
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
   insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
-  from jsonb_array_elements(save_purchase_order.lines) e;
+  select upsert_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
+  from jsonb_array_elements(upsert_purchase_order.lines) e;
   delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
   insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
-  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  select upsert_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
   from (
     select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
-    from jsonb_array_elements(save_purchase_order.lines) e
+    from jsonb_array_elements(upsert_purchase_order.lines) e
   ) g
   where g.rate > 0
   group by g.code, g.rate;
@@ -8630,8 +8630,8 @@ exception when unique_violation then
   raise exception 'another purchase order has this number' using errcode = '23505', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
 
 -- The tax of a purchase order per code and rate, with the order's currency.
 -- Amounts are text in minor units.
@@ -9102,7 +9102,7 @@ begin
     from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
     group by 1
   ) y;
-  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  v_order := "better_supabase"."upsert_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
   update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
   where x."id" = any (purchase_order_from_requisitions.requisitions);
   return v_order;
@@ -11344,7 +11344,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@6 managed
--- @bsb-hash sha256:705aba884004e0e28f378c360d18b46b7ddc168779657f64818bb8f88359a503
+-- @bsb-hash sha256:ea42525276d4f6b2715fe222d6b925707328658bb5dac6185a046cf0253b1cb7
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12145,7 +12145,7 @@ grant execute on function "app_private"."set_stock_item"(uuid, text, smallint, t
 
 -- Creates a bin at a location (bin null) or updates one. Stock in a hold bin
 -- counts as held: on hand, but not available to sell.
-create or replace function "app_private"."save_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function "app_private"."upsert_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -12154,36 +12154,36 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
-  v_id uuid := save_bin.bin;
+  v_id uuid := upsert_bin.bin;
   v_hold boolean;
   v_was boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."inventory_locations" x where x."id" = save_bin.location;
+  select x."tenant_id" into v_tenant from "app_private"."inventory_locations" x where x."id" = upsert_bin.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_bin.code is null or save_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_bin.code is null or upsert_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_BIN_CODE_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "app_private"."stock_bins" ("tenant_id", "location_id", "code", "name", "hold", "active")
-      values (v_tenant, save_bin.location, save_bin.code, save_bin.name, coalesce(save_bin.hold, false), coalesce(save_bin.active, true))
+      values (v_tenant, upsert_bin.location, upsert_bin.code, upsert_bin.name, coalesce(upsert_bin.hold, false), coalesce(upsert_bin.active, true))
       returning "id", "hold" into v_id, v_hold;
       v_was := v_hold;
     else
-      select x."hold" into v_was from "app_private"."stock_bins" x where x."id" = v_id and x."location_id" = save_bin.location for update;
+      select x."hold" into v_was from "app_private"."stock_bins" x where x."id" = v_id and x."location_id" = upsert_bin.location for update;
       if not found then
         raise exception 'bin not found at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
       end if;
-      update "app_private"."stock_bins" x set "code" = save_bin.code, "name" = save_bin.name,
-        "hold" = coalesce(save_bin.hold, x."hold"), "active" = coalesce(save_bin.active, x."active")
+      update "app_private"."stock_bins" x set "code" = upsert_bin.code, "name" = upsert_bin.name,
+        "hold" = coalesce(upsert_bin.hold, x."hold"), "active" = coalesce(upsert_bin.active, x."active")
       where x."id" = v_id
       returning x."hold" into v_hold;
     end if;
@@ -12194,13 +12194,13 @@ begin
     update "app_private"."stock_levels" x set "held" = greatest(x."held" + case when v_hold then y.on_hand else -y.on_hand end, 0), "updated_at" = now()
     from (select z."variant_id" as variant, sum(z."on_hand") as on_hand from "app_private"."stock_buckets" z
       where z."bin_id" = v_id and z."on_hand" > 0 group by z."variant_id") y
-    where x."variant_id" = y.variant and x."location_id" = save_bin.location;
+    where x."variant_id" = y.variant and x."location_id" = upsert_bin.location;
   end if;
-  return jsonb_build_object('id', v_id, 'code', save_bin.code, 'hold', v_hold, 'active', coalesce(save_bin.active, true));
+  return jsonb_build_object('id', v_id, 'code', upsert_bin.code, 'hold', v_hold, 'active', coalesce(upsert_bin.active, true));
 end;
 $$;
-revoke execute on function "app_private"."save_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
-grant execute on function "app_private"."save_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
+grant execute on function "app_private"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
 
 -- The lot of a variant with this code, created when missing. A given
 -- expires_on replaces the stored one.
@@ -12228,7 +12228,7 @@ $$;
 revoke execute on function "app_private"."stock_lot_for"(uuid, uuid, text, date) from public, anon, authenticated;
 
 -- Creates a lot of a variant or updates its expiry date. Returns the lot.
-create or replace function "app_private"."save_lot"(variant uuid, code text, expires_on date)
+create or replace function "app_private"."upsert_lot"(variant uuid, code text, expires_on date)
 returns jsonb
 language plpgsql
 security definer
@@ -12238,20 +12238,20 @@ declare
   v_tenant uuid;
   v_id uuid;
 begin
-  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = save_lot.variant;
+  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = upsert_lot.variant;
   if v_tenant is null then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  v_id := "app_private"."stock_lot_for"(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
+  v_id := "app_private"."stock_lot_for"(v_tenant, upsert_lot.variant, upsert_lot.code, upsert_lot.expires_on);
   return (select jsonb_build_object('id', x."id", 'code', x."code", 'expiresOn', x."expires_on")
     from "app_private"."stock_lots" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_lot"(uuid, text, date) from public, anon;
-grant execute on function "app_private"."save_lot"(uuid, text, date) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_lot"(uuid, text, date) from public, anon;
+grant execute on function "app_private"."upsert_lot"(uuid, text, date) to authenticated, service_role;
 
 -- A variant's stock at a location: the level, each bin and lot bucket, the
 -- stock outside any bin or lot, and the serial numbers in stock there.
@@ -13052,37 +13052,37 @@ alter table "app_private"."inventory_locations" add constraint bsb_inventory_loc
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
 
-create or replace function "app_private"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
+create or replace function "app_private"."upsert_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_location.location;
+  v_id uuid := upsert_location.location;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_location.tenant, 'inventory.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_location.tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_location.code is null or upsert_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_LOCATION_CODE_INVALID';
   end if;
-  if coalesce(save_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
+  if coalesce(upsert_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
     raise exception 'the kind must be warehouse, store or virtual' using errcode = '22023', hint = 'INVENTORY_LOCATION_KIND_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "app_private"."inventory_locations" ("tenant_id", "code", "name", "kind")
-      values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
+      values (upsert_location.tenant, upsert_location.code, upsert_location.name, coalesce(upsert_location.kind, 'warehouse'))
       returning "id", "active" into v_id, v_active;
     else
-      update "app_private"."inventory_locations" x set "code" = save_location.code, "name" = save_location.name,
-        "kind" = coalesce(save_location.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_location.location and x."tenant_id" = save_location.tenant
+      update "app_private"."inventory_locations" x set "code" = upsert_location.code, "name" = upsert_location.name,
+        "kind" = coalesce(upsert_location.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_location.location and x."tenant_id" = upsert_location.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
@@ -13091,11 +13091,11 @@ begin
   exception when unique_violation then
     raise exception 'another location has this code' using errcode = '23505', hint = 'INVENTORY_LOCATION_CODE_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "app_private"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "app_private"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "app_private"."set_location_active"(location uuid, active boolean)
@@ -14242,37 +14242,37 @@ grant execute on function "app_private"."cancel_transfer"(uuid) to authenticated
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 
-create or replace function "app_private"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
+create or replace function "app_private"."upsert_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;
-  v_number text := nullif(btrim(save_purchase_order.number), '');
+  v_id uuid := upsert_purchase_order.purchase_order;
+  v_number text := nullif(btrim(upsert_purchase_order.number), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_purchase_order.tenant, 'inventory.purchase'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_purchase_order.tenant, 'inventory.purchase'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if not exists (select 1 from "app_private"."inventory_locations" x where x."id" = save_purchase_order.location and x."tenant_id" = save_purchase_order.tenant) then
+  if not exists (select 1 from "app_private"."inventory_locations" x where x."id" = upsert_purchase_order.location and x."tenant_id" = upsert_purchase_order.tenant) then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
-  if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
+  if (upsert_purchase_order.supplier_type is null) <> (upsert_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
   if v_number is not null and length(v_number) > 50 then
     raise exception 'a purchase order number is up to 50 characters' using errcode = '22023', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_INVALID';
   end if;
-  if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
+  if upsert_purchase_order.currency is null or "better_supabase"."currency_minor_units"(upsert_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
-  if jsonb_typeof(save_purchase_order.lines) is distinct from 'array' or jsonb_array_length(save_purchase_order.lines) = 0
+  if jsonb_typeof(upsert_purchase_order.lines) is distinct from 'array' or jsonb_array_length(upsert_purchase_order.lines) = 0
     or exists (
-      select 1 from jsonb_array_elements(save_purchase_order.lines) e
+      select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
       where jsonb_typeof(e) <> 'object'
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
@@ -14280,28 +14280,28 @@ begin
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
-    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(upsert_purchase_order.lines) e) <> jsonb_array_length(upsert_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_purchase_order.lines) e
-    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_purchase_order.tenant)
+    select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_purchase_order.tenant)
   ) then
     raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if v_id is null then
     insert into "app_private"."purchase_orders" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note", "number")
-    values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note, v_number)
+    values (upsert_purchase_order.tenant, upsert_purchase_order.location, upsert_purchase_order.supplier_type, upsert_purchase_order.supplier_id,
+      upsert_purchase_order.currency, upsert_purchase_order.expected_at, upsert_purchase_order.note, v_number)
     returning "id" into v_id;
   else
-    perform 1 from "app_private"."purchase_orders" x where x."id" = v_id and x."tenant_id" = save_purchase_order.tenant for update;
+    perform 1 from "app_private"."purchase_orders" x where x."id" = v_id and x."tenant_id" = upsert_purchase_order.tenant for update;
     if not found then
       raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
     end if;
-    update "app_private"."purchase_orders" x set "location_id" = save_purchase_order.location, "supplier_type" = save_purchase_order.supplier_type,
-      "supplier_id" = save_purchase_order.supplier_id, "currency" = save_purchase_order.currency,
-      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
+    update "app_private"."purchase_orders" x set "location_id" = upsert_purchase_order.location, "supplier_type" = upsert_purchase_order.supplier_type,
+      "supplier_id" = upsert_purchase_order.supplier_id, "currency" = upsert_purchase_order.currency,
+      "expected_at" = upsert_purchase_order.expected_at, "note" = upsert_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
     where x."id" = v_id and x."status" = 'draft';
     if not found then
       raise exception 'only a draft purchase order can change' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_LOCKED';
@@ -14309,16 +14309,16 @@ begin
     delete from "app_private"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
   insert into "app_private"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
-  from jsonb_array_elements(save_purchase_order.lines) e;
+  select upsert_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
+  from jsonb_array_elements(upsert_purchase_order.lines) e;
   delete from "app_private"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
   insert into "app_private"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
-  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  select upsert_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
   from (
     select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
-    from jsonb_array_elements(save_purchase_order.lines) e
+    from jsonb_array_elements(upsert_purchase_order.lines) e
   ) g
   where g.rate > 0
   group by g.code, g.rate;
@@ -14327,8 +14327,8 @@ exception when unique_violation then
   raise exception 'another purchase order has this number' using errcode = '23505', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN';
 end;
 $$;
-revoke execute on function "app_private"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
-grant execute on function "app_private"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "app_private"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
 
 -- The tax of a purchase order per code and rate, with the order's currency.
 -- Amounts are text in minor units.
@@ -14780,7 +14780,7 @@ begin
     from "app_private"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
     group by 1
   ) y;
-  v_order := "app_private"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  v_order := "app_private"."upsert_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
   update "app_private"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
   where x."id" = any (purchase_order_from_requisitions.requisitions);
   return v_order;
@@ -16987,7 +16987,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@6 managed
--- @bsb-hash sha256:721c80a67c1b877fe713551bd0db7b687b9b49b051c2cd1d5289ce2c4e0f95d6
+-- @bsb-hash sha256:ab3a7f9c468976a418f9336166a927b938337174bc31956b1ba17eed894b8fca
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17783,7 +17783,7 @@ grant execute on function "better_supabase"."set_stock_item"(uuid, text, smallin
 
 -- Creates a bin at a location (bin null) or updates one. Stock in a hold bin
 -- counts as held: on hand, but not available to sell.
-create or replace function "better_supabase"."save_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function "better_supabase"."upsert_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -17792,36 +17792,36 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
-  v_id uuid := save_bin.bin;
+  v_id uuid := upsert_bin.bin;
   v_hold boolean;
   v_was boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = save_bin.location;
+  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = upsert_bin.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_bin.code is null or save_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_bin.code is null or upsert_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_BIN_CODE_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."stock_bins" ("tenant_id", "location_id", "code", "name", "hold", "active")
-      values (v_tenant, save_bin.location, save_bin.code, save_bin.name, coalesce(save_bin.hold, false), coalesce(save_bin.active, true))
+      values (v_tenant, upsert_bin.location, upsert_bin.code, upsert_bin.name, coalesce(upsert_bin.hold, false), coalesce(upsert_bin.active, true))
       returning "id", "hold" into v_id, v_hold;
       v_was := v_hold;
     else
-      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = save_bin.location for update;
+      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = upsert_bin.location for update;
       if not found then
         raise exception 'bin not found at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
       end if;
-      update "better_supabase"."stock_bins" x set "code" = save_bin.code, "name" = save_bin.name,
-        "hold" = coalesce(save_bin.hold, x."hold"), "active" = coalesce(save_bin.active, x."active")
+      update "better_supabase"."stock_bins" x set "code" = upsert_bin.code, "name" = upsert_bin.name,
+        "hold" = coalesce(upsert_bin.hold, x."hold"), "active" = coalesce(upsert_bin.active, x."active")
       where x."id" = v_id
       returning x."hold" into v_hold;
     end if;
@@ -17832,13 +17832,13 @@ begin
     update "better_supabase"."stock_levels" x set "held" = greatest(x."held" + case when v_hold then y.on_hand else -y.on_hand end, 0), "updated_at" = now()
     from (select z."variant_id" as variant, sum(z."on_hand") as on_hand from "better_supabase"."stock_buckets" z
       where z."bin_id" = v_id and z."on_hand" > 0 group by z."variant_id") y
-    where x."variant_id" = y.variant and x."location_id" = save_bin.location;
+    where x."variant_id" = y.variant and x."location_id" = upsert_bin.location;
   end if;
-  return jsonb_build_object('id', v_id, 'code', save_bin.code, 'hold', v_hold, 'active', coalesce(save_bin.active, true));
+  return jsonb_build_object('id', v_id, 'code', upsert_bin.code, 'hold', v_hold, 'active', coalesce(upsert_bin.active, true));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
 
 -- The lot of a variant with this code, created when missing. A given
 -- expires_on replaces the stored one.
@@ -17866,7 +17866,7 @@ $$;
 revoke execute on function "better_supabase"."stock_lot_for"(uuid, uuid, text, date) from public, anon, authenticated;
 
 -- Creates a lot of a variant or updates its expiry date. Returns the lot.
-create or replace function "better_supabase"."save_lot"(variant uuid, code text, expires_on date)
+create or replace function "better_supabase"."upsert_lot"(variant uuid, code text, expires_on date)
 returns jsonb
 language plpgsql
 security definer
@@ -17876,20 +17876,20 @@ declare
   v_tenant uuid;
   v_id uuid;
 begin
-  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = save_lot.variant;
+  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = upsert_lot.variant;
   if v_tenant is null then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  v_id := "better_supabase"."stock_lot_for"(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
+  v_id := "better_supabase"."stock_lot_for"(v_tenant, upsert_lot.variant, upsert_lot.code, upsert_lot.expires_on);
   return (select jsonb_build_object('id', x."id", 'code', x."code", 'expiresOn', x."expires_on")
     from "better_supabase"."stock_lots" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_lot"(uuid, text, date) from public, anon;
-grant execute on function "better_supabase"."save_lot"(uuid, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lot"(uuid, text, date) from public, anon;
+grant execute on function "better_supabase"."upsert_lot"(uuid, text, date) to authenticated, service_role;
 
 -- A variant's stock at a location: the level, each bin and lot bucket, the
 -- stock outside any bin or lot, and the serial numbers in stock there.
@@ -18690,37 +18690,37 @@ alter table "better_supabase"."inventory_locations" add constraint bsb_inventory
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
 
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
+create or replace function "better_supabase"."upsert_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_location.location;
+  v_id uuid := upsert_location.location;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_location.tenant, 'inventory.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_location.tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_location.code is null or upsert_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_LOCATION_CODE_INVALID';
   end if;
-  if coalesce(save_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
+  if coalesce(upsert_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
     raise exception 'the kind must be warehouse, store or virtual' using errcode = '22023', hint = 'INVENTORY_LOCATION_KIND_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."inventory_locations" ("tenant_id", "code", "name", "kind")
-      values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
+      values (upsert_location.tenant, upsert_location.code, upsert_location.name, coalesce(upsert_location.kind, 'warehouse'))
       returning "id", "active" into v_id, v_active;
     else
-      update "better_supabase"."inventory_locations" x set "code" = save_location.code, "name" = save_location.name,
-        "kind" = coalesce(save_location.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_location.location and x."tenant_id" = save_location.tenant
+      update "better_supabase"."inventory_locations" x set "code" = upsert_location.code, "name" = upsert_location.name,
+        "kind" = coalesce(upsert_location.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_location.location and x."tenant_id" = upsert_location.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
@@ -18729,11 +18729,11 @@ begin
   exception when unique_violation then
     raise exception 'another location has this code' using errcode = '23505', hint = 'INVENTORY_LOCATION_CODE_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -19880,37 +19880,37 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 
-create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
+create or replace function "better_supabase"."upsert_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;
-  v_number text := nullif(btrim(save_purchase_order.number), '');
+  v_id uuid := upsert_purchase_order.purchase_order;
+  v_number text := nullif(btrim(upsert_purchase_order.number), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_purchase_order.tenant, 'inventory.purchase'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_purchase_order.tenant, 'inventory.purchase'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = save_purchase_order.location and x."tenant_id" = save_purchase_order.tenant) then
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = upsert_purchase_order.location and x."tenant_id" = upsert_purchase_order.tenant) then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
-  if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
+  if (upsert_purchase_order.supplier_type is null) <> (upsert_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
   if v_number is not null and length(v_number) > 50 then
     raise exception 'a purchase order number is up to 50 characters' using errcode = '22023', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_INVALID';
   end if;
-  if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
+  if upsert_purchase_order.currency is null or "better_supabase"."currency_minor_units"(upsert_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
-  if jsonb_typeof(save_purchase_order.lines) is distinct from 'array' or jsonb_array_length(save_purchase_order.lines) = 0
+  if jsonb_typeof(upsert_purchase_order.lines) is distinct from 'array' or jsonb_array_length(upsert_purchase_order.lines) = 0
     or exists (
-      select 1 from jsonb_array_elements(save_purchase_order.lines) e
+      select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
       where jsonb_typeof(e) <> 'object'
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
@@ -19918,28 +19918,28 @@ begin
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
-    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(upsert_purchase_order.lines) e) <> jsonb_array_length(upsert_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_purchase_order.lines) e
-    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_purchase_order.tenant)
+    select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_purchase_order.tenant)
   ) then
     raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if v_id is null then
     insert into "better_supabase"."purchase_orders" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note", "number")
-    values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note, v_number)
+    values (upsert_purchase_order.tenant, upsert_purchase_order.location, upsert_purchase_order.supplier_type, upsert_purchase_order.supplier_id,
+      upsert_purchase_order.currency, upsert_purchase_order.expected_at, upsert_purchase_order.note, v_number)
     returning "id" into v_id;
   else
-    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = save_purchase_order.tenant for update;
+    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = upsert_purchase_order.tenant for update;
     if not found then
       raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
     end if;
-    update "better_supabase"."purchase_orders" x set "location_id" = save_purchase_order.location, "supplier_type" = save_purchase_order.supplier_type,
-      "supplier_id" = save_purchase_order.supplier_id, "currency" = save_purchase_order.currency,
-      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
+    update "better_supabase"."purchase_orders" x set "location_id" = upsert_purchase_order.location, "supplier_type" = upsert_purchase_order.supplier_type,
+      "supplier_id" = upsert_purchase_order.supplier_id, "currency" = upsert_purchase_order.currency,
+      "expected_at" = upsert_purchase_order.expected_at, "note" = upsert_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
     where x."id" = v_id and x."status" = 'draft';
     if not found then
       raise exception 'only a draft purchase order can change' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_LOCKED';
@@ -19947,16 +19947,16 @@ begin
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
   insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
-  from jsonb_array_elements(save_purchase_order.lines) e;
+  select upsert_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
+  from jsonb_array_elements(upsert_purchase_order.lines) e;
   delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
   insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
-  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  select upsert_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
   from (
     select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
-    from jsonb_array_elements(save_purchase_order.lines) e
+    from jsonb_array_elements(upsert_purchase_order.lines) e
   ) g
   where g.rate > 0
   group by g.code, g.rate;
@@ -19965,8 +19965,8 @@ exception when unique_violation then
   raise exception 'another purchase order has this number' using errcode = '23505', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
 
 -- The tax of a purchase order per code and rate, with the order's currency.
 -- Amounts are text in minor units.
@@ -20418,7 +20418,7 @@ begin
     from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
     group by 1
   ) y;
-  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  v_order := "better_supabase"."upsert_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
   update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
   where x."id" = any (purchase_order_from_requisitions.requisitions);
   return v_order;
@@ -22621,23 +22621,23 @@ as $$ select "better_supabase"."set_stock_item"($1, $2, $3, $4, $5, $6, $7) $$;
 revoke execute on function "api"."set_stock_item"(uuid, text, smallint, text, boolean, text, text) from public, anon;
 grant execute on function "api"."set_stock_item"(uuid, text, smallint, text, boolean, text, text) to authenticated, service_role;
 
-create or replace function "api"."save_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function "api"."upsert_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_bin"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
-grant execute on function "api"."save_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_bin"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
+grant execute on function "api"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_lot"(variant uuid, code text, expires_on date)
+create or replace function "api"."upsert_lot"(variant uuid, code text, expires_on date)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_lot"($1, $2, $3) $$;
-revoke execute on function "api"."save_lot"(uuid, text, date) from public, anon;
-grant execute on function "api"."save_lot"(uuid, text, date) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_lot"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_lot"(uuid, text, date) from public, anon;
+grant execute on function "api"."upsert_lot"(uuid, text, date) to authenticated, service_role;
 
 create or replace function "api"."stock_detail"(variant uuid, location uuid)
 returns jsonb
@@ -22780,14 +22780,14 @@ as $$ select "better_supabase"."stock_allocation_updated_at"($1) $$;
 revoke execute on function "api"."stock_allocation_updated_at"(text) from public, anon, authenticated;
 grant execute on function "api"."stock_allocation_updated_at"(text) to service_role;
 
-create or replace function "api"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
+create or replace function "api"."upsert_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_location"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "api"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_location"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."upsert_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_location_active"(location uuid, active boolean)
 returns boolean
@@ -22988,14 +22988,14 @@ as $$ select "better_supabase"."cancel_transfer"($1) $$;
 revoke execute on function "api"."cancel_transfer"(uuid) from public, anon;
 grant execute on function "api"."cancel_transfer"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
+create or replace function "api"."upsert_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_purchase_order"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
-revoke execute on function "api"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
-grant execute on function "api"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_purchase_order"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "api"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
 
 create or replace function "api"."purchase_order_tax_lines"(purchase_order uuid)
 returns jsonb
@@ -23227,7 +23227,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@6 managed
--- @bsb-hash sha256:1d5f3590adc5a31988ecf7580efe6df785ff18760924f9238bf05ad36a60e224
+-- @bsb-hash sha256:9ad6c71d4c7c435620cb479ec5c70718b1608ccfa12d67dc532a54865b8cd36a
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23962,7 +23962,7 @@ grant execute on function "better_supabase"."set_stock_item"(uuid, text, smallin
 
 -- Creates a bin at a location (bin null) or updates one. Stock in a hold bin
 -- counts as held: on hand, but not available to sell.
-create or replace function "better_supabase"."save_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function "better_supabase"."upsert_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -23971,36 +23971,36 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
-  v_id uuid := save_bin.bin;
+  v_id uuid := upsert_bin.bin;
   v_hold boolean;
   v_was boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = save_bin.location;
+  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = upsert_bin.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_bin.code is null or save_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_bin.code is null or upsert_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_BIN_CODE_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."stock_bins" ("tenant_id", "location_id", "code", "name", "hold", "active")
-      values (v_tenant, save_bin.location, save_bin.code, save_bin.name, coalesce(save_bin.hold, false), coalesce(save_bin.active, true))
+      values (v_tenant, upsert_bin.location, upsert_bin.code, upsert_bin.name, coalesce(upsert_bin.hold, false), coalesce(upsert_bin.active, true))
       returning "id", "hold" into v_id, v_hold;
       v_was := v_hold;
     else
-      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = save_bin.location for update;
+      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = upsert_bin.location for update;
       if not found then
         raise exception 'bin not found at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
       end if;
-      update "better_supabase"."stock_bins" x set "code" = save_bin.code, "name" = save_bin.name,
-        "hold" = coalesce(save_bin.hold, x."hold"), "active" = coalesce(save_bin.active, x."active")
+      update "better_supabase"."stock_bins" x set "code" = upsert_bin.code, "name" = upsert_bin.name,
+        "hold" = coalesce(upsert_bin.hold, x."hold"), "active" = coalesce(upsert_bin.active, x."active")
       where x."id" = v_id
       returning x."hold" into v_hold;
     end if;
@@ -24011,13 +24011,13 @@ begin
     update "better_supabase"."stock_levels" x set "held" = greatest(x."held" + case when v_hold then y.on_hand else -y.on_hand end, 0), "updated_at" = now()
     from (select z."variant_id" as variant, sum(z."on_hand") as on_hand from "better_supabase"."stock_buckets" z
       where z."bin_id" = v_id and z."on_hand" > 0 group by z."variant_id") y
-    where x."variant_id" = y.variant and x."location_id" = save_bin.location;
+    where x."variant_id" = y.variant and x."location_id" = upsert_bin.location;
   end if;
-  return jsonb_build_object('id', v_id, 'code', save_bin.code, 'hold', v_hold, 'active', coalesce(save_bin.active, true));
+  return jsonb_build_object('id', v_id, 'code', upsert_bin.code, 'hold', v_hold, 'active', coalesce(upsert_bin.active, true));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
 
 -- The lot of a variant with this code, created when missing. A given
 -- expires_on replaces the stored one.
@@ -24045,7 +24045,7 @@ $$;
 revoke execute on function "better_supabase"."stock_lot_for"(uuid, uuid, text, date) from public, anon, authenticated;
 
 -- Creates a lot of a variant or updates its expiry date. Returns the lot.
-create or replace function "better_supabase"."save_lot"(variant uuid, code text, expires_on date)
+create or replace function "better_supabase"."upsert_lot"(variant uuid, code text, expires_on date)
 returns jsonb
 language plpgsql
 security definer
@@ -24055,20 +24055,20 @@ declare
   v_tenant uuid;
   v_id uuid;
 begin
-  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = save_lot.variant;
+  select cv."tenant_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = upsert_lot.variant;
   if v_tenant is null then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  v_id := "better_supabase"."stock_lot_for"(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
+  v_id := "better_supabase"."stock_lot_for"(v_tenant, upsert_lot.variant, upsert_lot.code, upsert_lot.expires_on);
   return (select jsonb_build_object('id', x."id", 'code', x."code", 'expiresOn', x."expires_on")
     from "better_supabase"."stock_lots" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_lot"(uuid, text, date) from public, anon;
-grant execute on function "better_supabase"."save_lot"(uuid, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lot"(uuid, text, date) from public, anon;
+grant execute on function "better_supabase"."upsert_lot"(uuid, text, date) to authenticated, service_role;
 
 -- A variant's stock at a location: the level, each bin and lot bucket, the
 -- stock outside any bin or lot, and the serial numbers in stock there.
@@ -24868,37 +24868,37 @@ alter table "better_supabase"."inventory_locations" add column if not exists "ad
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
 
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
+create or replace function "better_supabase"."upsert_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_location.location;
+  v_id uuid := upsert_location.location;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_location.tenant, 'inventory.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_location.tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_location.code is null or upsert_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_LOCATION_CODE_INVALID';
   end if;
-  if coalesce(save_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
+  if coalesce(upsert_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
     raise exception 'the kind must be warehouse, store or virtual' using errcode = '22023', hint = 'INVENTORY_LOCATION_KIND_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."inventory_locations" ("tenant_id", "code", "name", "kind")
-      values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
+      values (upsert_location.tenant, upsert_location.code, upsert_location.name, coalesce(upsert_location.kind, 'warehouse'))
       returning "id", "active" into v_id, v_active;
     else
-      update "better_supabase"."inventory_locations" x set "code" = save_location.code, "name" = save_location.name,
-        "kind" = coalesce(save_location.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_location.location and x."tenant_id" = save_location.tenant
+      update "better_supabase"."inventory_locations" x set "code" = upsert_location.code, "name" = upsert_location.name,
+        "kind" = coalesce(upsert_location.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_location.location and x."tenant_id" = upsert_location.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
@@ -24907,11 +24907,11 @@ begin
   exception when unique_violation then
     raise exception 'another location has this code' using errcode = '23505', hint = 'INVENTORY_LOCATION_CODE_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -26058,37 +26058,37 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 
-create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
+create or replace function "better_supabase"."upsert_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;
-  v_number text := nullif(btrim(save_purchase_order.number), '');
+  v_id uuid := upsert_purchase_order.purchase_order;
+  v_number text := nullif(btrim(upsert_purchase_order.number), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_purchase_order.tenant, 'inventory.purchase'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_purchase_order.tenant, 'inventory.purchase'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = save_purchase_order.location and x."tenant_id" = save_purchase_order.tenant) then
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = upsert_purchase_order.location and x."tenant_id" = upsert_purchase_order.tenant) then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
-  if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
+  if (upsert_purchase_order.supplier_type is null) <> (upsert_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
   if v_number is not null and length(v_number) > 50 then
     raise exception 'a purchase order number is up to 50 characters' using errcode = '22023', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_INVALID';
   end if;
-  if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
+  if upsert_purchase_order.currency is null or "better_supabase"."currency_minor_units"(upsert_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
-  if jsonb_typeof(save_purchase_order.lines) is distinct from 'array' or jsonb_array_length(save_purchase_order.lines) = 0
+  if jsonb_typeof(upsert_purchase_order.lines) is distinct from 'array' or jsonb_array_length(upsert_purchase_order.lines) = 0
     or exists (
-      select 1 from jsonb_array_elements(save_purchase_order.lines) e
+      select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
       where jsonb_typeof(e) <> 'object'
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
@@ -26096,28 +26096,28 @@ begin
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
-    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(upsert_purchase_order.lines) e) <> jsonb_array_length(upsert_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_purchase_order.lines) e
-    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_purchase_order.tenant)
+    select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = upsert_purchase_order.tenant)
   ) then
     raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if v_id is null then
     insert into "better_supabase"."purchase_orders" ("tenant_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note", "number")
-    values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note, v_number)
+    values (upsert_purchase_order.tenant, upsert_purchase_order.location, upsert_purchase_order.supplier_type, upsert_purchase_order.supplier_id,
+      upsert_purchase_order.currency, upsert_purchase_order.expected_at, upsert_purchase_order.note, v_number)
     returning "id" into v_id;
   else
-    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = save_purchase_order.tenant for update;
+    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."tenant_id" = upsert_purchase_order.tenant for update;
     if not found then
       raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
     end if;
-    update "better_supabase"."purchase_orders" x set "location_id" = save_purchase_order.location, "supplier_type" = save_purchase_order.supplier_type,
-      "supplier_id" = save_purchase_order.supplier_id, "currency" = save_purchase_order.currency,
-      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
+    update "better_supabase"."purchase_orders" x set "location_id" = upsert_purchase_order.location, "supplier_type" = upsert_purchase_order.supplier_type,
+      "supplier_id" = upsert_purchase_order.supplier_id, "currency" = upsert_purchase_order.currency,
+      "expected_at" = upsert_purchase_order.expected_at, "note" = upsert_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
     where x."id" = v_id and x."status" = 'draft';
     if not found then
       raise exception 'only a draft purchase order can change' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_LOCKED';
@@ -26125,16 +26125,16 @@ begin
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
   insert into "better_supabase"."purchase_order_lines" ("tenant_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
-  from jsonb_array_elements(save_purchase_order.lines) e;
+  select upsert_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
+  from jsonb_array_elements(upsert_purchase_order.lines) e;
   delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
   insert into "better_supabase"."purchase_order_tax_lines" ("tenant_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
-  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  select upsert_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
   from (
     select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
-    from jsonb_array_elements(save_purchase_order.lines) e
+    from jsonb_array_elements(upsert_purchase_order.lines) e
   ) g
   where g.rate > 0
   group by g.code, g.rate;
@@ -26143,8 +26143,8 @@ exception when unique_violation then
   raise exception 'another purchase order has this number' using errcode = '23505', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
 
 -- The tax of a purchase order per code and rate, with the order's currency.
 -- Amounts are text in minor units.
@@ -26596,7 +26596,7 @@ begin
     from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
     group by 1
   ) y;
-  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  v_order := "better_supabase"."upsert_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
   update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
   where x."id" = any (purchase_order_from_requisitions.requisitions);
   return v_order;
@@ -28803,7 +28803,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@6 managed
--- @bsb-hash sha256:8176d7d42fc9b9cbf68c1a82ecb1038a421df7a1d6997015b1eafba963c2c478
+-- @bsb-hash sha256:5ff171f25adfcf997570ea9c83248b6eca62680a41b3f4bb18776c0df0d066d4
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29599,7 +29599,7 @@ grant execute on function "better_supabase"."set_stock_item"(uuid, text, smallin
 
 -- Creates a bin at a location (bin null) or updates one. Stock in a hold bin
 -- counts as held: on hand, but not available to sell.
-create or replace function "better_supabase"."save_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function "better_supabase"."upsert_bin"(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -29608,36 +29608,36 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant uuid;
-  v_id uuid := save_bin.bin;
+  v_id uuid := upsert_bin.bin;
   v_hold boolean;
   v_was boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = save_bin.location;
+  select x."org_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = upsert_bin.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_bin.code is null or save_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_bin.code is null or upsert_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_BIN_CODE_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."stock_bins" ("org_id", "location_id", "code", "name", "hold", "active")
-      values (v_tenant, save_bin.location, save_bin.code, save_bin.name, coalesce(save_bin.hold, false), coalesce(save_bin.active, true))
+      values (v_tenant, upsert_bin.location, upsert_bin.code, upsert_bin.name, coalesce(upsert_bin.hold, false), coalesce(upsert_bin.active, true))
       returning "id", "hold" into v_id, v_hold;
       v_was := v_hold;
     else
-      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = save_bin.location for update;
+      select x."hold" into v_was from "better_supabase"."stock_bins" x where x."id" = v_id and x."location_id" = upsert_bin.location for update;
       if not found then
         raise exception 'bin not found at this location' using errcode = 'P0002', hint = 'INVENTORY_BIN_NOT_FOUND';
       end if;
-      update "better_supabase"."stock_bins" x set "code" = save_bin.code, "name" = save_bin.name,
-        "hold" = coalesce(save_bin.hold, x."hold"), "active" = coalesce(save_bin.active, x."active")
+      update "better_supabase"."stock_bins" x set "code" = upsert_bin.code, "name" = upsert_bin.name,
+        "hold" = coalesce(upsert_bin.hold, x."hold"), "active" = coalesce(upsert_bin.active, x."active")
       where x."id" = v_id
       returning x."hold" into v_hold;
     end if;
@@ -29648,13 +29648,13 @@ begin
     update "better_supabase"."stock_levels" x set "held" = greatest(x."held" + case when v_hold then y.on_hand else -y.on_hand end, 0), "updated_at" = now()
     from (select z."variant_id" as variant, sum(z."on_hand") as on_hand from "better_supabase"."stock_buckets" z
       where z."bin_id" = v_id and z."on_hand" > 0 group by z."variant_id") y
-    where x."variant_id" = y.variant and x."location_id" = save_bin.location;
+    where x."variant_id" = y.variant and x."location_id" = upsert_bin.location;
   end if;
-  return jsonb_build_object('id', v_id, 'code', save_bin.code, 'hold', v_hold, 'active', coalesce(save_bin.active, true));
+  return jsonb_build_object('id', v_id, 'code', upsert_bin.code, 'hold', v_hold, 'active', coalesce(upsert_bin.active, true));
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
-grant execute on function "better_supabase"."save_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_bin"(uuid, uuid, text, text, boolean, boolean) to authenticated, service_role;
 
 -- The lot of a variant with this code, created when missing. A given
 -- expires_on replaces the stored one.
@@ -29682,7 +29682,7 @@ $$;
 revoke execute on function "better_supabase"."stock_lot_for"(uuid, uuid, text, date) from public, anon, authenticated;
 
 -- Creates a lot of a variant or updates its expiry date. Returns the lot.
-create or replace function "better_supabase"."save_lot"(variant uuid, code text, expires_on date)
+create or replace function "better_supabase"."upsert_lot"(variant uuid, code text, expires_on date)
 returns jsonb
 language plpgsql
 security definer
@@ -29692,20 +29692,20 @@ declare
   v_tenant uuid;
   v_id uuid;
 begin
-  select cv."org_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = save_lot.variant;
+  select cv."org_id" into v_tenant from "better_supabase"."product_variants" cv where cv."id" = upsert_lot.variant;
   if v_tenant is null then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  v_id := "better_supabase"."stock_lot_for"(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
+  v_id := "better_supabase"."stock_lot_for"(v_tenant, upsert_lot.variant, upsert_lot.code, upsert_lot.expires_on);
   return (select jsonb_build_object('id', x."id", 'code', x."code", 'expiresOn', x."expires_on")
     from "better_supabase"."stock_lots" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_lot"(uuid, text, date) from public, anon;
-grant execute on function "better_supabase"."save_lot"(uuid, text, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lot"(uuid, text, date) from public, anon;
+grant execute on function "better_supabase"."upsert_lot"(uuid, text, date) to authenticated, service_role;
 
 -- A variant's stock at a location: the level, each bin and lot bucket, the
 -- stock outside any bin or lot, and the serial numbers in stock there.
@@ -30506,37 +30506,37 @@ alter table "better_supabase"."inventory_locations" add constraint bsb_inventory
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
 
-create or replace function "better_supabase"."save_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
+create or replace function "better_supabase"."upsert_location"(tenant uuid, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_location.location;
+  v_id uuid := upsert_location.location;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_location.tenant, 'inventory.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_location.tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_location.code is null or upsert_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     raise exception 'the code must be 1 to 40 letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'INVENTORY_LOCATION_CODE_INVALID';
   end if;
-  if coalesce(save_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
+  if coalesce(upsert_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
     raise exception 'the kind must be warehouse, store or virtual' using errcode = '22023', hint = 'INVENTORY_LOCATION_KIND_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."inventory_locations" ("org_id", "code", "name", "kind")
-      values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
+      values (upsert_location.tenant, upsert_location.code, upsert_location.name, coalesce(upsert_location.kind, 'warehouse'))
       returning "id", "active" into v_id, v_active;
     else
-      update "better_supabase"."inventory_locations" x set "code" = save_location.code, "name" = save_location.name,
-        "kind" = coalesce(save_location.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_location.location and x."org_id" = save_location.tenant
+      update "better_supabase"."inventory_locations" x set "code" = upsert_location.code, "name" = upsert_location.name,
+        "kind" = coalesce(upsert_location.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_location.location and x."org_id" = upsert_location.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
@@ -30545,11 +30545,11 @@ begin
   exception when unique_violation then
     raise exception 'another location has this code' using errcode = '23505', hint = 'INVENTORY_LOCATION_CODE_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_location"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function "better_supabase"."set_location_active"(location uuid, active boolean)
@@ -31696,37 +31696,37 @@ grant execute on function "better_supabase"."cancel_transfer"(uuid) to authentic
 -- }], and per line "taxRateBps" and "taxCode" when the order keeps tax lines.
 -- supplier_type and supplier_id name a config.recordTypes record, or are both null.
 
-create or replace function "better_supabase"."save_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
+create or replace function "better_supabase"."upsert_purchase_order"(tenant uuid, purchase_order uuid, location uuid, supplier_type text, supplier_id text, currency text, expected_at timestamptz, lines jsonb, note text, number text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_purchase_order.purchase_order;
-  v_number text := nullif(btrim(save_purchase_order.number), '');
+  v_id uuid := upsert_purchase_order.purchase_order;
+  v_number text := nullif(btrim(upsert_purchase_order.number), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_purchase_order.tenant, 'inventory.purchase'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_purchase_order.tenant, 'inventory.purchase'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = save_purchase_order.location and x."org_id" = save_purchase_order.tenant) then
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = upsert_purchase_order.location and x."org_id" = upsert_purchase_order.tenant) then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
-  if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then
+  if (upsert_purchase_order.supplier_type is null) <> (upsert_purchase_order.supplier_id is null) then
     raise exception 'supplier_type and supplier_id go together' using errcode = '22023', hint = 'INVENTORY_SUPPLIER_INVALID';
   end if;
   if v_number is not null and length(v_number) > 50 then
     raise exception 'a purchase order number is up to 50 characters' using errcode = '22023', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_INVALID';
   end if;
-  if save_purchase_order.currency is null or "better_supabase"."currency_minor_units"(save_purchase_order.currency) is null then
+  if upsert_purchase_order.currency is null or "better_supabase"."currency_minor_units"(upsert_purchase_order.currency) is null then
     raise exception 'the currency must be an ISO 4217 code' using errcode = '22023', hint = 'INVENTORY_CURRENCY_INVALID';
   end if;
-  if jsonb_typeof(save_purchase_order.lines) is distinct from 'array' or jsonb_array_length(save_purchase_order.lines) = 0
+  if jsonb_typeof(upsert_purchase_order.lines) is distinct from 'array' or jsonb_array_length(upsert_purchase_order.lines) = 0
     or exists (
-      select 1 from jsonb_array_elements(save_purchase_order.lines) e
+      select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
       where jsonb_typeof(e) <> 'object'
         or coalesce(e ->> 'variantId', '') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
         or case when coalesce(e ->> 'quantity', '') ~ '^[0-9]{1,14}([.][0-9]{1,6})?$' then (e ->> 'quantity')::numeric <= 0 else true end
@@ -31734,28 +31734,28 @@ begin
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '') !~ '^[0-9]{1,6}$')
         or (e ? 'taxRateBps' and coalesce(e ->> 'taxRateBps', '0') ~ '^[0-9]{1,6}$' and (e ->> 'taxRateBps')::integer > 100000)
     )
-    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(save_purchase_order.lines) e) <> jsonb_array_length(save_purchase_order.lines) then
+    or (select count(distinct e ->> 'variantId') from jsonb_array_elements(upsert_purchase_order.lines) e) <> jsonb_array_length(upsert_purchase_order.lines) then
     raise exception 'lines must be a non-empty list with a unique variantId and a positive quantity each' using errcode = '22023', hint = 'INVENTORY_LINES_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_purchase_order.lines) e
-    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."org_id" = save_purchase_order.tenant)
+    select 1 from jsonb_array_elements(upsert_purchase_order.lines) e
+    where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."org_id" = upsert_purchase_order.tenant)
   ) then
     raise exception 'a line names a variant outside this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
   end if;
   if v_id is null then
     insert into "better_supabase"."purchase_orders" ("org_id", "location_id", "supplier_type", "supplier_id", "currency", "expected_at", "note", "number")
-    values (save_purchase_order.tenant, save_purchase_order.location, save_purchase_order.supplier_type, save_purchase_order.supplier_id,
-      save_purchase_order.currency, save_purchase_order.expected_at, save_purchase_order.note, v_number)
+    values (upsert_purchase_order.tenant, upsert_purchase_order.location, upsert_purchase_order.supplier_type, upsert_purchase_order.supplier_id,
+      upsert_purchase_order.currency, upsert_purchase_order.expected_at, upsert_purchase_order.note, v_number)
     returning "id" into v_id;
   else
-    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."org_id" = save_purchase_order.tenant for update;
+    perform 1 from "better_supabase"."purchase_orders" x where x."id" = v_id and x."org_id" = upsert_purchase_order.tenant for update;
     if not found then
       raise exception 'purchase order not found' using errcode = 'P0002', hint = 'INVENTORY_PURCHASE_ORDER_NOT_FOUND';
     end if;
-    update "better_supabase"."purchase_orders" x set "location_id" = save_purchase_order.location, "supplier_type" = save_purchase_order.supplier_type,
-      "supplier_id" = save_purchase_order.supplier_id, "currency" = save_purchase_order.currency,
-      "expected_at" = save_purchase_order.expected_at, "note" = save_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
+    update "better_supabase"."purchase_orders" x set "location_id" = upsert_purchase_order.location, "supplier_type" = upsert_purchase_order.supplier_type,
+      "supplier_id" = upsert_purchase_order.supplier_id, "currency" = upsert_purchase_order.currency,
+      "expected_at" = upsert_purchase_order.expected_at, "note" = upsert_purchase_order.note, "number" = coalesce(v_number, x."number"), "updated_at" = now()
     where x."id" = v_id and x."status" = 'draft';
     if not found then
       raise exception 'only a draft purchase order can change' using errcode = '55000', hint = 'INVENTORY_PURCHASE_ORDER_LOCKED';
@@ -31763,16 +31763,16 @@ begin
     delete from "better_supabase"."purchase_order_lines" x where x."purchase_order_id" = v_id;
   end if;
   insert into "better_supabase"."purchase_order_lines" ("org_id", "purchase_order_id", "variant_id", "quantity_ordered", "unit_cost", "tax_rate_bps", "tax_code")
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
-  from jsonb_array_elements(save_purchase_order.lines) e;
+  select upsert_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint, (e ->> 'taxRateBps')::integer, nullif(trim(e ->> 'taxCode'), '')
+  from jsonb_array_elements(upsert_purchase_order.lines) e;
   delete from "better_supabase"."purchase_order_tax_lines" x where x."purchase_order_id" = v_id;
   insert into "better_supabase"."purchase_order_tax_lines" ("org_id", "purchase_order_id", "tax_code", "tax_rate_bps", "net", "tax", "gross")
-  select save_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
+  select upsert_purchase_order.tenant, v_id, g.code, g.rate, sum(g.net), sum(g.tax), sum(g.net + g.tax)
   from (
     select nullif(trim(e ->> 'taxCode'), '') as code, coalesce((e ->> 'taxRateBps')::integer, 0) as rate,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint)::bigint as net,
       round((e ->> 'quantity')::numeric * (e ->> 'unitCost')::bigint * coalesce((e ->> 'taxRateBps')::integer, 0) / 10000.0)::bigint as tax
-    from jsonb_array_elements(save_purchase_order.lines) e
+    from jsonb_array_elements(upsert_purchase_order.lines) e
   ) g
   where g.rate > 0
   group by g.code, g.rate;
@@ -31781,8 +31781,8 @@ exception when unique_violation then
   raise exception 'another purchase order has this number' using errcode = '23505', hint = 'INVENTORY_PURCHASE_ORDER_NUMBER_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
-grant execute on function "better_supabase"."save_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_purchase_order"(uuid, uuid, uuid, text, text, text, timestamptz, jsonb, text, text) to authenticated, service_role;
 
 -- The tax of a purchase order per code and rate, with the order's currency.
 -- Amounts are text in minor units.
@@ -32234,7 +32234,7 @@ begin
     from "better_supabase"."purchase_requisition_lines" l where l."requisition_id" = any (purchase_order_from_requisitions.requisitions)
     group by 1
   ) y;
-  v_order := "better_supabase"."save_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  v_order := "better_supabase"."upsert_purchase_order"(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
   update "better_supabase"."purchase_requisitions" x set "status" = 'ordered', "purchase_order_id" = (v_order ->> 'id')::uuid, "updated_at" = now()
   where x."id" = any (purchase_order_from_requisitions.requisitions);
   return v_order;

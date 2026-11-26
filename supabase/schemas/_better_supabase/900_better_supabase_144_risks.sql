@@ -1,6 +1,6 @@
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:949e0f52abb9f27e708d13e4991f06f86307bc0b967fb928dd8347b2f32cc970
+-- @bsb-hash sha256:f3c232480dc4cc2b2bf66f3c84a9036297f64c5aa5c3bc10a1d9b83bf7fd6b99
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."risk_matrices" (
   "tenant_id" uuid not null,
   "key" text not null constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "name" text not null constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200),
-  -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
+  -- [{ value, label }] with values 1 to n; upsert_risk_matrix checks the shape.
   "likelihood_levels" jsonb not null constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array'),
   "impact_levels" jsonb not null constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array'),
   -- [{ key, label, min, max }] covering every score once.
@@ -161,7 +161,7 @@ grant execute on function "better_supabase"."ensure_risk_matrix"(uuid) to servic
 -- impact_levels are [{ value, label }] with values 1 to n; bands are
 -- [{ key, label, min, max }] covering every score once. A matrix risks use
 -- keeps its level counts, and their scores and bands follow the new rules.
-create or replace function "better_supabase"."save_risk_matrix"(tenant uuid, key text, name text, likelihood_levels jsonb, impact_levels jsonb, bands jsonb, scoring text default 'product', is_default boolean default false, matrix_id uuid default null)
+create or replace function "better_supabase"."upsert_risk_matrix"(tenant uuid, key text, name text, likelihood_levels jsonb, impact_levels jsonb, bands jsonb, scoring text default 'product', is_default boolean default false, matrix_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -179,55 +179,55 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_risk_matrix.tenant is not null and coalesce(better_supabase.can('tenant', save_risk_matrix.tenant, 'risks.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_risk_matrix.tenant is not null and coalesce(better_supabase.can('tenant', upsert_risk_matrix.tenant, 'risks.manage'), false))) then
     raise exception 'not allowed to manage risk matrices' using errcode = '42501', hint = 'RISK_FORBIDDEN';
   end if;
-  if coalesce(save_risk_matrix.key, '') !~ '^[a-z][a-z0-9_-]{0,62}$' then
+  if coalesce(upsert_risk_matrix.key, '') !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'key must be lowercase letters, digits, dashes and underscores' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if coalesce(length(trim(save_risk_matrix.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_risk_matrix.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if coalesce(save_risk_matrix.scoring, '') not in ('product', 'sum') then
+  if coalesce(upsert_risk_matrix.scoring, '') not in ('product', 'sum') then
     raise exception 'scoring must be product or sum' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if jsonb_typeof(save_risk_matrix.likelihood_levels) is distinct from 'array' or jsonb_array_length(save_risk_matrix.likelihood_levels) not between 2 and 10 then
+  if jsonb_typeof(upsert_risk_matrix.likelihood_levels) is distinct from 'array' or jsonb_array_length(upsert_risk_matrix.likelihood_levels) not between 2 and 10 then
     raise exception 'likelihood_levels must be a list of 2 to 10 levels' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_risk_matrix.likelihood_levels) l
+    select 1 from jsonb_array_elements(upsert_risk_matrix.likelihood_levels) l
     where jsonb_typeof(l) <> 'object' or jsonb_typeof(l -> 'value') is distinct from 'number'
       or (l ->> 'value') !~ '^[0-9]{1,2}$' or coalesce(length(trim(l ->> 'label')), 0) not between 1 and 100
   ) then
     raise exception 'likelihood_levels values must be 1 to n, each once, with a label of 1 to 100 characters' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if (select array_agg((l ->> 'value')::integer order by (l ->> 'value')::integer) from jsonb_array_elements(save_risk_matrix.likelihood_levels) l)
-    <> (select array_agg(g order by g) from generate_series(1, jsonb_array_length(save_risk_matrix.likelihood_levels)) g) then
+  if (select array_agg((l ->> 'value')::integer order by (l ->> 'value')::integer) from jsonb_array_elements(upsert_risk_matrix.likelihood_levels) l)
+    <> (select array_agg(g order by g) from generate_series(1, jsonb_array_length(upsert_risk_matrix.likelihood_levels)) g) then
     raise exception 'likelihood_levels values must be 1 to n, each once, with a label of 1 to 100 characters' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if jsonb_typeof(save_risk_matrix.impact_levels) is distinct from 'array' or jsonb_array_length(save_risk_matrix.impact_levels) not between 2 and 10 then
+  if jsonb_typeof(upsert_risk_matrix.impact_levels) is distinct from 'array' or jsonb_array_length(upsert_risk_matrix.impact_levels) not between 2 and 10 then
     raise exception 'impact_levels must be a list of 2 to 10 levels' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_risk_matrix.impact_levels) l
+    select 1 from jsonb_array_elements(upsert_risk_matrix.impact_levels) l
     where jsonb_typeof(l) <> 'object' or jsonb_typeof(l -> 'value') is distinct from 'number'
       or (l ->> 'value') !~ '^[0-9]{1,2}$' or coalesce(length(trim(l ->> 'label')), 0) not between 1 and 100
   ) then
     raise exception 'impact_levels values must be 1 to n, each once, with a label of 1 to 100 characters' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if (select array_agg((l ->> 'value')::integer order by (l ->> 'value')::integer) from jsonb_array_elements(save_risk_matrix.impact_levels) l)
-    <> (select array_agg(g order by g) from generate_series(1, jsonb_array_length(save_risk_matrix.impact_levels)) g) then
+  if (select array_agg((l ->> 'value')::integer order by (l ->> 'value')::integer) from jsonb_array_elements(upsert_risk_matrix.impact_levels) l)
+    <> (select array_agg(g order by g) from generate_series(1, jsonb_array_length(upsert_risk_matrix.impact_levels)) g) then
     raise exception 'impact_levels values must be 1 to n, each once, with a label of 1 to 100 characters' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  v_nl := jsonb_array_length(save_risk_matrix.likelihood_levels);
-  v_ni := jsonb_array_length(save_risk_matrix.impact_levels);
-  v_min := case when save_risk_matrix.scoring = 'sum' then 2 else 1 end;
-  v_max := case when save_risk_matrix.scoring = 'sum' then v_nl + v_ni else v_nl * v_ni end;
-  if jsonb_typeof(save_risk_matrix.bands) is distinct from 'array' or jsonb_array_length(save_risk_matrix.bands) not between 1 and 10 then
+  v_nl := jsonb_array_length(upsert_risk_matrix.likelihood_levels);
+  v_ni := jsonb_array_length(upsert_risk_matrix.impact_levels);
+  v_min := case when upsert_risk_matrix.scoring = 'sum' then 2 else 1 end;
+  v_max := case when upsert_risk_matrix.scoring = 'sum' then v_nl + v_ni else v_nl * v_ni end;
+  if jsonb_typeof(upsert_risk_matrix.bands) is distinct from 'array' or jsonb_array_length(upsert_risk_matrix.bands) not between 1 and 10 then
     raise exception 'bands must be a list of 1 to 10 bands' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(save_risk_matrix.bands) b
+    select 1 from jsonb_array_elements(upsert_risk_matrix.bands) b
     where jsonb_typeof(b) <> 'object' or coalesce(b ->> 'key', '') !~ '^[a-z][a-z0-9_]{0,31}$'
       or coalesce(length(trim(b ->> 'label')), 0) not between 1 and 100
       or jsonb_typeof(b -> 'min') is distinct from 'number' or jsonb_typeof(b -> 'max') is distinct from 'number'
@@ -235,7 +235,7 @@ begin
   ) then
     raise exception 'each band needs a key of lowercase letters, digits and underscores, a label, and whole-number min and max' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if (select count(distinct b ->> 'key') from jsonb_array_elements(save_risk_matrix.bands) b) <> jsonb_array_length(save_risk_matrix.bands) then
+  if (select count(distinct b ->> 'key') from jsonb_array_elements(upsert_risk_matrix.bands) b) <> jsonb_array_length(upsert_risk_matrix.bands) then
     raise exception 'band keys must be unique' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
   if exists (
@@ -243,15 +243,15 @@ begin
       select (b ->> 'min')::integer as lo, (b ->> 'max')::integer as hi,
         lag((b ->> 'max')::integer) over (order by (b ->> 'min')::integer) as prev,
         row_number() over (order by (b ->> 'min')::integer) as n
-      from jsonb_array_elements(save_risk_matrix.bands) b
+      from jsonb_array_elements(upsert_risk_matrix.bands) b
     ) s
     where s.lo > s.hi or (s.n = 1 and s.lo <> v_min) or (s.n > 1 and s.lo <> s.prev + 1)
-  ) or (select max((b ->> 'max')::integer) from jsonb_array_elements(save_risk_matrix.bands) b) <> v_max then
+  ) or (select max((b ->> 'max')::integer) from jsonb_array_elements(upsert_risk_matrix.bands) b) <> v_max then
     raise exception 'bands must cover every score from the lowest to the highest without gaps or overlaps' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
   end if;
-  if save_risk_matrix.matrix_id is not null then
+  if upsert_risk_matrix.matrix_id is not null then
     select * into v_old from "better_supabase"."risk_matrices" x
-    where x."id" = save_risk_matrix.matrix_id and x."tenant_id" = save_risk_matrix.tenant
+    where x."id" = upsert_risk_matrix.matrix_id and x."tenant_id" = upsert_risk_matrix.tenant
     for update;
     if not found then
       raise exception 'no such risk matrix in this organization' using errcode = 'P0002', hint = 'RISK_MATRIX_NOT_FOUND';
@@ -261,15 +261,15 @@ begin
       raise exception 'risks use this matrix, so its level counts can''t change' using errcode = '55000', hint = 'RISK_MATRIX_IN_USE';
     end if;
   end if;
-  if save_risk_matrix.is_default then
+  if upsert_risk_matrix.is_default then
     update "better_supabase"."risk_matrices" x set "is_default" = false, "updated_at" = now()
-    where x."tenant_id" = save_risk_matrix.tenant and x."is_default"
-      and x."id" is distinct from save_risk_matrix.matrix_id;
+    where x."tenant_id" = upsert_risk_matrix.tenant and x."is_default"
+      and x."id" is distinct from upsert_risk_matrix.matrix_id;
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."risk_matrices" ("tenant_id", "key", "name", "likelihood_levels", "impact_levels", "bands", "scoring", "is_default")
-    values (save_risk_matrix.tenant, save_risk_matrix.key, trim(save_risk_matrix.name), save_risk_matrix.likelihood_levels, save_risk_matrix.impact_levels, save_risk_matrix.bands, save_risk_matrix.scoring,
-      save_risk_matrix.is_default or not exists (select 1 from "better_supabase"."risk_matrices" y where y."tenant_id" = save_risk_matrix.tenant and y."is_default"))
+    values (upsert_risk_matrix.tenant, upsert_risk_matrix.key, trim(upsert_risk_matrix.name), upsert_risk_matrix.likelihood_levels, upsert_risk_matrix.impact_levels, upsert_risk_matrix.bands, upsert_risk_matrix.scoring,
+      upsert_risk_matrix.is_default or not exists (select 1 from "better_supabase"."risk_matrices" y where y."tenant_id" = upsert_risk_matrix.tenant and y."is_default"))
     returning * into v_row;
     perform "better_supabase".emit_event('risk_matrix.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'name', v_row."name", 'isDefault', v_row."is_default"), 'risk-matrices/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/risks');
   perform better_supabase.audit_event(
@@ -284,14 +284,14 @@ begin
   );
   else
     update "better_supabase"."risk_matrices" x set
-      "key" = save_risk_matrix.key,
-      "name" = trim(save_risk_matrix.name),
-      "likelihood_levels" = save_risk_matrix.likelihood_levels,
-      "impact_levels" = save_risk_matrix.impact_levels,
-      "bands" = save_risk_matrix.bands,
-      "scoring" = save_risk_matrix.scoring,
+      "key" = upsert_risk_matrix.key,
+      "name" = trim(upsert_risk_matrix.name),
+      "likelihood_levels" = upsert_risk_matrix.likelihood_levels,
+      "impact_levels" = upsert_risk_matrix.impact_levels,
+      "bands" = upsert_risk_matrix.bands,
+      "scoring" = upsert_risk_matrix.scoring,
       -- The default stays the default until another matrix takes over.
-      "is_default" = x."is_default" or save_risk_matrix.is_default,
+      "is_default" = x."is_default" or upsert_risk_matrix.is_default,
       "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -318,8 +318,8 @@ exception when unique_violation then
   raise exception 'another matrix of this organization has this key' using errcode = '22023', hint = 'RISK_MATRIX_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) to authenticated, service_role;
 
 -- The organization's matrices, the default first. Seeds the default matrix
 -- the first time.
@@ -1511,14 +1511,14 @@ as $$ select "better_supabase"."ensure_risk_matrix"($1) $$;
 revoke execute on function "api"."ensure_risk_matrix"(uuid) from public, anon, authenticated;
 grant execute on function "api"."ensure_risk_matrix"(uuid) to service_role;
 
-create or replace function "api"."save_risk_matrix"(tenant uuid, key text, name text, likelihood_levels jsonb, impact_levels jsonb, bands jsonb, scoring text default 'product', is_default boolean default false, matrix_id uuid default null)
+create or replace function "api"."upsert_risk_matrix"(tenant uuid, key text, name text, likelihood_levels jsonb, impact_levels jsonb, bands jsonb, scoring text default 'product', is_default boolean default false, matrix_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_risk_matrix"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) from public, anon;
-grant execute on function "api"."save_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_risk_matrix"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) from public, anon;
+grant execute on function "api"."upsert_risk_matrix"(uuid, text, text, jsonb, jsonb, jsonb, text, boolean, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_risk_matrices"(tenant uuid)
 returns jsonb

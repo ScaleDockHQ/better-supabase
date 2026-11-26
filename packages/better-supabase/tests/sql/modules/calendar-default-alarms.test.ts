@@ -62,25 +62,25 @@ begin
 
   ${as("authenticated", ALICE)}
   ${forbidden(`perform better_supabase.set_calendar_default_alarms(v_calendar, '[]')`, "CALENDAR_FORBIDDEN", "member sets defaults")}
-  v_event := (better_supabase.save_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}') ->> 'id')::uuid;
+  v_event := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}') ->> 'id')::uuid;
   if (select array_agg(offset_minutes order by offset_minutes) from better_supabase.calendar_event_alarms where event_id = v_event) <> array[10, 60] then
     raise exception 'timed defaults %', (select jsonb_agg(to_jsonb(a)) from better_supabase.calendar_event_alarms a);
   end if;
   if (select created_by from better_supabase.calendar_events where id = v_event) <> '${ALICE}' then
     raise exception 'creator';
   end if;
-  v_event := (better_supabase.save_calendar_event(v_calendar, '{"title": "Offsite", "allDay": true, "startsAt": "2026-03-05T00:00:00Z", "endsAt": "2026-03-06T00:00:00Z"}') ->> 'id')::uuid;
+  v_event := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Offsite", "allDay": true, "startsAt": "2026-03-05T00:00:00Z", "endsAt": "2026-03-06T00:00:00Z"}') ->> 'id')::uuid;
   if (select array_agg(offset_minutes) from better_supabase.calendar_event_alarms where event_id = v_event) <> array[930] then
     raise exception 'all-day defaults %', (select jsonb_agg(to_jsonb(a)) from better_supabase.calendar_event_alarms a where event_id = v_event);
   end if;
-  v_event := (better_supabase.save_calendar_event(v_calendar, '{"title": "Quiet", "startsAt": "2026-03-02T10:00:00Z", "endsAt": "2026-03-02T11:00:00Z", "alarms": []}') ->> 'id')::uuid;
+  v_event := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Quiet", "startsAt": "2026-03-02T10:00:00Z", "endsAt": "2026-03-02T11:00:00Z", "alarms": []}') ->> 'id')::uuid;
   if exists (select 1 from better_supabase.calendar_event_alarms where event_id = v_event) then
     raise exception 'explicit empty alarms got defaults';
   end if;
-  ${forbidden(`perform better_supabase.save_calendar_event(v_calendar, '{"title": "As admin", "startsAt": "2026-03-02T10:00:00Z", "endsAt": "2026-03-02T11:00:00Z"}', '${ADMIN}')`, "CALENDAR_FORBIDDEN", "member names another actor")}
+  ${forbidden(`perform better_supabase.upsert_calendar_event(v_calendar, '{"title": "As admin", "startsAt": "2026-03-02T10:00:00Z", "endsAt": "2026-03-02T11:00:00Z"}', '${ADMIN}')`, "CALENDAR_FORBIDDEN", "member names another actor")}
 
   ${as("service_role")}
-  v_event := (better_supabase.save_calendar_event(v_calendar, '{"title": "Synced", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}', '${ALICE}') ->> 'id')::uuid;
+  v_event := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Synced", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}', '${ALICE}') ->> 'id')::uuid;
   if (select created_by from better_supabase.calendar_events where id = v_event) is distinct from '${ALICE}' then
     raise exception 'service role actor';
   end if;

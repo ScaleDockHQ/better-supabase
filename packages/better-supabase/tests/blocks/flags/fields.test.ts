@@ -22,7 +22,7 @@ const Fields = v.object({ owner: v.pipe(v.string(), v.email()) });
 describe("flags fields", () => {
   it("sends the extra fields under fields and parses them on reads", async () => {
     const t = fieldsTransport({
-      save_flag: () => FLAG,
+      upsert_flag: () => FLAG,
       list_flags: () => [FLAG, { ...FLAG, key: "plain", fields: undefined }],
     });
 
@@ -48,7 +48,7 @@ describe("flags fields", () => {
   });
 
   it("refuses a bad field before the call", async () => {
-    const t = fieldsTransport({ save_flag: () => FLAG });
+    const t = fieldsTransport({ upsert_flag: () => FLAG });
 
     const saved = await createFlags({ transport: t, fields: Fields }).upsert({
       key: "beta",

@@ -316,10 +316,10 @@ A cursor belongs to the sort it came from, so start again from the first page wh
 
 | Function                                                     | Granted to                            | Does                                                  |
 | ------------------------------------------------------------ | ------------------------------------- | ----------------------------------------------------- |
-| `add_organization_domain(tenant, domain)`                    | `authenticated`                       | Claims a domain and returns its TXT record            |
+| `create_organization_domain(tenant, domain)`                 | `authenticated`                       | Claims a domain and returns its TXT record            |
 | `list_organization_domains(tenant)`                          | `authenticated`, `service_role`       | The organization's domains                            |
 | `update_organization_domain(id, auto_join, enforce)`         | `authenticated`, `service_role`       | Sets auto-join and enforcement on a verified domain   |
-| `remove_organization_domain(id)`                             | `authenticated`, `service_role`       | Removes a domain no provider uses                     |
+| `delete_organization_domain(id)`                             | `authenticated`, `service_role`       | Removes a domain no provider uses                     |
 | `verify_organization_domain(id, actor)`                      | `service_role`                        | Marks a domain verified after the DNS check           |
 | `register_sso_provider(tenant, provider, domains, ...)`      | `service_role`                        | Records a Supabase Auth provider for the organization |
 | `list_sso_providers(tenant)`                                 | `authenticated`, `service_role`       | The organization's providers                          |

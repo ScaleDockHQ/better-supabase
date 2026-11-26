@@ -1110,7 +1110,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:1c18aeab3d5724445e283b692700488bb26966507e1498483a31994cc92e2a69
+-- @bsb-hash sha256:12e2b508e79f74be72a89eead9c959903b042aa682f2fd711fa0eed6d61b69cd
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2162,7 +2162,7 @@ begin
     if exists (select 1 from "better_supabase"."rfq_lines" y where y."rfq_id" = v_row."id" and y."variant_id" is null) then
       raise exception 'every line needs a variantId to create a purchase order' using errcode = '22023', hint = 'RFQ_INVALID';
     end if;
-    v_order := ("better_supabase"."save_purchase_order"(
+    v_order := ("better_supabase"."upsert_purchase_order"(
       v_row."tenant_id", null, award_rfq.location, v_invitation."supplier_type", v_invitation."supplier_id",
       v_row."currency",
       case when v_quote."lead_time_days" is null then null else now() + make_interval(days => v_quote."lead_time_days") end,

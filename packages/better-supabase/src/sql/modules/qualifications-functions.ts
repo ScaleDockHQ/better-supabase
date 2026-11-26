@@ -181,17 +181,17 @@ export function qualificationFunctions(ctx: BlockSqlContext): string {
 
   const courseCheck = has("types", "course")
     ? courses === undefined
-      ? `if save_qualification_type.course_id is not null then
+      ? `if upsert_qualification_type.course_id is not null then
     ${typeInvalid("course_id needs the courses block")}
   end if;`
-      : `if save_qualification_type.course_id is not null and not exists (
+      : `if upsert_qualification_type.course_id is not null and not exists (
     select 1 from ${courses.table("courses")} c
-    where c.${courses.col("courses", "id")} = save_qualification_type.course_id
-      and c.${courses.col("courses", "tenant")} = save_qualification_type.tenant
+    where c.${courses.col("courses", "id")} = upsert_qualification_type.course_id
+      and c.${courses.col("courses", "tenant")} = upsert_qualification_type.tenant
   ) then
     ${typeInvalid("the course isn't in this organization")}
   end if;`
-    : `if save_qualification_type.course_id is not null then
+    : `if upsert_qualification_type.course_id is not null then
     ${typeInvalid("the qualification types table has no course column")}
   end if;`;
 
@@ -233,13 +233,13 @@ export function qualificationFunctions(ctx: BlockSqlContext): string {
   const typeSets = [
     `${t("name")} = v_name`,
     has("types", "description")
-      ? `${t("description")} = nullif(trim(save_qualification_type.description), '')`
+      ? `${t("description")} = nullif(trim(upsert_qualification_type.description), '')`
       : "",
     `${t("holderTypes")} = v_holders`,
-    `${t("validForMonths")} = save_qualification_type.valid_for_months`,
-    `${t("evidenceRequired")} = coalesce(save_qualification_type.evidence_required, false)`,
+    `${t("validForMonths")} = upsert_qualification_type.valid_for_months`,
+    `${t("evidenceRequired")} = coalesce(upsert_qualification_type.evidence_required, false)`,
     has("types", "course")
-      ? `${t("course")} = save_qualification_type.course_id`
+      ? `${t("course")} = upsert_qualification_type.course_id`
       : "",
     `${t("archivedAt")} = null`,
     has("types", "updatedAt") ? `${t("updatedAt")} = now()` : "",
@@ -283,7 +283,7 @@ export function qualificationFunctions(ctx: BlockSqlContext): string {
 
       return missing === "" && wrongHolder === "" && exists === ""
         ? ""
-        : `if add_qualification_requirement.target_type = ${sqlString(target)} then${missing}${wrongHolder}${exists}
+        : `if create_qualification_requirement.target_type = ${sqlString(target)} then${missing}${wrongHolder}${exists}
   end if;`;
     })
     .filter((check) => check !== "")
@@ -330,7 +330,7 @@ export function qualificationFunctions(ctx: BlockSqlContext): string {
 -- a type with the same key is updated (and unarchived). valid_for_months
 -- sets how long a holding lasts (null: it never expires); course_id grants
 -- the type when a member earns that course's certificate.
-create or replace function ${fn("save_qualification_type")}(tenant ${idType}, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function ${fn("upsert_qualification_type")}(tenant ${idType}, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -340,13 +340,13 @@ as $$
 declare
   v_row ${types}%rowtype;
   v_new boolean;
-  v_name text := nullif(trim(save_qualification_type.name), '');
-  v_holders text[] := array(select distinct h from unnest(save_qualification_type.holder_types) h where h is not null order by h);
+  v_name text := nullif(trim(upsert_qualification_type.name), '');
+  v_holders text[] := array(select distinct h from unnest(upsert_qualification_type.holder_types) h where h is not null order by h);
 begin
-  if not ${allowed("save_qualification_type.tenant", manage)} then
+  if not ${allowed("upsert_qualification_type.tenant", manage)} then
     ${forbidden("not allowed to manage qualifications")}
   end if;
-  if save_qualification_type.key is null or save_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+  if upsert_qualification_type.key is null or upsert_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
     ${typeInvalid("the key takes lowercase letters, digits, dots, dashes and underscores")}
   end if;
   if v_name is null or length(v_name) > 200 then
@@ -356,27 +356,27 @@ begin
     ${typeInvalid(`holder_types takes ${allowedHolders.join(", ")}`)}
   end if;
   ${holderModules}
-  if save_qualification_type.valid_for_months is not null and save_qualification_type.valid_for_months not between 1 and 240 then
+  if upsert_qualification_type.valid_for_months is not null and upsert_qualification_type.valid_for_months not between 1 and 240 then
     ${typeInvalid("valid_for_months is between 1 and 240")}
   end if;
   ${courseCheck}
   ${ctx.hook("before_qualification_type_save", [
-    [idType, "save_qualification_type.tenant"],
-    ["text", "save_qualification_type.key"],
+    [idType, "upsert_qualification_type.tenant"],
+    ["text", "upsert_qualification_type.key"],
   ])}
-  if save_qualification_type.type_id is null then
-    v_new := not exists (select 1 from ${types} x where x.${t("tenant")} = save_qualification_type.tenant and x.${t("key")} = save_qualification_type.key);
+  if upsert_qualification_type.type_id is null then
+    v_new := not exists (select 1 from ${types} x where x.${t("tenant")} = upsert_qualification_type.tenant and x.${t("key")} = upsert_qualification_type.key);
     insert into ${types} (${t("tenant")}, ${t("key")}, ${t("name")}${insertCol("types", "description")}, ${t("holderTypes")}, ${t("validForMonths")}, ${t("evidenceRequired")}${insertCol("types", "course")})
-    values (save_qualification_type.tenant, save_qualification_type.key, v_name${insertVal("types", "description", "nullif(trim(save_qualification_type.description), '')")}, v_holders, save_qualification_type.valid_for_months, coalesce(save_qualification_type.evidence_required, false)${insertVal("types", "course", "save_qualification_type.course_id")})
+    values (upsert_qualification_type.tenant, upsert_qualification_type.key, v_name${insertVal("types", "description", "nullif(trim(upsert_qualification_type.description), '')")}, v_holders, upsert_qualification_type.valid_for_months, coalesce(upsert_qualification_type.evidence_required, false)${insertVal("types", "course", "upsert_qualification_type.course_id")})
     on conflict (${t("tenant")}, ${t("key")}) do update set
       ${typeSets}
     returning * into v_row;
   else
     v_new := false;
     update ${types} x set
-      ${t("key")} = save_qualification_type.key,
+      ${t("key")} = upsert_qualification_type.key,
       ${typeSets}
-    where x.${t("id")} = save_qualification_type.type_id and x.${t("tenant")} = save_qualification_type.tenant
+    where x.${t("id")} = upsert_qualification_type.type_id and x.${t("tenant")} = upsert_qualification_type.tenant
     returning x.* into v_row;
     if not found then
       ${typeNotFound}
@@ -391,7 +391,7 @@ begin
   return ${typeJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_qualification_type")}(${idType}, text, text, text[], integer, boolean, uuid, text, uuid)`)}
+${userGrant(`${fn("upsert_qualification_type")}(${idType}, text, text, text[], integer, boolean, uuid, text, uuid)`)}
 
 -- Archives a type: it takes no new holdings and leaves the gap report, and
 -- its holdings stay.
@@ -513,7 +513,7 @@ ${userGrant(`${fn("get_qualification_type")}(uuid)`)}
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
 -- asset kind), segment (a segment of companies) or holder (one holder id).
-create or replace function ${fn("add_qualification_requirement")}(type_id uuid, target_type text, target_value text)
+create or replace function ${fn("create_qualification_requirement")}(type_id uuid, target_type text, target_value text)
 returns jsonb
 language plpgsql
 security definer
@@ -523,16 +523,16 @@ as $$
 declare
   v_type ${types}%rowtype;
   v_row ${requirements}%rowtype;
-  v_value text := nullif(trim(add_qualification_requirement.target_value), '');
+  v_value text := nullif(trim(create_qualification_requirement.target_value), '');
 begin
-  select * into v_type from ${types} x where x.${t("id")} = add_qualification_requirement.type_id;
+  select * into v_type from ${types} x where x.${t("id")} = create_qualification_requirement.type_id;
   if not found then
     ${typeNotFound}
   end if;
   if not ${allowed(`v_type.${t("tenant")}`, manage)} then
     ${forbidden("not allowed to manage qualifications")}
   end if;
-  if add_qualification_requirement.target_type is null or add_qualification_requirement.target_type not in ${sqlList(Object.keys(TARGET_TYPES))} then
+  if create_qualification_requirement.target_type is null or create_qualification_requirement.target_type not in ${sqlList(Object.keys(TARGET_TYPES))} then
     ${requirementInvalid(`target_type is one of ${Object.keys(TARGET_TYPES).join(", ")}`)}
   end if;
   if v_value is null or length(v_value) > 200 then
@@ -540,16 +540,16 @@ begin
   end if;
   ${targetChecks}
   insert into ${requirements} (${r("tenant")}, ${r("type")}, ${r("targetType")}, ${r("targetValue")})
-  values (v_type.${t("tenant")}, v_type.${t("id")}, add_qualification_requirement.target_type, v_value)
+  values (v_type.${t("tenant")}, v_type.${t("id")}, create_qualification_requirement.target_type, v_value)
   on conflict (${r("type")}, ${r("targetType")}, ${r("targetValue")}) do nothing;
   select * into v_row from ${requirements} x
-  where x.${r("type")} = v_type.${t("id")} and x.${r("targetType")} = add_qualification_requirement.target_type and x.${r("targetValue")} = v_value;
+  where x.${r("type")} = v_type.${t("id")} and x.${r("targetType")} = create_qualification_requirement.target_type and x.${r("targetValue")} = v_value;
   return ${requirementJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("add_qualification_requirement")}(uuid, text, text)`)}
+${userGrant(`${fn("create_qualification_requirement")}(uuid, text, text)`)}
 
-create or replace function ${fn("remove_qualification_requirement")}(requirement_id uuid)
+create or replace function ${fn("delete_qualification_requirement")}(requirement_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -559,7 +559,7 @@ as $$
 declare
   v_row ${requirements}%rowtype;
 begin
-  select * into v_row from ${requirements} x where x.${r("id")} = remove_qualification_requirement.requirement_id;
+  select * into v_row from ${requirements} x where x.${r("id")} = delete_qualification_requirement.requirement_id;
   if not found then
     ${fail("QUALIFICATION_REQUIREMENT_NOT_FOUND", "requirement not found", "P0002")}
   end if;
@@ -570,7 +570,7 @@ begin
   return ${requirementJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("remove_qualification_requirement")}(uuid)`)}
+${userGrant(`${fn("delete_qualification_requirement")}(uuid)`)}
 
 create or replace function ${fn("list_qualification_requirements")}(type_id uuid)
 returns jsonb

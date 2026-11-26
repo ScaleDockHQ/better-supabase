@@ -34,7 +34,7 @@ select set_config(
 set local role authenticated;
 
 insert into acme_field
-select (better_supabase.save_field_definition(
+select (better_supabase.upsert_field_definition(
   '00000000-0000-4000-8000-000000000001', 'person', 'diagnosis', 'Diagnosis', 'text', false
 ) ->> 'id')::uuid;
 
@@ -49,7 +49,7 @@ select lives_ok(
   'the admin sets an encrypted value'
 );
 select throws_ok(
-  $$select better_supabase.encrypt_field_definition((better_supabase.save_field_definition(
+  $$select better_supabase.encrypt_field_definition((better_supabase.upsert_field_definition(
     '00000000-0000-4000-8000-000000000001', 'person', 'visits', 'Visits', 'number', false
   ) ->> 'id')::uuid)$$,
   '22023',
@@ -57,7 +57,7 @@ select throws_ok(
   'a number field cannot be encrypted'
 );
 select is(
-  better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1') -> 0 ->> 'text',
+  better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1') -> 0 ->> 'text',
   'flu',
   'the admin reads the plaintext'
 );
@@ -131,7 +131,7 @@ select is(
   'a stranger reveals no note'
 );
 select is(
-  better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1'),
+  better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1'),
   '[]'::jsonb,
   'a stranger reads no field value'
 );
@@ -205,7 +205,7 @@ select is(
   'the note reveals the same diagnosis after the rotation'
 );
 select is(
-  better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1') -> 0 ->> 'text',
+  better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1') -> 0 ->> 'text',
   'flu',
   'the field value reads the same after the rotation'
 );
@@ -238,7 +238,7 @@ select is(
   'a shredded note reveals null'
 );
 select is(
-  better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1') -> 0 ->> 'text',
+  better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1') -> 0 ->> 'text',
   null,
   'a shredded field value reads null'
 );

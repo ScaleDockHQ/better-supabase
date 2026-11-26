@@ -122,7 +122,7 @@ const validate = (
 describe("createIncidents", () => {
   it("saves, deletes and lists components", async () => {
     const t = fieldsTransport({
-      save_status_component: () => COMPONENT,
+      upsert_status_component: () => COMPONENT,
       delete_status_component: () => ({ id: "c2" }),
       list_status_components: () => [COMPONENT, BARE_COMPONENT],
     });
@@ -161,7 +161,7 @@ describe("createIncidents", () => {
     expect(bare).not.toHaveProperty("group");
     expect(t.calls).toEqual([
       [
-        "save_status_component",
+        "upsert_status_component",
         {
           tenant: "org-1",
           name: "API",
@@ -173,7 +173,7 @@ describe("createIncidents", () => {
         },
       ],
       [
-        "save_status_component",
+        "upsert_status_component",
         {
           tenant: "org-1",
           name: "Billing",
@@ -400,7 +400,7 @@ describe("createIncidents", () => {
 
   it("drafts and publishes a postmortem", async () => {
     const t = fieldsTransport({
-      save_incident_postmortem: () => BARE_POSTMORTEM,
+      upsert_incident_postmortem: () => BARE_POSTMORTEM,
       publish_incident_postmortem: () => POSTMORTEM,
     });
 
@@ -428,9 +428,9 @@ describe("createIncidents", () => {
     expect(draft).not.toHaveProperty("summary");
     expect(published.publishedAt?.toString()).toBe(AT);
     expect(t.calls).toEqual([
-      ["save_incident_postmortem", { incident_id: "i2", attrs: {} }],
+      ["upsert_incident_postmortem", { incident_id: "i2", attrs: {} }],
       [
-        "save_incident_postmortem",
+        "upsert_incident_postmortem",
         {
           incident_id: "i1",
           attrs: {
@@ -458,8 +458,8 @@ describe("createIncidents", () => {
     };
 
     const t = fieldsTransport({
-      add_incident_postmortem_action: () => action,
-      remove_incident_postmortem_action: () => ({
+      create_incident_postmortem_action: () => action,
+      delete_incident_postmortem_action: () => ({
         ...POSTMORTEM,
         actions: [{ ...action, id: "a2", dueAt: null }],
       }),
@@ -490,7 +490,7 @@ describe("createIncidents", () => {
     expect(after.actions[0]).not.toHaveProperty("dueAt");
     expect(t.calls).toEqual([
       [
-        "add_incident_postmortem_action",
+        "create_incident_postmortem_action",
         {
           postmortem_id: "pm1",
           title: "Alert on replica lag",
@@ -499,7 +499,7 @@ describe("createIncidents", () => {
         },
       ],
       [
-        "add_incident_postmortem_action",
+        "create_incident_postmortem_action",
         {
           postmortem_id: "pm1",
           title: "Runbook",
@@ -507,13 +507,13 @@ describe("createIncidents", () => {
           due_at: null,
         },
       ],
-      ["remove_incident_postmortem_action", { action_id: "a1" }],
+      ["delete_incident_postmortem_action", { action_id: "a1" }],
     ]);
   });
 
   it("saves and reads the status page settings", async () => {
     const t = fieldsTransport({
-      save_status_page: () => PAGE,
+      upsert_status_page: () => PAGE,
       get_status_page: (args) =>
         args["tenant"] === "org-1"
           ? { ...PAGE, description: null, published: false }
@@ -548,7 +548,7 @@ describe("createIncidents", () => {
     expect(none).toBeUndefined();
     expect(t.calls.slice(0, 2)).toEqual([
       [
-        "save_status_page",
+        "upsert_status_page",
         {
           tenant: "org-1",
           slug: "acme",
@@ -558,7 +558,7 @@ describe("createIncidents", () => {
         },
       ],
       [
-        "save_status_page",
+        "upsert_status_page",
         {
           tenant: "org-1",
           slug: "acme",

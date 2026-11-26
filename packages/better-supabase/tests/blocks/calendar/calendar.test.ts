@@ -118,7 +118,7 @@ describe("calendar client", () => {
   it("overrides one occurrence of a series", async () => {
     const { calls, calendar } = recorder({
       list_calendar_events: [SERIES],
-      save_calendar_event: { id: "o1", uid: "s1", created: true },
+      upsert_calendar_event: { id: "o1", uid: "s1", created: true },
     });
 
     const [, second] = await calendar
@@ -131,7 +131,7 @@ describe("calendar client", () => {
 
     expect(saved).toEqual({ id: "o1", uid: "s1", created: true });
     expect(calls[1]).toEqual({
-      fn: "save_calendar_event",
+      fn: "upsert_calendar_event",
       args: {
         calendar_id: "c1",
         item: {
@@ -182,7 +182,7 @@ describe("calendar client", () => {
   it("edits the whole series from its first occurrence", async () => {
     const { calls, calendar } = recorder({
       list_calendar_events: [SERIES],
-      save_calendar_event: { id: "s1", uid: "s1", created: false },
+      upsert_calendar_event: { id: "s1", uid: "s1", created: false },
     });
 
     const [first] = await calendar
@@ -194,7 +194,7 @@ describe("calendar client", () => {
       changes: { title: "Renamed" },
     });
     expect(calls[1]).toEqual({
-      fn: "save_calendar_event",
+      fn: "upsert_calendar_event",
       args: { calendar_id: "c1", item: { title: "Renamed", id: "s1" } },
     });
   });
@@ -395,7 +395,7 @@ describe("calendar client", () => {
           ownerId: "t1",
         },
       ],
-      save_calendar_event: { id: "e1", uid: "e1", created: false },
+      upsert_calendar_event: { id: "e1", uid: "e1", created: false },
     });
 
     expect(await calendar.deleteCalendar("c1").orThrow()).toBe(true);
@@ -443,7 +443,7 @@ describe("calendar client", () => {
   it("sets, removes and answers attendees", async () => {
     const { calls, calendar } = recorder({
       set_calendar_attendee: true,
-      remove_calendar_attendee: true,
+      delete_calendar_attendee: true,
       respond_calendar_event: true,
     });
 
@@ -518,7 +518,7 @@ describe("calendar client", () => {
 
     const { calls, calendar } = recorder({
       list_calendar_events: [detailed, override, single],
-      save_calendar_event: { id: "x", uid: "x", created: false },
+      upsert_calendar_event: { id: "x", uid: "x", created: false },
     });
 
     const found = await calendar
@@ -653,7 +653,7 @@ describe("calendar adoption options", () => {
   it("keys attendees by subject and removes one by id", async () => {
     const { calls, calendar } = recorder({
       set_calendar_attendee: { id: "a1", created: true },
-      remove_calendar_attendee: true,
+      delete_calendar_attendee: true,
       list_calendar_events: [
         {
           ...SERIES,
@@ -716,7 +716,7 @@ describe("calendar adoption options", () => {
   it("grants access to a calendar and lists the grants", async () => {
     const { calls, calendar } = recorder({
       set_calendar_grant: true,
-      remove_calendar_grant: true,
+      delete_calendar_grant: true,
       list_calendar_grants: [{ userId: "u2", role: "editor" }],
     });
 
@@ -734,7 +734,7 @@ describe("calendar adoption options", () => {
     expect(calls.map((call) => call.fn)).toEqual([
       "set_calendar_grant",
       "list_calendar_grants",
-      "remove_calendar_grant",
+      "delete_calendar_grant",
     ]);
   });
 
@@ -814,7 +814,7 @@ describe("calendar alarms", () => {
           ],
         },
       ],
-      save_calendar_event: { id: "s1", uid: "s1", created: false },
+      upsert_calendar_event: { id: "s1", uid: "s1", created: false },
     });
 
     const [first] = await calendar

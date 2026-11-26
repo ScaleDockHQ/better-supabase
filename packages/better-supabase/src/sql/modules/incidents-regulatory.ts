@@ -311,7 +311,7 @@ ${serviceGrant(`${fn("plan_incident_filings")}(uuid)`)}
 -- non_major), classifiedAt, significant, activelyExploited and
 -- measureAvailableAt; a key left out keeps its value. The first save needs
 -- regimes and awareAt.
-create or replace function ${fn("save_incident_regulatory_profile")}(incident_id uuid, attrs jsonb)
+create or replace function ${fn("upsert_incident_regulatory_profile")}(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -326,40 +326,40 @@ declare
   v_aware timestamptz;
   v_class text;
 begin
-  select * into v_inc from ${incidents} x where x.${i("id")} = save_incident_regulatory_profile.incident_id;
+  select * into v_inc from ${incidents} x where x.${i("id")} = upsert_incident_regulatory_profile.incident_id;
   if v_inc.${i("id")} is null then
     ${missing("INCIDENT_NOT_FOUND", "incident not found")}
   end if;
   if not ${allowed(`v_inc.${i("tenant")}`, write)} then
     ${forbidden("not allowed to change the regulatory profile")}
   end if;
-  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+  if upsert_incident_regulatory_profile.attrs is null or jsonb_typeof(upsert_incident_regulatory_profile.attrs) <> 'object' then
     ${invalid("attrs must be an object")}
   end if;
   select * into v_old from ${profiles} x where x.${p("incident")} = v_inc.${i("id")};
-  if save_incident_regulatory_profile.attrs ? 'regimes' then
+  if upsert_incident_regulatory_profile.attrs ? 'regimes' then
     select coalesce(array_agg(distinct e), '{}') into v_regimes
-    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+    from jsonb_array_elements_text(upsert_incident_regulatory_profile.attrs -> 'regimes') e;
   else
     v_regimes := v_old.${p("regimes")};
   end if;
   if v_regimes is null or not (v_regimes <@ array[${regimeList}]) then
     ${invalid("regimes must list nis2, dora or cra")}
   end if;
-  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old.${p("awareAt")});
+  v_aware := coalesce((upsert_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old.${p("awareAt")});
   if v_aware is null then
     ${invalid("awareAt is required: when the organization became aware of the incident")}
   end if;
-  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old.${p("classification")} end;
+  v_class := case when upsert_incident_regulatory_profile.attrs ? 'classification' then upsert_incident_regulatory_profile.attrs ->> 'classification' else v_old.${p("classification")} end;
   if v_class is not null and v_class not in ('major', 'non_major') then
     ${invalid("classification must be major or non_major")}
   end if;
   insert into ${profiles} (${p("incident")}, ${p("tenant")}, ${p("regimes")}, ${p("awareAt")}, ${p("classification")}, ${p("classifiedAt")}, ${p("significant")}, ${p("activelyExploited")}, ${p("measureAvailableAt")})
   values (v_inc.${i("id")}, v_inc.${i("tenant")}, v_regimes, v_aware, v_class,
-    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old.${p("classifiedAt")} end,
-    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old.${p("significant")}, false),
-    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old.${p("activelyExploited")}, false),
-    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old.${p("measureAvailableAt")} end)
+    case when upsert_incident_regulatory_profile.attrs ? 'classifiedAt' then (upsert_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old.${p("classifiedAt")} end,
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old.${p("significant")}, false),
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old.${p("activelyExploited")}, false),
+    case when upsert_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (upsert_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old.${p("measureAvailableAt")} end)
   on conflict (${p("incident")}) do update set
     ${p("regimes")} = excluded.${p("regimes")}, ${p("awareAt")} = excluded.${p("awareAt")}, ${p("classification")} = excluded.${p("classification")},
     ${p("classifiedAt")} = excluded.${p("classifiedAt")}, ${p("significant")} = excluded.${p("significant")},
@@ -382,7 +382,7 @@ begin
   return ${withFilings("v_row", `v_row.${p("incident")}`)};
 end;
 $$;
-${userGrant(`${fn("save_incident_regulatory_profile")}(uuid, jsonb)`)}
+${userGrant(`${fn("upsert_incident_regulatory_profile")}(uuid, jsonb)`)}
 
 -- The regulatory profile of an incident with its filings, or null.
 create or replace function ${fn("get_incident_regulatory_profile")}(incident_id uuid)

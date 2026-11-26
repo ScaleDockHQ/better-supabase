@@ -12,26 +12,26 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.p', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Pump', 'pump', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.p')::uuid, null, 'PUMP-1', null, 'Pump', null, 500, true, false, null) ->> 'id', true);
-select set_config('t.p2', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Hose', 'hose', null, 'physical', null) ->> 'id', true);
-select set_config('t.v2', better_supabase.save_variant(current_setting('t.p2')::uuid, null, 'HOSE-1', null, 'Hose', null, 200, true, false, null) ->> 'id', true);
+select set_config('t.p', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Pump', 'pump', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.p')::uuid, null, 'PUMP-1', null, 'Pump', null, 500, true, false, null) ->> 'id', true);
+select set_config('t.p2', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Hose', 'hose', null, 'physical', null) ->> 'id', true);
+select set_config('t.v2', better_supabase.upsert_variant(current_setting('t.p2')::uuid, null, 'HOSE-1', null, 'Hose', null, 200, true, false, null) ->> 'id', true);
 select set_config('t.party', '00000000-0000-4000-8000-00000000c001', true);
 select set_config('t.other', '00000000-0000-4000-8000-00000000c002', true);
 
 -- Groups.
-select set_config('t.cg', better_supabase.save_discount_group('00000000-0000-4000-8000-000000000001', null, 'customer', 'DEALER', 'Dealers') ->> 'id', true);
-select set_config('t.pg', better_supabase.save_discount_group('00000000-0000-4000-8000-000000000001', null, 'product', 'PUMPS', 'Pumps') ->> 'id', true);
-select set_config('t.pg2', better_supabase.save_discount_group('00000000-0000-4000-8000-000000000001', null, 'product', 'HOSES', 'Hoses') ->> 'id', true);
+select set_config('t.cg', better_supabase.upsert_discount_group('00000000-0000-4000-8000-000000000001', null, 'customer', 'DEALER', 'Dealers') ->> 'id', true);
+select set_config('t.pg', better_supabase.upsert_discount_group('00000000-0000-4000-8000-000000000001', null, 'product', 'PUMPS', 'Pumps') ->> 'id', true);
+select set_config('t.pg2', better_supabase.upsert_discount_group('00000000-0000-4000-8000-000000000001', null, 'product', 'HOSES', 'Hoses') ->> 'id', true);
 
 select throws_ok(
-  $$select better_supabase.save_discount_group('00000000-0000-4000-8000-000000000001', null, 'customer', 'DEALER', 'Again')$$,
+  $$select better_supabase.upsert_discount_group('00000000-0000-4000-8000-000000000001', null, 'customer', 'DEALER', 'Again')$$,
   null,
   null,
   'a group code is unique per kind'
 );
 select throws_ok(
-  $$select better_supabase.save_discount_group('00000000-0000-4000-8000-000000000001', null, 'region', 'EU', 'EU')$$,
+  $$select better_supabase.upsert_discount_group('00000000-0000-4000-8000-000000000001', null, 'region', 'EU', 'EU')$$,
   '22023',
   null,
   'a group is a customer or product group'
@@ -41,27 +41,27 @@ select is(better_supabase.set_variant_discount_group(current_setting('t.v')::uui
 select is(better_supabase.set_variant_discount_group(current_setting('t.v2')::uuid, current_setting('t.pg2')::uuid), true, 'another variant joins another group');
 
 -- Rules.
-select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'discountBps', 1000));
-select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('productGroupId', current_setting('t.pg'), 'discountBps', 500));
-select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'productGroupId', current_setting('t.pg'), 'discountBps', 2000));
-select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'productGroupId', current_setting('t.pg'), 'minQuantity', '10', 'discountBps', 2500));
-select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'productGroupId', current_setting('t.pg'), 'validFrom', '2020-01-01', 'validTo', '2020-12-31', 'discountBps', 3000));
-select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('productGroupId', current_setting('t.pg2'), 'fixedPrice', '900', 'currency', 'EUR', 'discountBps', 0));
+select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'discountBps', 1000));
+select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('productGroupId', current_setting('t.pg'), 'discountBps', 500));
+select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'productGroupId', current_setting('t.pg'), 'discountBps', 2000));
+select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'productGroupId', current_setting('t.pg'), 'minQuantity', '10', 'discountBps', 2500));
+select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('customerGroupId', current_setting('t.cg'), 'productGroupId', current_setting('t.pg'), 'validFrom', '2020-01-01', 'validTo', '2020-12-31', 'discountBps', 3000));
+select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, jsonb_build_object('productGroupId', current_setting('t.pg2'), 'fixedPrice', '900', 'currency', 'EUR', 'discountBps', 0));
 
 select throws_ok(
-  format($$select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, %L::jsonb)$$, '{"discountBps": 10001}'),
+  format($$select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, %L::jsonb)$$, '{"discountBps": 10001}'),
   '22023',
   null,
   'a discount is at most 10000 basis points'
 );
 select throws_ok(
-  format($$select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, %L::jsonb)$$, '{"fixedPrice": "900"}'),
+  format($$select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, %L::jsonb)$$, '{"fixedPrice": "900"}'),
   '22023',
   null,
   'a fixed price needs its currency'
 );
 select throws_ok(
-  format($$select better_supabase.save_discount_rule('00000000-0000-4000-8000-000000000001', null, %L::jsonb)$$, '{"validFrom": "2026-02-01", "validTo": "2026-01-01"}'),
+  format($$select better_supabase.upsert_discount_rule('00000000-0000-4000-8000-000000000001', null, %L::jsonb)$$, '{"validFrom": "2026-02-01", "validTo": "2026-01-01"}'),
   '22023',
   null,
   'a validity window ends after it starts'
@@ -115,7 +115,7 @@ select throws_ok(
 );
 
 -- Stock counts.
-select set_config('t.loc', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH1', 'Warehouse', null, null) ->> 'id', true);
+select set_config('t.loc', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'WH1', 'Warehouse', null, null) ->> 'id', true);
 select better_supabase.adjust_stock(current_setting('t.v')::uuid, current_setting('t.loc')::uuid, 10, 'receipt', 'in');
 select set_config('t.count', better_supabase.open_stock_count('00000000-0000-4000-8000-000000000001', current_setting('t.loc')::uuid, '{"note": "Year end"}') ->> 'id', true);
 select is(

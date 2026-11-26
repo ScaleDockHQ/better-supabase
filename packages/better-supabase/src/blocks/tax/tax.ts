@@ -383,13 +383,13 @@ export function createTax(options: TaxOptions): Tax {
     saveCode: ({ input, codeId }) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_tax_code",
+          "upsert_tax_code",
           {
             tenant: organizationId,
             input: defined({ ...input, validFrom: dateText(input.validFrom) }),
             code_id: codeId ?? null,
           },
-          (value) => codeOf(value, "save_tax_code"),
+          (value) => codeOf(value, "upsert_tax_code"),
         ),
       ),
     codes: (list = {}) =>
@@ -437,7 +437,7 @@ export function createTax(options: TaxOptions): Tax {
     saveRate: ({ codeId, rate }) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_tax_rate",
+          "upsert_tax_rate",
           {
             tenant: organizationId,
             tax_code: codeId,
@@ -445,7 +445,7 @@ export function createTax(options: TaxOptions): Tax {
             valid_from: dateText(rate.validFrom) ?? null,
             valid_to: dateText(rate.validTo) ?? null,
           },
-          (value) => rateOf(value, "save_tax_rate"),
+          (value) => rateOf(value, "upsert_tax_rate"),
         ),
       ),
     prepareReturn: (input) =>

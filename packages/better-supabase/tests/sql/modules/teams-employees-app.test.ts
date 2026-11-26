@@ -161,14 +161,14 @@ describe("teams with employees over the app's team_members", BOOT, () => {
         `do $$
 begin
   ${SERVICE}
-  perform better_supabase.add_team_member('${SALES}', '${ALICE}');
-  perform better_supabase.add_team_member('${SALES}', '${BOB}');
+  perform better_supabase.create_team_member('${SALES}', '${ALICE}');
+  perform better_supabase.create_team_member('${SALES}', '${BOB}');
   if (select count(*) from public.team_members) <> 2 then
     raise exception 'add %', (select jsonb_agg(m) from public.team_members m);
   end if;
 
-  if not better_supabase.remove_team_member('${SALES}', '${ALICE}') then
-    raise exception 'remove_team_member';
+  if not better_supabase.delete_team_member('${SALES}', '${ALICE}') then
+    raise exception 'delete_team_member';
   end if;
   delete from auth.users where id = '${BOB}';
   if exists (select 1 from public.team_members) then
@@ -188,8 +188,8 @@ $$;`,
         `do $$
 begin
   ${SERVICE}
-  perform better_supabase.add_team_member('${SALES}', employee => '${DAN}');
-  perform better_supabase.add_team_member('${SALES}', '${ALICE}');
+  perform better_supabase.create_team_member('${SALES}', employee => '${DAN}');
+  perform better_supabase.create_team_member('${SALES}', '${ALICE}');
   if (select jsonb_agg(jsonb_build_array(user_id, employee_id) order by employee_id) from public.team_members)
     <> '[[null, "${DAN}"], ["${ALICE}", "${ALICE_EMPLOYEE}"]]'::jsonb then
     raise exception 'add %', (select jsonb_agg(m) from public.team_members m);

@@ -252,7 +252,7 @@ describe("funding module", () => {
     const [contract] = customContracts(["funding"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "save_funding_award",
+        "upsert_funding_award",
         "register_funding_delivery",
         "build_funding_claim",
         "record_funding_claim_response",

@@ -260,7 +260,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk_actions.sql
 -- better-supabase module: bulk-actions
 -- @bsb-block bulk-actions@1 managed
--- @bsb-hash sha256:dcc5531f085ec168c1940dfcf5a1f18ef5d4e12151443bfbd5e6679834fdb0f5
+-- @bsb-hash sha256:fce6780ba7e367cc7b037a383288b01660a2e31b808c20d67d58f94d40470c03
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -315,7 +315,7 @@ begin
     when 'trash.trash' then
       perform "better_supabase"."trash"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);
     when 'collections.add' then
-      perform "better_supabase"."add_collection_entries"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);
+      perform "better_supabase"."create_collection_entries"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);
     else
       raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
   end case;

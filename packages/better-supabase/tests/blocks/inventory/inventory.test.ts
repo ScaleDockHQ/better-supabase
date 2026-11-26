@@ -81,7 +81,7 @@ describe("inventory block", () => {
     ).toEqual({ movementId: "m1", onHand: 10, available: 8 });
     expect(calls).toEqual([
       {
-        fn: "save_location",
+        fn: "upsert_location",
         args: {
           tenant: "org",
           location: null,

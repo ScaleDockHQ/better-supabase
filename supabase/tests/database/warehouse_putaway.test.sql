@@ -23,22 +23,22 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Putaway bolts', 'putaway-bolts', null, 'physical', null) ->> 'id', true);
-select set_config('t.v1', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'PUT-1', null, 'Bolts', null, null, true, false, null) ->> 'id', true);
-select set_config('t.product2', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Putaway nuts', 'putaway-nuts', null, 'physical', null) ->> 'id', true);
-select set_config('t.v2', better_supabase.save_variant(current_setting('t.product2')::uuid, null, 'PUT-2', null, 'Nuts', null, null, true, false, null) ->> 'id', true);
-select set_config('t.l', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'PUT', 'Putaway warehouse', null, null) ->> 'id', true);
-select set_config('t.a', better_supabase.save_bin(current_setting('t.l')::uuid, null, 'A1', 'Near', false, true) ->> 'id', true);
-select set_config('t.b', better_supabase.save_bin(current_setting('t.l')::uuid, null, 'B1', 'Middle', false, true) ->> 'id', true);
-select set_config('t.c', better_supabase.save_bin(current_setting('t.l')::uuid, null, 'C1', 'Far', false, true) ->> 'id', true);
-select set_config('t.h', better_supabase.save_bin(current_setting('t.l')::uuid, null, 'H1', 'Quarantine', true, true) ->> 'id', true);
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Putaway bolts', 'putaway-bolts', null, 'physical', null) ->> 'id', true);
+select set_config('t.v1', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'PUT-1', null, 'Bolts', null, null, true, false, null) ->> 'id', true);
+select set_config('t.product2', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Putaway nuts', 'putaway-nuts', null, 'physical', null) ->> 'id', true);
+select set_config('t.v2', better_supabase.upsert_variant(current_setting('t.product2')::uuid, null, 'PUT-2', null, 'Nuts', null, null, true, false, null) ->> 'id', true);
+select set_config('t.l', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'PUT', 'Putaway warehouse', null, null) ->> 'id', true);
+select set_config('t.a', better_supabase.upsert_bin(current_setting('t.l')::uuid, null, 'A1', 'Near', false, true) ->> 'id', true);
+select set_config('t.b', better_supabase.upsert_bin(current_setting('t.l')::uuid, null, 'B1', 'Middle', false, true) ->> 'id', true);
+select set_config('t.c', better_supabase.upsert_bin(current_setting('t.l')::uuid, null, 'C1', 'Far', false, true) ->> 'id', true);
+select set_config('t.h', better_supabase.upsert_bin(current_setting('t.l')::uuid, null, 'H1', 'Quarantine', true, true) ->> 'id', true);
 
-select better_supabase.save_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.a'), 'walkRank', 1, 'capacity', 10));
-select better_supabase.save_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.b'), 'walkRank', 2, 'capacity', 100));
-select better_supabase.save_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.c'), 'walkRank', 3));
-select better_supabase.save_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.h'), 'walkRank', 0));
-select better_supabase.save_variant_size('00000000-0000-4000-8000-000000000001', jsonb_build_object('variantId', current_setting('t.v1'), 'size', 2));
-select set_config('t.rule', better_supabase.save_putaway_rule('00000000-0000-4000-8000-000000000001',
+select better_supabase.upsert_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.a'), 'walkRank', 1, 'capacity', 10));
+select better_supabase.upsert_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.b'), 'walkRank', 2, 'capacity', 100));
+select better_supabase.upsert_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.c'), 'walkRank', 3));
+select better_supabase.upsert_bin_slot('00000000-0000-4000-8000-000000000001', jsonb_build_object('binId', current_setting('t.h'), 'walkRank', 0));
+select better_supabase.upsert_variant_size('00000000-0000-4000-8000-000000000001', jsonb_build_object('variantId', current_setting('t.v1'), 'size', 2));
+select set_config('t.rule', better_supabase.upsert_putaway_rule('00000000-0000-4000-8000-000000000001',
   jsonb_build_object('locationId', current_setting('t.l'), 'binId', current_setting('t.b'), 'variantId', current_setting('t.v1'), 'priority', 10, 'maxQuantity', 20)) ->> 'id', true);
 
 select is(
@@ -80,7 +80,7 @@ select is(
   'a variant without rules goes to the closest bin with room'
 );
 select throws_ok(
-  format($$select better_supabase.save_putaway_rule('00000000-0000-4000-8000-000000000001', jsonb_build_object('locationId', %L, 'binId', %L, 'maxQuantity', 0))$$,
+  format($$select better_supabase.upsert_putaway_rule('00000000-0000-4000-8000-000000000001', jsonb_build_object('locationId', %L, 'binId', %L, 'maxQuantity', 0))$$,
     current_setting('t.l'), current_setting('t.a')),
   '22023',
   null,
@@ -167,7 +167,7 @@ select set_config(
   true
 );
 select throws_ok(
-  format($$select better_supabase.save_putaway_rule('00000000-0000-4000-8000-000000000001', jsonb_build_object('locationId', %L, 'binId', %L))$$,
+  format($$select better_supabase.upsert_putaway_rule('00000000-0000-4000-8000-000000000001', jsonb_build_object('locationId', %L, 'binId', %L))$$,
     current_setting('t.l'), current_setting('t.a')),
   '42501',
   null,

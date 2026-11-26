@@ -18,7 +18,7 @@ set local role authenticated;
 
 select set_config('test.base',
   jsonb_array_length(better_supabase.enrollment_programs('00000000-0000-4000-8000-000000000001'))::text, true);
-select set_config('test.program', better_supabase.save_enrollment_program(
+select set_config('test.program', better_supabase.upsert_enrollment_program(
   '00000000-0000-4000-8000-000000000001',
   '{"key":"archive-plan","name":"Archive plan","subjectTypes":["customer"],"steps":[{"id":"one"}]}'
 ) ->> 'id', true);
@@ -45,7 +45,7 @@ select throws_ok(
   '55000', null, 'an archived program refuses a new enrollment'
 );
 select throws_ok(
-  format($$select better_supabase.save_enrollment_program('00000000-0000-4000-8000-000000000001', jsonb_build_object('id', %L, 'name', 'Renamed'))$$,
+  format($$select better_supabase.upsert_enrollment_program('00000000-0000-4000-8000-000000000001', jsonb_build_object('id', %L, 'name', 'Renamed'))$$,
     current_setting('test.program')),
   '55000', null, 'an archived program refuses an edit'
 );

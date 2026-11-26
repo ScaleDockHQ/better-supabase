@@ -398,7 +398,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       );
 
       await s.as("owner");
-      await s.value("better_supabase.remove_member($1, $2)", [
+      await s.value("better_supabase.delete_member($1, $2)", [
         organization,
         USERS.member,
       ]);

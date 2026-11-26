@@ -322,7 +322,7 @@ ${userGrant(`${fn("prepare_intrastat")}(${ctx.idType}, date)`)}
 -- null creates one). attrs: { period, flow, country, tradeCode?, netMassKg?,
 -- quantity?, value? (minor units as text), currency?, variantId? }. Returns the
 -- line's id and whether it was created.
-create or replace function ${fn("save_intrastat_line")}(tenant ${ctx.idType}, line uuid, attrs jsonb)
+create or replace function ${fn("upsert_intrastat_line")}(tenant ${ctx.idType}, line uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -330,11 +330,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_attrs jsonb := coalesce(save_intrastat_line.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_intrastat_line.attrs, '{}'::jsonb);
   v_period date;
   v_id uuid;
 begin
-  if not ${allowed("save_intrastat_line.tenant")} then
+  if not ${allowed("upsert_intrastat_line.tenant")} then
     ${fail("SHIPMENT_FORBIDDEN", "not allowed to manage shipments")}
   end if;
   begin
@@ -347,12 +347,12 @@ begin
     or coalesce(v_attrs ->> 'country', '') !~ '^[A-Z]{2}$' or not (v_attrs ->> 'country') = any (${COUNTRIES}) then
     ${fail("SHIPMENT_INTRASTAT_INVALID", "a line needs a period, a flow (arrival or dispatch) and the country of a member state", "22023")}
   end if;
-  if (v_attrs ->> 'variantId') is not null and not exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = (v_attrs ->> 'variantId')::uuid and cv.${v("tenant")} = save_intrastat_line.tenant) then
+  if (v_attrs ->> 'variantId') is not null and not exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = (v_attrs ->> 'variantId')::uuid and cv.${v("tenant")} = upsert_intrastat_line.tenant) then
     ${fail("SHIPMENT_INTRASTAT_INVALID", "the variant isn't in this organization", "P0002")}
   end if;
-  if save_intrastat_line.line is null then
+  if upsert_intrastat_line.line is null then
     insert into ${t} as x (${i("tenant")}, ${i("period")}, ${i("flow")}, ${i("source")}, ${i("variant")}, ${i("tradeCode")}, ${i("country")}, ${i("netMass")}, ${i("quantity")}, ${i("value")}, ${i("currency")})
-    values (save_intrastat_line.tenant, v_period, v_attrs ->> 'flow', 'manual', nullif(v_attrs ->> 'variantId', '')::uuid, nullif(v_attrs ->> 'tradeCode', ''), v_attrs ->> 'country',
+    values (upsert_intrastat_line.tenant, v_period, v_attrs ->> 'flow', 'manual', nullif(v_attrs ->> 'variantId', '')::uuid, nullif(v_attrs ->> 'tradeCode', ''), v_attrs ->> 'country',
       (v_attrs ->> 'netMassKg')::numeric, (v_attrs ->> 'quantity')::numeric, (v_attrs ->> 'value')::bigint, nullif(v_attrs ->> 'currency', ''))
     returning x.${i("id")} into v_id;
     return jsonb_build_object('id', v_id, 'created', true);
@@ -360,7 +360,7 @@ begin
   update ${t} x set ${i("period")} = v_period, ${i("flow")} = v_attrs ->> 'flow', ${i("variant")} = nullif(v_attrs ->> 'variantId', '')::uuid, ${i("tradeCode")} = nullif(v_attrs ->> 'tradeCode', ''),
     ${i("country")} = v_attrs ->> 'country', ${i("netMass")} = (v_attrs ->> 'netMassKg')::numeric, ${i("quantity")} = (v_attrs ->> 'quantity')::numeric,
     ${i("value")} = (v_attrs ->> 'value')::bigint, ${i("currency")} = nullif(v_attrs ->> 'currency', ''), ${i("updatedAt")} = now()
-  where x.${i("id")} = save_intrastat_line.line and x.${i("tenant")} = save_intrastat_line.tenant and x.${i("source")} = 'manual'
+  where x.${i("id")} = upsert_intrastat_line.line and x.${i("tenant")} = upsert_intrastat_line.tenant and x.${i("source")} = 'manual'
   returning x.${i("id")} into v_id;
   if v_id is null then
     ${fail("SHIPMENT_INTRASTAT_NOT_FOUND", "a manual Intrastat line of this organization wasn't found", "P0002")}
@@ -368,7 +368,7 @@ begin
   return jsonb_build_object('id', v_id, 'created', false);
 end;
 $$;
-${userGrant(`${fn("save_intrastat_line")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_intrastat_line")}(${ctx.idType}, uuid, jsonb)`)}
 
 -- Deletes a manual line; derived lines come from the shipments.
 create or replace function ${fn("delete_intrastat_line")}(line uuid)
@@ -405,7 +405,7 @@ export function intrastatContract(
   return [
     { name: "prepare_intrastat", args: ["{id}", "date"], returns: "jsonb" },
     {
-      name: "save_intrastat_line",
+      name: "upsert_intrastat_line",
       args: ["{id}", "uuid", "jsonb"],
       returns: "jsonb",
     },

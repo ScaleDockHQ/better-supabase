@@ -567,7 +567,7 @@ export function createContracts<
       ),
     saveObligation: ({ contractId, input }) =>
       call(
-        "save_contract_obligation",
+        "upsert_contract_obligation",
         {
           contract_id: contractId,
           title: input.title,
@@ -576,7 +576,7 @@ export function createContracts<
           description: input.description ?? null,
           obligation_id: input.obligationId ?? null,
         },
-        obligation("save_contract_obligation"),
+        obligation("upsert_contract_obligation"),
       ),
     setObligationStatus: ({ obligationId, status }) =>
       call(

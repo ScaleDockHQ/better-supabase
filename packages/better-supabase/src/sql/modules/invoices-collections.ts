@@ -515,7 +515,7 @@ function dunningSql(
   const fee = h.charges
     ? `
     if v_level.${d("fee")} > 0 then
-      perform ${fn("add_invoice_charge")}(invoice => v_row.${i("id")}, amount => v_level.${d("fee")}, currency => v_row.${i("currency")}::text,
+      perform ${fn("create_invoice_charge")}(invoice => v_row.${i("id")}, amount => v_level.${d("fee")}, currency => v_row.${i("currency")}::text,
         description => 'Reminder fee, level ' || v_level.${d("level")});
       select * into v_row from ${t("invoices")} x where x.${i("id")} = v_row.${i("id")};
     end if;`

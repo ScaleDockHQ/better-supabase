@@ -33,7 +33,7 @@ export interface BlockNameRegistry {
       readonly "budgets": "id" | "tenant" | "name" | "fiscalYear" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "budgetLines": "id" | "tenant" | "budget" | "account" | "periodNumber" | "dimensions" | "amount";
     };
-    readonly functions: "accounting_account_level" | "accounting_account_level_children" | "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_close_range" | "accounting_column_balance" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_journal_listing" | "accounting_opening_posted" | "accounting_opening_write" | "accounting_period_close_blockers" | "accounting_period_trial_balance" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_range_close_blockers" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_accounting_period_if_clear" | "close_fiscal_year" | "delete_accounting_entry" | "ensure_import_periods" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "import_accounting_account" | "import_accounting_entry" | "import_accounting_journal" | "import_accounting_opening_balance" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_opening_balances" | "list_accounting_periods" | "lock_accounting_period" | "open_fiscal_year" | "page_accounting_accounts" | "page_accounting_entries" | "post_accounting_entry" | "post_accounting_opening_balances" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_budget" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_opening_balances" | "seed_accounting_defaults" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on" | "unlock_accounting_period";
+    readonly functions: "accounting_account_level" | "accounting_account_level_children" | "accounting_balance_sheet" | "accounting_budget_vs_actual" | "accounting_close_range" | "accounting_column_balance" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_journal_listing" | "accounting_opening_posted" | "accounting_opening_write" | "accounting_period_close_blockers" | "accounting_period_trial_balance" | "accounting_post" | "accounting_post_source" | "accounting_profit_and_loss" | "accounting_range_close_blockers" | "accounting_reverse" | "accounting_reverse_source" | "accounting_sync_dimension_value" | "accounting_tax_report" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_accounting_period_if_clear" | "close_fiscal_year" | "delete_accounting_entry" | "ensure_import_periods" | "get_accounting_budget" | "get_accounting_entry" | "get_accounting_settings" | "import_accounting_account" | "import_accounting_entry" | "import_accounting_journal" | "import_accounting_opening_balance" | "list_accounting_accounts" | "list_accounting_budgets" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_opening_balances" | "list_accounting_periods" | "lock_accounting_period" | "open_fiscal_year" | "page_accounting_accounts" | "page_accounting_entries" | "post_accounting_entry" | "post_accounting_opening_balances" | "post_accounting_source" | "reopen_accounting_period" | "reverse_accounting_entry" | "seed_accounting_defaults" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting" | "tax_rate_on" | "unlock_accounting_period" | "upsert_accounting_account" | "upsert_accounting_budget" | "upsert_accounting_dimension" | "upsert_accounting_dimension_value" | "upsert_accounting_entry" | "upsert_accounting_journal" | "upsert_accounting_opening_balances";
     readonly actions: "read" | "write" | "post" | "close" | "manage";
     readonly hooks: "before_accounting_entry_post" | "after_accounting_entry_post" | "before_accounting_entry_reverse" | "after_accounting_entry_reverse";
     readonly entities: {
@@ -88,7 +88,7 @@ export interface BlockNameRegistry {
       readonly "advisories": "id" | "tenant" | "trackingId" | "title" | "summary" | "product" | "severity" | "status" | "revision" | "initialReleaseAt" | "currentReleaseAt" | "revisionHistory" | "createdBy" | "createdAt" | "updatedAt";
       readonly "links": "tenant" | "advisory" | "vulnerability" | "createdAt";
     };
-    readonly functions: "create_product_version" | "get_advisory" | "get_published_advisory" | "import_sbom" | "list_advisories" | "list_advisory_products" | "list_product_versions" | "list_published_advisories" | "list_sbom_components" | "list_vex_statements" | "list_vulnerabilities" | "page_advisories" | "page_vulnerabilities" | "publish_advisory" | "record_vulnerability_enrichment" | "save_advisory" | "save_advisory_product" | "save_vex_statement" | "save_vulnerability" | "version_exposure" | "vulnerabilities_due";
+    readonly functions: "create_product_version" | "get_advisory" | "get_published_advisory" | "import_sbom" | "list_advisories" | "list_advisory_products" | "list_product_versions" | "list_published_advisories" | "list_sbom_components" | "list_vex_statements" | "list_vulnerabilities" | "page_advisories" | "page_vulnerabilities" | "publish_advisory" | "record_vulnerability_enrichment" | "upsert_advisory" | "upsert_advisory_product" | "upsert_vex_statement" | "upsert_vulnerability" | "version_exposure" | "vulnerabilities_due";
     readonly actions: "read" | "write" | "publish";
     readonly hooks: never;
     readonly entities: {
@@ -123,7 +123,7 @@ export interface BlockNameRegistry {
       readonly "ratings": "agent" | "user" | "rating" | "comment" | "createdAt";
       readonly "skills": "id" | "agent" | "provider" | "reference" | "name" | "files" | "contentHash" | "latestVersion" | "providerRefs" | "createdAt";
     };
-    readonly functions: "archive_agent" | "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "page_agents" | "publish_agent" | "purge_agent" | "rate_agent" | "record_skill_sync" | "restore_agent" | "save_agent" | "set_agent_skills";
+    readonly functions: "archive_agent" | "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "page_agents" | "publish_agent" | "purge_agent" | "rate_agent" | "record_skill_sync" | "restore_agent" | "set_agent_skills" | "upsert_agent";
     readonly actions: "read" | "create" | "publish" | "moderate" | "purge";
     readonly hooks: never;
     readonly entities: {
@@ -161,7 +161,7 @@ export interface BlockNameRegistry {
       readonly "sandboxes": "id" | "tenant" | "user" | "chat" | "harness" | "provider" | "sandbox" | "container" | "status" | "metadata" | "idleSeconds" | "error" | "lastUsedAt" | "expiresAt" | "stoppedAt" | "createdAt" | "updatedAt";
       readonly "harness": "chat" | "harness" | "owner" | "resume" | "continue" | "status" | "holder" | "lockedUntil" | "lastActiveAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_ai_chat_participant" | "add_ai_chat_party" | "ai_chat_can_read" | "ai_chat_notify" | "ai_chat_share_summaries" | "ai_message_path" | "ai_message_path_of" | "ai_message_siblings" | "ai_sandbox_for" | "ai_tool_approval_approvable" | "ai_tool_policies_for" | "ai_usage_by_user" | "allowed_ai_models" | "answer_ai_pending_input" | "append_ai_user_message" | "apply_ai_tool_approval" | "attach_ai_run" | "claim_ai_chat_stream" | "create_ai_chat" | "create_ai_chat_link" | "decide_ai_tool_approval" | "delete_ai_chat" | "delete_ai_project" | "finish_ai_sandbox_stop" | "get_ai_chat" | "get_ai_chat_by_link" | "get_ai_project" | "get_ai_run" | "get_ai_tool_approvals" | "get_shared_ai_chat" | "idle_ai_sandboxes" | "list_ai_chat_participants" | "list_ai_chat_shares" | "list_ai_chats" | "list_ai_moderation_events" | "list_ai_projects" | "list_ai_run_steps" | "list_ai_run_steps_for" | "list_ai_runs" | "list_ai_sandboxes" | "list_pending_ai_tool_approvals" | "load_ai_harness_session" | "lock_ai_harness_session" | "open_ai_pending_input" | "page_ai_chats" | "page_ai_projects" | "purge_ai_chats" | "rate_ai_message" | "record_ai_moderation_event" | "record_ai_run_step" | "record_ai_tool_approval" | "register_ai_sandbox" | "release_ai_chat_stream" | "remove_ai_chat_participant" | "remove_ai_chat_party" | "request_ai_chat_stop" | "revoke_ai_chat_link" | "revoke_ai_chat_share" | "rotate_ai_chat_link" | "save_ai_assistant_message" | "save_ai_harness_session" | "save_ai_project" | "set_ai_run_cost" | "set_ai_tool_policy" | "share_ai_chat" | "switch_ai_branch" | "touch_ai_sandbox" | "unlock_ai_harness_session" | "update_ai_chat" | "upsert_ai_models";
+    readonly functions: "ai_chat_can_read" | "ai_chat_notify" | "ai_chat_share_summaries" | "ai_message_path" | "ai_message_path_of" | "ai_message_siblings" | "ai_sandbox_for" | "ai_tool_approval_approvable" | "ai_tool_policies_for" | "ai_usage_by_user" | "allowed_ai_models" | "answer_ai_pending_input" | "append_ai_user_message" | "apply_ai_tool_approval" | "attach_ai_run" | "claim_ai_chat_stream" | "create_ai_chat" | "create_ai_chat_link" | "create_ai_chat_participant" | "create_ai_chat_party" | "decide_ai_tool_approval" | "delete_ai_chat" | "delete_ai_chat_participant" | "delete_ai_chat_party" | "delete_ai_project" | "finish_ai_sandbox_stop" | "get_ai_chat" | "get_ai_chat_by_link" | "get_ai_harness_session" | "get_ai_project" | "get_ai_run" | "get_ai_tool_approvals" | "get_shared_ai_chat" | "idle_ai_sandboxes" | "list_ai_chat_participants" | "list_ai_chat_shares" | "list_ai_chats" | "list_ai_moderation_events" | "list_ai_projects" | "list_ai_run_steps" | "list_ai_run_steps_for" | "list_ai_runs" | "list_ai_sandboxes" | "list_pending_ai_tool_approvals" | "lock_ai_harness_session" | "open_ai_pending_input" | "page_ai_chats" | "page_ai_projects" | "purge_ai_chats" | "rate_ai_message" | "record_ai_moderation_event" | "record_ai_run_step" | "record_ai_tool_approval" | "register_ai_sandbox" | "release_ai_chat_stream" | "request_ai_chat_stop" | "revoke_ai_chat_link" | "revoke_ai_chat_share" | "rotate_ai_chat_link" | "set_ai_run_cost" | "set_ai_tool_policy" | "share_ai_chat" | "switch_ai_branch" | "touch_ai_sandbox" | "unlock_ai_harness_session" | "update_ai_chat" | "upsert_ai_assistant_message" | "upsert_ai_harness_session" | "upsert_ai_models" | "upsert_ai_project";
     readonly actions: "read" | "create" | "share" | "moderate" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -177,7 +177,7 @@ export interface BlockNameRegistry {
       readonly "runs": "id" | "dataset" | "tenant" | "promptName" | "promptVersion" | "model" | "scorers" | "status" | "summary" | "createdAt" | "finishedAt";
       readonly "results": "run" | "item" | "output" | "scores" | "passed" | "error" | "latencyMs" | "createdAt";
     };
-    readonly functions: "add_eval_items" | "add_eval_items_from_feedback" | "compare_eval_runs" | "create_eval_dataset" | "create_eval_run" | "eval_run_summary" | "finish_eval_run" | "get_eval_dataset" | "get_eval_run" | "list_eval_datasets" | "list_eval_items" | "list_eval_results" | "list_eval_runs" | "page_eval_datasets" | "page_eval_runs" | "record_eval_result";
+    readonly functions: "compare_eval_runs" | "create_eval_dataset" | "create_eval_items" | "create_eval_items_from_feedback" | "create_eval_run" | "eval_run_summary" | "finish_eval_run" | "get_eval_dataset" | "get_eval_run" | "list_eval_datasets" | "list_eval_items" | "list_eval_results" | "list_eval_runs" | "page_eval_datasets" | "page_eval_runs" | "record_eval_result";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -215,7 +215,7 @@ export interface BlockNameRegistry {
       readonly "batches": "id" | "tenant" | "user" | "provider" | "reference" | "status" | "rawStatus" | "itemCount" | "counts" | "error" | "metadata" | "resultsSaved" | "polls" | "nextPollAt" | "expiresAt" | "completedAt" | "createdAt" | "updatedAt";
       readonly "items": "batch" | "request" | "tenant" | "status" | "output" | "usage" | "error" | "createdAt";
     };
-    readonly functions: "ai_provider_keys_for" | "delete_ai_provider_key" | "delete_ai_provider_keys" | "due_ai_batches" | "get_ai_batch" | "get_ai_provider_key" | "list_ai_batch_items" | "list_ai_batches" | "list_ai_provider_keys" | "page_ai_batches" | "page_ai_provider_keys" | "record_ai_batch" | "save_ai_batch_items" | "save_ai_provider_key" | "update_ai_batch";
+    readonly functions: "ai_provider_keys_for" | "delete_ai_provider_key" | "delete_ai_provider_keys" | "due_ai_batches" | "get_ai_batch" | "get_ai_provider_key" | "list_ai_batch_items" | "list_ai_batches" | "list_ai_provider_keys" | "page_ai_batches" | "page_ai_provider_keys" | "record_ai_batch" | "update_ai_batch" | "upsert_ai_batch_items" | "upsert_ai_provider_key";
     readonly actions: "use" | "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -226,7 +226,7 @@ export interface BlockNameRegistry {
       readonly "tasks": "id" | "tenant" | "user" | "chat" | "agent" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "nextRunAt" | "lastRunAt" | "source" | "externalId" | "createdAt" | "updatedAt";
       readonly "runs": "id" | "task" | "tenant" | "user" | "status" | "scheduledFor" | "chat" | "error" | "startedAt" | "finishedAt" | "createdAt";
     };
-    readonly functions: "claim_due_ai_tasks" | "delete_ai_task" | "delete_mirrored_ai_task" | "finish_ai_task_run" | "get_ai_task" | "list_ai_task_runs" | "list_ai_tasks" | "mirror_ai_task" | "page_ai_tasks" | "record_ai_task_run" | "save_ai_task" | "schedule_ai_tasks" | "start_ai_task_run";
+    readonly functions: "claim_due_ai_tasks" | "delete_ai_task" | "delete_mirrored_ai_task" | "finish_ai_task_run" | "get_ai_task" | "list_ai_task_runs" | "list_ai_tasks" | "mirror_ai_task" | "page_ai_tasks" | "record_ai_task_run" | "schedule_ai_tasks" | "start_ai_task_run" | "upsert_ai_task";
     readonly actions: "create" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -239,7 +239,7 @@ export interface BlockNameRegistry {
       readonly "announcements": "id" | "title" | "body" | "severity" | "href" | "audience" | "targets" | "startsAt" | "endsAt" | "dismissible" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "dismissals": "announcement" | "user" | "dismissedAt";
     };
-    readonly functions: "active_announcements" | "archive_announcement" | "broadcast_announcement" | "dismiss_announcement" | "get_announcement" | "list_announcements" | "page_announcements" | "purge_announcement" | "restore_announcement" | "save_announcement";
+    readonly functions: "active_announcements" | "archive_announcement" | "broadcast_announcement" | "dismiss_announcement" | "get_announcement" | "list_announcements" | "page_announcements" | "purge_announcement" | "restore_announcement" | "upsert_announcement";
     readonly actions: "manage" | "purge";
     readonly hooks: never;
     readonly entities: {
@@ -323,7 +323,7 @@ export interface BlockNameRegistry {
       readonly "members": "queue" | "tenant" | "user" | "weight" | "active" | "credit" | "assignedCount" | "lastAssignedAt";
       readonly "log": "id" | "tenant" | "queue" | "subjectType" | "subjectId" | "user" | "assignedAt";
     };
-    readonly functions: "assign_subject" | "assignment_history" | "list_assignment_queues" | "remove_assignment_queue" | "save_assignment_queue" | "set_assignment_members";
+    readonly functions: "assign_subject" | "assignment_history" | "delete_assignment_queue" | "list_assignment_queues" | "set_assignment_members" | "upsert_assignment_queue";
     readonly actions: "read" | "manage" | "assign";
     readonly hooks: never;
     readonly entities: {
@@ -367,7 +367,7 @@ export interface BlockNameRegistry {
       readonly "evaluations": "id" | "tenant" | "rule" | "version" | "subjectType" | "subjectId" | "trigger" | "matched" | "results" | "mode" | "evaluatedBy" | "evaluatedAt";
       readonly "fields": "subjectType" | "id" | "label" | "description" | "type" | "path" | "columnType" | "nullable" | "options" | "operators" | "position" | "updatedAt";
     };
-    readonly functions: "install_default_rules" | "matching_rules" | "rank_rule" | "record_rule_evaluation" | "remove_rule" | "reset_default_rule" | "rule_boolean" | "rule_bounds" | "rule_check" | "rule_date" | "rule_equal" | "rule_evaluate" | "rule_evaluations_list" | "rule_field_map" | "rule_fields_list" | "rule_get" | "rule_list" | "rule_matches" | "rule_moment" | "rule_node" | "rule_numeric" | "rule_positive" | "rule_text" | "rule_versions_list" | "rules_list" | "run_rules" | "save_rule" | "set_rule_enabled" | "sync_rule_fields";
+    readonly functions: "delete_rule" | "install_default_rules" | "matching_rules" | "rank_rule" | "record_rule_evaluation" | "reset_default_rule" | "rule_boolean" | "rule_bounds" | "rule_check" | "rule_date" | "rule_equal" | "rule_evaluate" | "rule_evaluations_list" | "rule_field_map" | "rule_fields_list" | "rule_get" | "rule_list" | "rule_matches" | "rule_moment" | "rule_node" | "rule_numeric" | "rule_positive" | "rule_text" | "rule_versions_list" | "rules_list" | "run_rules" | "set_rule_enabled" | "sync_rule_fields" | "upsert_rule";
     readonly actions: "read" | "write" | "publish" | "manage";
     readonly hooks: "before_automation_save" | "after_automation_save" | "before_automation_remove" | "after_automation_remove";
     readonly entities: {
@@ -385,7 +385,7 @@ export interface BlockNameRegistry {
       readonly "batches": "id" | "tenant" | "account" | "reference" | "messageId" | "currency" | "dueBy" | "executionOn" | "total" | "itemCount" | "status" | "transaction" | "createdBy" | "createdAt" | "postedAt" | "reconciledAt";
       readonly "batchItems": "id" | "tenant" | "batch" | "invoice" | "party" | "creditorName" | "creditorIban" | "creditorBic" | "amount" | "discount" | "currency" | "endToEndId" | "remittance" | "status";
     };
-    readonly functions: "apply_bank_rules" | "bank_mod97" | "bank_reconciliation_board" | "bank_reconciliation_status" | "bank_reference" | "bank_rule_condition" | "delete_bank_rule" | "get_bank_transaction" | "ignore_bank_transaction" | "import_bank_statement" | "list_bank_accounts" | "list_bank_rules" | "list_bank_statements" | "list_bank_transactions" | "match_bank_transaction" | "page_bank_accounts" | "reconcile_bank_account" | "save_bank_account" | "save_bank_rule" | "suggest_bank_matches" | "unmatch_bank_transaction";
+    readonly functions: "apply_bank_rules" | "bank_mod97" | "bank_reconciliation_board" | "bank_reconciliation_status" | "bank_reference" | "bank_rule_condition" | "delete_bank_rule" | "get_bank_transaction" | "ignore_bank_transaction" | "import_bank_statement" | "list_bank_accounts" | "list_bank_rules" | "list_bank_statements" | "list_bank_transactions" | "match_bank_transaction" | "page_bank_accounts" | "reconcile_bank_account" | "suggest_bank_matches" | "unmatch_bank_transaction" | "upsert_bank_account" | "upsert_bank_rule";
     readonly actions: "read" | "import" | "reconcile" | "manage" | "createBatch" | "postBatch" | "cancelBatch";
     readonly hooks: "after_bank_statement_import" | "before_bank_transaction_match" | "after_bank_transaction_match";
     readonly entities: {
@@ -431,7 +431,7 @@ export interface BlockNameRegistry {
       readonly "bookings": "id" | "tenant" | "resource" | "service" | "seat" | "during" | "blocked" | "status" | "holdExpiresAt" | "customerName" | "customerEmail" | "customerUser" | "notes" | "accessHash" | "calendarEvent" | "createdBy" | "createdAt" | "updatedAt" | "cancelledAt" | "cancelReason" | "archivedAt" | "series";
       readonly "series": "id" | "tenant" | "service" | "resource" | "rule" | "startsAt" | "tz" | "customerName" | "customerEmail" | "customerUser" | "status" | "endsAt" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_booking_exception" | "archive_booking" | "available_slots" | "booking_slots" | "cancel_booking" | "change_booking" | "confirm_booking" | "delete_booking_exception" | "expire_booking_holds" | "expire_booking_holds_in" | "get_booking" | "hold_booking" | "list_booking_resources" | "list_booking_services" | "list_bookings" | "list_bookings_for_customer" | "page_bookings" | "place_booking" | "restore_booking" | "save_booking_resource" | "save_booking_service" | "set_booking_availability";
+    readonly functions: "archive_booking" | "available_slots" | "booking_slots" | "cancel_booking" | "change_booking" | "confirm_booking" | "create_booking_exception" | "delete_booking_exception" | "expire_booking_holds" | "expire_booking_holds_in" | "get_booking" | "hold_booking" | "list_booking_resources" | "list_booking_services" | "list_bookings" | "list_bookings_for_customer" | "page_bookings" | "place_booking" | "restore_booking" | "set_booking_availability" | "upsert_booking_resource" | "upsert_booking_service";
     readonly actions: "manage" | "create" | "read";
     readonly hooks: "before_booking_reserve" | "after_booking_reserve" | "after_booking_confirm" | "after_booking_cancel";
     readonly entities: {
@@ -461,7 +461,7 @@ export interface BlockNameRegistry {
       readonly "rules": "id" | "tenant" | "event" | "rrule" | "freq" | "interval" | "count" | "until" | "byDay" | "byMonthDay" | "byMonth" | "bySetPos";
       readonly "recurrenceDates": "id" | "tenant" | "event" | "kind" | "at";
     };
-    readonly functions: "calendar_attendee_auto_decline" | "calendar_block_auto_decline" | "calendar_bootstrap" | "calendar_busy_blocks" | "calendar_free_busy" | "calendar_rule_starts" | "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "get_calendar" | "get_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendar_working_hours" | "list_calendars" | "page_calendar_events" | "page_calendars" | "purge_calendar_event" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "set_calendar_working_hours" | "split_calendar_event";
+    readonly functions: "calendar_attendee_auto_decline" | "calendar_block_auto_decline" | "calendar_bootstrap" | "calendar_busy_blocks" | "calendar_free_busy" | "calendar_rule_starts" | "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_attendee" | "get_calendar" | "get_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendar_working_hours" | "list_calendars" | "page_calendar_events" | "page_calendars" | "purge_calendar_event" | "respond_calendar_event" | "set_calendar_attendee" | "set_calendar_working_hours" | "split_calendar_event" | "upsert_calendar_event";
     readonly actions: "manage" | "write" | "read" | "create" | "update" | "delete" | "purge";
     readonly hooks: "before_calendar_event_save" | "after_calendar_event_save";
     readonly entities: {
@@ -478,7 +478,7 @@ export interface BlockNameRegistry {
       readonly "actions": "id" | "tenant" | "plan" | "goal" | "kind" | "title" | "instructions" | "frequency" | "teamRole" | "measureKind" | "task" | "bookingSeries" | "requiresApproval" | "approval" | "reviewEvery" | "reviewedAt" | "reviewNotifiedAt" | "startsOn" | "endsOn" | "status" | "startedAt" | "endedAt" | "endReason" | "rank" | "createdAt" | "updatedAt";
       readonly "evaluations": "id" | "tenant" | "plan" | "goal" | "evaluatedAt" | "status" | "outcome" | "submission" | "author";
     };
-    readonly functions: "add_care_plan_action" | "add_care_plan_goal" | "add_care_plan_problem" | "archive_care_plan" | "care_plan_action_approved" | "care_plan_action_end" | "care_plan_action_start" | "care_plan_json" | "create_care_plan" | "due_care_plan_reviews" | "end_care_plan_action" | "get_care_plan" | "get_care_plans" | "list_care_plan_measures" | "list_care_plans" | "page_care_plans" | "publish_care_plan" | "record_care_plan_evaluation" | "request_care_plan_agreement" | "restore_care_plan" | "review_care_plan_action" | "start_care_plan_action" | "update_care_plan" | "update_care_plan_action" | "update_care_plan_goal" | "update_care_plan_problem";
+    readonly functions: "archive_care_plan" | "care_plan_action_approved" | "care_plan_action_end" | "care_plan_action_start" | "care_plan_json" | "create_care_plan" | "create_care_plan_action" | "create_care_plan_goal" | "create_care_plan_problem" | "due_care_plan_reviews" | "end_care_plan_action" | "get_care_plan" | "get_care_plans" | "list_care_plan_measures" | "list_care_plans" | "page_care_plans" | "publish_care_plan" | "record_care_plan_evaluation" | "request_care_plan_agreement" | "restore_care_plan" | "review_care_plan_action" | "start_care_plan_action" | "update_care_plan" | "update_care_plan_action" | "update_care_plan_goal" | "update_care_plan_problem";
     readonly actions: "read" | "write" | "evaluate" | "publish" | "manage";
     readonly hooks: "before_care_plan_create" | "after_care_plan_create" | "before_care_plan_publish" | "after_care_plan_publish" | "before_care_plan_evaluation_create" | "after_care_plan_evaluation_create";
     readonly entities: {
@@ -496,7 +496,7 @@ export interface BlockNameRegistry {
       readonly "cases": "id" | "tenant" | "kind" | "number" | "sequence" | "title" | "description" | "severity" | "source" | "reporter" | "reporterContact" | "owner" | "occurredAt" | "detectedAt" | "dueOn" | "pipeline" | "stage" | "stageEnteredAt" | "status" | "rootCause" | "rootCauseSubmission" | "effective" | "effectivenessDueOn" | "effectivenessNotifiedFor" | "effectivenessNote" | "effectivenessSubmission" | "closedAt" | "closedBy" | "closeNote" | "rank" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "actions": "id" | "tenant" | "case" | "task" | "type" | "required" | "createdAt";
     };
-    readonly functions: "archive_case_kind" | "cancel_case" | "case_blockers_of" | "case_close_blockers" | "case_from_submission" | "case_stats" | "close_case" | "create_case_action" | "ensure_case_kinds" | "get_case" | "link_case_action" | "list_case_kinds" | "list_cases" | "notify_due_case_effectiveness" | "open_case" | "open_case_as" | "page_cases" | "record_case_effectiveness" | "record_case_root_cause" | "remove_case_action" | "reopen_case" | "restore_case_kind" | "save_case_kind" | "schedule_case_effectiveness" | "update_case";
+    readonly functions: "archive_case_kind" | "cancel_case" | "case_blockers_of" | "case_close_blockers" | "case_from_submission" | "case_stats" | "close_case" | "create_case_action" | "delete_case_action" | "ensure_case_kinds" | "get_case" | "link_case_action" | "list_case_kinds" | "list_cases" | "notify_due_case_effectiveness" | "open_case" | "open_case_as" | "page_cases" | "record_case_effectiveness" | "record_case_root_cause" | "reopen_case" | "restore_case_kind" | "schedule_case_effectiveness" | "update_case" | "upsert_case_kind";
     readonly actions: "read" | "create" | "write" | "close" | "manage";
     readonly hooks: "before_case_open" | "after_case_open" | "before_case_close" | "after_case_close";
     readonly entities: {
@@ -533,7 +533,7 @@ export interface BlockNameRegistry {
       readonly "discountGroupParties": "tenant" | "group" | "party" | "createdAt";
       readonly "discountRules": "id" | "tenant" | "customerGroup" | "productGroup" | "validFrom" | "validTo" | "minQuantity" | "discountBps" | "fixedPrice" | "currency" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_to_collection" | "archive_product" | "archive_variant" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_discount_group" | "delete_discount_rule" | "delete_price" | "delete_price_list" | "delete_product_identifier" | "delete_product_option" | "delete_product_relation" | "delete_supplier_item" | "delete_supplier_item_mapping" | "discount_group_updated_at" | "discount_rule_check" | "discount_rule_updated_at" | "find_variants_by_identifier" | "import_discount_group" | "import_discount_rule" | "import_party_discount_group" | "import_product" | "import_product_batch" | "import_product_category" | "import_product_identifier" | "import_supplier_item" | "move_category" | "product_category_updated_at" | "product_identifier_updated_at" | "product_text" | "product_updated_at" | "promote_supplier_item" | "publish_storefront" | "purge_product" | "purge_variant" | "rank_variant" | "remove_from_collection" | "reorder_product_options" | "replacement_variant" | "resolve_line_discount" | "restore_product" | "restore_variant" | "save_catalog_channel" | "save_category" | "save_collection" | "save_discount_group" | "save_discount_rule" | "save_price_list" | "save_product" | "save_product_identifier" | "save_product_option" | "save_product_relation" | "save_supplier_item" | "save_variant" | "search_supplier_items" | "set_channel_listing" | "set_party_discount_group" | "set_price" | "set_product_categories" | "set_product_options" | "set_product_status" | "set_product_translation" | "set_supplier_item_mapping" | "set_variant_discount_group" | "set_variant_status" | "set_variant_trade_code" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "supplier_item_from_row" | "supplier_item_mapping" | "supplier_item_updated_at" | "variant_identifiers" | "variant_price" | "variant_relations";
+    readonly functions: "add_to_collection" | "archive_product" | "archive_variant" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_discount_group" | "delete_discount_rule" | "delete_price" | "delete_price_list" | "delete_product_identifier" | "delete_product_option" | "delete_product_relation" | "delete_supplier_item" | "delete_supplier_item_mapping" | "discount_group_updated_at" | "discount_rule_check" | "discount_rule_updated_at" | "find_variants_by_identifier" | "import_discount_group" | "import_discount_rule" | "import_party_discount_group" | "import_product" | "import_product_batch" | "import_product_category" | "import_product_identifier" | "import_supplier_item" | "move_category" | "product_category_updated_at" | "product_identifier_updated_at" | "product_text" | "product_updated_at" | "promote_supplier_item" | "publish_storefront" | "purge_product" | "purge_variant" | "rank_variant" | "remove_from_collection" | "reorder_product_options" | "replacement_variant" | "resolve_line_discount" | "restore_product" | "restore_variant" | "search_supplier_items" | "set_channel_listing" | "set_party_discount_group" | "set_price" | "set_product_categories" | "set_product_options" | "set_product_status" | "set_product_translation" | "set_supplier_item_mapping" | "set_variant_discount_group" | "set_variant_status" | "set_variant_trade_code" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "supplier_item_from_row" | "supplier_item_mapping" | "supplier_item_updated_at" | "upsert_catalog_channel" | "upsert_category" | "upsert_collection" | "upsert_discount_group" | "upsert_discount_rule" | "upsert_price_list" | "upsert_product" | "upsert_product_identifier" | "upsert_product_option" | "upsert_product_relation" | "upsert_supplier_item" | "upsert_variant" | "variant_identifiers" | "variant_price" | "variant_relations";
     readonly actions: "manage" | "read" | "create" | "update" | "purge" | "categoryCreate" | "categoryUpdate" | "categoryDelete";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
     readonly entities: {
@@ -574,7 +574,7 @@ export interface BlockNameRegistry {
       readonly "rules": "id" | "tenant" | "kind" | "medicationIds" | "minDose" | "maxDose" | "maxPerDay" | "severity" | "message" | "active" | "createdAt" | "updatedAt" | "archivedAt";
       readonly "alerts": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "severity" | "source" | "rule" | "orderIds" | "message" | "details" | "fingerprint" | "status" | "decidedBy" | "decidedAt" | "decisionReason" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_care_rule" | "care_decision_context" | "decide_care_alert" | "delete_care_rule" | "evaluate_care_rules" | "list_care_alerts" | "list_care_rules" | "purge_care_rule" | "record_care_alerts" | "restore_care_rule" | "save_care_rule" | "sync_care_alerts";
+    readonly functions: "archive_care_rule" | "care_decision_context" | "decide_care_alert" | "delete_care_rule" | "evaluate_care_rules" | "list_care_alerts" | "list_care_rules" | "purge_care_rule" | "record_care_alerts" | "restore_care_rule" | "sync_care_alerts" | "upsert_care_rule";
     readonly actions: "read" | "write" | "manage" | "purge";
     readonly hooks: "before_care_alert_decide" | "after_care_alert_decide";
     readonly entities: {
@@ -590,7 +590,7 @@ export interface BlockNameRegistry {
       readonly "favorites": "user" | "tenant" | "subjectType" | "subjectId" | "rank" | "createdAt";
       readonly "savedItems": "id" | "user" | "tenant" | "subjectType" | "subjectId" | "note" | "remindAt" | "remindedAt" | "completedAt" | "createdAt";
     };
-    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "get_collection" | "list_collections" | "list_saved_items" | "page_collections" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_collection_entries" | "remove_saved_item" | "rename_collection" | "save_for_later" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
+    readonly functions: "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "create_collection_entries" | "delete_collection_entries" | "delete_saved_item" | "get_collection" | "list_collections" | "list_saved_items" | "page_collections" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "rename_collection" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject" | "upsert_for_later";
     readonly actions: "read" | "write" | "share";
     readonly hooks: "before_collection_create" | "after_collection_create" | "before_collection_add" | "after_collection_add";
     readonly entities: {
@@ -615,7 +615,7 @@ export interface BlockNameRegistry {
       readonly "entries": "id" | "tenant" | "plan" | "seller" | "sourceType" | "sourceId" | "basis" | "amount" | "currency" | "occurredOn" | "status" | "statement" | "ledgerTransaction" | "reversedAt" | "createdAt";
       readonly "statements": "id" | "tenant" | "seller" | "currency" | "startsOn" | "endsOn" | "status" | "total" | "ledgerTransaction" | "finalizedAt" | "paidAt" | "paidBy" | "createdAt";
     };
-    readonly functions: "accrue_commission" | "assign_commission_plan" | "build_commission_statement" | "commission_accrue" | "commission_amount" | "commission_close_range" | "commission_payroll_lines" | "commission_plan_for" | "commission_statement_build" | "commission_statement_finalize" | "commission_tiers_valid" | "end_commission_assignment" | "finalize_commission_statement" | "get_commission_statement" | "list_commission_plans" | "list_commission_statements" | "list_commissions" | "pay_commission_statement" | "reverse_commission" | "save_commission_plan";
+    readonly functions: "accrue_commission" | "assign_commission_plan" | "build_commission_statement" | "commission_accrue" | "commission_amount" | "commission_close_range" | "commission_payroll_lines" | "commission_plan_for" | "commission_statement_build" | "commission_statement_finalize" | "commission_tiers_valid" | "end_commission_assignment" | "finalize_commission_statement" | "get_commission_statement" | "list_commission_plans" | "list_commission_statements" | "list_commissions" | "pay_commission_statement" | "reverse_commission" | "upsert_commission_plan";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -634,7 +634,7 @@ export interface BlockNameRegistry {
       readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
       readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_control_evidence" | "apply_oscal_profile" | "archive_compliance_policy" | "control_posture" | "export_oscal_assessment_results" | "get_compliance_policy" | "get_control" | "get_control_framework" | "get_evidence_task" | "import_oscal_catalog" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "page_compliance_policies" | "page_control_frameworks" | "page_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "restore_compliance_policy" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
+    readonly functions: "apply_oscal_profile" | "archive_compliance_policy" | "control_posture" | "create_control_evidence" | "delete_control_evidence" | "export_oscal_assessment_results" | "get_compliance_policy" | "get_control" | "get_control_framework" | "get_evidence_task" | "import_oscal_catalog" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "page_compliance_policies" | "page_control_frameworks" | "page_evidence_tasks" | "publish_compliance_policy" | "restore_compliance_policy" | "upsert_compliance_policy" | "upsert_control" | "upsert_control_framework" | "upsert_evidence_task";
     readonly actions: "read" | "manage" | "collect";
     readonly hooks: never;
     readonly entities: {
@@ -652,7 +652,7 @@ export interface BlockNameRegistry {
       readonly "sessions": "server" | "user" | "chat" | "session" | "initializeResult" | "lastUsedAt" | "expiresAt";
       readonly "fingerprints": "server" | "fingerprint" | "tools" | "status" | "approvedBy" | "approvedAt" | "createdAt";
     };
-    readonly functions: "check_connector_fingerprint" | "decide_connector_fingerprint" | "delete_connector_server" | "expiring_connector_grants" | "get_connector" | "get_connector_session" | "list_connector_servers" | "purge_connector_sessions" | "record_connector_grant" | "renew_connector_grant" | "revoke_connector_grant" | "save_connector_server" | "save_connector_session";
+    readonly functions: "check_connector_fingerprint" | "decide_connector_fingerprint" | "delete_connector_server" | "expiring_connector_grants" | "get_connector" | "get_connector_session" | "list_connector_servers" | "purge_connector_sessions" | "record_connector_grant" | "renew_connector_grant" | "revoke_connector_grant" | "upsert_connector_server" | "upsert_connector_session";
     readonly actions: "read" | "use" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -667,7 +667,7 @@ export interface BlockNameRegistry {
       readonly "signals": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "raw" | "parsed" | "consents" | "createdBy" | "receivedAt";
       readonly "receipts": "id" | "tenant" | "subjectType" | "subjectId" | "consent" | "status" | "receipt" | "digest" | "issuedAt";
     };
-    readonly functions: "archive_consent_purpose" | "consent_active" | "consent_missing" | "expire_consents" | "get_consent_purpose" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "page_consent_purposes" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "requires_consent" | "restore_consent_purpose" | "save_consent_purpose" | "withdraw_consent";
+    readonly functions: "archive_consent_purpose" | "consent_active" | "consent_missing" | "expire_consents" | "get_consent_purpose" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "page_consent_purposes" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "requires_consent" | "restore_consent_purpose" | "upsert_consent_purpose" | "withdraw_consent";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_consent_record" | "after_consent_record" | "before_consent_withdraw" | "after_consent_withdraw";
     readonly entities: {
@@ -688,7 +688,7 @@ export interface BlockNameRegistry {
       readonly "bankAccounts": "id" | "tenant" | "party" | "iban" | "bic" | "holder" | "isPrimary" | "createdAt" | "updatedAt";
       readonly "channels": "id" | "tenant" | "party" | "partyKind" | "channel" | "label" | "address" | "isPrimary" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_person_identity" | "archive_company" | "archive_person" | "company_people_of" | "contact_method_updated_at" | "delete_payment_term" | "delivery_preference_write" | "document_delivery_preference_updated_at" | "find_person_by_identity" | "get_company" | "get_person" | "import_contact_method" | "import_document_delivery_preference" | "import_party" | "import_party_bank_account" | "import_party_batch" | "import_party_contact" | "import_party_location" | "import_payment_term" | "list_companies" | "list_document_delivery_preferences" | "list_payment_terms" | "list_people" | "list_person_identities" | "merge_companies" | "merge_people" | "page_companies" | "page_people" | "party_bank_account_id" | "party_bank_account_updated_at" | "party_contact_updated_at" | "party_location_updated_at" | "party_updated_at" | "payment_term_updated_at" | "payment_term_write" | "remove_company_person" | "remove_person_identity" | "resolve_payment_terms" | "resolve_person" | "save_company" | "save_payment_term" | "save_person" | "set_company_person" | "set_document_delivery_preferences" | "set_party_roles" | "set_supplier_status";
+    readonly functions: "archive_company" | "archive_person" | "company_people_of" | "contact_method_updated_at" | "create_person_identity" | "delete_company_person" | "delete_payment_term" | "delete_person_identity" | "delivery_preference_write" | "document_delivery_preference_updated_at" | "find_person_by_identity" | "get_company" | "get_person" | "import_contact_method" | "import_document_delivery_preference" | "import_party" | "import_party_bank_account" | "import_party_batch" | "import_party_contact" | "import_party_location" | "import_payment_term" | "list_companies" | "list_document_delivery_preferences" | "list_payment_terms" | "list_people" | "list_person_identities" | "merge_companies" | "merge_people" | "page_companies" | "page_people" | "party_bank_account_id" | "party_bank_account_updated_at" | "party_contact_updated_at" | "party_location_updated_at" | "party_updated_at" | "payment_term_updated_at" | "payment_term_write" | "resolve_payment_terms" | "resolve_person" | "set_company_person" | "set_document_delivery_preferences" | "set_party_roles" | "set_supplier_status" | "upsert_company" | "upsert_payment_term" | "upsert_person";
     readonly actions: "read" | "write" | "manage" | "approveSupplier";
     readonly hooks: "before_company_save" | "after_company_save" | "before_person_save" | "after_person_save";
     readonly entities: {
@@ -714,7 +714,7 @@ export interface BlockNameRegistry {
       readonly "contracts": "id" | "tenant" | "title" | "description" | "counterpartyType" | "counterpartyId" | "owner" | "status" | "value" | "currency" | "startsOn" | "endsOn" | "autoRenew" | "renewalMonths" | "noticeDays" | "renewedCount" | "signatureRequest" | "signedAt" | "terminatedAt" | "terminationReason" | "createdBy" | "createdAt" | "updatedAt";
       readonly "obligations": "id" | "tenant" | "contract" | "title" | "description" | "dueOn" | "owner" | "status" | "completedAt" | "completedBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_contract_obligation" | "get_contract" | "list_contract_obligations" | "list_contracts" | "page_contract_obligations" | "page_contracts" | "run_contract_renewals" | "save_contract_obligation" | "send_contract_for_signature" | "set_contract_obligation_status" | "transition_contract" | "update_contract";
+    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_contract_obligation" | "get_contract" | "list_contract_obligations" | "list_contracts" | "page_contract_obligations" | "page_contracts" | "run_contract_renewals" | "send_contract_for_signature" | "set_contract_obligation_status" | "transition_contract" | "update_contract" | "upsert_contract_obligation";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -731,7 +731,7 @@ export interface BlockNameRegistry {
       readonly "progress": "enrollment" | "lesson" | "tenant" | "course" | "user" | "startedAt" | "completedAt" | "attempts" | "submission" | "score" | "maxScore" | "passed" | "updatedAt";
       readonly "certificates": "id" | "tenant" | "course" | "enrollment" | "user" | "code" | "issuedAt" | "expiresAt" | "revokedAt";
     };
-    readonly functions: "archive_course" | "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "purge_course" | "restore_course" | "revoke_course_certificate" | "save_course" | "save_course_lesson" | "save_course_module" | "start_course_lesson" | "unenroll_from_course" | "verify_course_certificate";
+    readonly functions: "archive_course" | "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "purge_course" | "restore_course" | "revoke_course_certificate" | "start_course_lesson" | "unenroll_from_course" | "upsert_course" | "upsert_course_lesson" | "upsert_course_module" | "verify_course_certificate";
     readonly actions: "read" | "enroll" | "manage" | "purge";
     readonly hooks: never;
     readonly entities: {
@@ -766,7 +766,7 @@ export interface BlockNameRegistry {
       readonly "options": "id" | "definition" | "value" | "label" | "rank";
       readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson" | "valueUrl" | "valueEmail" | "key" | "label" | "type" | "rank" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_field_definition" | "delete_field_definition" | "delete_field_value" | "get_field_definition" | "install_field_pack" | "list_field_definitions" | "page_field_definitions" | "purge_field_definition" | "rank_field_definition" | "read_field_values" | "restore_field_definition" | "save_field_definition" | "set_field_value" | "update_field_value";
+    readonly functions: "archive_field_definition" | "delete_field_definition" | "delete_field_value" | "get_field_definition" | "get_field_values" | "install_field_pack" | "list_field_definitions" | "page_field_definitions" | "purge_field_definition" | "rank_field_definition" | "restore_field_definition" | "set_field_value" | "update_field_value" | "upsert_field_definition";
     readonly actions: "manage" | "read" | "sensitive" | "purge";
     readonly hooks: never;
     readonly entities: {
@@ -797,7 +797,7 @@ export interface BlockNameRegistry {
       readonly "holds": "id" | "tenant" | "kind" | "reason" | "placedBy" | "placedAt" | "releasedBy" | "releasedAt";
       readonly "requests": "id" | "tenant" | "kind" | "requester" | "subjectType" | "subjectId" | "details" | "status" | "receivedAt" | "receivedBy" | "dueAt" | "extendedAt" | "extensionReason" | "verifiedAt" | "verifiedBy" | "verificationMethod" | "exportId" | "resolution" | "closedAt" | "closedBy";
     };
-    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "data_restore_tables" | "due_organization_deletions" | "erase_data_subject" | "expired_data_exports" | "extend_data_subject_request" | "fail_data_export" | "forget_data_exports" | "fulfil_data_subject_request" | "get_data_export" | "get_data_subject_request" | "is_held" | "is_held_memo" | "list_data_exports" | "list_data_subject_requests" | "list_legal_holds" | "list_retention_policies" | "open_data_subject_request" | "organization_credential_refs" | "organization_deletion" | "page_data_subject_requests" | "place_legal_hold" | "purge_organization" | "refuse_data_subject_request" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "restore_data_row" | "retention_cutoff" | "retention_floor" | "retention_for" | "retention_for_memo" | "set_retention_policy" | "verify_data_subject_request";
+    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "data_restore_tables" | "delete_retention_policy" | "due_organization_deletions" | "erase_data_subject" | "expired_data_exports" | "extend_data_subject_request" | "fail_data_export" | "forget_data_exports" | "fulfil_data_subject_request" | "get_data_export" | "get_data_subject_request" | "is_held" | "is_held_memo" | "list_data_exports" | "list_data_subject_requests" | "list_legal_holds" | "list_retention_policies" | "open_data_subject_request" | "organization_credential_refs" | "organization_deletion" | "page_data_subject_requests" | "place_legal_hold" | "purge_organization" | "refuse_data_subject_request" | "release_legal_hold" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "restore_data_row" | "retention_cutoff" | "retention_floor" | "retention_for" | "retention_for_memo" | "set_retention_policy" | "verify_data_subject_request";
     readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform" | "restore";
     readonly hooks: "on_organization_purge";
     readonly entities: {};
@@ -809,7 +809,7 @@ export interface BlockNameRegistry {
       readonly "ruleVersions": "id" | "ruleSet" | "version" | "status" | "rules" | "groups" | "counting" | "meta" | "contentHash" | "effectiveFrom" | "approvedBy" | "approvedAt" | "approvalId" | "createdAt";
       readonly "deadlines": "id" | "tenant" | "subjectType" | "subjectId" | "jurisdiction" | "kind" | "groupKey" | "ruleKey" | "period" | "ruleVersion" | "facts" | "result" | "dueOn" | "provisional" | "missing" | "exception" | "review" | "basis" | "deadline" | "citation" | "asOf" | "state" | "satisfiedAt" | "satisfiedBy" | "satisfiedAction" | "computedAt" | "createdAt";
     };
-    readonly functions: "approve_rule_version" | "compute_deadlines" | "compute_deadlines_many" | "deadline_add" | "deadline_business_day" | "deadline_candidate" | "deadline_cascade" | "deadline_citation_bad" | "deadline_codes" | "deadline_condition_bad" | "deadline_count_issues" | "deadline_date" | "deadline_fact_trigger" | "deadline_group" | "deadline_holidays_of" | "deadline_is_holiday" | "deadline_judge" | "deadline_meta_bad" | "deadline_outcome" | "deadline_periods" | "deadline_recompute" | "deadline_roll" | "deadline_rule_from_v1" | "deadline_select_rule" | "deadline_sorted" | "deadline_store" | "deadline_subject_readable" | "deadline_version_frozen" | "deadline_whole" | "evaluate_deadlines" | "get_deadline" | "list_deadlines" | "page_deadlines" | "prune_deadlines" | "recompute_deadlines" | "rule_version_at" | "satisfy_deadline" | "save_rule_version" | "validate_deadline_rules" | "version_content_hash";
+    readonly functions: "approve_rule_version" | "compute_deadlines" | "compute_deadlines_many" | "deadline_add" | "deadline_business_day" | "deadline_candidate" | "deadline_cascade" | "deadline_citation_bad" | "deadline_codes" | "deadline_condition_bad" | "deadline_count_issues" | "deadline_date" | "deadline_fact_trigger" | "deadline_group" | "deadline_holidays_of" | "deadline_is_holiday" | "deadline_judge" | "deadline_meta_bad" | "deadline_outcome" | "deadline_periods" | "deadline_recompute" | "deadline_roll" | "deadline_rule_from_v1" | "deadline_select_rule" | "deadline_sorted" | "deadline_store" | "deadline_subject_readable" | "deadline_version_frozen" | "deadline_whole" | "evaluate_deadlines" | "get_deadline" | "list_deadlines" | "page_deadlines" | "prune_deadlines" | "recompute_deadlines" | "rule_version_at" | "satisfy_deadline" | "upsert_rule_version" | "validate_deadline_rules" | "version_content_hash";
     readonly actions: "read" | "write" | "manage" | "prune";
     readonly hooks: never;
     readonly entities: {
@@ -839,7 +839,7 @@ export interface BlockNameRegistry {
       readonly "stops": "id" | "tenant" | "route" | "workOrder" | "position";
       readonly "parts": "id" | "tenant" | "workOrder" | "name" | "quantity" | "unit" | "asset" | "variant" | "location" | "recordedBy" | "createdAt";
     };
-    readonly functions: "create_work_order" | "dispatch_board" | "get_work_order" | "list_work_order_parts" | "list_work_orders" | "page_work_orders" | "plan_dispatch_route" | "record_work_order_part" | "remove_work_order_part" | "schedule_work_order" | "set_work_order_status" | "technician_day" | "unschedule_work_order" | "update_work_order";
+    readonly functions: "create_work_order" | "delete_work_order_part" | "dispatch_board" | "get_work_order" | "list_work_order_parts" | "list_work_orders" | "page_work_orders" | "plan_dispatch_route" | "record_work_order_part" | "schedule_work_order" | "set_work_order_status" | "technician_day" | "unschedule_work_order" | "update_work_order";
     readonly actions: "read" | "manage" | "work";
     readonly hooks: never;
     readonly entities: {
@@ -855,7 +855,7 @@ export interface BlockNameRegistry {
       readonly "textBlocks": "id" | "tenant" | "legalEntity" | "key" | "language" | "body" | "version" | "createdBy" | "createdAt" | "updatedAt";
       readonly "snapshots": "id" | "tenant" | "documentType" | "documentId" | "language" | "legalEntity" | "contractVersion" | "templateId" | "templateVersion" | "template" | "blocks" | "variables" | "createdBy" | "createdAt";
     };
-    readonly functions: "assert_document_template" | "document_address" | "document_entity" | "document_freeze" | "document_party" | "document_render_live" | "document_slot_rank" | "document_snapshot_immutable" | "document_tax_summary" | "document_template_contract" | "document_template_updated_at" | "document_text_block_updated_at" | "document_variables" | "document_variables_delivery_note" | "document_variables_dunning_letter" | "document_variables_invoice" | "document_variables_order" | "document_variables_purchase_order" | "document_variables_quote" | "document_variables_statement" | "document_visible" | "freeze_document" | "get_document_template" | "import_document_template" | "import_document_text_block" | "list_document_templates" | "list_document_text_blocks" | "page_document_templates" | "render_document" | "resolve_document_blocks" | "resolve_document_template" | "save_document_template" | "save_document_text_block" | "set_document_template_active" | "validate_document_template";
+    readonly functions: "assert_document_template" | "document_address" | "document_entity" | "document_freeze" | "document_party" | "document_render_live" | "document_slot_rank" | "document_snapshot_immutable" | "document_tax_summary" | "document_template_contract" | "document_template_updated_at" | "document_text_block_updated_at" | "document_variables" | "document_variables_delivery_note" | "document_variables_dunning_letter" | "document_variables_invoice" | "document_variables_order" | "document_variables_purchase_order" | "document_variables_quote" | "document_variables_statement" | "document_visible" | "freeze_document" | "get_document_template" | "import_document_template" | "import_document_text_block" | "list_document_templates" | "list_document_text_blocks" | "page_document_templates" | "render_document" | "resolve_document_blocks" | "resolve_document_template" | "set_document_template_active" | "upsert_document_template" | "upsert_document_text_block" | "validate_document_template";
     readonly actions: "read" | "manage";
     readonly hooks: "before_document_template_save" | "after_document_template_save" | "before_document_text_block_save" | "after_document_text_block_save";
     readonly entities: {
@@ -885,7 +885,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "hostnames": "id" | "tenant" | "hostname" | "kind" | "token" | "verifiedAt" | "primary" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_hostname" | "hostname_by_id" | "list_hostnames" | "remove_hostname" | "resolve_hostname" | "set_primary_hostname" | "verify_hostname";
+    readonly functions: "create_hostname" | "delete_hostname" | "hostname_by_id" | "list_hostnames" | "resolve_hostname" | "set_primary_hostname" | "verify_hostname";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -898,7 +898,7 @@ export interface BlockNameRegistry {
       readonly "receipts": "id" | "tenant" | "donorType" | "donorId" | "sequence" | "number" | "kind" | "year" | "amount" | "currency" | "issuedAt" | "voidedAt" | "voidReason";
       readonly "donations": "id" | "tenant" | "donorType" | "donorId" | "fund" | "pledge" | "periodStart" | "amount" | "currency" | "receivedOn" | "method" | "status" | "provider" | "paymentReference" | "transaction" | "refundTransaction" | "receipt" | "note" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_donation_fund" | "create_pledge" | "donation_settle" | "due_pledge_installments" | "get_gift" | "issue_gift_receipt" | "issue_yearly_receipt" | "list_donation_funds" | "list_donation_receipts" | "list_gifts" | "list_pledges" | "open_gift" | "record_gift" | "record_gift_payment" | "restore_donation_fund" | "save_donation_fund" | "update_pledge" | "void_donation_receipt" | "yearly_giving_summary";
+    readonly functions: "archive_donation_fund" | "create_pledge" | "donation_settle" | "due_pledge_installments" | "get_gift" | "issue_gift_receipt" | "issue_yearly_receipt" | "list_donation_funds" | "list_donation_receipts" | "list_gifts" | "list_pledges" | "open_gift" | "record_gift" | "record_gift_payment" | "restore_donation_fund" | "update_pledge" | "upsert_donation_fund" | "void_donation_receipt" | "yearly_giving_summary";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -952,7 +952,7 @@ export interface BlockNameRegistry {
       readonly "privateDetails": "employee" | "tenant" | "user" | "nationalId" | "iban" | "birthDate" | "personalEmail" | "phone" | "address" | "emergencyContacts" | "offboardedAt" | "anonymizedAt" | "updatedAt" | "updatedBy" | "addressLine1" | "addressLine2" | "postalCode" | "city" | "region" | "country" | "emergencyName" | "emergencyPhone" | "emergencyRelation";
       readonly "contracts": "id" | "tenant" | "employee" | "startsOn" | "endsOn" | "hoursPerWeek" | "salary" | "currency" | "salaryPeriod" | "note" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_employee_contract" | "create_employee" | "employee_contracts" | "employee_private_details" | "get_employee" | "offboard_employee" | "org_chart" | "page_employees" | "purge_employee" | "reports_of" | "save_employee_private_details" | "update_employees";
+    readonly functions: "create_employee" | "create_employee_contract" | "employee_contracts" | "employee_private_details" | "get_employee" | "offboard_employee" | "org_chart" | "page_employees" | "purge_employee" | "reports_of" | "update_employees" | "upsert_employee_private_details";
     readonly actions: "read" | "write" | "readSensitive" | "create" | "contractsRead" | "contractsWrite" | "privateDetailsWrite" | "purge";
     readonly hooks: "before_employee_create" | "after_employee_create" | "before_employee_update" | "after_employee_update" | "before_employee_offboard" | "after_employee_offboard" | "before_employee_purge" | "after_employee_purge";
     readonly entities: {
@@ -978,7 +978,7 @@ export interface BlockNameRegistry {
       readonly "enrollments": "id" | "tenant" | "program" | "programVersion" | "subjectType" | "subjectId" | "user" | "steps" | "completedSteps" | "status" | "enrolledBy" | "enrolledAt" | "startsAt" | "endsAt" | "completedAt" | "cancelledAt" | "pausedAt" | "cancelReason" | "updatedAt";
       readonly "steps": "enrollment" | "tenant" | "step" | "assigneeRole" | "assigneeUser" | "dueAt" | "completedBy" | "completedAt";
     };
-    readonly functions: "archive_enrollment_program" | "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "get_enrollment" | "list_enrollments" | "open_enrollment_steps" | "page_enrollments" | "pause_enrollment" | "purge_enrollment_program" | "reset_enrollment_step" | "restore_enrollment_program" | "resume_enrollment" | "save_enrollment_program" | "set_enrollment_dates";
+    readonly functions: "archive_enrollment_program" | "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "get_enrollment" | "list_enrollments" | "open_enrollment_steps" | "page_enrollments" | "pause_enrollment" | "purge_enrollment_program" | "reset_enrollment_step" | "restore_enrollment_program" | "resume_enrollment" | "set_enrollment_dates" | "upsert_enrollment_program";
     readonly actions: "read" | "enroll" | "manage" | "purge";
     readonly hooks: "before_enrollment_create" | "after_enrollment_create" | "before_enrollment_cancel" | "after_enrollment_cancel";
     readonly entities: {
@@ -1002,7 +1002,7 @@ export interface BlockNameRegistry {
       readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "dimensions" | "createdAt" | "updatedAt";
       readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_line_guard" | "expense_report_guard" | "expense_report_state" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "page_expense_categories" | "page_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "restore_expense_category" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
+    readonly functions: "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_line" | "create_expense_report" | "delete_expense_line" | "expense_line_guard" | "expense_report_guard" | "expense_report_state" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "page_expense_categories" | "page_expense_reports" | "reimburse_expense_report" | "restore_expense_category" | "submit_expense_report" | "update_expense_line" | "upsert_expense_category";
     readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "purge" | "reimburse" | "categories" | "withdraw" | "deleteSubmitted";
     readonly hooks: never;
     readonly entities: {
@@ -1037,7 +1037,7 @@ export interface BlockNameRegistry {
       readonly "segments": "name" | "description" | "rules" | "updatedAt";
       readonly "overrides": "id" | "flag" | "tenant" | "user" | "context" | "contextKey" | "variant" | "createdAt";
     };
-    readonly functions: "delete_flag" | "delete_flag_segment" | "flag_bucket" | "flag_condition_matches" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "flag_history" | "flag_rollout_percentage" | "list_flag_segments" | "list_flags" | "restore_flag" | "save_flag" | "save_flag_segment" | "set_flag_override" | "tenant_ids_with_flag";
+    readonly functions: "delete_flag" | "delete_flag_segment" | "flag_bucket" | "flag_condition_matches" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "flag_history" | "flag_rollout_percentage" | "list_flag_segments" | "list_flags" | "restore_flag" | "set_flag_override" | "tenant_ids_with_flag" | "upsert_flag" | "upsert_flag_segment";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1081,7 +1081,7 @@ export interface BlockNameRegistry {
       readonly "claims": "id" | "tenant" | "funder" | "number" | "periodStart" | "periodEnd" | "format" | "status" | "externalRef" | "sentAt" | "payloadSha256" | "response" | "total" | "currency" | "invoice" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "claimLines": "id" | "tenant" | "claim" | "award" | "product" | "units" | "amount" | "status" | "rejectionCode";
     };
-    readonly functions: "approve_funding_deliveries" | "archive_funding_claim" | "build_funding_claim" | "end_funding_award" | "funding_award_usage" | "get_funding_claim" | "list_funding_awards" | "list_funding_claims" | "list_funding_deliveries" | "list_funding_products" | "mark_funding_claim_sent" | "purge_funding_claim" | "record_funding_claim_response" | "register_funding_delivery" | "restore_funding_claim" | "save_funding_award" | "save_funding_product";
+    readonly functions: "approve_funding_deliveries" | "archive_funding_claim" | "build_funding_claim" | "end_funding_award" | "funding_award_usage" | "get_funding_claim" | "list_funding_awards" | "list_funding_claims" | "list_funding_deliveries" | "list_funding_products" | "mark_funding_claim_sent" | "purge_funding_claim" | "record_funding_claim_response" | "register_funding_delivery" | "restore_funding_claim" | "upsert_funding_award" | "upsert_funding_product";
     readonly actions: "read" | "write" | "register" | "approve" | "claim" | "manage" | "purge";
     readonly hooks: "before_funding_award_save" | "after_funding_award_save" | "before_funding_delivery_register" | "after_funding_delivery_register" | "before_funding_claim_build" | "after_funding_claim_build";
     readonly entities: {
@@ -1097,7 +1097,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "targets": "id" | "tenant" | "name" | "metric" | "owner" | "team" | "periodStart" | "periodEnd" | "currency" | "goal" | "actual" | "archivedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "goal_progress" | "save_goal";
+    readonly functions: "goal_progress" | "upsert_goal";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1136,7 +1136,7 @@ export interface BlockNameRegistry {
       readonly "interviewers": "tenant" | "interview" | "user";
       readonly "scorecardScores": "tenant" | "scorecard" | "criterion" | "score" | "notes";
     };
-    readonly functions: "application_detail" | "apply_to_job" | "close_application" | "list_applications" | "list_applications_for_jobs" | "list_jobs" | "save_job" | "schedule_interview" | "submit_scorecard";
+    readonly functions: "application_detail" | "apply_to_job" | "close_application" | "list_applications" | "list_applications_for_jobs" | "list_jobs" | "schedule_interview" | "submit_scorecard" | "upsert_job";
     readonly actions: "read" | "write" | "manage" | "create" | "jobsCreate" | "jobsUpdate" | "score";
     readonly hooks: "before_application_hire" | "after_application_hire";
     readonly entities: {
@@ -1219,7 +1219,7 @@ export interface BlockNameRegistry {
       readonly "scheduled": "id" | "tenant" | "conversation" | "author" | "input" | "scheduledFor" | "createdAt" | "updatedAt";
       readonly "drafts": "id" | "tenant" | "conversation" | "author" | "source" | "input" | "status" | "metadata" | "createdAt" | "updatedAt";
     };
-    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox" | "get_inbox_message" | "get_message_template" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_json" | "inbox_contact_read_at" | "inbox_contacts_json" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_event_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "page_inbox_conversations" | "page_inboxes" | "page_message_templates" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "save_inbox_draft" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_active_stream" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_message_template" | "wake_snoozed_conversations";
+    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox" | "get_inbox_message" | "get_message_template" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_json" | "inbox_contact_read_at" | "inbox_contacts_json" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_event_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "page_inbox_conversations" | "page_inboxes" | "page_message_templates" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_active_stream" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_inbox_draft" | "upsert_message_template" | "wake_snoozed_conversations";
     readonly actions: "read" | "reply" | "assign" | "manage";
     readonly hooks: "before_inbox_conversation_start" | "after_inbox_conversation_start" | "before_inbox_message_send" | "after_inbox_message_send" | "before_inbox_conversation_assign" | "after_inbox_conversation_assign" | "before_inbox_conversation_status_change" | "after_inbox_conversation_status_change";
     readonly entities: {
@@ -1240,7 +1240,7 @@ export interface BlockNameRegistry {
       readonly "filings": "id" | "tenant" | "incident" | "regime" | "stage" | "dueAt" | "reminder" | "submittedAt" | "submittedBy" | "reference" | "notes" | "createdAt";
       readonly "pages": "id" | "tenant" | "slug" | "title" | "description" | "published" | "createdAt" | "updatedAt";
     };
-    readonly functions: "delete_status_component" | "get_incident" | "get_incident_regulatory_profile" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incident_filings" | "list_incidents" | "list_status_components" | "open_incident" | "page_incidents" | "plan_incident_filings" | "post_incident_update" | "public_status_page" | "publish_incident_postmortem" | "save_incident_postmortem" | "save_incident_regulatory_profile" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "submit_incident_filing" | "update_incident";
+    readonly functions: "delete_status_component" | "get_incident" | "get_incident_regulatory_profile" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incident_filings" | "list_incidents" | "list_status_components" | "open_incident" | "page_incidents" | "plan_incident_filings" | "post_incident_update" | "public_status_page" | "publish_incident_postmortem" | "set_incident_impacts" | "submit_incident_filing" | "update_incident" | "upsert_incident_postmortem" | "upsert_incident_regulatory_profile" | "upsert_status_component" | "upsert_status_page";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1268,7 +1268,7 @@ export interface BlockNameRegistry {
       readonly "members": "inspection" | "tenant" | "user" | "role" | "createdAt";
       readonly "findings": "id" | "tenant" | "inspection" | "number" | "type" | "title" | "description" | "clause" | "control" | "evidence" | "case" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_inspection_finding" | "approve_inspection_program" | "cancel_inspection" | "close_inspection" | "close_inspection_program" | "complete_inspection" | "delete_inspection_finding" | "get_inspection" | "inspection_role" | "inspection_set_team" | "inspection_team_with_lead" | "list_inspection_programs" | "list_inspections" | "notify_overdue_inspections" | "raise_inspection_finding_case" | "save_inspection_checklist" | "save_inspection_program" | "schedule_inspection" | "set_inspection_members" | "start_inspection" | "update_inspection" | "update_inspection_finding";
+    readonly functions: "approve_inspection_program" | "cancel_inspection" | "close_inspection" | "close_inspection_program" | "complete_inspection" | "create_inspection_finding" | "delete_inspection_finding" | "get_inspection" | "inspection_role" | "inspection_set_team" | "inspection_team_with_lead" | "list_inspection_programs" | "list_inspections" | "notify_overdue_inspections" | "raise_inspection_finding_case" | "schedule_inspection" | "set_inspection_members" | "start_inspection" | "update_inspection" | "update_inspection_finding" | "upsert_inspection_checklist" | "upsert_inspection_program";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_inspection_schedule" | "after_inspection_schedule" | "before_inspection_close" | "after_inspection_close" | "before_inspection_finding_create" | "after_inspection_finding_create";
     readonly entities: {
@@ -1302,7 +1302,7 @@ export interface BlockNameRegistry {
       readonly "counts": "id" | "tenant" | "location" | "status" | "note" | "openedBy" | "postedBy" | "openedAt" | "postedAt" | "updatedAt";
       readonly "countLines": "id" | "tenant" | "count" | "variant" | "bin" | "lot" | "serial" | "expected" | "counted" | "variance" | "movement" | "updatedAt";
     };
-    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_purchase_order_quantity" | "cancel_stock_count" | "cancel_transfer" | "commit_reservation" | "count_expected" | "count_stock" | "create_transfer" | "decide_purchase_requisition" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "get_inventory_level" | "get_inventory_lot" | "get_inventory_movement" | "get_purchase_requisition" | "import_stock_allocation" | "import_stock_allocation_batch" | "import_stock_count" | "import_stock_count_batch" | "inventory_levels" | "inventory_overview" | "inventory_status_counts" | "list_allocations" | "list_inventory_movements" | "move_stock" | "open_stock_count" | "page_inventory_levels" | "page_inventory_lots" | "page_inventory_movements" | "page_stock_bins" | "page_stock_locations" | "page_stock_variants" | "pick_serials" | "place_purchase_order" | "post_stock_count" | "purchase_order_from_requisitions" | "purchase_order_tax_lines" | "purchase_requisition_decided" | "receive_purchase_order" | "receive_transfer" | "record_count_line" | "release_allocation" | "release_allocations" | "release_reservation" | "request_purchase" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_location_address" | "set_reorder_point" | "set_reorder_quantity" | "set_stock_item" | "ship_transfer" | "stock_allocation_updated_at" | "stock_count_updated_at" | "stock_detail" | "stock_lot_for" | "stock_valuation" | "take_allocation" | "transfer_allocation";
+    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_purchase_order_quantity" | "cancel_stock_count" | "cancel_transfer" | "commit_reservation" | "count_expected" | "count_stock" | "create_transfer" | "decide_purchase_requisition" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "get_inventory_level" | "get_inventory_lot" | "get_inventory_movement" | "get_purchase_requisition" | "import_stock_allocation" | "import_stock_allocation_batch" | "import_stock_count" | "import_stock_count_batch" | "inventory_levels" | "inventory_overview" | "inventory_status_counts" | "list_allocations" | "list_inventory_movements" | "move_stock" | "open_stock_count" | "page_inventory_levels" | "page_inventory_lots" | "page_inventory_movements" | "page_stock_bins" | "page_stock_locations" | "page_stock_variants" | "pick_serials" | "place_purchase_order" | "post_stock_count" | "purchase_order_from_requisitions" | "purchase_order_tax_lines" | "purchase_requisition_decided" | "receive_purchase_order" | "receive_transfer" | "record_count_line" | "release_allocation" | "release_allocations" | "release_reservation" | "request_purchase" | "reserve_stock" | "restore_allocation" | "set_location_active" | "set_location_address" | "set_reorder_point" | "set_reorder_quantity" | "set_stock_item" | "ship_transfer" | "stock_allocation_updated_at" | "stock_count_updated_at" | "stock_detail" | "stock_lot_for" | "stock_valuation" | "take_allocation" | "transfer_allocation" | "upsert_bin" | "upsert_location" | "upsert_lot" | "upsert_purchase_order";
     readonly actions: "manage" | "read" | "reserve" | "purchase";
     readonly hooks: "before_stock_adjust" | "after_stock_adjust" | "before_stock_reserve" | "after_stock_reserve";
     readonly entities: {
@@ -1341,7 +1341,7 @@ export interface BlockNameRegistry {
       readonly "eEndpoints": "id" | "tenant" | "partyKind" | "partyId" | "scheme" | "endpoint" | "createdAt" | "updatedAt";
       readonly "eDeliveries": "id" | "tenant" | "invoice" | "direction" | "format" | "channel" | "messageId" | "state" | "reason" | "documentHash" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_invoice_charge" | "allocate_existing" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "archive_invoice" | "clone_invoice" | "create_invoice" | "credit_invoice" | "delete_invoice" | "document_totals_by_billing_party" | "e_invoice_endpoints" | "find_e_endpoint_party" | "get_invoice" | "hand_over_to_collection" | "import_allocation" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_e_invoice_deliveries" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_invoices_for_subject" | "list_party_credits" | "open_item_ageing" | "open_items_drift" | "open_items_drift_rows" | "open_items_for_party" | "open_items_page" | "page_invoices" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "purchase_invoice_approval_statuses" | "rebuild_open_items" | "rebuild_open_items_of" | "recompute_invoice_status" | "recompute_invoice_totals" | "record_e_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "refresh_open_credit" | "refresh_open_item" | "refresh_open_item_charge" | "refresh_open_item_of" | "remove_invoice_charge" | "restore_invoice" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_e_invoice_delivery_state" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_e_endpoint" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
+    readonly functions: "allocate_existing" | "allocate_payment" | "apply_party_credit" | "approve_purchase_invoice" | "archive_invoice" | "clone_invoice" | "create_invoice" | "create_invoice_charge" | "credit_invoice" | "delete_invoice" | "delete_invoice_charge" | "document_totals_by_billing_party" | "e_invoice_endpoints" | "find_e_endpoint_party" | "get_invoice" | "hand_over_to_collection" | "import_allocation" | "import_credit_note" | "import_invoice" | "import_invoice_document" | "import_open_item" | "invoice_aging" | "invoice_approval_state" | "invoice_match_result" | "invoice_updated_at" | "issue_invoice" | "list_e_invoice_deliveries" | "list_invoice_allocations" | "list_invoice_approval_levels" | "list_invoice_dunning_history" | "list_invoice_dunning_levels" | "list_invoice_dunning_run_items" | "list_invoice_dunning_runs" | "list_invoice_payments" | "list_invoices_for_subject" | "list_party_credits" | "open_item_ageing" | "open_items_drift" | "open_items_drift_rows" | "open_items_for_party" | "open_items_page" | "page_invoices" | "pause_invoice_dunning" | "purchase_bill_match" | "purchase_invoice_approval_status" | "purchase_invoice_approval_statuses" | "rebuild_open_items" | "rebuild_open_items_of" | "recompute_invoice_status" | "recompute_invoice_totals" | "record_e_invoice_delivery" | "record_invoice_payment" | "record_party_payment" | "refresh_open_credit" | "refresh_open_item" | "refresh_open_item_charge" | "refresh_open_item_of" | "restore_invoice" | "reverse_invoice_payment" | "run_invoice_dunning" | "set_e_invoice_delivery_state" | "set_invoice_approval_levels" | "set_invoice_dunning_levels" | "set_invoice_e_endpoint" | "set_invoice_lines" | "set_invoice_lines_recount" | "unallocate_payment" | "update_invoice" | "void_invoice" | "write_off_invoice";
     readonly actions: "read" | "write" | "manage" | "purchase" | "overrideMatch" | "collect" | "approve" | "send" | "create" | "update" | "issue" | "payment" | "settle" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment" | "before_invoice_clone" | "after_invoice_clone";
     readonly entities: {
@@ -1401,7 +1401,7 @@ export interface BlockNameRegistry {
       readonly "requests": "id" | "tenant" | "user" | "employee" | "type" | "startsOn" | "endsOn" | "partial" | "startPart" | "endPart" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
       readonly "balances": "id" | "tenant" | "user" | "employee" | "type" | "kind" | "amount" | "effectiveOn" | "expiresOn" | "request" | "note" | "key" | "createdBy" | "createdAt";
     };
-    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "get_leave_request" | "leave_approval_decided" | "leave_available" | "leave_balances" | "leave_close_range" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_range_close_blockers" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "page_leave_requests" | "request_leave" | "restore_leave_type" | "save_leave_type" | "split_leave_request" | "update_leave_request";
+    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "get_leave_request" | "leave_approval_decided" | "leave_available" | "leave_balances" | "leave_close_range" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_range_close_blockers" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "page_leave_requests" | "request_leave" | "restore_leave_type" | "split_leave_request" | "update_leave_request" | "upsert_leave_type";
     readonly actions: "request" | "read" | "approve" | "manage" | "readConfidential" | "reapprove";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {
@@ -1448,7 +1448,7 @@ export interface BlockNameRegistry {
       readonly "samples": "id" | "tenant" | "number" | "sequence" | "title" | "kind" | "lot" | "receivedOn" | "status" | "notes" | "rejectionReason" | "completedAt" | "releasedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "results": "id" | "tenant" | "sample" | "method" | "value" | "outcome" | "instrument" | "submission" | "case" | "note" | "testedBy" | "testedAt" | "createdAt";
     };
-    readonly functions: "archive_lims_method" | "complete_sample" | "get_lims_method" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_qualified_instruments" | "list_samples" | "page_lims_methods" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "restore_lims_method" | "save_lims_method";
+    readonly functions: "archive_lims_method" | "complete_sample" | "get_lims_method" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_qualified_instruments" | "list_samples" | "page_lims_methods" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "restore_lims_method" | "upsert_lims_method";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_lims_sample_register" | "after_lims_sample_register" | "before_lims_result_record" | "after_lims_result_record";
     readonly entities: {
@@ -1508,7 +1508,7 @@ export interface BlockNameRegistry {
       readonly "consumptions": "id" | "tenant" | "order" | "variant" | "lot" | "serial" | "quantity" | "cost" | "currency" | "movement" | "createdBy" | "createdAt";
       readonly "lotLinks": "tenant" | "parent" | "child" | "order" | "quantity" | "createdAt";
     };
-    readonly functions: "activate_bom" | "bom_reaches" | "bom_where_used" | "cancel_production_order" | "complete_production_order" | "create_from_requirements" | "create_production_order" | "explode_bom" | "finish_production_operation" | "get_bom" | "get_production_order" | "get_work_center" | "list_boms" | "list_production_orders" | "list_work_centers" | "lot_genealogy" | "lot_recall" | "material_requirements" | "page_boms" | "page_work_centers" | "production_consume" | "production_quantity" | "record_production_consumption" | "release_production_order" | "requirements_pass" | "save_bom" | "save_work_center" | "start_production_operation";
+    readonly functions: "activate_bom" | "bom_reaches" | "bom_where_used" | "cancel_production_order" | "complete_production_order" | "create_from_requirements" | "create_production_order" | "explode_bom" | "finish_production_operation" | "get_bom" | "get_production_order" | "get_work_center" | "list_boms" | "list_production_orders" | "list_work_centers" | "lot_genealogy" | "lot_recall" | "material_requirements" | "page_boms" | "page_work_centers" | "production_consume" | "production_quantity" | "record_production_consumption" | "release_production_order" | "requirements_pass" | "start_production_operation" | "upsert_bom" | "upsert_work_center";
     readonly actions: "read" | "write" | "produce" | "manage";
     readonly hooks: "before_production_order_release" | "after_production_order_release" | "before_production_order_complete" | "after_production_order_complete";
     readonly entities: {
@@ -1529,7 +1529,7 @@ export interface BlockNameRegistry {
       readonly "orders": "id" | "tenant" | "subjectType" | "subjectId" | "medication" | "dose" | "doseUnit" | "route" | "schedule" | "asNeeded" | "asNeededReason" | "maxPerDay" | "startsOn" | "endsOn" | "prescriber" | "source" | "externalId" | "requiresDoubleCheck" | "status" | "stoppedReason" | "signature" | "createdBy" | "createdAt" | "updatedAt";
       readonly "administrations": "id" | "tenant" | "order" | "scheduledAt" | "administeredAt" | "status" | "dose" | "performer" | "checkedBy" | "reason" | "note" | "signature";
     };
-    readonly functions: "approve_medication_order" | "archive_medication" | "import_medication" | "import_medication_orders" | "list_medications" | "mark_missed_medication_administrations" | "medication_chart" | "medication_orders_of" | "pause_medication_order" | "plan_medication_administrations" | "prescribe_medication" | "record_as_needed_administration" | "record_medication_administration" | "restore_medication" | "save_medication" | "stop_medication_order" | "update_medication_order";
+    readonly functions: "approve_medication_order" | "archive_medication" | "import_medication" | "import_medication_orders" | "list_medications" | "mark_missed_medication_administrations" | "medication_chart" | "medication_orders_of" | "pause_medication_order" | "plan_medication_administrations" | "prescribe_medication" | "record_as_needed_administration" | "record_medication_administration" | "restore_medication" | "stop_medication_order" | "update_medication_order" | "upsert_medication";
     readonly actions: "read" | "prescribe" | "administer" | "manage";
     readonly hooks: "before_medication_order_prescribe" | "after_medication_order_prescribe" | "before_medication_order_stop" | "after_medication_order_stop" | "before_medication_administration_record" | "after_medication_administration_record";
     readonly entities: {
@@ -1547,7 +1547,7 @@ export interface BlockNameRegistry {
       readonly "decisions": "id" | "tenant" | "meeting" | "agendaItem" | "title" | "body" | "status" | "decidedBy" | "decidedAt" | "createdAt";
       readonly "actions": "task" | "tenant" | "meeting" | "agendaItem" | "decision" | "createdAt";
     };
-    readonly functions: "add_meeting_action_item" | "archive_meeting" | "cancel_meeting" | "create_meeting" | "decide_meeting_decision" | "delete_meeting_agenda_item" | "get_meeting" | "hold_meeting" | "list_meetings" | "meeting_role" | "meeting_set_attendees" | "purge_meeting" | "record_meeting_decision" | "remove_meeting_attendee" | "restore_meeting" | "save_meeting_agenda_item" | "set_meeting_attendee" | "start_meeting" | "update_meeting";
+    readonly functions: "archive_meeting" | "cancel_meeting" | "create_meeting" | "create_meeting_action_item" | "decide_meeting_decision" | "delete_meeting_agenda_item" | "delete_meeting_attendee" | "get_meeting" | "hold_meeting" | "list_meetings" | "meeting_role" | "meeting_set_attendees" | "purge_meeting" | "record_meeting_decision" | "restore_meeting" | "set_meeting_attendee" | "start_meeting" | "update_meeting" | "upsert_meeting_agenda_item";
     readonly actions: "read" | "write" | "manage" | "purge";
     readonly hooks: "before_meeting_create" | "after_meeting_create" | "before_meeting_hold" | "after_meeting_hold" | "after_meeting_decision";
     readonly entities: {
@@ -1595,7 +1595,7 @@ export interface BlockNameRegistry {
       readonly "recordMentions": "tenant" | "message" | "conversation" | "subjectType" | "subjectId" | "createdAt";
       readonly "summaries": "id" | "tenant" | "conversation" | "thread" | "summary" | "model" | "messageCount" | "throughAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_conversation_members" | "archive_conversation" | "can_conversation" | "conversation_read_at" | "conversation_topic_allowed" | "delete_message" | "edit_message" | "get_conversation_summary" | "get_message" | "index_record_mentions" | "is_conversation_member" | "list_conversations" | "list_file_anchors" | "list_message_edits" | "list_messages" | "list_pinned_messages" | "list_record_mentions" | "list_replies" | "mark_read" | "messaging_file_anchor_valid" | "messaging_message_broadcast" | "messaging_message_rows" | "messaging_message_sent" | "messaging_message_written" | "messaging_messages_json" | "messaging_messages_json_unchecked" | "open_conversation" | "page_conversations" | "parse_mentions" | "pin_message" | "publish_due_messages" | "remove_conversation_member" | "resolve_message" | "save_thread_summary" | "send_message" | "set_conversation_notify" | "set_typing" | "thread_summary" | "unread_counts";
+    readonly functions: "archive_conversation" | "can_conversation" | "conversation_read_at" | "conversation_topic_allowed" | "create_conversation_members" | "delete_conversation_member" | "delete_message" | "edit_message" | "get_conversation_summary" | "get_message" | "index_record_mentions" | "is_conversation_member" | "list_conversations" | "list_file_anchors" | "list_message_edits" | "list_messages" | "list_pinned_messages" | "list_record_mentions" | "list_replies" | "mark_read" | "messaging_file_anchor_valid" | "messaging_message_broadcast" | "messaging_message_rows" | "messaging_message_sent" | "messaging_message_written" | "messaging_messages_json" | "messaging_messages_json_unchecked" | "open_conversation" | "page_conversations" | "parse_mentions" | "pin_message" | "publish_due_messages" | "resolve_message" | "send_message" | "set_conversation_notify" | "set_typing" | "thread_summary" | "unread_counts" | "upsert_thread_summary";
     readonly actions: "read" | "send" | "moderate";
     readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
     readonly entities: {
@@ -1687,7 +1687,7 @@ export interface BlockNameRegistry {
       readonly "definitions": "id" | "tenant" | "key" | "title" | "valueType" | "unit" | "codeSystem" | "code" | "components" | "decimals" | "validLow" | "validHigh" | "referenceLow" | "referenceHigh" | "criticalLow" | "criticalHigh" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "observations": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "observedAt" | "valueNumber" | "valueText" | "valueCode" | "components" | "flag" | "status" | "replaces" | "reason" | "method" | "device" | "source" | "externalId" | "submission" | "performer" | "note" | "createdAt";
     };
-    readonly functions: "amend_observation" | "archive_observation_definition" | "get_observation" | "get_observation_definition" | "ingest_observations" | "latest_observations" | "list_observation_definitions" | "list_observations" | "mark_observation_error" | "observation_definition_id" | "observation_flag" | "observation_insert" | "observation_series" | "page_observation_definitions" | "page_observations" | "record_observation" | "record_observations" | "restore_observation_definition" | "save_observation_definition";
+    readonly functions: "amend_observation" | "archive_observation_definition" | "get_observation" | "get_observation_definition" | "ingest_observations" | "latest_observations" | "list_observation_definitions" | "list_observations" | "mark_observation_error" | "observation_definition_id" | "observation_flag" | "observation_insert" | "observation_series" | "page_observation_definitions" | "page_observations" | "record_observation" | "record_observations" | "restore_observation_definition" | "upsert_observation_definition";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_observation_definition_save" | "after_observation_definition_save" | "before_observation_record" | "after_observation_record" | "before_observation_amend" | "after_observation_amend" | "before_observation_mark_error" | "after_observation_mark_error";
     readonly entities: {
@@ -1709,7 +1709,7 @@ export interface BlockNameRegistry {
       readonly "sets": "id" | "tenant" | "subjectType" | "field" | "scope" | "key" | "name" | "isDefault" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "items": "id" | "tenant" | "set" | "key" | "systemKey" | "label" | "color" | "icon" | "rank" | "level" | "description" | "archivedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_option_set_item" | "default_option_set" | "ensure_option_set" | "get_option_set" | "list_option_sets" | "page_option_sets" | "rank_option_set_item" | "restore_option_set_item" | "save_option_set" | "save_option_set_item";
+    readonly functions: "archive_option_set_item" | "default_option_set" | "ensure_option_set" | "get_option_set" | "list_option_sets" | "page_option_sets" | "rank_option_set_item" | "restore_option_set_item" | "upsert_option_set" | "upsert_option_set_item";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1734,7 +1734,7 @@ export interface BlockNameRegistry {
       readonly "kitchenRoutes": "product" | "tenant" | "station";
       readonly "preparations": "line" | "tenant" | "order" | "station" | "state" | "note" | "queuedAt" | "startedAt" | "readyAt" | "servedAt" | "updatedAt" | "updatedBy";
     };
-    readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "confirm_draft_order" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "hold_order" | "import_order" | "list_order_variants" | "merge_carts" | "order_cancel" | "order_from_document" | "order_from_lines" | "order_from_quote" | "order_json" | "order_status_board" | "order_transition" | "order_updated_at" | "page_orders" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "release_order_hold" | "request_return" | "save_shipping_rate" | "select_order_variant" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "set_order_variant" | "ship_fulfillment" | "shipping_options";
+    readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "confirm_draft_order" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "hold_order" | "import_order" | "list_order_variants" | "merge_carts" | "order_cancel" | "order_from_document" | "order_from_lines" | "order_from_quote" | "order_json" | "order_status_board" | "order_transition" | "order_updated_at" | "page_orders" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "release_order_hold" | "request_return" | "select_order_variant" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "set_order_variant" | "ship_fulfillment" | "shipping_options" | "upsert_shipping_rate";
     readonly actions: "manage" | "read" | "prepare" | "overrideCredit";
     readonly hooks: "before_order_place" | "after_order_place" | "before_fulfillment_create" | "after_fulfillment_create" | "before_refund_create" | "after_refund_create";
     readonly entities: {
@@ -1749,7 +1749,7 @@ export interface BlockNameRegistry {
       readonly "profiles": "tenant" | "vatId" | "registrationId" | "defaultRate" | "currency" | "updatedAt";
       readonly "paymentAccounts": "id" | "tenant" | "iban" | "bic" | "holder" | "label" | "isPrimary" | "updatedAt";
     };
-    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "import_organization_profile" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_overview" | "organization_profile_updated_at" | "organization_slug_problem" | "page_organization_members" | "remove_member" | "remove_member_role" | "resume_member" | "sole_owned_organizations" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_member_roles" | "update_organization";
+    readonly functions: "create_member_role" | "create_organization" | "delete_member" | "delete_member_role" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "import_organization_profile" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_overview" | "organization_profile_updated_at" | "organization_slug_problem" | "page_organization_members" | "resume_member" | "sole_owned_organizations" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_member_roles" | "update_organization";
     readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership" | "create" | "readPlatform" | "updatePlatform" | "deletePlatform" | "updateRolePlatform" | "removeMemberPlatform";
     readonly hooks: "before_organization_create" | "after_organization_create" | "before_organization_update" | "after_organization_update" | "after_member_change";
     readonly entities: {};
@@ -1836,7 +1836,7 @@ export interface BlockNameRegistry {
       readonly "transitions": "tenant" | "pipeline" | "from" | "to";
       readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "pipeline" | "fromStage" | "toStage" | "stageName" | "category" | "outcome" | "amount" | "currency" | "actor" | "enteredAt" | "exitedAt";
     };
-    readonly functions: "archive_pipeline" | "archive_pipeline_stage" | "default_pipeline" | "get_pipeline" | "list_pipelines" | "page_pipelines" | "pipeline_board" | "pipeline_health" | "pipeline_stats" | "rank_pipeline_stage" | "restore_pipeline" | "restore_pipeline_stage" | "save_pipeline" | "save_pipeline_stage" | "set_pipeline_transitions";
+    readonly functions: "archive_pipeline" | "archive_pipeline_stage" | "default_pipeline" | "get_pipeline" | "list_pipelines" | "page_pipelines" | "pipeline_board" | "pipeline_health" | "pipeline_stats" | "rank_pipeline_stage" | "restore_pipeline" | "restore_pipeline_stage" | "set_pipeline_transitions" | "upsert_pipeline" | "upsert_pipeline_stage";
     readonly actions: "read" | "manage";
     readonly hooks: "before_pipeline_save" | "after_pipeline_save" | "before_pipeline_stage_save" | "after_pipeline_stage_save" | "before_pipeline_stage_change" | "after_pipeline_stage_change";
     readonly entities: {
@@ -1849,7 +1849,7 @@ export interface BlockNameRegistry {
       readonly "boards": "id" | "tenant" | "key" | "name" | "description" | "kind" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "posts": "id" | "tenant" | "board" | "author" | "title" | "body" | "status" | "moderation" | "pinnedAt" | "lockedAt" | "archivedAt" | "mergedInto" | "replyCount" | "lastActivityAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_post" | "create_post" | "get_post" | "list_post_boards" | "list_posts" | "merge_posts" | "page_post_boards" | "page_posts" | "posts_moderated" | "posts_removed" | "posts_replied" | "posts_reply_guard" | "purge_post" | "restore_post" | "save_post_board" | "set_post_state" | "update_post" | "vote_on_post";
+    readonly functions: "archive_post" | "create_post" | "get_post" | "list_post_boards" | "list_posts" | "merge_posts" | "page_post_boards" | "page_posts" | "posts_moderated" | "posts_removed" | "posts_replied" | "posts_reply_guard" | "purge_post" | "restore_post" | "set_post_state" | "update_post" | "upsert_post_board" | "vote_on_post";
     readonly actions: "read" | "write" | "moderate" | "manage" | "purge";
     readonly hooks: never;
     readonly entities: {
@@ -1875,7 +1875,7 @@ export interface BlockNameRegistry {
       readonly "cartCodes": "tenant" | "cart" | "code" | "createdAt";
       readonly "redemptions": "id" | "tenant" | "promotion" | "code" | "order" | "customer" | "email" | "currency" | "amount" | "status" | "createdAt" | "releasedAt";
     };
-    readonly functions: "apply_promotion_code" | "cart_discounts" | "create_promotion_codes" | "delete_promotion" | "delete_promotion_code" | "move_cart_codes" | "redeem_promotions" | "release_promotions" | "remove_promotion_code" | "round_half_even" | "save_promotion" | "set_promotion_active";
+    readonly functions: "apply_promotion_code" | "cart_discounts" | "create_promotion_codes" | "delete_promotion" | "delete_promotion_code" | "move_cart_codes" | "redeem_promotions" | "release_promotions" | "remove_promotion_code" | "round_half_even" | "set_promotion_active" | "upsert_promotion";
     readonly actions: "manage" | "read";
     readonly hooks: "before_promotion_save" | "after_promotion_save" | "before_promotion_activate";
     readonly entities: {
@@ -1911,7 +1911,7 @@ export interface BlockNameRegistry {
       readonly "requirements": "id" | "tenant" | "type" | "targetType" | "targetValue" | "createdAt";
       readonly "qualifications": "id" | "tenant" | "type" | "holderType" | "holderId" | "grantedOn" | "expiresOn" | "revokedAt" | "revokeReason" | "evidenceAttachment" | "evidenceNote" | "source" | "sourceId" | "grantedBy" | "notifiedStatus" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_qualification_requirement" | "archive_qualification_type" | "get_qualification_type" | "grant_qualification" | "list_qualification_requirements" | "list_qualification_types" | "notify_expiring_qualifications" | "page_qualification_types" | "qualification_gaps" | "qualifications_of" | "qualified_holders" | "remove_qualification_requirement" | "restore_qualification_type" | "revoke_qualification" | "save_qualification_type";
+    readonly functions: "archive_qualification_type" | "create_qualification_requirement" | "delete_qualification_requirement" | "get_qualification_type" | "grant_qualification" | "list_qualification_requirements" | "list_qualification_types" | "notify_expiring_qualifications" | "page_qualification_types" | "qualification_gaps" | "qualifications_of" | "qualified_holders" | "restore_qualification_type" | "revoke_qualification" | "upsert_qualification_type";
     readonly actions: "read" | "grant" | "manage";
     readonly hooks: "before_qualification_type_save" | "after_qualification_type_save" | "before_qualification_grant" | "after_qualification_grant" | "before_qualification_revoke" | "after_qualification_revoke";
     readonly entities: {
@@ -1974,7 +1974,7 @@ export interface BlockNameRegistry {
       readonly "scores": "tenant" | "subjectType" | "subjectId" | "score" | "up" | "down" | "updatedAt";
       readonly "emoji": "id" | "tenant" | "shortcode" | "attachment" | "url" | "createdBy" | "createdAt";
     };
-    readonly functions: "delete_custom_emoji" | "list_custom_emoji" | "react" | "reaction_list" | "reaction_subject_visible" | "reaction_summary" | "reactions_changed" | "reactions_check" | "reactions_tally" | "save_custom_emoji" | "vote" | "vote_summary" | "vote_tally";
+    readonly functions: "delete_custom_emoji" | "list_custom_emoji" | "react" | "reaction_list" | "reaction_subject_visible" | "reaction_summary" | "reactions_changed" | "reactions_check" | "reactions_tally" | "upsert_custom_emoji" | "vote" | "vote_summary" | "vote_tally";
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_react" | "after_react";
     readonly entities: {
@@ -2038,7 +2038,7 @@ export interface BlockNameRegistry {
       readonly "reminders": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "method" | "offsetMinutes" | "remindAt";
       readonly "deliveries": "id" | "reminder" | "occurrenceAt" | "sentAt";
     };
-    readonly functions: "delete_reminder" | "get_my_reminder" | "list_my_reminders" | "list_reminder_schedule" | "mark_reminder_sent" | "page_my_reminders" | "save_reminder";
+    readonly functions: "delete_reminder" | "get_my_reminder" | "list_my_reminders" | "list_reminder_schedule" | "mark_reminder_sent" | "page_my_reminders" | "upsert_reminder";
     readonly actions: "manage" | "read";
     readonly hooks: never;
     readonly entities: {
@@ -2095,7 +2095,7 @@ export interface BlockNameRegistry {
       readonly "risks": "id" | "tenant" | "number" | "sequence" | "matrix" | "title" | "description" | "category" | "cause" | "consequence" | "owner" | "status" | "treatment" | "reviewIntervalMonths" | "nextReviewOn" | "reviewedAt" | "reviewNotifiedFor" | "inherentLikelihood" | "inherentImpact" | "inherentScore" | "inherentBand" | "residualLikelihood" | "residualImpact" | "residualScore" | "residualBand" | "currentAssessment" | "closedAt" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "assessments": "id" | "tenant" | "risk" | "inherentLikelihood" | "inherentImpact" | "inherentScore" | "inherentBand" | "residualLikelihood" | "residualImpact" | "residualScore" | "residualBand" | "rationale" | "version" | "assessedBy" | "assessedAt";
     };
-    readonly functions: "archive_risk" | "assess_risk" | "close_risk" | "create_risk" | "ensure_risk_matrix" | "get_risk" | "list_risk_matrices" | "list_risks" | "notify_due_risk_reviews" | "restore_risk" | "review_risk" | "risk_heatmap" | "save_risk_matrix" | "set_risk_treatment" | "update_risk";
+    readonly functions: "archive_risk" | "assess_risk" | "close_risk" | "create_risk" | "ensure_risk_matrix" | "get_risk" | "list_risk_matrices" | "list_risks" | "notify_due_risk_reviews" | "restore_risk" | "review_risk" | "risk_heatmap" | "set_risk_treatment" | "update_risk" | "upsert_risk_matrix";
     readonly actions: "read" | "write" | "assess" | "manage";
     readonly hooks: "before_risk_create" | "after_risk_create" | "before_risk_assess" | "after_risk_assess" | "before_risk_close" | "after_risk_close";
     readonly entities: {
@@ -2118,7 +2118,7 @@ export interface BlockNameRegistry {
       readonly "views": "id" | "tenant" | "list" | "scope" | "owner" | "team" | "name" | "kind" | "state" | "rank" | "isDefault" | "createdAt" | "updatedAt";
       readonly "preferences": "view" | "user" | "tenant" | "isDefault" | "hidden" | "pinned" | "updatedAt";
     };
-    readonly functions: "delete_view" | "duplicate_view" | "get_view" | "list_views" | "page_saved_views" | "rank_view" | "save_view" | "set_default_view" | "set_view_preference";
+    readonly functions: "delete_view" | "duplicate_view" | "get_view" | "list_views" | "page_saved_views" | "rank_view" | "set_default_view" | "set_view_preference" | "upsert_view";
     readonly actions: "read" | "share";
     readonly hooks: "before_view_save" | "after_view_save";
     readonly entities: {
@@ -2132,7 +2132,7 @@ export interface BlockNameRegistry {
       readonly "versions": "model" | "version" | "tenant" | "rules" | "metrics" | "bands" | "savedBy" | "savedAt";
       readonly "scores": "id" | "tenant" | "model" | "modelVersion" | "subjectType" | "subjectId" | "score" | "band" | "breakdown" | "current" | "computedAt";
     };
-    readonly functions: "archive_score_model" | "compute_score" | "delete_score_model" | "get_score_model" | "list_score_models" | "page_score_models" | "purge_score_model" | "restore_score_model" | "save_score_model" | "score_history" | "subject_scores" | "top_scores";
+    readonly functions: "archive_score_model" | "compute_score" | "delete_score_model" | "get_score_model" | "list_score_models" | "page_score_models" | "purge_score_model" | "restore_score_model" | "score_history" | "subject_scores" | "top_scores" | "upsert_score_model";
     readonly actions: "read" | "manage" | "compute" | "purge";
     readonly hooks: never;
     readonly entities: {
@@ -2175,7 +2175,7 @@ export interface BlockNameRegistry {
       readonly "segments": "id" | "tenant" | "name" | "description" | "subjectType" | "conditions" | "memberCount" | "refreshedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "members": "segment" | "tenant" | "subjectId" | "enteredAt";
     };
-    readonly functions: "evaluate_segment" | "list_segment_members" | "page_segments" | "refresh_due_segments" | "refresh_segment" | "remove_segment" | "save_segment" | "segment_get" | "segments_list" | "segments_of";
+    readonly functions: "delete_segment" | "evaluate_segment" | "list_segment_members" | "page_segments" | "refresh_due_segments" | "refresh_segment" | "segment_get" | "segments_list" | "segments_of" | "upsert_segment";
     readonly actions: "read" | "write";
     readonly hooks: never;
     readonly entities: {
@@ -2187,7 +2187,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "sequences": "id" | "tenant" | "key" | "name" | "description" | "status" | "exitOnReply" | "account" | "steps" | "version" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_mark" | "enrollment_pause" | "enrollment_restart" | "get_sequence" | "get_sequence_enrollment" | "list_sequence_enrollments" | "list_sequences" | "page_sequence_enrollments" | "page_sequences" | "run_due_sequences" | "save_sequence" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check";
+    readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_mark" | "enrollment_pause" | "enrollment_restart" | "get_sequence" | "get_sequence_enrollment" | "list_sequence_enrollments" | "list_sequences" | "page_sequence_enrollments" | "page_sequences" | "run_due_sequences" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check" | "upsert_sequence";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: "before_sequence_save" | "after_sequence_save" | "before_sequence_enroll" | "after_sequence_enroll";
     readonly entities: {
@@ -2247,7 +2247,7 @@ export interface BlockNameRegistry {
       readonly "swaps": "id" | "tenant" | "assignment" | "fromUser" | "toUser" | "status" | "approval" | "note" | "decidedBy" | "decidedAt" | "createdAt";
       readonly "availability": "id" | "tenant" | "user" | "onDate" | "fromTime" | "untilTime" | "kind" | "note" | "createdAt";
     };
-    readonly functions: "archive_shift_template" | "assign_shift" | "cancel_shift" | "decide_shift_request" | "decide_shift_swap" | "generate_shifts" | "list_shift_availability" | "list_shift_templates" | "my_shifts" | "publish_shifts" | "request_open_shift" | "request_shift_swap" | "restore_shift_template" | "roster" | "save_shift" | "save_shift_template" | "set_shift_availability" | "shift_assignment_check" | "shift_hours" | "unassign_shift";
+    readonly functions: "archive_shift_template" | "assign_shift" | "cancel_shift" | "decide_shift_request" | "decide_shift_swap" | "generate_shifts" | "list_shift_availability" | "list_shift_templates" | "my_shifts" | "publish_shifts" | "request_open_shift" | "request_shift_swap" | "restore_shift_template" | "roster" | "set_shift_availability" | "shift_assignment_check" | "shift_hours" | "unassign_shift" | "upsert_shift" | "upsert_shift_template";
     readonly actions: "read" | "write" | "request" | "manage";
     readonly hooks: "before_shift_save" | "after_shift_save" | "before_shift_cancel" | "after_shift_cancel" | "before_shift_assignment_create" | "after_shift_assignment_create";
     readonly entities: {
@@ -2295,7 +2295,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "keys": "id" | "ownerType" | "ownerId" | "kid" | "alg" | "publicJwk" | "vaultId" | "state" | "publishUntil" | "createdAt" | "retiredAt";
     };
-    readonly functions: "add_signing_key" | "delete_signing_keys" | "drop_signing_key_vault_secret" | "note_signing_key_exp" | "purge_signing_keys" | "retire_signing_key" | "signing_jwks" | "signing_key";
+    readonly functions: "create_signing_key" | "delete_signing_keys" | "drop_signing_key_vault_secret" | "note_signing_key_exp" | "purge_signing_keys" | "retire_signing_key" | "signing_jwks" | "signing_key";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -2307,7 +2307,7 @@ export interface BlockNameRegistry {
       readonly "escalations": "id" | "tenant" | "clock" | "atPercent" | "action" | "target" | "result" | "firedAt";
       readonly "clocks": "id" | "tenant" | "subjectType" | "subjectId" | "policy" | "metric" | "startedAt" | "dueAt" | "pausedAt" | "pausedSeconds" | "warnedAt" | "breachedAt" | "metAt" | "createdAt";
     };
-    readonly functions: "check_sla_clocks" | "record_sla_event" | "save_sla_policy" | "sla_clocks_of" | "sla_due_at" | "start_sla_clocks";
+    readonly functions: "check_sla_clocks" | "record_sla_event" | "sla_clocks_of" | "sla_due_at" | "start_sla_clocks" | "upsert_sla_policy";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -2324,7 +2324,7 @@ export interface BlockNameRegistry {
       readonly "scimMembers": "group" | "member";
       readonly "syncLog": "id" | "tenant" | "operation" | "resourceType" | "resourceId" | "status" | "error" | "requestId" | "createdAt";
     };
-    readonly functions: "add_organization_domain" | "check_sso_provider" | "list_organization_domains" | "list_sso_providers" | "organization_domain" | "page_organization_domains" | "page_sso_providers" | "register_sso_provider" | "remove_organization_domain" | "scim_delete_group" | "scim_delete_user" | "scim_get_group" | "scim_get_user" | "scim_group_role" | "scim_list_groups" | "scim_list_users" | "scim_save_group" | "scim_save_user" | "scim_sync_member" | "sso_access_token_check" | "sso_domain_for" | "sso_on_auth_user" | "sso_provider" | "unregister_sso_provider" | "update_organization_domain" | "verify_organization_domain";
+    readonly functions: "check_sso_provider" | "create_organization_domain" | "delete_organization_domain" | "list_organization_domains" | "list_sso_providers" | "organization_domain" | "page_organization_domains" | "page_sso_providers" | "register_sso_provider" | "scim_delete_group" | "scim_delete_user" | "scim_get_group" | "scim_get_user" | "scim_group_role" | "scim_list_groups" | "scim_list_users" | "scim_save_group" | "scim_save_user" | "scim_sync_member" | "sso_access_token_check" | "sso_domain_for" | "sso_on_auth_user" | "sso_provider" | "unregister_sso_provider" | "update_organization_domain" | "verify_organization_domain";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -2358,7 +2358,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "endsAt" | "emergency" | "reason" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "can_subjects" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "has_subject_role" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "can_subject" | "can_subject_for" | "can_subjects" | "close_subject_member" | "create_subject_member" | "end_subject_member" | "grant_subject_member" | "has_subject_role" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -2388,7 +2388,7 @@ export interface BlockNameRegistry {
       readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "budgetAmount" | "budgetCurrency" | "budgetHours" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
-    readonly functions: "archive_task" | "archive_tasks" | "claim_next_task" | "claim_task" | "clone_task" | "close_task" | "create_task" | "create_tasks" | "delegate_task" | "delete_task" | "delete_task_checklist_item" | "delete_tasks" | "expire_task_claims" | "get_project" | "get_task" | "hold_task" | "list_task_checklist" | "list_task_materials" | "list_task_specification" | "list_tasks" | "page_projects" | "page_tasks" | "release_task_claim" | "release_task_hold" | "renew_task_claim" | "save_iteration" | "save_project" | "save_task_checklist_item" | "save_task_material_line" | "save_task_specification_line" | "set_task_assignees" | "task_actor" | "task_claim" | "task_claims_changed" | "task_stage_times" | "task_tree" | "tasks_changed" | "update_tasks";
+    readonly functions: "archive_task" | "archive_tasks" | "claim_next_task" | "claim_task" | "clone_task" | "close_task" | "create_task" | "create_tasks" | "delegate_task" | "delete_task" | "delete_task_checklist_item" | "delete_tasks" | "expire_task_claims" | "get_project" | "get_task" | "hold_task" | "list_task_checklist" | "list_task_materials" | "list_task_specification" | "list_tasks" | "page_projects" | "page_tasks" | "release_task_claim" | "release_task_hold" | "renew_task_claim" | "set_task_assignees" | "task_actor" | "task_claim" | "task_claims_changed" | "task_stage_times" | "task_tree" | "tasks_changed" | "update_tasks" | "upsert_iteration" | "upsert_project" | "upsert_task_checklist_item" | "upsert_task_material_line" | "upsert_task_specification_line";
     readonly actions: "read" | "write" | "manage" | "create" | "delete" | "claim";
     readonly hooks: "before_task_create" | "after_task_create" | "before_task_update" | "after_task_update" | "before_task_clone" | "after_task_clone" | "before_task_close";
     readonly entities: {
@@ -2407,7 +2407,7 @@ export interface BlockNameRegistry {
       readonly "returns": "id" | "tenant" | "legalEntity" | "period" | "periodStart" | "periodEnd" | "status" | "currency" | "boxes" | "preparedBy" | "preparedAt" | "filedAt" | "createdAt" | "updatedAt";
       readonly "euSalesLines": "id" | "tenant" | "taxReturn" | "customerVat" | "country" | "kind" | "amount" | "currency" | "invoiceCount";
     };
-    readonly functions: "compute_document_tax" | "file_tax_return" | "import_tax_code" | "import_tax_rate" | "list_tax_codes" | "list_tax_returns" | "prepare_tax_return" | "resolve_tax_code" | "save_tax_code" | "save_tax_rate" | "tax_code_updated_at" | "tax_code_write" | "tax_compute_lines" | "tax_rate_on" | "tax_rate_write" | "tax_return_source";
+    readonly functions: "compute_document_tax" | "file_tax_return" | "import_tax_code" | "import_tax_rate" | "list_tax_codes" | "list_tax_returns" | "prepare_tax_return" | "resolve_tax_code" | "tax_code_updated_at" | "tax_code_write" | "tax_compute_lines" | "tax_rate_on" | "tax_rate_write" | "tax_return_source" | "upsert_tax_code" | "upsert_tax_rate";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -2422,7 +2422,7 @@ export interface BlockNameRegistry {
       readonly "teams": "id" | "tenant" | "name" | "slug" | "description" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "members": "team" | "user" | "employee" | "tenant" | "createdAt";
     };
-    readonly functions: "add_team_member" | "archive_team" | "create_team" | "delete_team" | "get_team" | "list_teams" | "purge_team" | "purge_teams" | "remove_team_member" | "team_ids_of" | "update_team";
+    readonly functions: "archive_team" | "create_team" | "create_team_member" | "delete_team" | "delete_team_member" | "get_team" | "list_teams" | "purge_team" | "purge_teams" | "team_ids_of" | "update_team";
     readonly actions: "manage" | "read" | "create" | "update" | "purge" | "members";
     readonly hooks: "before_team_create" | "after_team_create";
     readonly entities: {
@@ -2439,7 +2439,7 @@ export interface BlockNameRegistry {
       readonly "schedules": "id" | "template" | "tenant" | "input" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
       readonly "runs": "schedule" | "tenant" | "occurrence" | "application" | "createdAt";
     };
-    readonly functions: "clone_row" | "fork_template" | "page_templates" | "publish_template_version" | "record_template_application" | "remove_template" | "save_template" | "save_template_draft" | "set_default_template" | "sync_templates" | "template_applications_list" | "template_apply_target" | "template_get" | "template_row_guard" | "template_table" | "template_versions_list" | "templates_get_many" | "templates_list";
+    readonly functions: "clone_row" | "delete_template" | "fork_template" | "page_templates" | "publish_template_version" | "record_template_application" | "set_default_template" | "sync_templates" | "template_applications_list" | "template_apply_target" | "template_get" | "template_row_guard" | "template_table" | "template_versions_list" | "templates_get_many" | "templates_list" | "upsert_template" | "upsert_template_draft";
     readonly actions: "read" | "apply" | "manage";
     readonly hooks: "before_template_save" | "after_template_save" | "before_template_apply" | "after_template_apply";
     readonly entities: {
@@ -2521,7 +2521,7 @@ export interface BlockNameRegistry {
       readonly "billed": "tenant" | "periodStart" | "periodEnd" | "invoice" | "billedAt";
       readonly "quotas": "id" | "tenant" | "plan" | "meter" | "limit" | "period" | "createdAt";
     };
-    readonly functions: "consume_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "remove_usage_quota" | "set_usage_quota" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_quotas_for" | "usage_remaining" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
+    readonly functions: "consume_quota" | "delete_usage_quota" | "mark_usage_reported" | "purge_usage_events" | "purge_usage_history" | "record_usage" | "record_usage_batch" | "set_usage_quota" | "unreported_usage" | "usage_breakdown" | "usage_history" | "usage_meters" | "usage_overview" | "usage_quota" | "usage_quotas_for" | "usage_remaining" | "usage_status" | "usage_used" | "usage_window" | "usage_window_start" | "within_quota";
     readonly actions: "read" | "record";
     readonly hooks: "usage_billing_period";
     readonly entities: {};
@@ -2543,7 +2543,7 @@ export interface BlockNameRegistry {
       readonly "invoices": "id" | "installation" | "externalId" | "state" | "periodStart" | "periodEnd" | "total" | "currency" | "items" | "eventAt" | "createdAt" | "updatedAt";
       readonly "meterReports": "id" | "installation" | "resourceExternalId" | "meterId" | "periodStart" | "periodEnd" | "quantity" | "reportedQuantity" | "reportedAt" | "createdAt";
     };
-    readonly functions: "delete_marketplace_resource" | "link_marketplace_tenant" | "mark_marketplace_meter_reported" | "mark_marketplace_meter_sent" | "marketplace_access_token" | "marketplace_installation" | "marketplace_installation_for" | "marketplace_resource" | "marketplace_resources" | "marketplace_resources_for" | "record_marketplace_invoice" | "record_marketplace_meter_report" | "remove_marketplace_installation" | "seal_marketplace_access_token" | "set_marketplace_resource_state" | "unreported_marketplace_meter_reports" | "upsert_marketplace_installation" | "upsert_marketplace_plan" | "upsert_marketplace_resource";
+    readonly functions: "delete_marketplace_installation" | "delete_marketplace_resource" | "link_marketplace_tenant" | "mark_marketplace_meter_reported" | "mark_marketplace_meter_sent" | "marketplace_access_token" | "marketplace_installation" | "marketplace_installation_for" | "marketplace_resource" | "marketplace_resources" | "marketplace_resources_for" | "record_marketplace_invoice" | "record_marketplace_meter_report" | "seal_marketplace_access_token" | "set_marketplace_resource_state" | "unreported_marketplace_meter_reports" | "upsert_marketplace_installation" | "upsert_marketplace_plan" | "upsert_marketplace_resource";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -2585,7 +2585,7 @@ export interface BlockNameRegistry {
       readonly "slots": "id" | "tenant" | "bin" | "walkRank" | "capacity" | "updatedAt";
       readonly "sizes": "id" | "tenant" | "variant" | "size" | "updatedAt";
     };
-    readonly functions: "cancel_pick_wave" | "complete_pick_list" | "count_plan_run" | "create_count_plan" | "create_pick_list" | "create_pick_wave" | "delete_putaway_rule" | "get_count_plan" | "get_cycle_count_variance" | "get_pick_list" | "get_pick_wave" | "get_putaway_rule" | "list_bin_slots" | "list_count_plans" | "list_pick_lists" | "list_pick_waves" | "list_putaway_rules" | "page_count_plans" | "page_pick_waves" | "pick_list_json" | "pick_list_task" | "post_cycle_count" | "putaway_plan" | "putaway_rule_json" | "record_pick" | "release_pick_wave" | "run_count_plan" | "run_due_count_plans" | "save_bin_slot" | "save_putaway_rule" | "save_variant_size" | "set_pick_route" | "suggest_putaway" | "suggest_receipt_putaway" | "suggest_slotting";
+    readonly functions: "cancel_pick_wave" | "complete_pick_list" | "count_plan_run" | "create_count_plan" | "create_pick_list" | "create_pick_wave" | "delete_putaway_rule" | "get_count_plan" | "get_cycle_count_variance" | "get_pick_list" | "get_pick_wave" | "get_putaway_rule" | "list_bin_slots" | "list_count_plans" | "list_pick_lists" | "list_pick_waves" | "list_putaway_rules" | "page_count_plans" | "page_pick_waves" | "pick_list_json" | "pick_list_task" | "post_cycle_count" | "putaway_plan" | "putaway_rule_json" | "record_pick" | "release_pick_wave" | "run_count_plan" | "run_due_count_plans" | "set_pick_route" | "suggest_putaway" | "suggest_receipt_putaway" | "suggest_slotting" | "upsert_bin_slot" | "upsert_putaway_rule" | "upsert_variant_size";
     readonly actions: "read" | "pick" | "manage";
     readonly hooks: "before_pick_list_create" | "after_pick_list_create";
     readonly entities: {
@@ -2650,7 +2650,7 @@ export interface BlockNameRegistry {
       readonly "alerts": "id" | "definition" | "onEvent" | "threshold" | "channel" | "createdBy" | "createdAt";
       readonly "alertFires": "alert" | "run" | "firedAt";
     };
-    readonly functions: "check_workflow_alerts" | "fork_workflow_definition" | "page_workflow_definitions" | "publish_workflow_version" | "record_workflow_node_run" | "remove_workflow_alert" | "remove_workflow_credential" | "remove_workflow_definition" | "remove_workflow_trigger" | "resolve_workflow_definition" | "rotate_workflow_webhook_token" | "save_workflow_alert" | "save_workflow_credential" | "save_workflow_definition" | "save_workflow_draft" | "save_workflow_trigger" | "set_workflow_definition_grant" | "set_workflow_definition_purpose" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_node_kinds" | "sync_workflow_steps" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_event_targets" | "workflow_graph_permissions" | "workflow_node_kinds_list" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
+    readonly functions: "check_workflow_alerts" | "delete_workflow_alert" | "delete_workflow_credential" | "delete_workflow_definition" | "delete_workflow_trigger" | "fork_workflow_definition" | "page_workflow_definitions" | "publish_workflow_version" | "record_workflow_node_run" | "resolve_workflow_definition" | "rotate_workflow_webhook_token" | "set_workflow_definition_grant" | "set_workflow_definition_purpose" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_node_kinds" | "sync_workflow_steps" | "upsert_workflow_alert" | "upsert_workflow_credential" | "upsert_workflow_definition" | "upsert_workflow_draft" | "upsert_workflow_trigger" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_event_targets" | "workflow_graph_permissions" | "workflow_node_kinds_list" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
     readonly actions: "read" | "run" | "write" | "publish" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -2673,7 +2673,7 @@ export interface BlockNameRegistry {
       readonly "semaphores": "key" | "holder" | "acquiredAt" | "expiresAt";
       readonly "startRequests": "id" | "key" | "workflow" | "input" | "tenant" | "actor" | "concurrency" | "status" | "notBefore" | "claimedUntil" | "runId" | "createdAt" | "startedAt" | "subjectType" | "subjectId";
     };
-    readonly functions: "acquire_workflow_semaphore" | "advance_workflow_schedule" | "claim_due_workflow_schedules" | "claim_workflow_run_dispatch" | "claim_workflow_start_requests" | "create_workflow_schedule" | "mark_workflow_start_request" | "pause_workflow_schedule" | "purge_workflow_runs" | "record_workflow_run" | "release_workflow_semaphore" | "remove_workflow_schedule" | "request_workflow_cancel" | "request_workflow_start" | "set_workflow_run_engine" | "workflow_admission_active" | "workflow_run_get" | "workflow_runs_changed" | "workflow_runs_list" | "workflow_schedules_list";
+    readonly functions: "acquire_workflow_semaphore" | "advance_workflow_schedule" | "claim_due_workflow_schedules" | "claim_workflow_run_dispatch" | "claim_workflow_start_requests" | "create_workflow_schedule" | "delete_workflow_schedule" | "mark_workflow_start_request" | "pause_workflow_schedule" | "purge_workflow_runs" | "record_workflow_run" | "release_workflow_semaphore" | "request_workflow_cancel" | "request_workflow_start" | "set_workflow_run_engine" | "workflow_admission_active" | "workflow_run_get" | "workflow_runs_changed" | "workflow_runs_list" | "workflow_schedules_list";
     readonly actions: "read" | "run" | "manage";
     readonly hooks: "before_workflow_schedule_create" | "after_workflow_schedule_create" | "before_workflow_start_request" | "after_workflow_start_request";
     readonly entities: {};

@@ -81,7 +81,7 @@ declare
   v_id uuid;
 begin
   ${as(OWNER)}
-  v_row := better_supabase.save_enrollment_program('${TENANT}', '${PROGRAM}'::jsonb);
+  v_row := better_supabase.upsert_enrollment_program('${TENANT}', '${PROGRAM}'::jsonb);
   if v_row -> 'steps' -> 0 -> 'assignee' ->> 'userId' <> '${MEMBER}' or v_row -> 'steps' -> 1 ? 'due' then
     raise exception 'program %', v_row;
   end if;
@@ -154,10 +154,10 @@ declare
   v_row jsonb;
 begin
   ${as(OWNER)}
-  perform better_supabase.save_enrollment_program('${TENANT}', '${PROGRAM}'::jsonb);
+  perform better_supabase.upsert_enrollment_program('${TENANT}', '${PROGRAM}'::jsonb);
   v_id := (better_supabase.enroll('${TENANT}', 'go-live', 'contact', 'c1') ->> 'id')::uuid;
   perform better_supabase.complete_enrollment_step(v_id, 'review');
-  perform better_supabase.save_enrollment_program('${TENANT}', jsonb_build_object(
+  perform better_supabase.upsert_enrollment_program('${TENANT}', jsonb_build_object(
     'id', (select id from better_supabase.enrollment_programs where key = 'go-live'),
     'steps', '[{"id": "kickoff"}, {"id": "import"}, {"id": "review"}]'::jsonb
   ));
@@ -176,7 +176,7 @@ $$;`),
       run(`do $$
 begin
   ${as(OWNER)}
-  perform better_supabase.save_enrollment_program('${TENANT}', '{"key": "bad", "name": "Bad", "steps": [{"id": "a", "assignee": {"role": "admin", "userId": "${MEMBER}"}}]}'::jsonb);
+  perform better_supabase.upsert_enrollment_program('${TENANT}', '{"key": "bad", "name": "Bad", "steps": [{"id": "a", "assignee": {"role": "admin", "userId": "${MEMBER}"}}]}'::jsonb);
 end;
 $$;`),
     ).rejects.toThrow(/a step assignee is/);

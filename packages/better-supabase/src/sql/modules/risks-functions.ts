@@ -9,7 +9,7 @@ import { risksSql } from "./risks-sql.ts";
 const matrixInvalid = (message: string): string =>
   fail("RISK_MATRIX_INVALID", message, "22023");
 
-/** The checks save_risk_matrix runs on one axis of levels. */
+/** The checks upsert_risk_matrix runs on one axis of levels. */
 function levelsCheck(arg: string, what: string): string {
   return `if jsonb_typeof(${arg}) is distinct from 'array' or jsonb_array_length(${arg}) not between 2 and 10 then
     ${matrixInvalid(`${what} must be a list of 2 to 10 levels`)}
@@ -27,7 +27,7 @@ function levelsCheck(arg: string, what: string): string {
   end if;`;
 }
 
-/** The checks save_risk_matrix runs on the bands, against v_min and v_max. */
+/** The checks upsert_risk_matrix runs on the bands, against v_min and v_max. */
 function bandsCheck(arg: string): string {
   const gaps = matrixInvalid(
     "bands must cover every score from the lowest to the highest without gaps or overlaps",
@@ -131,7 +131,7 @@ ${serviceGrant(`${fn("ensure_risk_matrix")}(${idType})`)}
 -- impact_levels are [{ value, label }] with values 1 to n; bands are
 -- [{ key, label, min, max }] covering every score once. A matrix risks use
 -- keeps its level counts, and their scores and bands follow the new rules.
-create or replace function ${fn("save_risk_matrix")}(tenant ${idType}, key text, name text, likelihood_levels jsonb, impact_levels jsonb, bands jsonb, scoring text default 'product', is_default boolean default false, matrix_id uuid default null)
+create or replace function ${fn("upsert_risk_matrix")}(tenant ${idType}, key text, name text, likelihood_levels jsonb, impact_levels jsonb, bands jsonb, scoring text default 'product', is_default boolean default false, matrix_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -146,28 +146,28 @@ declare
   v_nl integer;
   v_ni integer;
 begin
-  if not ${q.allowed("save_risk_matrix.tenant", q.manage)} then
+  if not ${q.allowed("upsert_risk_matrix.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage risk matrices")}
   end if;
-  if coalesce(save_risk_matrix.key, '') !~ '^[a-z][a-z0-9_-]{0,62}$' then
+  if coalesce(upsert_risk_matrix.key, '') !~ '^[a-z][a-z0-9_-]{0,62}$' then
     ${matrixInvalid("key must be lowercase letters, digits, dashes and underscores")}
   end if;
-  if coalesce(length(trim(save_risk_matrix.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_risk_matrix.name)), 0) not between 1 and 200 then
     ${matrixInvalid("name must be 1 to 200 characters")}
   end if;
-  if coalesce(save_risk_matrix.scoring, '') not in ('product', 'sum') then
+  if coalesce(upsert_risk_matrix.scoring, '') not in ('product', 'sum') then
     ${matrixInvalid("scoring must be product or sum")}
   end if;
-  ${levelsCheck("save_risk_matrix.likelihood_levels", "likelihood_levels")}
-  ${levelsCheck("save_risk_matrix.impact_levels", "impact_levels")}
-  v_nl := jsonb_array_length(save_risk_matrix.likelihood_levels);
-  v_ni := jsonb_array_length(save_risk_matrix.impact_levels);
-  v_min := case when save_risk_matrix.scoring = 'sum' then 2 else 1 end;
-  v_max := case when save_risk_matrix.scoring = 'sum' then v_nl + v_ni else v_nl * v_ni end;
-  ${bandsCheck("save_risk_matrix.bands")}
-  if save_risk_matrix.matrix_id is not null then
+  ${levelsCheck("upsert_risk_matrix.likelihood_levels", "likelihood_levels")}
+  ${levelsCheck("upsert_risk_matrix.impact_levels", "impact_levels")}
+  v_nl := jsonb_array_length(upsert_risk_matrix.likelihood_levels);
+  v_ni := jsonb_array_length(upsert_risk_matrix.impact_levels);
+  v_min := case when upsert_risk_matrix.scoring = 'sum' then 2 else 1 end;
+  v_max := case when upsert_risk_matrix.scoring = 'sum' then v_nl + v_ni else v_nl * v_ni end;
+  ${bandsCheck("upsert_risk_matrix.bands")}
+  if upsert_risk_matrix.matrix_id is not null then
     select * into v_old from ${matrices} x
-    where x.${m("id")} = save_risk_matrix.matrix_id and x.${m("tenant")} = save_risk_matrix.tenant
+    where x.${m("id")} = upsert_risk_matrix.matrix_id and x.${m("tenant")} = upsert_risk_matrix.tenant
     for update;
     if not found then
       ${q.matrixMissing}
@@ -177,27 +177,27 @@ begin
       ${fail("RISK_MATRIX_IN_USE", "risks use this matrix, so its level counts can't change", "55000")}
     end if;
   end if;
-  if save_risk_matrix.is_default then
+  if upsert_risk_matrix.is_default then
     update ${matrices} x set ${m("isDefault")} = false, ${m("updatedAt")} = now()
-    where x.${m("tenant")} = save_risk_matrix.tenant and x.${m("isDefault")}
-      and x.${m("id")} is distinct from save_risk_matrix.matrix_id;
+    where x.${m("tenant")} = upsert_risk_matrix.tenant and x.${m("isDefault")}
+      and x.${m("id")} is distinct from upsert_risk_matrix.matrix_id;
   end if;
   if v_old.${m("id")} is null then
     insert into ${matrices} (${m("tenant")}, ${m("key")}, ${m("name")}, ${m("likelihoodLevels")}, ${m("impactLevels")}, ${m("bands")}, ${m("scoring")}, ${m("isDefault")})
-    values (save_risk_matrix.tenant, save_risk_matrix.key, trim(save_risk_matrix.name), save_risk_matrix.likelihood_levels, save_risk_matrix.impact_levels, save_risk_matrix.bands, save_risk_matrix.scoring,
-      save_risk_matrix.is_default or not exists (select 1 from ${matrices} y where y.${m("tenant")} = save_risk_matrix.tenant and y.${m("isDefault")}))
+    values (upsert_risk_matrix.tenant, upsert_risk_matrix.key, trim(upsert_risk_matrix.name), upsert_risk_matrix.likelihood_levels, upsert_risk_matrix.impact_levels, upsert_risk_matrix.bands, upsert_risk_matrix.scoring,
+      upsert_risk_matrix.is_default or not exists (select 1 from ${matrices} y where y.${m("tenant")} = upsert_risk_matrix.tenant and y.${m("isDefault")}))
     returning * into v_row;
     ${q.recordMatrix("risk_matrix.created", "v_row", "risk matrix created")}
   else
     update ${matrices} x set
-      ${m("key")} = save_risk_matrix.key,
-      ${m("name")} = trim(save_risk_matrix.name),
-      ${m("likelihoodLevels")} = save_risk_matrix.likelihood_levels,
-      ${m("impactLevels")} = save_risk_matrix.impact_levels,
-      ${m("bands")} = save_risk_matrix.bands,
-      ${m("scoring")} = save_risk_matrix.scoring,
+      ${m("key")} = upsert_risk_matrix.key,
+      ${m("name")} = trim(upsert_risk_matrix.name),
+      ${m("likelihoodLevels")} = upsert_risk_matrix.likelihood_levels,
+      ${m("impactLevels")} = upsert_risk_matrix.impact_levels,
+      ${m("bands")} = upsert_risk_matrix.bands,
+      ${m("scoring")} = upsert_risk_matrix.scoring,
       -- The default stays the default until another matrix takes over.
-      ${m("isDefault")} = x.${m("isDefault")} or save_risk_matrix.is_default,
+      ${m("isDefault")} = x.${m("isDefault")} or upsert_risk_matrix.is_default,
       ${m("updatedAt")} = now()
     where x.${m("id")} = v_old.${m("id")}
     returning * into v_row;
@@ -209,7 +209,7 @@ exception when unique_violation then
   ${matrixInvalid("another matrix of this organization has this key")}
 end;
 $$;
-${userGrant(`${fn("save_risk_matrix")}(${idType}, text, text, jsonb, jsonb, jsonb, text, boolean, uuid)`)}
+${userGrant(`${fn("upsert_risk_matrix")}(${idType}, text, text, jsonb, jsonb, jsonb, text, boolean, uuid)`)}
 
 -- The organization's matrices, the default first. Seeds the default matrix
 -- the first time.

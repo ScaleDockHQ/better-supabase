@@ -1,5 +1,5 @@
 -- Archiving a care rule (ADR 1054): an archived rule leaves list_care_rules,
--- save_care_rule refuses it, restore brings it back, and purge is the hard
+-- upsert_care_rule refuses it, restore brings it back, and purge is the hard
 -- delete behind manage. Run with `supabase test db`.
 begin;
 select plan(13);
@@ -19,9 +19,9 @@ set local role authenticated;
 select set_config('test.base',
   jsonb_array_length(better_supabase.list_care_rules('00000000-0000-4000-8000-000000000001'))::text, true);
 
-select set_config('test.med', better_supabase.save_medication(
+select set_config('test.med', better_supabase.upsert_medication(
   '00000000-0000-4000-8000-000000000001', 'Archive paracetamol', 'mg') ->> 'id', true);
-select set_config('test.rule', better_supabase.save_care_rule(
+select set_config('test.rule', better_supabase.upsert_care_rule(
   '00000000-0000-4000-8000-000000000001',
   jsonb_build_object('kind', 'dose_range', 'medicationIds', jsonb_build_array(current_setting('test.med')), 'maxDose', 1000)
 ) ->> 'id', true);
@@ -40,10 +40,10 @@ select is(
   'include_archived lists it again'
 );
 select throws_ok(
-  format($$select better_supabase.save_care_rule('00000000-0000-4000-8000-000000000001',
+  format($$select better_supabase.upsert_care_rule('00000000-0000-4000-8000-000000000001',
     jsonb_build_object('id', %L, 'kind', 'dose_range', 'medicationIds', jsonb_build_array(%L), 'maxDose', 500))$$,
     current_setting('test.rule'), current_setting('test.med')),
-  '55000', null, 'save_care_rule refuses an archived rule'
+  '55000', null, 'upsert_care_rule refuses an archived rule'
 );
 
 select better_supabase.archive_care_rule(current_setting('test.rule')::uuid);

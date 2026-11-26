@@ -71,24 +71,27 @@ describe.skipIf(!live)("ai-chat module", () => {
 
       await s.service();
       expect(
-        await s.value("better_supabase.save_ai_assistant_message($1, $2, $3)", [
-          chat.id,
-          {
-            id: "a1",
-            role: "assistant",
-            parts: [
-              ...text("Hello"),
-              {
-                type: "source",
-                sourceType: "url",
-                id: "s1",
-                url: "https://example.com",
-                title: "Example",
-              },
-            ],
-          },
-          "u1",
-        ]),
+        await s.value(
+          "better_supabase.upsert_ai_assistant_message($1, $2, $3)",
+          [
+            chat.id,
+            {
+              id: "a1",
+              role: "assistant",
+              parts: [
+                ...text("Hello"),
+                {
+                  type: "source",
+                  sourceType: "url",
+                  id: "s1",
+                  url: "https://example.com",
+                  title: "Example",
+                },
+              ],
+            },
+            "u1",
+          ],
+        ),
       ).toMatchObject({ message_id: "a1", created: true });
       expect(
         await s.rows(
@@ -504,10 +507,10 @@ describe.skipIf(!live)("ai-chat module", () => {
         { id: "u1", role: "user", parts: text("Hi") },
       ]);
       await s.service();
-      await s.value("better_supabase.save_ai_assistant_message($1, $2, 'u1')", [
-        chat.id,
-        { id: "a1", role: "assistant", parts: text("Hello") },
-      ]);
+      await s.value(
+        "better_supabase.upsert_ai_assistant_message($1, $2, 'u1')",
+        [chat.id, { id: "a1", role: "assistant", parts: text("Hello") }],
+      );
       await s.as(owner);
 
       const share = await s.value<{ id: string; token: string }>(
@@ -629,11 +632,11 @@ describe.skipIf(!live)("ai-chat module", () => {
       ]);
 
       const project = await s.value<{ id: string }>(
-        "better_supabase.save_ai_project(null, $1, $2)",
+        "better_supabase.upsert_ai_project(null, $1, $2)",
         [tenant, { name: "Research", instructions: "Be brief" }],
       );
 
-      await s.value("better_supabase.save_ai_project($1, $2, $3)", [
+      await s.value("better_supabase.upsert_ai_project($1, $2, $3)", [
         project.id,
         tenant,
         { pinned: true },

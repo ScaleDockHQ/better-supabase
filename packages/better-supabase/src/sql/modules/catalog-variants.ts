@@ -46,13 +46,13 @@ export function variantFunctions(ctx: BlockSqlContext, names: Names): string {
   const inserted = insertExtraColumns(
     variants,
     extras,
-    "coalesce(save_variant.fields, '{}'::jsonb)",
+    "coalesce(upsert_variant.fields, '{}'::jsonb)",
   );
 
   const tracking = optional("trackInventory")
     ? ""
     : `
-  if save_variant.track_inventory is not null then
+  if upsert_variant.track_inventory is not null then
     ${fail("CATALOG_TRACK_INVENTORY_UNSUPPORTED", "this catalog tracks inventory per product, not per variant", "22023")}
   end if;`;
 
@@ -68,31 +68,37 @@ export function variantFunctions(ctx: BlockSqlContext, names: Names): string {
     ctx.hasTable("options");
 
   const columns: readonly (readonly [string, string, string])[] = [
-    ["sku", "save_variant.sku", "save_variant.sku"],
+    ["sku", "upsert_variant.sku", "upsert_variant.sku"],
     ...(optional("title")
-      ? ([["title", "save_variant.title", "save_variant.title"]] as const)
+      ? ([["title", "upsert_variant.title", "upsert_variant.title"]] as const)
       : []),
     ...(optional("barcode")
-      ? ([["barcode", "save_variant.barcode", "save_variant.barcode"]] as const)
+      ? ([
+          ["barcode", "upsert_variant.barcode", "upsert_variant.barcode"],
+        ] as const)
       : []),
     ...(optional("weight")
       ? ([
-          ["weight", "save_variant.weight_grams", "save_variant.weight_grams"],
+          [
+            "weight",
+            "upsert_variant.weight_grams",
+            "upsert_variant.weight_grams",
+          ],
         ] as const)
       : []),
     ...(optional("trackInventory")
       ? ([
           [
             "trackInventory",
-            "coalesce(save_variant.track_inventory, true)",
-            "save_variant.track_inventory",
+            "coalesce(upsert_variant.track_inventory, true)",
+            "upsert_variant.track_inventory",
           ],
         ] as const)
       : []),
     [
       "allowBackorder",
-      "coalesce(save_variant.allow_backorder, false)",
-      "save_variant.allow_backorder",
+      "coalesce(upsert_variant.allow_backorder, false)",
+      "upsert_variant.allow_backorder",
     ],
   ];
 
@@ -110,24 +116,24 @@ export function variantFunctions(ctx: BlockSqlContext, names: Names): string {
         const vv = (column: string): string => ctx.col("variantValues", column);
 
         return {
-          check: `  if v_created or save_variant.option_values is not null then
-  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
-  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+          check: `  if v_created or upsert_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(upsert_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(upsert_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
       where not exists (
         select 1 from ${optionValues} ov join ${options} o on o.${o("id")} = ov.${ov("option")}
-        where ov.${ov("id")} = x and o.${o("product")} = save_variant.product
+        where ov.${ov("id")} = x and o.${o("product")} = upsert_variant.product
       )
     )
     or (select count(distinct ov.${ov("option")}) from ${optionValues} ov where ov.${ov("id")} = any (v_wanted)) <> cardinality(v_wanted)
-    or (select count(*) from ${options} o where o.${o("product")} = save_variant.product) <> cardinality(v_wanted) then
+    or (select count(*) from ${options} o where o.${o("product")} = upsert_variant.product) <> cardinality(v_wanted) then
     ${fail("CATALOG_VARIANT_OPTIONS", "a variant needs exactly one value of each product option", "22023")}
   end if;
   if exists (
     select 1 from ${variants} x
-    where x.${v("product")} = save_variant.product
-      and x.${v("id")} is distinct from save_variant.variant${retired("x")}
+    where x.${v("product")} = upsert_variant.product
+      and x.${v("id")} is distinct from upsert_variant.variant${retired("x")}
       and coalesce((select array_agg(y.${vv("value")} order by y.${vv("value")}) from ${variantValues} y where y.${vv("variant")} = x.${v("id")}), '{}'::uuid[]) = v_wanted
   ) then
     ${fail("CATALOG_VARIANT_DUPLICATE", "another variant has these option values", "23505")}
@@ -143,10 +149,10 @@ export function variantFunctions(ctx: BlockSqlContext, names: Names): string {
       })()
     : {
         check: `  v_wanted := '{}'::uuid[];
-  if coalesce(cardinality(save_variant.option_values), 0) > 0 then
+  if coalesce(cardinality(upsert_variant.option_values), 0) > 0 then
     ${fail("CATALOG_VARIANT_OPTIONS", "this catalog has no option values", "22023")}
   end if;
-  if exists (select 1 from ${variants} x where x.${v("product")} = save_variant.product and x.${v("id")} is distinct from save_variant.variant) then
+  if exists (select 1 from ${variants} x where x.${v("product")} = upsert_variant.product and x.${v("id")} is distinct from upsert_variant.variant) then
     ${fail("CATALOG_VARIANT_DUPLICATE", "a product without options has one variant", "23505")}
   end if;`,
         write: "",
@@ -157,10 +163,10 @@ export function variantFunctions(ctx: BlockSqlContext, names: Names): string {
 -- option value id per product option; no two variants share a combination.
 -- On an update a null argument keeps the column and clear names the columns
 -- to empty. fields: the extra columns (columns your schema files add) to set.
-drop function if exists ${fn("save_variant")}(${oldVariantArgs});
-drop function if exists ${fn("save_variant")}(${oldVariantArgs}, jsonb);
-${extraArg.drop(fn("save_variant"), variantArgs)}
-create or replace function ${fn("save_variant")}(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null${extraArg.param})
+drop function if exists ${fn("upsert_variant")}(${oldVariantArgs});
+drop function if exists ${fn("upsert_variant")}(${oldVariantArgs}, jsonb);
+${extraArg.drop(fn("upsert_variant"), variantArgs)}
+create or replace function ${fn("upsert_variant")}(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null${extraArg.param})
 returns jsonb
 language plpgsql
 security definer
@@ -168,15 +174,15 @@ set search_path = ''
 as $$
 declare
   v_tenant ${ctx.idType};
-  v_id uuid := save_variant.variant;
-  v_created boolean := save_variant.variant is null;
+  v_id uuid := upsert_variant.variant;
+  v_created boolean := upsert_variant.variant is null;
   v_wanted uuid[];
   v_last text;
   v_rank text;
-  v_sku text := save_variant.sku;
+  v_sku text := upsert_variant.sku;
   v_defaults jsonb;
 begin
-  select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = save_variant.product for update;
+  select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = upsert_variant.product for update;
   if v_tenant is null then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
@@ -185,27 +191,27 @@ begin
   else
     ${guard(names, "v_tenant", names.update)}
   end if;${tracking}
-  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all (${sqlString(`{${clearable.join(",")}}`)}::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_variant.clear, '{}'::text[])) c where c <> all (${sqlString(`{${clearable.join(",")}}`)}::text[])) then
     ${fail("CATALOG_CLEAR_INVALID", `clear names only ${clearable.join(", ")}`, "22023")}
   end if;
 ${valueChecks.check}
   ${ctx.hook("before_variant_save", [
-    ["uuid", "save_variant.product"],
-    ["uuid", "save_variant.variant"],
-    ["text", "save_variant.sku"],
+    ["uuid", "upsert_variant.product"],
+    ["uuid", "upsert_variant.variant"],
+    ["text", "upsert_variant.sku"],
     ["uuid[]", "v_wanted"],
   ])}
   begin
     if v_created then
-      select max(${rank.order(`x.${v("rank")}`)}) into v_last from ${variants} x where x.${v("product")} = save_variant.product;
+      select max(${rank.order(`x.${v("rank")}`)}) into v_last from ${variants} x where x.${v("product")} = upsert_variant.product;
       v_rank := ${rank.after("v_last")};
       ${columnDefaults(variants, defaulted, "v_defaults")}
       insert into ${variants} as x (${v("tenant")}, ${v("product")}, ${columns.map(([column]) => v(column)).join(", ")}, ${v("rank")}${inserted.columns})
-      values (v_tenant, save_variant.product, ${columns.map(([column, value]) => (clearable.includes(column) ? withColumnDefault(variants, v(column), value, "v_defaults") : value)).join(", ")}, ${rank.write("v_rank")}${inserted.values})
+      values (v_tenant, upsert_variant.product, ${columns.map(([column, value]) => (clearable.includes(column) ? withColumnDefault(variants, v(column), value, "v_defaults") : value)).join(", ")}, ${rank.write("v_rank")}${inserted.values})
       returning x.${v("id")}, x.${v("sku")} into v_id, v_sku;
     else
-      update ${variants} x set ${columns.map(([column, , param]) => (clearable.includes(column) ? `${v(column)} = case when ${sqlString(column)} = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(${param}, x.${v(column)}) end` : `${v(column)} = coalesce(${param}, x.${v(column)})`)).join(", ")}, ${v("updatedAt")} = now()${updateExtraColumns(variants, extras, "save_variant.fields")}
-      where x.${v("id")} = save_variant.variant and x.${v("product")} = save_variant.product
+      update ${variants} x set ${columns.map(([column, , param]) => (clearable.includes(column) ? `${v(column)} = case when ${sqlString(column)} = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(${param}, x.${v(column)}) end` : `${v(column)} = coalesce(${param}, x.${v(column)})`)).join(", ")}, ${v("updatedAt")} = now()${updateExtraColumns(variants, extras, "upsert_variant.fields")}
+      where x.${v("id")} = upsert_variant.variant and x.${v("product")} = upsert_variant.product
       returning x.${v("rank")}, x.${v("sku")} into v_rank, v_sku;
       if not found then
         ${fail("CATALOG_VARIANT_NOT_FOUND", "variant not found", "P0002")}
@@ -218,7 +224,7 @@ ${valueChecks.write}
   if v_created then
     ${ctx.record({
       type: "product_variant.created",
-      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku)`,
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', upsert_variant.product, 'sku', v_sku)`,
       subject: `'variants/' || v_id::text`,
       tenant: "v_tenant",
       audit: false,
@@ -226,7 +232,7 @@ ${valueChecks.write}
   else
     ${ctx.record({
       type: "product_variant.updated",
-      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku)`,
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', upsert_variant.product, 'sku', v_sku)`,
       subject: `'variants/' || v_id::text`,
       tenant: "v_tenant",
       audit: false,
@@ -246,7 +252,7 @@ ${valueChecks.write}
   };
 end;
 $$;
-${userGrant(`${fn("save_variant")}(${variantArgs}${extraArg.type})`)}
+${userGrant(`${fn("upsert_variant")}(${variantArgs}${extraArg.type})`)}
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function ${fn("rank_variant")}(variant uuid, rank text)

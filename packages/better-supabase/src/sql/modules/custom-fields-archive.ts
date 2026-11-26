@@ -27,7 +27,7 @@ export function archiveFunctions(
             const name = `${verb}_field_definition`;
             const past = verb === "archive" ? "archived" : "restored";
 
-            return `-- ${verb === "archive" ? "Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable." : "Restores an archived field."} Needs the manage key; ${verb === "archive" ? "archiving an archived field" : "restoring one that is not archived"} returns it unchanged.
+            return `-- ${verb === "archive" ? "Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable." : "Restores an archived field."} Needs the manage key; ${verb === "archive" ? "archiving an archived field" : "restoring one that is not archived"} returns it unchanged.
 create or replace function ${ctx.fn(name)}(definition uuid)
 returns jsonb
 language plpgsql

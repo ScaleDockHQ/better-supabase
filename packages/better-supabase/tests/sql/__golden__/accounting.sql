@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:fbb36dac634e9243b7c38eb3d6002a207004b659acc227dccc63961d150c6b8e
+-- @bsb-hash sha256:e6c7c2cb1db15ed139a8ec1cde4196efa876e4f2f86715957d82805389607581
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -476,7 +476,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
 
-create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+create or replace function "better_supabase"."upsert_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -485,48 +485,48 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_accounts"%rowtype;
-  v_id uuid := save_accounting_account.account_id;
-  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_id uuid := upsert_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(upsert_accounting_account.currency), ''));
   v_side text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_account.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+  if nullif(trim(upsert_accounting_account.code), '') is null or nullif(trim(upsert_accounting_account.name), '') is null then
     raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+  if upsert_accounting_account.type is null or upsert_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
     raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+  if upsert_accounting_account.subtype is not null and upsert_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
     raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  v_side := coalesce(upsert_accounting_account.normal_side, case when upsert_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
   if v_side not in ('debit', 'credit') then
     raise exception 'the normal side is debit or credit' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.default_tax_code_id is not null and not exists (
-    select 1 from "better_supabase"."tax_codes" y where y."id" = save_accounting_account.default_tax_code_id and y."tenant_id" = save_accounting_account.tenant
+  if upsert_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from "better_supabase"."tax_codes" y where y."id" = upsert_accounting_account.default_tax_code_id and y."tenant_id" = upsert_accounting_account.tenant
   ) then
     raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
   end if;
   if v_id is null then
     select y."id" into v_id from "better_supabase"."accounting_accounts" y
-    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+    where y."tenant_id" = upsert_accounting_account.tenant and y."code" = trim(upsert_accounting_account.code);
   end if;
-  if save_accounting_account.parent_id is not null then
-    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+  if upsert_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_account.parent_id and y."tenant_id" = upsert_accounting_account.tenant) then
       raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if v_id is not null and exists (
       with recursive up (id) as (
-        select save_accounting_account.parent_id
+        select upsert_accounting_account.parent_id
         union
         select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
       )
@@ -538,35 +538,35 @@ begin
   if v_id is null then
     insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable",
       "normal_side", "default_tax_code_id", "active")
-    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
-      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
+    values (upsert_accounting_account.tenant, trim(upsert_accounting_account.code), trim(upsert_accounting_account.name), upsert_accounting_account.type,
+      upsert_accounting_account.subtype, upsert_accounting_account.parent_id, v_currency, coalesce(upsert_accounting_account.reconcilable, false),
+      v_side, upsert_accounting_account.default_tax_code_id, coalesce(upsert_accounting_account.active, true))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = upsert_accounting_account.tenant for update;
     if not found then
       raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if exists (
       select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
       where y."account_id" = v_id and z."status" <> 'draft'
-        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+        and (v_row."type" <> upsert_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
     ) then
       raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
     end if;
-    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
-      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
-      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false),
-      "normal_side" = v_side, "default_tax_code_id" = save_accounting_account.default_tax_code_id,
-      "active" = coalesce(save_accounting_account.active, true), "updated_at" = now()
+    update "better_supabase"."accounting_accounts" y set "code" = trim(upsert_accounting_account.code), "name" = trim(upsert_accounting_account.name),
+      "type" = upsert_accounting_account.type, "subtype" = upsert_accounting_account.subtype, "parent_id" = upsert_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(upsert_accounting_account.reconcilable, false),
+      "normal_side" = v_side, "default_tax_code_id" = upsert_accounting_account.default_tax_code_id,
+      "active" = coalesce(upsert_accounting_account.active, true), "updated_at" = now()
     where y."id" = v_id
     returning * into v_row;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'normalSide', v_row."normal_side", 'level', v_row."level", 'defaultTaxCodeId', v_row."default_tax_code_id", 'active', v_row."active", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -892,7 +892,7 @@ grant execute on function "better_supabase"."page_accounting_accounts"(uuid, jso
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
 
-create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -901,50 +901,50 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_journals"%rowtype;
-  v_id uuid := save_accounting_journal.journal_id;
-  v_code text := upper(trim(save_accounting_journal.code));
-  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+  v_id uuid := upsert_accounting_journal.journal_id;
+  v_code text := upper(trim(upsert_accounting_journal.code));
+  v_currency text := upper(nullif(trim(upsert_accounting_journal.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_journal.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
   end if;
-  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(upsert_accounting_journal.name), '') is null then
     raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+  if upsert_accounting_journal.type is null or upsert_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
     raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.default_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.default_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
-  if save_accounting_journal.contra_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.contra_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.contra_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'contra account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
   if v_id is null then
-    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = upsert_accounting_journal.tenant and y."code" = v_code;
   end if;
   if v_id is null then
     insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency", "contra_account_id", "bank_account_id")
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
-      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
+    values (upsert_accounting_journal.tenant, v_code, trim(upsert_accounting_journal.name), upsert_accounting_journal.type, upsert_accounting_journal.default_account_id, v_currency,
+      upsert_accounting_journal.contra_account_id, upsert_accounting_journal.bank_account_id)
     returning * into v_row;
   else
-    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
-      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency,
-      "contra_account_id" = save_accounting_journal.contra_account_id, "bank_account_id" = save_accounting_journal.bank_account_id, "updated_at" = now()
-    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(upsert_accounting_journal.name), "type" = upsert_accounting_journal.type,
+      "default_account_id" = upsert_accounting_journal.default_account_id, "currency" = v_currency,
+      "contra_account_id" = upsert_accounting_journal.contra_account_id, "bank_account_id" = upsert_accounting_journal.bank_account_id, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = upsert_accounting_journal.tenant
     returning * into v_row;
     if not found then
       raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
@@ -953,8 +953,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'contraAccountId', v_row."contra_account_id", 'bankAccountId', v_row."bank_account_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
 returns jsonb
@@ -1028,7 +1028,7 @@ revoke execute on function "better_supabase"."list_accounting_periods"(uuid, int
 grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
 
 -- Creates or renames a dimension (project, department, cost center) by key.
-create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+create or replace function "better_supabase"."upsert_accounting_dimension"(tenant uuid, key text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -1041,24 +1041,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_dimension.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+  if coalesce(upsert_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(upsert_accounting_dimension.name), '') is null then
     raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
-  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  values (upsert_accounting_dimension.tenant, upsert_accounting_dimension.key, trim(upsert_accounting_dimension.name))
   on conflict ("tenant_id", "key") do update set "name" = excluded."name"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) to authenticated, service_role;
 
 -- Adds or renames a value of a dimension by code; archived values take no new lines.
-create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function "better_supabase"."upsert_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1071,26 +1071,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = upsert_accounting_dimension_value.dimension_id;
   if not found then
     raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+  if nullif(trim(upsert_accounting_dimension_value.code), '') is null or nullif(trim(upsert_accounting_dimension_value.name), '') is null then
     raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
-  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
-    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  values (v_dimension."tenant_id", v_dimension."id", trim(upsert_accounting_dimension_value.code), trim(upsert_accounting_dimension_value.name),
+    case when coalesce(upsert_accounting_dimension_value.archived, false) then now() end)
   on conflict ("dimension_id", "code") do update
     set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
   return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
@@ -1287,7 +1287,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
 
-create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1313,7 +1313,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = upsert_accounting_entry.journal_id;
   if not found then
     raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
@@ -1324,32 +1324,32 @@ begin
   if not found then
     raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
   end if;
-  if save_accounting_entry.entry_date is null then
+  if upsert_accounting_entry.entry_date is null then
     raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+  if jsonb_typeof(upsert_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(upsert_accounting_entry.lines) < 2 then
     raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
-    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if (upsert_accounting_entry.source_type is null) <> (upsert_accounting_entry.source_id is null)
+    or coalesce(upsert_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if save_accounting_entry.source_type is not null and exists (
+  if upsert_accounting_entry.source_type is not null and exists (
     select 1 from "better_supabase"."accounting_entries" y
-    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
-      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
-      and y."id" is distinct from save_accounting_entry.entry_id
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = upsert_accounting_entry.source_type
+      and y."source_id" = upsert_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from upsert_accounting_entry.entry_id
   ) then
     raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
   end if;
-  if save_accounting_entry.entry_id is null then
+  if upsert_accounting_entry.entry_id is null then
     insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
-    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
-      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
-      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    values (v_journal."tenant_id", v_journal."id", upsert_accounting_entry.entry_date, nullif(trim(upsert_accounting_entry.reference), ''),
+      upsert_accounting_entry.source_type, upsert_accounting_entry.source_id, nullif(trim(upsert_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= y."starts_on" and upsert_accounting_entry.entry_date <= y."ends_on"))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = upsert_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
     if not found then
       raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
     end if;
@@ -1357,15 +1357,15 @@ begin
       raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
     end if;
     delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
-    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
-      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
-      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_params" end,
-      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = upsert_accounting_entry.entry_date,
+      "reference" = nullif(trim(upsert_accounting_entry.reference), ''), "source_type" = upsert_accounting_entry.source_type,
+      "source_id" = upsert_accounting_entry.source_id, "memo" = nullif(trim(upsert_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_params" end,
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= z."starts_on" and upsert_accounting_entry.entry_date <= z."ends_on"),
       "updated_at" = now()
     where y."id" = v_row."id"
     returning * into v_row;
   end if;
-  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(upsert_accounting_entry.lines) with ordinality q loop
     if jsonb_typeof(v_line.value) is distinct from 'object' then
       raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
     end if;
@@ -1404,7 +1404,7 @@ begin
         raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
       v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
-        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", upsert_accounting_entry.entry_date));
       if v_rate <= 0 then
         raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
@@ -1452,8 +1452,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'taxAmount', el."tax_amount"::text, 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
 returns jsonb
@@ -2812,7 +2812,7 @@ $$;
 -- { accountId | accountCode, partyId?, amount } with amount as signed minor
 -- units of the functional currency (a debit balance is positive). Each row
 -- replaces the row of its account and party, carried rows included.
-create or replace function "better_supabase"."save_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
+create or replace function "better_supabase"."upsert_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2824,35 +2824,35 @@ declare
   v_account uuid;
   v_ids uuid[] := '{}';
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_OPENING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_accounting_opening_balances.balances) is distinct from 'array' then
+  if jsonb_typeof(upsert_accounting_opening_balances.balances) is distinct from 'array' then
     raise exception 'balances is an array' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
   end if;
-  for v_row in select e.value from jsonb_array_elements(save_accounting_opening_balances.balances) e loop
+  for v_row in select e.value from jsonb_array_elements(upsert_accounting_opening_balances.balances) e loop
     if jsonb_typeof(v_row.value) is distinct from 'object' or coalesce(v_row.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$' then
       raise exception 'every balance is an object with an integer amount' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end if;
     begin
       v_account := coalesce(
         nullif(v_row.value ->> 'accountId', '')::uuid,
-        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = save_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
+        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = upsert_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
       );
-      v_ids := v_ids || "better_supabase"."accounting_opening_write"(save_accounting_opening_balances.tenant, save_accounting_opening_balances.fiscal_year,
+      v_ids := v_ids || "better_supabase"."accounting_opening_write"(upsert_accounting_opening_balances.tenant, upsert_accounting_opening_balances.fiscal_year,
         v_account, nullif(v_row.value ->> 'partyId', '')::uuid, (v_row.value ->> 'amount')::bigint);
     exception
       when invalid_text_representation then
         raise exception 'accountId and partyId are uuids' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end;
   end loop;
-  return jsonb_build_object('organizationId', save_accounting_opening_balances.tenant, 'fiscalYear', save_accounting_opening_balances.fiscal_year,
+  return jsonb_build_object('organizationId', upsert_accounting_opening_balances.tenant, 'fiscalYear', upsert_accounting_opening_balances.fiscal_year,
     'balances', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'accountId', y."account_id", 'partyId', y."party_id", 'amount', y."amount"::text, 'source', y."source") order by y."account_id", y."party_id"), '[]'::jsonb)
       from "better_supabase"."accounting_opening_balances" y where y."id" = any (v_ids)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- A fiscal year's opening balances, imported and carried, with their total
 -- (zero when the books balance).
@@ -2951,7 +2951,7 @@ revoke execute on function "better_supabase"."post_accounting_opening_balances"(
 grant execute on function "better_supabase"."post_accounting_opening_balances"(uuid, integer, uuid) to authenticated, service_role;
 
 -- The import target of the accounting_account entity: item.data is the input
--- of save_accounting_account, with parentCode for the parent by code.
+-- of upsert_accounting_account, with parentCode for the parent by code.
 create or replace function "better_supabase"."import_accounting_account"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -2973,7 +2973,7 @@ begin
     if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
       raise exception 'the parent account isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    v_row := "better_supabase"."save_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
+    v_row := "better_supabase"."upsert_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
       import_accounting_account.subject_id::uuid, nullif(v_data ->> 'normalSide', ''), nullif(v_data ->> 'defaultTaxCodeId', '')::uuid,
       coalesce((v_data ->> 'active')::boolean, true));
@@ -2988,7 +2988,7 @@ revoke execute on function "better_supabase"."import_accounting_account"(uuid, j
 grant execute on function "better_supabase"."import_accounting_account"(uuid, jsonb, text) to service_role;
 
 -- The import target of the accounting_journal entity: item.data is the input
--- of save_accounting_journal, with defaultAccountCode, contraAccountCode and
+-- of upsert_accounting_journal, with defaultAccountCode, contraAccountCode and
 -- bankAccountCode for accounts by code.
 create or replace function "better_supabase"."import_accounting_journal"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -3021,7 +3021,7 @@ begin
     or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
     raise exception 'an account of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  v_row := "better_supabase"."save_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
+  v_row := "better_supabase"."upsert_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
   return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
 end;
@@ -3065,7 +3065,7 @@ grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, 
 
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
--- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
+-- accountId, debit, credit, ... }] } with the amounts of upsert_accounting_entry.
 -- The lines must balance, or the item is reported as an error and nothing is
 -- written. The entry posts unless post is false; in import mode it may land in
 -- a closed period, never in a locked one.
@@ -3115,7 +3115,7 @@ begin
   perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
     coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
     coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
-  v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
+  v_row := "better_supabase"."upsert_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
     v_row := "better_supabase"."post_accounting_entry"((v_row ->> 'id')::uuid);
@@ -3248,7 +3248,7 @@ create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_
 -- archived) and, when lines is given, replaces its lines. Each line names an
 -- account (accountId or accountCode), a periodNumber, an amount and optional
 -- dimensions.
-create or replace function "better_supabase"."save_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3259,41 +3259,41 @@ declare
   v_row "better_supabase"."accounting_budgets"%rowtype;
   v_line record;
   v_account uuid;
-  v_created boolean := save_accounting_budget.budget_id is null;
+  v_created boolean := upsert_accounting_budget.budget_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_budget.tenant, 'accounting.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_budget.tenant, 'accounting.write'), false)) then
     raise exception 'not allowed to write budgets' using errcode = '42501', hint = 'ACCOUNTING_BUDGET_FORBIDDEN';
   end if;
-  if length(trim(coalesce(save_accounting_budget.name, ''))) not between 1 and 200
-    or coalesce(save_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
+  if length(trim(coalesce(upsert_accounting_budget.name, ''))) not between 1 and 200
+    or coalesce(upsert_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
     raise exception 'a budget needs a name of 1 to 200 characters and a fiscal year' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if coalesce(save_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
+  if coalesce(upsert_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
     raise exception 'status must be draft, approved or archived' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if save_accounting_budget.lines is not null and jsonb_typeof(save_accounting_budget.lines) <> 'array' then
+  if upsert_accounting_budget.lines is not null and jsonb_typeof(upsert_accounting_budget.lines) <> 'array' then
     raise exception 'lines is an array' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
   if v_created then
     insert into "better_supabase"."accounting_budgets" ("tenant_id", "name", "fiscal_year", "status", "created_by")
-    values (save_accounting_budget.tenant, trim(save_accounting_budget.name), save_accounting_budget.fiscal_year,
-      coalesce(save_accounting_budget.status, 'draft'), auth.uid())
+    values (upsert_accounting_budget.tenant, trim(upsert_accounting_budget.name), upsert_accounting_budget.fiscal_year,
+      coalesce(upsert_accounting_budget.status, 'draft'), auth.uid())
     returning * into v_row;
   else
-    update "better_supabase"."accounting_budgets" y set "name" = trim(save_accounting_budget.name), "fiscal_year" = save_accounting_budget.fiscal_year,
-      "status" = coalesce(save_accounting_budget.status, y."status"), "updated_at" = now()
-    where y."id" = save_accounting_budget.budget_id and y."tenant_id" = save_accounting_budget.tenant
+    update "better_supabase"."accounting_budgets" y set "name" = trim(upsert_accounting_budget.name), "fiscal_year" = upsert_accounting_budget.fiscal_year,
+      "status" = coalesce(upsert_accounting_budget.status, y."status"), "updated_at" = now()
+    where y."id" = upsert_accounting_budget.budget_id and y."tenant_id" = upsert_accounting_budget.tenant
     returning * into v_row;
     if not found then
       raise exception 'budget not found' using errcode = 'P0002', hint = 'ACCOUNTING_BUDGET_NOT_FOUND';
     end if;
   end if;
-  if save_accounting_budget.lines is not null then
+  if upsert_accounting_budget.lines is not null then
     delete from "better_supabase"."accounting_budget_lines" y where y."budget_id" = v_row."id";
-    for v_line in select q.value from jsonb_array_elements(save_accounting_budget.lines) q loop
+    for v_line in select q.value from jsonb_array_elements(upsert_accounting_budget.lines) q loop
       if jsonb_typeof(v_line.value) is distinct from 'object'
         or coalesce(v_line.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$'
         or coalesce(v_line.value ->> 'periodNumber', '') !~ '^([1-9]|1[0-2])$'
@@ -3322,8 +3322,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'fiscalYear', v_row."fiscal_year", 'status', v_row."status", 'total', coalesce((select sum(bt."amount") from "better_supabase"."accounting_budget_lines" bt where bt."budget_id" = v_row."id"), 0)::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', bx."id", 'accountId', bx."account_id", 'accountCode', ba."code", 'periodNumber', bx."period_number", 'dimensions', bx."dimensions", 'amount', bx."amount"::text) order by ba."code", bx."period_number", bx."id") from "better_supabase"."accounting_budget_lines" bx join "better_supabase"."accounting_accounts" ba on ba."id" = bx."account_id" where bx."budget_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_accounting_budget"(budget_id uuid)
 returns jsonb
@@ -4001,7 +4001,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:9d9578f5fa31d7b88d7d1e950b5b3c0c7e9cdb68f36b5eb604aee9a9bf21450c
+-- @bsb-hash sha256:978bb2d1329a037623ae1099bae6be5391022752fe7d5885e74fd6b5561b8095
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4494,7 +4494,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
 
-create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+create or replace function "better_supabase"."upsert_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -4503,48 +4503,48 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_accounts"%rowtype;
-  v_id uuid := save_accounting_account.account_id;
-  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_id uuid := upsert_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(upsert_accounting_account.currency), ''));
   v_side text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_account.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+  if nullif(trim(upsert_accounting_account.code), '') is null or nullif(trim(upsert_accounting_account.name), '') is null then
     raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+  if upsert_accounting_account.type is null or upsert_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
     raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+  if upsert_accounting_account.subtype is not null and upsert_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
     raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  v_side := coalesce(upsert_accounting_account.normal_side, case when upsert_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
   if v_side not in ('debit', 'credit') then
     raise exception 'the normal side is debit or credit' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.default_tax_code_id is not null and not exists (
-    select 1 from "better_supabase"."tax_codes" y where y."id" = save_accounting_account.default_tax_code_id and y."tenant_id" = save_accounting_account.tenant
+  if upsert_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from "better_supabase"."tax_codes" y where y."id" = upsert_accounting_account.default_tax_code_id and y."tenant_id" = upsert_accounting_account.tenant
   ) then
     raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
   end if;
   if v_id is null then
     select y."id" into v_id from "better_supabase"."accounting_accounts" y
-    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+    where y."tenant_id" = upsert_accounting_account.tenant and y."code" = trim(upsert_accounting_account.code);
   end if;
-  if save_accounting_account.parent_id is not null then
-    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+  if upsert_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_account.parent_id and y."tenant_id" = upsert_accounting_account.tenant) then
       raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if v_id is not null and exists (
       with recursive up (id) as (
-        select save_accounting_account.parent_id
+        select upsert_accounting_account.parent_id
         union
         select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
       )
@@ -4556,35 +4556,35 @@ begin
   if v_id is null then
     insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable",
       "normal_side", "default_tax_code_id", "active")
-    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
-      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
+    values (upsert_accounting_account.tenant, trim(upsert_accounting_account.code), trim(upsert_accounting_account.name), upsert_accounting_account.type,
+      upsert_accounting_account.subtype, upsert_accounting_account.parent_id, v_currency, coalesce(upsert_accounting_account.reconcilable, false),
+      v_side, upsert_accounting_account.default_tax_code_id, coalesce(upsert_accounting_account.active, true))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = upsert_accounting_account.tenant for update;
     if not found then
       raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if exists (
       select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
       where y."account_id" = v_id and z."status" <> 'draft'
-        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+        and (v_row."type" <> upsert_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
     ) then
       raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
     end if;
-    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
-      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
-      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false),
-      "normal_side" = v_side, "default_tax_code_id" = save_accounting_account.default_tax_code_id,
-      "active" = coalesce(save_accounting_account.active, true), "updated_at" = now()
+    update "better_supabase"."accounting_accounts" y set "code" = trim(upsert_accounting_account.code), "name" = trim(upsert_accounting_account.name),
+      "type" = upsert_accounting_account.type, "subtype" = upsert_accounting_account.subtype, "parent_id" = upsert_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(upsert_accounting_account.reconcilable, false),
+      "normal_side" = v_side, "default_tax_code_id" = upsert_accounting_account.default_tax_code_id,
+      "active" = coalesce(upsert_accounting_account.active, true), "updated_at" = now()
     where y."id" = v_id
     returning * into v_row;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'normalSide', v_row."normal_side", 'level', v_row."level", 'defaultTaxCodeId', v_row."default_tax_code_id", 'active', v_row."active", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -4910,7 +4910,7 @@ grant execute on function "better_supabase"."page_accounting_accounts"(uuid, jso
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
 
-create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4919,50 +4919,50 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_journals"%rowtype;
-  v_id uuid := save_accounting_journal.journal_id;
-  v_code text := upper(trim(save_accounting_journal.code));
-  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+  v_id uuid := upsert_accounting_journal.journal_id;
+  v_code text := upper(trim(upsert_accounting_journal.code));
+  v_currency text := upper(nullif(trim(upsert_accounting_journal.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_journal.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
   end if;
-  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(upsert_accounting_journal.name), '') is null then
     raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+  if upsert_accounting_journal.type is null or upsert_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
     raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.default_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.default_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
-  if save_accounting_journal.contra_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.contra_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.contra_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'contra account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
   if v_id is null then
-    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = upsert_accounting_journal.tenant and y."code" = v_code;
   end if;
   if v_id is null then
     insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency", "contra_account_id", "bank_account_id")
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
-      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
+    values (upsert_accounting_journal.tenant, v_code, trim(upsert_accounting_journal.name), upsert_accounting_journal.type, upsert_accounting_journal.default_account_id, v_currency,
+      upsert_accounting_journal.contra_account_id, upsert_accounting_journal.bank_account_id)
     returning * into v_row;
   else
-    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
-      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency,
-      "contra_account_id" = save_accounting_journal.contra_account_id, "bank_account_id" = save_accounting_journal.bank_account_id, "updated_at" = now()
-    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(upsert_accounting_journal.name), "type" = upsert_accounting_journal.type,
+      "default_account_id" = upsert_accounting_journal.default_account_id, "currency" = v_currency,
+      "contra_account_id" = upsert_accounting_journal.contra_account_id, "bank_account_id" = upsert_accounting_journal.bank_account_id, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = upsert_accounting_journal.tenant
     returning * into v_row;
     if not found then
       raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
@@ -4971,8 +4971,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'contraAccountId', v_row."contra_account_id", 'bankAccountId', v_row."bank_account_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
 returns jsonb
@@ -5046,7 +5046,7 @@ revoke execute on function "better_supabase"."list_accounting_periods"(uuid, int
 grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
 
 -- Creates or renames a dimension (project, department, cost center) by key.
-create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+create or replace function "better_supabase"."upsert_accounting_dimension"(tenant uuid, key text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -5059,24 +5059,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_dimension.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+  if coalesce(upsert_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(upsert_accounting_dimension.name), '') is null then
     raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
-  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  values (upsert_accounting_dimension.tenant, upsert_accounting_dimension.key, trim(upsert_accounting_dimension.name))
   on conflict ("tenant_id", "key") do update set "name" = excluded."name"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) to authenticated, service_role;
 
 -- Adds or renames a value of a dimension by code; archived values take no new lines.
-create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function "better_supabase"."upsert_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -5089,26 +5089,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = upsert_accounting_dimension_value.dimension_id;
   if not found then
     raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+  if nullif(trim(upsert_accounting_dimension_value.code), '') is null or nullif(trim(upsert_accounting_dimension_value.name), '') is null then
     raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
-  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
-    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  values (v_dimension."tenant_id", v_dimension."id", trim(upsert_accounting_dimension_value.code), trim(upsert_accounting_dimension_value.name),
+    case when coalesce(upsert_accounting_dimension_value.archived, false) then now() end)
   on conflict ("dimension_id", "code") do update
     set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
   return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
@@ -5316,7 +5316,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
 
-create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5342,7 +5342,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = upsert_accounting_entry.journal_id;
   if not found then
     raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
@@ -5353,32 +5353,32 @@ begin
   if not found then
     raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
   end if;
-  if save_accounting_entry.entry_date is null then
+  if upsert_accounting_entry.entry_date is null then
     raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+  if jsonb_typeof(upsert_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(upsert_accounting_entry.lines) < 2 then
     raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
-    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if (upsert_accounting_entry.source_type is null) <> (upsert_accounting_entry.source_id is null)
+    or coalesce(upsert_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if save_accounting_entry.source_type is not null and exists (
+  if upsert_accounting_entry.source_type is not null and exists (
     select 1 from "better_supabase"."accounting_entries" y
-    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
-      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
-      and y."id" is distinct from save_accounting_entry.entry_id
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = upsert_accounting_entry.source_type
+      and y."source_id" = upsert_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from upsert_accounting_entry.entry_id
   ) then
     raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
   end if;
-  if save_accounting_entry.entry_id is null then
+  if upsert_accounting_entry.entry_id is null then
     insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
-    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
-      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
-      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    values (v_journal."tenant_id", v_journal."id", upsert_accounting_entry.entry_date, nullif(trim(upsert_accounting_entry.reference), ''),
+      upsert_accounting_entry.source_type, upsert_accounting_entry.source_id, nullif(trim(upsert_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= y."starts_on" and upsert_accounting_entry.entry_date <= y."ends_on"))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = upsert_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
     if not found then
       raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
     end if;
@@ -5386,15 +5386,15 @@ begin
       raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
     end if;
     delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
-    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
-      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
-      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_params" end,
-      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = upsert_accounting_entry.entry_date,
+      "reference" = nullif(trim(upsert_accounting_entry.reference), ''), "source_type" = upsert_accounting_entry.source_type,
+      "source_id" = upsert_accounting_entry.source_id, "memo" = nullif(trim(upsert_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_params" end,
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= z."starts_on" and upsert_accounting_entry.entry_date <= z."ends_on"),
       "updated_at" = now()
     where y."id" = v_row."id"
     returning * into v_row;
   end if;
-  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(upsert_accounting_entry.lines) with ordinality q loop
     if jsonb_typeof(v_line.value) is distinct from 'object' then
       raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
     end if;
@@ -5433,7 +5433,7 @@ begin
         raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
       v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
-        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", upsert_accounting_entry.entry_date));
       if v_rate <= 0 then
         raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
@@ -5481,8 +5481,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'taxAmount', el."tax_amount"::text, 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
 returns jsonb
@@ -6974,7 +6974,7 @@ $$;
 -- { accountId | accountCode, partyId?, amount } with amount as signed minor
 -- units of the functional currency (a debit balance is positive). Each row
 -- replaces the row of its account and party, carried rows included.
-create or replace function "better_supabase"."save_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
+create or replace function "better_supabase"."upsert_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6986,35 +6986,35 @@ declare
   v_account uuid;
   v_ids uuid[] := '{}';
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_OPENING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_accounting_opening_balances.balances) is distinct from 'array' then
+  if jsonb_typeof(upsert_accounting_opening_balances.balances) is distinct from 'array' then
     raise exception 'balances is an array' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
   end if;
-  for v_row in select e.value from jsonb_array_elements(save_accounting_opening_balances.balances) e loop
+  for v_row in select e.value from jsonb_array_elements(upsert_accounting_opening_balances.balances) e loop
     if jsonb_typeof(v_row.value) is distinct from 'object' or coalesce(v_row.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$' then
       raise exception 'every balance is an object with an integer amount' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end if;
     begin
       v_account := coalesce(
         nullif(v_row.value ->> 'accountId', '')::uuid,
-        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = save_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
+        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = upsert_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
       );
-      v_ids := v_ids || "better_supabase"."accounting_opening_write"(save_accounting_opening_balances.tenant, save_accounting_opening_balances.fiscal_year,
+      v_ids := v_ids || "better_supabase"."accounting_opening_write"(upsert_accounting_opening_balances.tenant, upsert_accounting_opening_balances.fiscal_year,
         v_account, nullif(v_row.value ->> 'partyId', '')::uuid, (v_row.value ->> 'amount')::bigint);
     exception
       when invalid_text_representation then
         raise exception 'accountId and partyId are uuids' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end;
   end loop;
-  return jsonb_build_object('organizationId', save_accounting_opening_balances.tenant, 'fiscalYear', save_accounting_opening_balances.fiscal_year,
+  return jsonb_build_object('organizationId', upsert_accounting_opening_balances.tenant, 'fiscalYear', upsert_accounting_opening_balances.fiscal_year,
     'balances', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'accountId', y."account_id", 'partyId', y."party_id", 'amount', y."amount"::text, 'source', y."source") order by y."account_id", y."party_id"), '[]'::jsonb)
       from "better_supabase"."accounting_opening_balances" y where y."id" = any (v_ids)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- A fiscal year's opening balances, imported and carried, with their total
 -- (zero when the books balance).
@@ -7113,7 +7113,7 @@ revoke execute on function "better_supabase"."post_accounting_opening_balances"(
 grant execute on function "better_supabase"."post_accounting_opening_balances"(uuid, integer, uuid) to authenticated, service_role;
 
 -- The import target of the accounting_account entity: item.data is the input
--- of save_accounting_account, with parentCode for the parent by code.
+-- of upsert_accounting_account, with parentCode for the parent by code.
 create or replace function "better_supabase"."import_accounting_account"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -7135,7 +7135,7 @@ begin
     if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
       raise exception 'the parent account isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    v_row := "better_supabase"."save_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
+    v_row := "better_supabase"."upsert_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
       import_accounting_account.subject_id::uuid, nullif(v_data ->> 'normalSide', ''), nullif(v_data ->> 'defaultTaxCodeId', '')::uuid,
       coalesce((v_data ->> 'active')::boolean, true));
@@ -7150,7 +7150,7 @@ revoke execute on function "better_supabase"."import_accounting_account"(uuid, j
 grant execute on function "better_supabase"."import_accounting_account"(uuid, jsonb, text) to service_role;
 
 -- The import target of the accounting_journal entity: item.data is the input
--- of save_accounting_journal, with defaultAccountCode, contraAccountCode and
+-- of upsert_accounting_journal, with defaultAccountCode, contraAccountCode and
 -- bankAccountCode for accounts by code.
 create or replace function "better_supabase"."import_accounting_journal"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -7183,7 +7183,7 @@ begin
     or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
     raise exception 'an account of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  v_row := "better_supabase"."save_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
+  v_row := "better_supabase"."upsert_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
   return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
 end;
@@ -7227,7 +7227,7 @@ grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, 
 
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
--- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
+-- accountId, debit, credit, ... }] } with the amounts of upsert_accounting_entry.
 -- The lines must balance, or the item is reported as an error and nothing is
 -- written. The entry posts unless post is false; in import mode it may land in
 -- a closed period, never in a locked one.
@@ -7277,7 +7277,7 @@ begin
   perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
     coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
     coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
-  v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
+  v_row := "better_supabase"."upsert_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
     v_row := "better_supabase"."post_accounting_entry"((v_row ->> 'id')::uuid);
@@ -7410,7 +7410,7 @@ create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_
 -- archived) and, when lines is given, replaces its lines. Each line names an
 -- account (accountId or accountCode), a periodNumber, an amount and optional
 -- dimensions.
-create or replace function "better_supabase"."save_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7421,41 +7421,41 @@ declare
   v_row "better_supabase"."accounting_budgets"%rowtype;
   v_line record;
   v_account uuid;
-  v_created boolean := save_accounting_budget.budget_id is null;
+  v_created boolean := upsert_accounting_budget.budget_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_budget.tenant, 'accounting.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_budget.tenant, 'accounting.write'), false)) then
     raise exception 'not allowed to write budgets' using errcode = '42501', hint = 'ACCOUNTING_BUDGET_FORBIDDEN';
   end if;
-  if length(trim(coalesce(save_accounting_budget.name, ''))) not between 1 and 200
-    or coalesce(save_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
+  if length(trim(coalesce(upsert_accounting_budget.name, ''))) not between 1 and 200
+    or coalesce(upsert_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
     raise exception 'a budget needs a name of 1 to 200 characters and a fiscal year' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if coalesce(save_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
+  if coalesce(upsert_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
     raise exception 'status must be draft, approved or archived' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if save_accounting_budget.lines is not null and jsonb_typeof(save_accounting_budget.lines) <> 'array' then
+  if upsert_accounting_budget.lines is not null and jsonb_typeof(upsert_accounting_budget.lines) <> 'array' then
     raise exception 'lines is an array' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
   if v_created then
     insert into "better_supabase"."accounting_budgets" ("tenant_id", "name", "fiscal_year", "status", "created_by")
-    values (save_accounting_budget.tenant, trim(save_accounting_budget.name), save_accounting_budget.fiscal_year,
-      coalesce(save_accounting_budget.status, 'draft'), auth.uid())
+    values (upsert_accounting_budget.tenant, trim(upsert_accounting_budget.name), upsert_accounting_budget.fiscal_year,
+      coalesce(upsert_accounting_budget.status, 'draft'), auth.uid())
     returning * into v_row;
   else
-    update "better_supabase"."accounting_budgets" y set "name" = trim(save_accounting_budget.name), "fiscal_year" = save_accounting_budget.fiscal_year,
-      "status" = coalesce(save_accounting_budget.status, y."status"), "updated_at" = now()
-    where y."id" = save_accounting_budget.budget_id and y."tenant_id" = save_accounting_budget.tenant
+    update "better_supabase"."accounting_budgets" y set "name" = trim(upsert_accounting_budget.name), "fiscal_year" = upsert_accounting_budget.fiscal_year,
+      "status" = coalesce(upsert_accounting_budget.status, y."status"), "updated_at" = now()
+    where y."id" = upsert_accounting_budget.budget_id and y."tenant_id" = upsert_accounting_budget.tenant
     returning * into v_row;
     if not found then
       raise exception 'budget not found' using errcode = 'P0002', hint = 'ACCOUNTING_BUDGET_NOT_FOUND';
     end if;
   end if;
-  if save_accounting_budget.lines is not null then
+  if upsert_accounting_budget.lines is not null then
     delete from "better_supabase"."accounting_budget_lines" y where y."budget_id" = v_row."id";
-    for v_line in select q.value from jsonb_array_elements(save_accounting_budget.lines) q loop
+    for v_line in select q.value from jsonb_array_elements(upsert_accounting_budget.lines) q loop
       if jsonb_typeof(v_line.value) is distinct from 'object'
         or coalesce(v_line.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$'
         or coalesce(v_line.value ->> 'periodNumber', '') !~ '^([1-9]|1[0-2])$'
@@ -7504,8 +7504,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'fiscalYear', v_row."fiscal_year", 'status', v_row."status", 'total', coalesce((select sum(bt."amount") from "better_supabase"."accounting_budget_lines" bt where bt."budget_id" = v_row."id"), 0)::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', bx."id", 'accountId', bx."account_id", 'accountCode', ba."code", 'periodNumber', bx."period_number", 'dimensions', bx."dimensions", 'amount', bx."amount"::text) order by ba."code", bx."period_number", bx."id") from "better_supabase"."accounting_budget_lines" bx join "better_supabase"."accounting_accounts" ba on ba."id" = bx."account_id" where bx."budget_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_accounting_budget"(budget_id uuid)
 returns jsonb
@@ -8191,7 +8191,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:e509ca8be6330133e84ab1a1383fbc1f143818afd72b8519078a28dbfdb5aa74
+-- @bsb-hash sha256:dbf57c60befe16c9cdecb5d8a72697844a9ac4879aa770eb86705294afbae251
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8671,7 +8671,7 @@ grant execute on function "app_private"."set_accounting_lock_date"(uuid, date) t
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
 
-create or replace function "app_private"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+create or replace function "app_private"."upsert_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -8680,48 +8680,48 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."accounting_accounts"%rowtype;
-  v_id uuid := save_accounting_account.account_id;
-  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_id uuid := upsert_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(upsert_accounting_account.currency), ''));
   v_side text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_account.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+  if nullif(trim(upsert_accounting_account.code), '') is null or nullif(trim(upsert_accounting_account.name), '') is null then
     raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+  if upsert_accounting_account.type is null or upsert_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
     raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+  if upsert_accounting_account.subtype is not null and upsert_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
     raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  v_side := coalesce(upsert_accounting_account.normal_side, case when upsert_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
   if v_side not in ('debit', 'credit') then
     raise exception 'the normal side is debit or credit' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.default_tax_code_id is not null and not exists (
-    select 1 from "better_supabase"."tax_codes" y where y."id" = save_accounting_account.default_tax_code_id and y."tenant_id" = save_accounting_account.tenant
+  if upsert_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from "better_supabase"."tax_codes" y where y."id" = upsert_accounting_account.default_tax_code_id and y."tenant_id" = upsert_accounting_account.tenant
   ) then
     raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
   end if;
   if v_id is null then
     select y."id" into v_id from "app_private"."accounting_accounts" y
-    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+    where y."tenant_id" = upsert_accounting_account.tenant and y."code" = trim(upsert_accounting_account.code);
   end if;
-  if save_accounting_account.parent_id is not null then
-    if not exists (select 1 from "app_private"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+  if upsert_accounting_account.parent_id is not null then
+    if not exists (select 1 from "app_private"."accounting_accounts" y where y."id" = upsert_accounting_account.parent_id and y."tenant_id" = upsert_accounting_account.tenant) then
       raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if v_id is not null and exists (
       with recursive up (id) as (
-        select save_accounting_account.parent_id
+        select upsert_accounting_account.parent_id
         union
         select y."parent_id" from "app_private"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
       )
@@ -8733,35 +8733,35 @@ begin
   if v_id is null then
     insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable",
       "normal_side", "default_tax_code_id", "active")
-    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
-      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
+    values (upsert_accounting_account.tenant, trim(upsert_accounting_account.code), trim(upsert_accounting_account.name), upsert_accounting_account.type,
+      upsert_accounting_account.subtype, upsert_accounting_account.parent_id, v_currency, coalesce(upsert_accounting_account.reconcilable, false),
+      v_side, upsert_accounting_account.default_tax_code_id, coalesce(upsert_accounting_account.active, true))
     returning * into v_row;
   else
-    select * into v_row from "app_private"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    select * into v_row from "app_private"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = upsert_accounting_account.tenant for update;
     if not found then
       raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if exists (
       select 1 from "app_private"."accounting_entry_lines" y join "app_private"."accounting_entries" z on z."id" = y."entry_id"
       where y."account_id" = v_id and z."status" <> 'draft'
-        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+        and (v_row."type" <> upsert_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
     ) then
       raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
     end if;
-    update "app_private"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
-      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
-      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false),
-      "normal_side" = v_side, "default_tax_code_id" = save_accounting_account.default_tax_code_id,
-      "active" = coalesce(save_accounting_account.active, true), "updated_at" = now()
+    update "app_private"."accounting_accounts" y set "code" = trim(upsert_accounting_account.code), "name" = trim(upsert_accounting_account.name),
+      "type" = upsert_accounting_account.type, "subtype" = upsert_accounting_account.subtype, "parent_id" = upsert_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(upsert_accounting_account.reconcilable, false),
+      "normal_side" = v_side, "default_tax_code_id" = upsert_accounting_account.default_tax_code_id,
+      "active" = coalesce(upsert_accounting_account.active, true), "updated_at" = now()
     where y."id" = v_id
     returning * into v_row;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'normalSide', v_row."normal_side", 'level', v_row."level", 'defaultTaxCodeId', v_row."default_tax_code_id", 'active', v_row."active", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "app_private"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
-grant execute on function "app_private"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
+grant execute on function "app_private"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -9087,7 +9087,7 @@ grant execute on function "app_private"."page_accounting_accounts"(uuid, jsonb) 
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
 
-create or replace function "app_private"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+create or replace function "app_private"."upsert_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -9096,50 +9096,50 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."accounting_journals"%rowtype;
-  v_id uuid := save_accounting_journal.journal_id;
-  v_code text := upper(trim(save_accounting_journal.code));
-  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+  v_id uuid := upsert_accounting_journal.journal_id;
+  v_code text := upper(trim(upsert_accounting_journal.code));
+  v_currency text := upper(nullif(trim(upsert_accounting_journal.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_journal.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
   end if;
-  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(upsert_accounting_journal.name), '') is null then
     raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+  if upsert_accounting_journal.type is null or upsert_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
     raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.default_account_id is not null and not exists (
-    select 1 from "app_private"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "app_private"."accounting_accounts" y where y."id" = upsert_accounting_journal.default_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
-  if save_accounting_journal.contra_account_id is not null and not exists (
-    select 1 from "app_private"."accounting_accounts" y where y."id" = save_accounting_journal.contra_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from "app_private"."accounting_accounts" y where y."id" = upsert_accounting_journal.contra_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'contra account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
   if v_id is null then
-    select y."id" into v_id from "app_private"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+    select y."id" into v_id from "app_private"."accounting_journals" y where y."tenant_id" = upsert_accounting_journal.tenant and y."code" = v_code;
   end if;
   if v_id is null then
     insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency", "contra_account_id", "bank_account_id")
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
-      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
+    values (upsert_accounting_journal.tenant, v_code, trim(upsert_accounting_journal.name), upsert_accounting_journal.type, upsert_accounting_journal.default_account_id, v_currency,
+      upsert_accounting_journal.contra_account_id, upsert_accounting_journal.bank_account_id)
     returning * into v_row;
   else
-    update "app_private"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
-      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency,
-      "contra_account_id" = save_accounting_journal.contra_account_id, "bank_account_id" = save_accounting_journal.bank_account_id, "updated_at" = now()
-    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    update "app_private"."accounting_journals" y set "code" = v_code, "name" = trim(upsert_accounting_journal.name), "type" = upsert_accounting_journal.type,
+      "default_account_id" = upsert_accounting_journal.default_account_id, "currency" = v_currency,
+      "contra_account_id" = upsert_accounting_journal.contra_account_id, "bank_account_id" = upsert_accounting_journal.bank_account_id, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = upsert_accounting_journal.tenant
     returning * into v_row;
     if not found then
       raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
@@ -9148,8 +9148,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'contraAccountId', v_row."contra_account_id", 'bankAccountId', v_row."bank_account_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
-grant execute on function "app_private"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
+grant execute on function "app_private"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "app_private"."list_accounting_journals"(tenant uuid)
 returns jsonb
@@ -9223,7 +9223,7 @@ revoke execute on function "app_private"."list_accounting_periods"(uuid, integer
 grant execute on function "app_private"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
 
 -- Creates or renames a dimension (project, department, cost center) by key.
-create or replace function "app_private"."save_accounting_dimension"(tenant uuid, key text, name text)
+create or replace function "app_private"."upsert_accounting_dimension"(tenant uuid, key text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -9236,24 +9236,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_dimension.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+  if coalesce(upsert_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(upsert_accounting_dimension.name), '') is null then
     raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "app_private"."accounting_dimensions" ("tenant_id", "key", "name")
-  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  values (upsert_accounting_dimension.tenant, upsert_accounting_dimension.key, trim(upsert_accounting_dimension.name))
   on conflict ("tenant_id", "key") do update set "name" = excluded."name"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "app_private"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "app_private"."save_accounting_dimension"(uuid, text, text) from public, anon;
-grant execute on function "app_private"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."upsert_accounting_dimension"(uuid, text, text) to authenticated, service_role;
 
 -- Adds or renames a value of a dimension by code; archived values take no new lines.
-create or replace function "app_private"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function "app_private"."upsert_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -9266,26 +9266,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_dimension from "app_private"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  select * into v_dimension from "app_private"."accounting_dimensions" y where y."id" = upsert_accounting_dimension_value.dimension_id;
   if not found then
     raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+  if nullif(trim(upsert_accounting_dimension_value.code), '') is null or nullif(trim(upsert_accounting_dimension_value.name), '') is null then
     raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "app_private"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
-  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
-    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  values (v_dimension."tenant_id", v_dimension."id", trim(upsert_accounting_dimension_value.code), trim(upsert_accounting_dimension_value.name),
+    case when coalesce(upsert_accounting_dimension_value.archived, false) then now() end)
   on conflict ("dimension_id", "code") do update
     set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
   return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "app_private"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
 end;
 $$;
-revoke execute on function "app_private"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
-grant execute on function "app_private"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "app_private"."upsert_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "app_private"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
@@ -9482,7 +9482,7 @@ revoke execute on function "app_private"."accounting_post"(uuid, boolean) from p
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
 
-create or replace function "app_private"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+create or replace function "app_private"."upsert_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -9508,7 +9508,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_journal from "app_private"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  select * into v_journal from "app_private"."accounting_journals" y where y."id" = upsert_accounting_entry.journal_id;
   if not found then
     raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
@@ -9519,32 +9519,32 @@ begin
   if not found then
     raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
   end if;
-  if save_accounting_entry.entry_date is null then
+  if upsert_accounting_entry.entry_date is null then
     raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+  if jsonb_typeof(upsert_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(upsert_accounting_entry.lines) < 2 then
     raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
-    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if (upsert_accounting_entry.source_type is null) <> (upsert_accounting_entry.source_id is null)
+    or coalesce(upsert_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if save_accounting_entry.source_type is not null and exists (
+  if upsert_accounting_entry.source_type is not null and exists (
     select 1 from "app_private"."accounting_entries" y
-    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
-      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
-      and y."id" is distinct from save_accounting_entry.entry_id
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = upsert_accounting_entry.source_type
+      and y."source_id" = upsert_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from upsert_accounting_entry.entry_id
   ) then
     raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
   end if;
-  if save_accounting_entry.entry_id is null then
+  if upsert_accounting_entry.entry_id is null then
     insert into "app_private"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
-    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
-      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
-      (select y."id" from "app_private"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    values (v_journal."tenant_id", v_journal."id", upsert_accounting_entry.entry_date, nullif(trim(upsert_accounting_entry.reference), ''),
+      upsert_accounting_entry.source_type, upsert_accounting_entry.source_id, nullif(trim(upsert_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "app_private"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= y."starts_on" and upsert_accounting_entry.entry_date <= y."ends_on"))
     returning * into v_row;
   else
-    select * into v_row from "app_private"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    select * into v_row from "app_private"."accounting_entries" y where y."id" = upsert_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
     if not found then
       raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
     end if;
@@ -9552,15 +9552,15 @@ begin
       raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
     end if;
     delete from "app_private"."accounting_entry_lines" y where y."entry_id" = v_row."id";
-    update "app_private"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
-      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
-      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_params" end,
-      "period_id" = (select z."id" from "app_private"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+    update "app_private"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = upsert_accounting_entry.entry_date,
+      "reference" = nullif(trim(upsert_accounting_entry.reference), ''), "source_type" = upsert_accounting_entry.source_type,
+      "source_id" = upsert_accounting_entry.source_id, "memo" = nullif(trim(upsert_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_params" end,
+      "period_id" = (select z."id" from "app_private"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= z."starts_on" and upsert_accounting_entry.entry_date <= z."ends_on"),
       "updated_at" = now()
     where y."id" = v_row."id"
     returning * into v_row;
   end if;
-  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(upsert_accounting_entry.lines) with ordinality q loop
     if jsonb_typeof(v_line.value) is distinct from 'object' then
       raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
     end if;
@@ -9599,7 +9599,7 @@ begin
         raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
       v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
-        "app_private"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+        "app_private"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", upsert_accounting_entry.entry_date));
       if v_rate <= 0 then
         raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
@@ -9647,8 +9647,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'total', coalesce((select sum(et."debit") from "app_private"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'taxAmount', el."tax_amount"::text, 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "app_private"."accounting_entry_lines" el join "app_private"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
-grant execute on function "app_private"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "app_private"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "app_private"."post_accounting_entry"(entry_id uuid)
 returns jsonb
@@ -11007,7 +11007,7 @@ $$;
 -- { accountId | accountCode, partyId?, amount } with amount as signed minor
 -- units of the functional currency (a debit balance is positive). Each row
 -- replaces the row of its account and party, carried rows included.
-create or replace function "app_private"."save_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
+create or replace function "app_private"."upsert_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -11019,35 +11019,35 @@ declare
   v_account uuid;
   v_ids uuid[] := '{}';
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_OPENING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_accounting_opening_balances.balances) is distinct from 'array' then
+  if jsonb_typeof(upsert_accounting_opening_balances.balances) is distinct from 'array' then
     raise exception 'balances is an array' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
   end if;
-  for v_row in select e.value from jsonb_array_elements(save_accounting_opening_balances.balances) e loop
+  for v_row in select e.value from jsonb_array_elements(upsert_accounting_opening_balances.balances) e loop
     if jsonb_typeof(v_row.value) is distinct from 'object' or coalesce(v_row.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$' then
       raise exception 'every balance is an object with an integer amount' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end if;
     begin
       v_account := coalesce(
         nullif(v_row.value ->> 'accountId', '')::uuid,
-        (select y."id" from "app_private"."accounting_accounts" y where y."tenant_id" = save_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
+        (select y."id" from "app_private"."accounting_accounts" y where y."tenant_id" = upsert_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
       );
-      v_ids := v_ids || "app_private"."accounting_opening_write"(save_accounting_opening_balances.tenant, save_accounting_opening_balances.fiscal_year,
+      v_ids := v_ids || "app_private"."accounting_opening_write"(upsert_accounting_opening_balances.tenant, upsert_accounting_opening_balances.fiscal_year,
         v_account, nullif(v_row.value ->> 'partyId', '')::uuid, (v_row.value ->> 'amount')::bigint);
     exception
       when invalid_text_representation then
         raise exception 'accountId and partyId are uuids' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end;
   end loop;
-  return jsonb_build_object('organizationId', save_accounting_opening_balances.tenant, 'fiscalYear', save_accounting_opening_balances.fiscal_year,
+  return jsonb_build_object('organizationId', upsert_accounting_opening_balances.tenant, 'fiscalYear', upsert_accounting_opening_balances.fiscal_year,
     'balances', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'accountId', y."account_id", 'partyId', y."party_id", 'amount', y."amount"::text, 'source', y."source") order by y."account_id", y."party_id"), '[]'::jsonb)
       from "app_private"."accounting_opening_balances" y where y."id" = any (v_ids)));
 end;
 $$;
-revoke execute on function "app_private"."save_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
-grant execute on function "app_private"."save_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- A fiscal year's opening balances, imported and carried, with their total
 -- (zero when the books balance).
@@ -11146,7 +11146,7 @@ revoke execute on function "app_private"."post_accounting_opening_balances"(uuid
 grant execute on function "app_private"."post_accounting_opening_balances"(uuid, integer, uuid) to authenticated, service_role;
 
 -- The import target of the accounting_account entity: item.data is the input
--- of save_accounting_account, with parentCode for the parent by code.
+-- of upsert_accounting_account, with parentCode for the parent by code.
 create or replace function "app_private"."import_accounting_account"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -11168,7 +11168,7 @@ begin
     if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
       raise exception 'the parent account isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    v_row := "app_private"."save_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
+    v_row := "app_private"."upsert_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
       import_accounting_account.subject_id::uuid, nullif(v_data ->> 'normalSide', ''), nullif(v_data ->> 'defaultTaxCodeId', '')::uuid,
       coalesce((v_data ->> 'active')::boolean, true));
@@ -11183,7 +11183,7 @@ revoke execute on function "app_private"."import_accounting_account"(uuid, jsonb
 grant execute on function "app_private"."import_accounting_account"(uuid, jsonb, text) to service_role;
 
 -- The import target of the accounting_journal entity: item.data is the input
--- of save_accounting_journal, with defaultAccountCode, contraAccountCode and
+-- of upsert_accounting_journal, with defaultAccountCode, contraAccountCode and
 -- bankAccountCode for accounts by code.
 create or replace function "app_private"."import_accounting_journal"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -11216,7 +11216,7 @@ begin
     or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
     raise exception 'an account of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  v_row := "app_private"."save_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
+  v_row := "app_private"."upsert_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
   return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
 end;
@@ -11260,7 +11260,7 @@ grant execute on function "app_private"."ensure_import_periods"(uuid, date, inte
 
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
--- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
+-- accountId, debit, credit, ... }] } with the amounts of upsert_accounting_entry.
 -- The lines must balance, or the item is reported as an error and nothing is
 -- written. The entry posts unless post is false; in import mode it may land in
 -- a closed period, never in a locked one.
@@ -11310,7 +11310,7 @@ begin
   perform "app_private"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
     coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
     coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
-  v_row := "app_private"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
+  v_row := "app_private"."upsert_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
     v_row := "app_private"."post_accounting_entry"((v_row ->> 'id')::uuid);
@@ -11443,7 +11443,7 @@ create policy bsb_accounting_budget_lines_read on "app_private"."accounting_budg
 -- archived) and, when lines is given, replaces its lines. Each line names an
 -- account (accountId or accountCode), a periodNumber, an amount and optional
 -- dimensions.
-create or replace function "app_private"."save_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function "app_private"."upsert_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -11454,41 +11454,41 @@ declare
   v_row "app_private"."accounting_budgets"%rowtype;
   v_line record;
   v_account uuid;
-  v_created boolean := save_accounting_budget.budget_id is null;
+  v_created boolean := upsert_accounting_budget.budget_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_budget.tenant, 'accounting.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_budget.tenant, 'accounting.write'), false)) then
     raise exception 'not allowed to write budgets' using errcode = '42501', hint = 'ACCOUNTING_BUDGET_FORBIDDEN';
   end if;
-  if length(trim(coalesce(save_accounting_budget.name, ''))) not between 1 and 200
-    or coalesce(save_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
+  if length(trim(coalesce(upsert_accounting_budget.name, ''))) not between 1 and 200
+    or coalesce(upsert_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
     raise exception 'a budget needs a name of 1 to 200 characters and a fiscal year' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if coalesce(save_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
+  if coalesce(upsert_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
     raise exception 'status must be draft, approved or archived' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if save_accounting_budget.lines is not null and jsonb_typeof(save_accounting_budget.lines) <> 'array' then
+  if upsert_accounting_budget.lines is not null and jsonb_typeof(upsert_accounting_budget.lines) <> 'array' then
     raise exception 'lines is an array' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
   if v_created then
     insert into "app_private"."accounting_budgets" ("tenant_id", "name", "fiscal_year", "status", "created_by")
-    values (save_accounting_budget.tenant, trim(save_accounting_budget.name), save_accounting_budget.fiscal_year,
-      coalesce(save_accounting_budget.status, 'draft'), auth.uid())
+    values (upsert_accounting_budget.tenant, trim(upsert_accounting_budget.name), upsert_accounting_budget.fiscal_year,
+      coalesce(upsert_accounting_budget.status, 'draft'), auth.uid())
     returning * into v_row;
   else
-    update "app_private"."accounting_budgets" y set "name" = trim(save_accounting_budget.name), "fiscal_year" = save_accounting_budget.fiscal_year,
-      "status" = coalesce(save_accounting_budget.status, y."status"), "updated_at" = now()
-    where y."id" = save_accounting_budget.budget_id and y."tenant_id" = save_accounting_budget.tenant
+    update "app_private"."accounting_budgets" y set "name" = trim(upsert_accounting_budget.name), "fiscal_year" = upsert_accounting_budget.fiscal_year,
+      "status" = coalesce(upsert_accounting_budget.status, y."status"), "updated_at" = now()
+    where y."id" = upsert_accounting_budget.budget_id and y."tenant_id" = upsert_accounting_budget.tenant
     returning * into v_row;
     if not found then
       raise exception 'budget not found' using errcode = 'P0002', hint = 'ACCOUNTING_BUDGET_NOT_FOUND';
     end if;
   end if;
-  if save_accounting_budget.lines is not null then
+  if upsert_accounting_budget.lines is not null then
     delete from "app_private"."accounting_budget_lines" y where y."budget_id" = v_row."id";
-    for v_line in select q.value from jsonb_array_elements(save_accounting_budget.lines) q loop
+    for v_line in select q.value from jsonb_array_elements(upsert_accounting_budget.lines) q loop
       if jsonb_typeof(v_line.value) is distinct from 'object'
         or coalesce(v_line.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$'
         or coalesce(v_line.value ->> 'periodNumber', '') !~ '^([1-9]|1[0-2])$'
@@ -11517,8 +11517,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'fiscalYear', v_row."fiscal_year", 'status', v_row."status", 'total', coalesce((select sum(bt."amount") from "app_private"."accounting_budget_lines" bt where bt."budget_id" = v_row."id"), 0)::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', bx."id", 'accountId', bx."account_id", 'accountCode', ba."code", 'periodNumber', bx."period_number", 'dimensions', bx."dimensions", 'amount', bx."amount"::text) order by ba."code", bx."period_number", bx."id") from "app_private"."accounting_budget_lines" bx join "app_private"."accounting_accounts" ba on ba."id" = bx."account_id" where bx."budget_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
-grant execute on function "app_private"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
+grant execute on function "app_private"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "app_private"."get_accounting_budget"(budget_id uuid)
 returns jsonb
@@ -12196,7 +12196,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:443b25459e25558e19171a1fdfec50617715741acbde266da131682f10e17b5d
+-- @bsb-hash sha256:f58f941051f8ab50302ce4c2f83424d57f4c06b39a5d35aa1b7881008a06e397
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12671,7 +12671,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
 
-create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+create or replace function "better_supabase"."upsert_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -12680,48 +12680,48 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_accounts"%rowtype;
-  v_id uuid := save_accounting_account.account_id;
-  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_id uuid := upsert_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(upsert_accounting_account.currency), ''));
   v_side text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_account.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+  if nullif(trim(upsert_accounting_account.code), '') is null or nullif(trim(upsert_accounting_account.name), '') is null then
     raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+  if upsert_accounting_account.type is null or upsert_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
     raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+  if upsert_accounting_account.subtype is not null and upsert_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
     raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  v_side := coalesce(upsert_accounting_account.normal_side, case when upsert_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
   if v_side not in ('debit', 'credit') then
     raise exception 'the normal side is debit or credit' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.default_tax_code_id is not null and not exists (
-    select 1 from "better_supabase"."tax_codes" y where y."id" = save_accounting_account.default_tax_code_id and y."tenant_id" = save_accounting_account.tenant
+  if upsert_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from "better_supabase"."tax_codes" y where y."id" = upsert_accounting_account.default_tax_code_id and y."tenant_id" = upsert_accounting_account.tenant
   ) then
     raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
   end if;
   if v_id is null then
     select y."id" into v_id from "better_supabase"."accounting_accounts" y
-    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+    where y."tenant_id" = upsert_accounting_account.tenant and y."code" = trim(upsert_accounting_account.code);
   end if;
-  if save_accounting_account.parent_id is not null then
-    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+  if upsert_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_account.parent_id and y."tenant_id" = upsert_accounting_account.tenant) then
       raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if v_id is not null and exists (
       with recursive up (id) as (
-        select save_accounting_account.parent_id
+        select upsert_accounting_account.parent_id
         union
         select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
       )
@@ -12733,35 +12733,35 @@ begin
   if v_id is null then
     insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable",
       "normal_side", "default_tax_code_id", "active")
-    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
-      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
+    values (upsert_accounting_account.tenant, trim(upsert_accounting_account.code), trim(upsert_accounting_account.name), upsert_accounting_account.type,
+      upsert_accounting_account.subtype, upsert_accounting_account.parent_id, v_currency, coalesce(upsert_accounting_account.reconcilable, false),
+      v_side, upsert_accounting_account.default_tax_code_id, coalesce(upsert_accounting_account.active, true))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = upsert_accounting_account.tenant for update;
     if not found then
       raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if exists (
       select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
       where y."account_id" = v_id and z."status" <> 'draft'
-        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+        and (v_row."type" <> upsert_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
     ) then
       raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
     end if;
-    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
-      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
-      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false),
-      "normal_side" = v_side, "default_tax_code_id" = save_accounting_account.default_tax_code_id,
-      "active" = coalesce(save_accounting_account.active, true), "updated_at" = now()
+    update "better_supabase"."accounting_accounts" y set "code" = trim(upsert_accounting_account.code), "name" = trim(upsert_accounting_account.name),
+      "type" = upsert_accounting_account.type, "subtype" = upsert_accounting_account.subtype, "parent_id" = upsert_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(upsert_accounting_account.reconcilable, false),
+      "normal_side" = v_side, "default_tax_code_id" = upsert_accounting_account.default_tax_code_id,
+      "active" = coalesce(upsert_accounting_account.active, true), "updated_at" = now()
     where y."id" = v_id
     returning * into v_row;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'normalSide', v_row."normal_side", 'level', v_row."level", 'defaultTaxCodeId', v_row."default_tax_code_id", 'active', v_row."active", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -13087,7 +13087,7 @@ grant execute on function "better_supabase"."page_accounting_accounts"(uuid, jso
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
 
-create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -13096,50 +13096,50 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_journals"%rowtype;
-  v_id uuid := save_accounting_journal.journal_id;
-  v_code text := upper(trim(save_accounting_journal.code));
-  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+  v_id uuid := upsert_accounting_journal.journal_id;
+  v_code text := upper(trim(upsert_accounting_journal.code));
+  v_currency text := upper(nullif(trim(upsert_accounting_journal.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_journal.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
   end if;
-  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(upsert_accounting_journal.name), '') is null then
     raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+  if upsert_accounting_journal.type is null or upsert_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
     raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.default_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.default_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
-  if save_accounting_journal.contra_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.contra_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.contra_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'contra account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
   if v_id is null then
-    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = upsert_accounting_journal.tenant and y."code" = v_code;
   end if;
   if v_id is null then
     insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency", "contra_account_id", "bank_account_id")
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
-      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
+    values (upsert_accounting_journal.tenant, v_code, trim(upsert_accounting_journal.name), upsert_accounting_journal.type, upsert_accounting_journal.default_account_id, v_currency,
+      upsert_accounting_journal.contra_account_id, upsert_accounting_journal.bank_account_id)
     returning * into v_row;
   else
-    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
-      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency,
-      "contra_account_id" = save_accounting_journal.contra_account_id, "bank_account_id" = save_accounting_journal.bank_account_id, "updated_at" = now()
-    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(upsert_accounting_journal.name), "type" = upsert_accounting_journal.type,
+      "default_account_id" = upsert_accounting_journal.default_account_id, "currency" = v_currency,
+      "contra_account_id" = upsert_accounting_journal.contra_account_id, "bank_account_id" = upsert_accounting_journal.bank_account_id, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = upsert_accounting_journal.tenant
     returning * into v_row;
     if not found then
       raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
@@ -13148,8 +13148,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'contraAccountId', v_row."contra_account_id", 'bankAccountId', v_row."bank_account_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
 returns jsonb
@@ -13223,7 +13223,7 @@ revoke execute on function "better_supabase"."list_accounting_periods"(uuid, int
 grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
 
 -- Creates or renames a dimension (project, department, cost center) by key.
-create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+create or replace function "better_supabase"."upsert_accounting_dimension"(tenant uuid, key text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -13236,24 +13236,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_dimension.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+  if coalesce(upsert_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(upsert_accounting_dimension.name), '') is null then
     raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
-  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  values (upsert_accounting_dimension.tenant, upsert_accounting_dimension.key, trim(upsert_accounting_dimension.name))
   on conflict ("tenant_id", "key") do update set "name" = excluded."name"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) to authenticated, service_role;
 
 -- Adds or renames a value of a dimension by code; archived values take no new lines.
-create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function "better_supabase"."upsert_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -13266,26 +13266,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = upsert_accounting_dimension_value.dimension_id;
   if not found then
     raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+  if nullif(trim(upsert_accounting_dimension_value.code), '') is null or nullif(trim(upsert_accounting_dimension_value.name), '') is null then
     raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
-  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
-    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  values (v_dimension."tenant_id", v_dimension."id", trim(upsert_accounting_dimension_value.code), trim(upsert_accounting_dimension_value.name),
+    case when coalesce(upsert_accounting_dimension_value.archived, false) then now() end)
   on conflict ("dimension_id", "code") do update
     set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
   return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
@@ -13482,7 +13482,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
 
-create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -13508,7 +13508,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = upsert_accounting_entry.journal_id;
   if not found then
     raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
@@ -13519,32 +13519,32 @@ begin
   if not found then
     raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
   end if;
-  if save_accounting_entry.entry_date is null then
+  if upsert_accounting_entry.entry_date is null then
     raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+  if jsonb_typeof(upsert_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(upsert_accounting_entry.lines) < 2 then
     raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
-    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if (upsert_accounting_entry.source_type is null) <> (upsert_accounting_entry.source_id is null)
+    or coalesce(upsert_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if save_accounting_entry.source_type is not null and exists (
+  if upsert_accounting_entry.source_type is not null and exists (
     select 1 from "better_supabase"."accounting_entries" y
-    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
-      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
-      and y."id" is distinct from save_accounting_entry.entry_id
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = upsert_accounting_entry.source_type
+      and y."source_id" = upsert_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from upsert_accounting_entry.entry_id
   ) then
     raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
   end if;
-  if save_accounting_entry.entry_id is null then
+  if upsert_accounting_entry.entry_id is null then
     insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
-    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
-      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
-      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    values (v_journal."tenant_id", v_journal."id", upsert_accounting_entry.entry_date, nullif(trim(upsert_accounting_entry.reference), ''),
+      upsert_accounting_entry.source_type, upsert_accounting_entry.source_id, nullif(trim(upsert_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= y."starts_on" and upsert_accounting_entry.entry_date <= y."ends_on"))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = upsert_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
     if not found then
       raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
     end if;
@@ -13552,15 +13552,15 @@ begin
       raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
     end if;
     delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
-    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
-      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
-      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_params" end,
-      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = upsert_accounting_entry.entry_date,
+      "reference" = nullif(trim(upsert_accounting_entry.reference), ''), "source_type" = upsert_accounting_entry.source_type,
+      "source_id" = upsert_accounting_entry.source_id, "memo" = nullif(trim(upsert_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_params" end,
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= z."starts_on" and upsert_accounting_entry.entry_date <= z."ends_on"),
       "updated_at" = now()
     where y."id" = v_row."id"
     returning * into v_row;
   end if;
-  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(upsert_accounting_entry.lines) with ordinality q loop
     if jsonb_typeof(v_line.value) is distinct from 'object' then
       raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
     end if;
@@ -13599,7 +13599,7 @@ begin
         raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
       v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
-        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", upsert_accounting_entry.entry_date));
       if v_rate <= 0 then
         raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
@@ -13647,8 +13647,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'taxAmount', el."tax_amount"::text, 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
 returns jsonb
@@ -15007,7 +15007,7 @@ $$;
 -- { accountId | accountCode, partyId?, amount } with amount as signed minor
 -- units of the functional currency (a debit balance is positive). Each row
 -- replaces the row of its account and party, carried rows included.
-create or replace function "better_supabase"."save_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
+create or replace function "better_supabase"."upsert_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -15019,35 +15019,35 @@ declare
   v_account uuid;
   v_ids uuid[] := '{}';
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_OPENING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_accounting_opening_balances.balances) is distinct from 'array' then
+  if jsonb_typeof(upsert_accounting_opening_balances.balances) is distinct from 'array' then
     raise exception 'balances is an array' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
   end if;
-  for v_row in select e.value from jsonb_array_elements(save_accounting_opening_balances.balances) e loop
+  for v_row in select e.value from jsonb_array_elements(upsert_accounting_opening_balances.balances) e loop
     if jsonb_typeof(v_row.value) is distinct from 'object' or coalesce(v_row.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$' then
       raise exception 'every balance is an object with an integer amount' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end if;
     begin
       v_account := coalesce(
         nullif(v_row.value ->> 'accountId', '')::uuid,
-        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = save_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
+        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = upsert_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
       );
-      v_ids := v_ids || "better_supabase"."accounting_opening_write"(save_accounting_opening_balances.tenant, save_accounting_opening_balances.fiscal_year,
+      v_ids := v_ids || "better_supabase"."accounting_opening_write"(upsert_accounting_opening_balances.tenant, upsert_accounting_opening_balances.fiscal_year,
         v_account, nullif(v_row.value ->> 'partyId', '')::uuid, (v_row.value ->> 'amount')::bigint);
     exception
       when invalid_text_representation then
         raise exception 'accountId and partyId are uuids' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end;
   end loop;
-  return jsonb_build_object('organizationId', save_accounting_opening_balances.tenant, 'fiscalYear', save_accounting_opening_balances.fiscal_year,
+  return jsonb_build_object('organizationId', upsert_accounting_opening_balances.tenant, 'fiscalYear', upsert_accounting_opening_balances.fiscal_year,
     'balances', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'accountId', y."account_id", 'partyId', y."party_id", 'amount', y."amount"::text, 'source', y."source") order by y."account_id", y."party_id"), '[]'::jsonb)
       from "better_supabase"."accounting_opening_balances" y where y."id" = any (v_ids)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- A fiscal year's opening balances, imported and carried, with their total
 -- (zero when the books balance).
@@ -15146,7 +15146,7 @@ revoke execute on function "better_supabase"."post_accounting_opening_balances"(
 grant execute on function "better_supabase"."post_accounting_opening_balances"(uuid, integer, uuid) to authenticated, service_role;
 
 -- The import target of the accounting_account entity: item.data is the input
--- of save_accounting_account, with parentCode for the parent by code.
+-- of upsert_accounting_account, with parentCode for the parent by code.
 create or replace function "better_supabase"."import_accounting_account"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -15168,7 +15168,7 @@ begin
     if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
       raise exception 'the parent account isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    v_row := "better_supabase"."save_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
+    v_row := "better_supabase"."upsert_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
       import_accounting_account.subject_id::uuid, nullif(v_data ->> 'normalSide', ''), nullif(v_data ->> 'defaultTaxCodeId', '')::uuid,
       coalesce((v_data ->> 'active')::boolean, true));
@@ -15183,7 +15183,7 @@ revoke execute on function "better_supabase"."import_accounting_account"(uuid, j
 grant execute on function "better_supabase"."import_accounting_account"(uuid, jsonb, text) to service_role;
 
 -- The import target of the accounting_journal entity: item.data is the input
--- of save_accounting_journal, with defaultAccountCode, contraAccountCode and
+-- of upsert_accounting_journal, with defaultAccountCode, contraAccountCode and
 -- bankAccountCode for accounts by code.
 create or replace function "better_supabase"."import_accounting_journal"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -15216,7 +15216,7 @@ begin
     or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
     raise exception 'an account of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  v_row := "better_supabase"."save_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
+  v_row := "better_supabase"."upsert_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
   return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
 end;
@@ -15260,7 +15260,7 @@ grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, 
 
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
--- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
+-- accountId, debit, credit, ... }] } with the amounts of upsert_accounting_entry.
 -- The lines must balance, or the item is reported as an error and nothing is
 -- written. The entry posts unless post is false; in import mode it may land in
 -- a closed period, never in a locked one.
@@ -15310,7 +15310,7 @@ begin
   perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
     coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
     coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
-  v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
+  v_row := "better_supabase"."upsert_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
     v_row := "better_supabase"."post_accounting_entry"((v_row ->> 'id')::uuid);
@@ -15443,7 +15443,7 @@ create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_
 -- archived) and, when lines is given, replaces its lines. Each line names an
 -- account (accountId or accountCode), a periodNumber, an amount and optional
 -- dimensions.
-create or replace function "better_supabase"."save_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -15454,41 +15454,41 @@ declare
   v_row "better_supabase"."accounting_budgets"%rowtype;
   v_line record;
   v_account uuid;
-  v_created boolean := save_accounting_budget.budget_id is null;
+  v_created boolean := upsert_accounting_budget.budget_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_budget.tenant, 'accounting.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_budget.tenant, 'accounting.write'), false)) then
     raise exception 'not allowed to write budgets' using errcode = '42501', hint = 'ACCOUNTING_BUDGET_FORBIDDEN';
   end if;
-  if length(trim(coalesce(save_accounting_budget.name, ''))) not between 1 and 200
-    or coalesce(save_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
+  if length(trim(coalesce(upsert_accounting_budget.name, ''))) not between 1 and 200
+    or coalesce(upsert_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
     raise exception 'a budget needs a name of 1 to 200 characters and a fiscal year' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if coalesce(save_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
+  if coalesce(upsert_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
     raise exception 'status must be draft, approved or archived' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if save_accounting_budget.lines is not null and jsonb_typeof(save_accounting_budget.lines) <> 'array' then
+  if upsert_accounting_budget.lines is not null and jsonb_typeof(upsert_accounting_budget.lines) <> 'array' then
     raise exception 'lines is an array' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
   if v_created then
     insert into "better_supabase"."accounting_budgets" ("tenant_id", "name", "fiscal_year", "status", "created_by")
-    values (save_accounting_budget.tenant, trim(save_accounting_budget.name), save_accounting_budget.fiscal_year,
-      coalesce(save_accounting_budget.status, 'draft'), auth.uid())
+    values (upsert_accounting_budget.tenant, trim(upsert_accounting_budget.name), upsert_accounting_budget.fiscal_year,
+      coalesce(upsert_accounting_budget.status, 'draft'), auth.uid())
     returning * into v_row;
   else
-    update "better_supabase"."accounting_budgets" y set "name" = trim(save_accounting_budget.name), "fiscal_year" = save_accounting_budget.fiscal_year,
-      "status" = coalesce(save_accounting_budget.status, y."status"), "updated_at" = now()
-    where y."id" = save_accounting_budget.budget_id and y."tenant_id" = save_accounting_budget.tenant
+    update "better_supabase"."accounting_budgets" y set "name" = trim(upsert_accounting_budget.name), "fiscal_year" = upsert_accounting_budget.fiscal_year,
+      "status" = coalesce(upsert_accounting_budget.status, y."status"), "updated_at" = now()
+    where y."id" = upsert_accounting_budget.budget_id and y."tenant_id" = upsert_accounting_budget.tenant
     returning * into v_row;
     if not found then
       raise exception 'budget not found' using errcode = 'P0002', hint = 'ACCOUNTING_BUDGET_NOT_FOUND';
     end if;
   end if;
-  if save_accounting_budget.lines is not null then
+  if upsert_accounting_budget.lines is not null then
     delete from "better_supabase"."accounting_budget_lines" y where y."budget_id" = v_row."id";
-    for v_line in select q.value from jsonb_array_elements(save_accounting_budget.lines) q loop
+    for v_line in select q.value from jsonb_array_elements(upsert_accounting_budget.lines) q loop
       if jsonb_typeof(v_line.value) is distinct from 'object'
         or coalesce(v_line.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$'
         or coalesce(v_line.value ->> 'periodNumber', '') !~ '^([1-9]|1[0-2])$'
@@ -15517,8 +15517,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'fiscalYear', v_row."fiscal_year", 'status', v_row."status", 'total', coalesce((select sum(bt."amount") from "better_supabase"."accounting_budget_lines" bt where bt."budget_id" = v_row."id"), 0)::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', bx."id", 'accountId', bx."account_id", 'accountCode', ba."code", 'periodNumber', bx."period_number", 'dimensions', bx."dimensions", 'amount', bx."amount"::text) order by ba."code", bx."period_number", bx."id") from "better_supabase"."accounting_budget_lines" bx join "better_supabase"."accounting_accounts" ba on ba."id" = bx."account_id" where bx."budget_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_accounting_budget"(budget_id uuid)
 returns jsonb
@@ -16198,14 +16198,14 @@ as $$ select "better_supabase"."set_accounting_lock_date"($1, $2) $$;
 revoke execute on function "api"."set_accounting_lock_date"(uuid, date) from public, anon;
 grant execute on function "api"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
 
-create or replace function "api"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+create or replace function "api"."upsert_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_accounting_account"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) $$;
-revoke execute on function "api"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
-grant execute on function "api"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_accounting_account"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) $$;
+revoke execute on function "api"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
+grant execute on function "api"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
 
 create or replace function "api"."archive_accounting_account"(account_id uuid, archived boolean default true)
 returns jsonb
@@ -16245,14 +16245,14 @@ as $$ select "better_supabase"."page_accounting_accounts"($1, $2) $$;
 revoke execute on function "api"."page_accounting_accounts"(uuid, jsonb) from public, anon;
 grant execute on function "api"."page_accounting_accounts"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+create or replace function "api"."upsert_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_accounting_journal"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
-grant execute on function "api"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_accounting_journal"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
+grant execute on function "api"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_accounting_journals"(tenant uuid)
 returns jsonb
@@ -16283,23 +16283,23 @@ as $$ select "better_supabase"."list_accounting_periods"($1, $2) $$;
 revoke execute on function "api"."list_accounting_periods"(uuid, integer) from public, anon;
 grant execute on function "api"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
 
-create or replace function "api"."save_accounting_dimension"(tenant uuid, key text, name text)
+create or replace function "api"."upsert_accounting_dimension"(tenant uuid, key text, name text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_accounting_dimension"($1, $2, $3) $$;
-revoke execute on function "api"."save_accounting_dimension"(uuid, text, text) from public, anon;
-grant execute on function "api"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_accounting_dimension"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "api"."upsert_accounting_dimension"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "api"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function "api"."upsert_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_accounting_dimension_value"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
-grant execute on function "api"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_accounting_dimension_value"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "api"."upsert_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "api"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
@@ -16330,14 +16330,14 @@ as $$ select "better_supabase"."accounting_fx_rate"($1, $2, $3, $4) $$;
 revoke execute on function "api"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
 grant execute on function "api"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
 
-create or replace function "api"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+create or replace function "api"."upsert_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_accounting_entry"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
-grant execute on function "api"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_accounting_entry"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "api"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."post_accounting_entry"(entry_id uuid)
 returns jsonb
@@ -16539,14 +16539,14 @@ as $$ select "better_supabase"."accounting_journal_listing"($1, $2, $3, $4) $$;
 revoke execute on function "api"."accounting_journal_listing"(uuid, date, date, uuid) from public, anon;
 grant execute on function "api"."accounting_journal_listing"(uuid, date, date, uuid) to authenticated, service_role;
 
-create or replace function "api"."save_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
+create or replace function "api"."upsert_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_accounting_opening_balances"($1, $2, $3) $$;
-revoke execute on function "api"."save_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
-grant execute on function "api"."save_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_accounting_opening_balances"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
+grant execute on function "api"."upsert_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_accounting_opening_balances"(tenant uuid, fiscal_year integer)
 returns jsonb
@@ -16622,14 +16622,14 @@ as $$ select "better_supabase"."accounting_tax_report"($1, $2, $3) $$;
 revoke execute on function "api"."accounting_tax_report"(uuid, date, date) from public, anon;
 grant execute on function "api"."accounting_tax_report"(uuid, date, date) to authenticated, service_role;
 
-create or replace function "api"."save_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function "api"."upsert_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_accounting_budget"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_accounting_budget"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."get_accounting_budget"(budget_id uuid)
 returns jsonb
@@ -16703,7 +16703,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:092266a0a392592aaa40f404f6392832242bcf27d8d57e15ad7e7b83f84722e9
+-- @bsb-hash sha256:b2c69844ea92805b0af82c36163b8bb893938c36a0af88375855720c36e66120
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17129,7 +17129,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
 
-create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+create or replace function "better_supabase"."upsert_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -17138,48 +17138,48 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_accounts"%rowtype;
-  v_id uuid := save_accounting_account.account_id;
-  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_id uuid := upsert_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(upsert_accounting_account.currency), ''));
   v_side text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_account.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+  if nullif(trim(upsert_accounting_account.code), '') is null or nullif(trim(upsert_accounting_account.name), '') is null then
     raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+  if upsert_accounting_account.type is null or upsert_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
     raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+  if upsert_accounting_account.subtype is not null and upsert_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
     raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  v_side := coalesce(upsert_accounting_account.normal_side, case when upsert_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
   if v_side not in ('debit', 'credit') then
     raise exception 'the normal side is debit or credit' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.default_tax_code_id is not null and not exists (
-    select 1 from "better_supabase"."tax_codes" y where y."id" = save_accounting_account.default_tax_code_id and y."tenant_id" = save_accounting_account.tenant
+  if upsert_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from "better_supabase"."tax_codes" y where y."id" = upsert_accounting_account.default_tax_code_id and y."tenant_id" = upsert_accounting_account.tenant
   ) then
     raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
   end if;
   if v_id is null then
     select y."id" into v_id from "better_supabase"."accounting_accounts" y
-    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+    where y."tenant_id" = upsert_accounting_account.tenant and y."code" = trim(upsert_accounting_account.code);
   end if;
-  if save_accounting_account.parent_id is not null then
-    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+  if upsert_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_account.parent_id and y."tenant_id" = upsert_accounting_account.tenant) then
       raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if v_id is not null and exists (
       with recursive up (id) as (
-        select save_accounting_account.parent_id
+        select upsert_accounting_account.parent_id
         union
         select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
       )
@@ -17191,35 +17191,35 @@ begin
   if v_id is null then
     insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable",
       "normal_side", "default_tax_code_id", "active")
-    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
-      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
+    values (upsert_accounting_account.tenant, trim(upsert_accounting_account.code), trim(upsert_accounting_account.name), upsert_accounting_account.type,
+      upsert_accounting_account.subtype, upsert_accounting_account.parent_id, v_currency, coalesce(upsert_accounting_account.reconcilable, false),
+      v_side, upsert_accounting_account.default_tax_code_id, coalesce(upsert_accounting_account.active, true))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = upsert_accounting_account.tenant for update;
     if not found then
       raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if exists (
       select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
       where y."account_id" = v_id and z."status" <> 'draft'
-        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+        and (v_row."type" <> upsert_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
     ) then
       raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
     end if;
-    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
-      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
-      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false),
-      "normal_side" = v_side, "default_tax_code_id" = save_accounting_account.default_tax_code_id,
-      "active" = coalesce(save_accounting_account.active, true), "updated_at" = now()
+    update "better_supabase"."accounting_accounts" y set "code" = trim(upsert_accounting_account.code), "name" = trim(upsert_accounting_account.name),
+      "type" = upsert_accounting_account.type, "subtype" = upsert_accounting_account.subtype, "parent_id" = upsert_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(upsert_accounting_account.reconcilable, false),
+      "normal_side" = v_side, "default_tax_code_id" = upsert_accounting_account.default_tax_code_id,
+      "active" = coalesce(upsert_accounting_account.active, true), "updated_at" = now()
     where y."id" = v_id
     returning * into v_row;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'normalSide', v_row."normal_side", 'level', v_row."level", 'defaultTaxCodeId', v_row."default_tax_code_id", 'active', v_row."active", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -17545,7 +17545,7 @@ grant execute on function "better_supabase"."page_accounting_accounts"(uuid, jso
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
 
-create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -17554,50 +17554,50 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_journals"%rowtype;
-  v_id uuid := save_accounting_journal.journal_id;
-  v_code text := upper(trim(save_accounting_journal.code));
-  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+  v_id uuid := upsert_accounting_journal.journal_id;
+  v_code text := upper(trim(upsert_accounting_journal.code));
+  v_currency text := upper(nullif(trim(upsert_accounting_journal.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_journal.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
   end if;
-  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(upsert_accounting_journal.name), '') is null then
     raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+  if upsert_accounting_journal.type is null or upsert_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
     raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.default_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.default_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
-  if save_accounting_journal.contra_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.contra_account_id
-      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.contra_account_id
+      and y."tenant_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'contra account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
   if v_id is null then
-    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = upsert_accounting_journal.tenant and y."code" = v_code;
   end if;
   if v_id is null then
     insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency", "contra_account_id", "bank_account_id")
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
-      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
+    values (upsert_accounting_journal.tenant, v_code, trim(upsert_accounting_journal.name), upsert_accounting_journal.type, upsert_accounting_journal.default_account_id, v_currency,
+      upsert_accounting_journal.contra_account_id, upsert_accounting_journal.bank_account_id)
     returning * into v_row;
   else
-    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
-      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency,
-      "contra_account_id" = save_accounting_journal.contra_account_id, "bank_account_id" = save_accounting_journal.bank_account_id, "updated_at" = now()
-    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(upsert_accounting_journal.name), "type" = upsert_accounting_journal.type,
+      "default_account_id" = upsert_accounting_journal.default_account_id, "currency" = v_currency,
+      "contra_account_id" = upsert_accounting_journal.contra_account_id, "bank_account_id" = upsert_accounting_journal.bank_account_id, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = upsert_accounting_journal.tenant
     returning * into v_row;
     if not found then
       raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
@@ -17606,8 +17606,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'contraAccountId', v_row."contra_account_id", 'bankAccountId', v_row."bank_account_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
 returns jsonb
@@ -17681,7 +17681,7 @@ revoke execute on function "better_supabase"."list_accounting_periods"(uuid, int
 grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
 
 -- Creates or renames a dimension (project, department, cost center) by key.
-create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+create or replace function "better_supabase"."upsert_accounting_dimension"(tenant uuid, key text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -17694,24 +17694,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_dimension.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+  if coalesce(upsert_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(upsert_accounting_dimension.name), '') is null then
     raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
-  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  values (upsert_accounting_dimension.tenant, upsert_accounting_dimension.key, trim(upsert_accounting_dimension.name))
   on conflict ("tenant_id", "key") do update set "name" = excluded."name"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) to authenticated, service_role;
 
 -- Adds or renames a value of a dimension by code; archived values take no new lines.
-create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function "better_supabase"."upsert_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -17724,26 +17724,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = upsert_accounting_dimension_value.dimension_id;
   if not found then
     raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+  if nullif(trim(upsert_accounting_dimension_value.code), '') is null or nullif(trim(upsert_accounting_dimension_value.name), '') is null then
     raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
-  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
-    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  values (v_dimension."tenant_id", v_dimension."id", trim(upsert_accounting_dimension_value.code), trim(upsert_accounting_dimension_value.name),
+    case when coalesce(upsert_accounting_dimension_value.archived, false) then now() end)
   on conflict ("dimension_id", "code") do update
     set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
   return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
@@ -17940,7 +17940,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
 
-create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -17966,7 +17966,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = upsert_accounting_entry.journal_id;
   if not found then
     raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
@@ -17977,32 +17977,32 @@ begin
   if not found then
     raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
   end if;
-  if save_accounting_entry.entry_date is null then
+  if upsert_accounting_entry.entry_date is null then
     raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+  if jsonb_typeof(upsert_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(upsert_accounting_entry.lines) < 2 then
     raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
-    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if (upsert_accounting_entry.source_type is null) <> (upsert_accounting_entry.source_id is null)
+    or coalesce(upsert_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if save_accounting_entry.source_type is not null and exists (
+  if upsert_accounting_entry.source_type is not null and exists (
     select 1 from "better_supabase"."accounting_entries" y
-    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
-      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
-      and y."id" is distinct from save_accounting_entry.entry_id
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = upsert_accounting_entry.source_type
+      and y."source_id" = upsert_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from upsert_accounting_entry.entry_id
   ) then
     raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
   end if;
-  if save_accounting_entry.entry_id is null then
+  if upsert_accounting_entry.entry_id is null then
     insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
-    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
-      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
-      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    values (v_journal."tenant_id", v_journal."id", upsert_accounting_entry.entry_date, nullif(trim(upsert_accounting_entry.reference), ''),
+      upsert_accounting_entry.source_type, upsert_accounting_entry.source_id, nullif(trim(upsert_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= y."starts_on" and upsert_accounting_entry.entry_date <= y."ends_on"))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = upsert_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
     if not found then
       raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
     end if;
@@ -18010,15 +18010,15 @@ begin
       raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
     end if;
     delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
-    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
-      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
-      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_params" end,
-      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = upsert_accounting_entry.entry_date,
+      "reference" = nullif(trim(upsert_accounting_entry.reference), ''), "source_type" = upsert_accounting_entry.source_type,
+      "source_id" = upsert_accounting_entry.source_id, "memo" = nullif(trim(upsert_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_params" end,
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and upsert_accounting_entry.entry_date >= z."starts_on" and upsert_accounting_entry.entry_date <= z."ends_on"),
       "updated_at" = now()
     where y."id" = v_row."id"
     returning * into v_row;
   end if;
-  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(upsert_accounting_entry.lines) with ordinality q loop
     if jsonb_typeof(v_line.value) is distinct from 'object' then
       raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
     end if;
@@ -18057,7 +18057,7 @@ begin
         raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
       v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
-        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", upsert_accounting_entry.entry_date));
       if v_rate <= 0 then
         raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
@@ -18105,8 +18105,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'taxAmount', el."tax_amount"::text, 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
 returns jsonb
@@ -19465,7 +19465,7 @@ $$;
 -- { accountId | accountCode, partyId?, amount } with amount as signed minor
 -- units of the functional currency (a debit balance is positive). Each row
 -- replaces the row of its account and party, carried rows included.
-create or replace function "better_supabase"."save_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
+create or replace function "better_supabase"."upsert_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -19477,35 +19477,35 @@ declare
   v_account uuid;
   v_ids uuid[] := '{}';
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_OPENING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_accounting_opening_balances.balances) is distinct from 'array' then
+  if jsonb_typeof(upsert_accounting_opening_balances.balances) is distinct from 'array' then
     raise exception 'balances is an array' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
   end if;
-  for v_row in select e.value from jsonb_array_elements(save_accounting_opening_balances.balances) e loop
+  for v_row in select e.value from jsonb_array_elements(upsert_accounting_opening_balances.balances) e loop
     if jsonb_typeof(v_row.value) is distinct from 'object' or coalesce(v_row.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$' then
       raise exception 'every balance is an object with an integer amount' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end if;
     begin
       v_account := coalesce(
         nullif(v_row.value ->> 'accountId', '')::uuid,
-        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = save_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
+        (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = upsert_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
       );
-      v_ids := v_ids || "better_supabase"."accounting_opening_write"(save_accounting_opening_balances.tenant, save_accounting_opening_balances.fiscal_year,
+      v_ids := v_ids || "better_supabase"."accounting_opening_write"(upsert_accounting_opening_balances.tenant, upsert_accounting_opening_balances.fiscal_year,
         v_account, nullif(v_row.value ->> 'partyId', '')::uuid, (v_row.value ->> 'amount')::bigint);
     exception
       when invalid_text_representation then
         raise exception 'accountId and partyId are uuids' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end;
   end loop;
-  return jsonb_build_object('organizationId', save_accounting_opening_balances.tenant, 'fiscalYear', save_accounting_opening_balances.fiscal_year,
+  return jsonb_build_object('organizationId', upsert_accounting_opening_balances.tenant, 'fiscalYear', upsert_accounting_opening_balances.fiscal_year,
     'balances', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'accountId', y."account_id", 'partyId', y."party_id", 'amount', y."amount"::text, 'source', y."source") order by y."account_id", y."party_id"), '[]'::jsonb)
       from "better_supabase"."accounting_opening_balances" y where y."id" = any (v_ids)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- A fiscal year's opening balances, imported and carried, with their total
 -- (zero when the books balance).
@@ -19604,7 +19604,7 @@ revoke execute on function "better_supabase"."post_accounting_opening_balances"(
 grant execute on function "better_supabase"."post_accounting_opening_balances"(uuid, integer, uuid) to authenticated, service_role;
 
 -- The import target of the accounting_account entity: item.data is the input
--- of save_accounting_account, with parentCode for the parent by code.
+-- of upsert_accounting_account, with parentCode for the parent by code.
 create or replace function "better_supabase"."import_accounting_account"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -19626,7 +19626,7 @@ begin
     if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
       raise exception 'the parent account isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    v_row := "better_supabase"."save_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
+    v_row := "better_supabase"."upsert_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
       import_accounting_account.subject_id::uuid, nullif(v_data ->> 'normalSide', ''), nullif(v_data ->> 'defaultTaxCodeId', '')::uuid,
       coalesce((v_data ->> 'active')::boolean, true));
@@ -19641,7 +19641,7 @@ revoke execute on function "better_supabase"."import_accounting_account"(uuid, j
 grant execute on function "better_supabase"."import_accounting_account"(uuid, jsonb, text) to service_role;
 
 -- The import target of the accounting_journal entity: item.data is the input
--- of save_accounting_journal, with defaultAccountCode, contraAccountCode and
+-- of upsert_accounting_journal, with defaultAccountCode, contraAccountCode and
 -- bankAccountCode for accounts by code.
 create or replace function "better_supabase"."import_accounting_journal"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -19674,7 +19674,7 @@ begin
     or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
     raise exception 'an account of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  v_row := "better_supabase"."save_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
+  v_row := "better_supabase"."upsert_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
   return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
 end;
@@ -19718,7 +19718,7 @@ grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, 
 
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
--- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
+-- accountId, debit, credit, ... }] } with the amounts of upsert_accounting_entry.
 -- The lines must balance, or the item is reported as an error and nothing is
 -- written. The entry posts unless post is false; in import mode it may land in
 -- a closed period, never in a locked one.
@@ -19768,7 +19768,7 @@ begin
   perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
     coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
     coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
-  v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
+  v_row := "better_supabase"."upsert_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
     v_row := "better_supabase"."post_accounting_entry"((v_row ->> 'id')::uuid);
@@ -19894,7 +19894,7 @@ create policy bsb_accounting_budget_lines_select on "better_supabase"."accountin
 -- archived) and, when lines is given, replaces its lines. Each line names an
 -- account (accountId or accountCode), a periodNumber, an amount and optional
 -- dimensions.
-create or replace function "better_supabase"."save_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -19905,41 +19905,41 @@ declare
   v_row "better_supabase"."accounting_budgets"%rowtype;
   v_line record;
   v_account uuid;
-  v_created boolean := save_accounting_budget.budget_id is null;
+  v_created boolean := upsert_accounting_budget.budget_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_budget.tenant, 'accounting.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_budget.tenant, 'accounting.write'), false)) then
     raise exception 'not allowed to write budgets' using errcode = '42501', hint = 'ACCOUNTING_BUDGET_FORBIDDEN';
   end if;
-  if length(trim(coalesce(save_accounting_budget.name, ''))) not between 1 and 200
-    or coalesce(save_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
+  if length(trim(coalesce(upsert_accounting_budget.name, ''))) not between 1 and 200
+    or coalesce(upsert_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
     raise exception 'a budget needs a name of 1 to 200 characters and a fiscal year' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if coalesce(save_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
+  if coalesce(upsert_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
     raise exception 'status must be draft, approved or archived' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if save_accounting_budget.lines is not null and jsonb_typeof(save_accounting_budget.lines) <> 'array' then
+  if upsert_accounting_budget.lines is not null and jsonb_typeof(upsert_accounting_budget.lines) <> 'array' then
     raise exception 'lines is an array' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
   if v_created then
     insert into "better_supabase"."accounting_budgets" ("tenant_id", "name", "fiscal_year", "status", "created_by")
-    values (save_accounting_budget.tenant, trim(save_accounting_budget.name), save_accounting_budget.fiscal_year,
-      coalesce(save_accounting_budget.status, 'draft'), auth.uid())
+    values (upsert_accounting_budget.tenant, trim(upsert_accounting_budget.name), upsert_accounting_budget.fiscal_year,
+      coalesce(upsert_accounting_budget.status, 'draft'), auth.uid())
     returning * into v_row;
   else
-    update "better_supabase"."accounting_budgets" y set "name" = trim(save_accounting_budget.name), "fiscal_year" = save_accounting_budget.fiscal_year,
-      "status" = coalesce(save_accounting_budget.status, y."status"), "updated_at" = now()
-    where y."id" = save_accounting_budget.budget_id and y."tenant_id" = save_accounting_budget.tenant
+    update "better_supabase"."accounting_budgets" y set "name" = trim(upsert_accounting_budget.name), "fiscal_year" = upsert_accounting_budget.fiscal_year,
+      "status" = coalesce(upsert_accounting_budget.status, y."status"), "updated_at" = now()
+    where y."id" = upsert_accounting_budget.budget_id and y."tenant_id" = upsert_accounting_budget.tenant
     returning * into v_row;
     if not found then
       raise exception 'budget not found' using errcode = 'P0002', hint = 'ACCOUNTING_BUDGET_NOT_FOUND';
     end if;
   end if;
-  if save_accounting_budget.lines is not null then
+  if upsert_accounting_budget.lines is not null then
     delete from "better_supabase"."accounting_budget_lines" y where y."budget_id" = v_row."id";
-    for v_line in select q.value from jsonb_array_elements(save_accounting_budget.lines) q loop
+    for v_line in select q.value from jsonb_array_elements(upsert_accounting_budget.lines) q loop
       if jsonb_typeof(v_line.value) is distinct from 'object'
         or coalesce(v_line.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$'
         or coalesce(v_line.value ->> 'periodNumber', '') !~ '^([1-9]|1[0-2])$'
@@ -19968,8 +19968,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'fiscalYear', v_row."fiscal_year", 'status', v_row."status", 'total', coalesce((select sum(bt."amount") from "better_supabase"."accounting_budget_lines" bt where bt."budget_id" = v_row."id"), 0)::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', bx."id", 'accountId', bx."account_id", 'accountCode', ba."code", 'periodNumber', bx."period_number", 'dimensions', bx."dimensions", 'amount', bx."amount"::text) order by ba."code", bx."period_number", bx."id") from "better_supabase"."accounting_budget_lines" bx join "better_supabase"."accounting_accounts" ba on ba."id" = bx."account_id" where bx."budget_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_accounting_budget"(budget_id uuid)
 returns jsonb
@@ -20641,7 +20641,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:b0b0c20fc0c84bb9ee376e38af9f1978340cfcef665a07fa1277e2661062f6a0
+-- @bsb-hash sha256:f052ed00fd768f2c3adb206ab4011f2d0c66e997e555730f1062dc78dbf79851
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21116,7 +21116,7 @@ grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, dat
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
 
-create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+create or replace function "better_supabase"."upsert_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -21125,48 +21125,48 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_accounts"%rowtype;
-  v_id uuid := save_accounting_account.account_id;
-  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_id uuid := upsert_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(upsert_accounting_account.currency), ''));
   v_side text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_account.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+  if nullif(trim(upsert_accounting_account.code), '') is null or nullif(trim(upsert_accounting_account.name), '') is null then
     raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+  if upsert_accounting_account.type is null or upsert_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
     raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+  if upsert_accounting_account.subtype is not null and upsert_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
     raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  v_side := coalesce(upsert_accounting_account.normal_side, case when upsert_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
   if v_side not in ('debit', 'credit') then
     raise exception 'the normal side is debit or credit' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
   end if;
-  if save_accounting_account.default_tax_code_id is not null and not exists (
-    select 1 from "better_supabase"."tax_codes" y where y."id" = save_accounting_account.default_tax_code_id and y."org_id" = save_accounting_account.tenant
+  if upsert_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from "better_supabase"."tax_codes" y where y."id" = upsert_accounting_account.default_tax_code_id and y."org_id" = upsert_accounting_account.tenant
   ) then
     raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
   end if;
   if v_id is null then
     select y."id" into v_id from "better_supabase"."accounting_accounts" y
-    where y."org_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+    where y."org_id" = upsert_accounting_account.tenant and y."code" = trim(upsert_accounting_account.code);
   end if;
-  if save_accounting_account.parent_id is not null then
-    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."org_id" = save_accounting_account.tenant) then
+  if upsert_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_account.parent_id and y."org_id" = upsert_accounting_account.tenant) then
       raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if v_id is not null and exists (
       with recursive up (id) as (
-        select save_accounting_account.parent_id
+        select upsert_accounting_account.parent_id
         union
         select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
       )
@@ -21178,35 +21178,35 @@ begin
   if v_id is null then
     insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable",
       "normal_side", "default_tax_code_id", "active")
-    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
-      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
+    values (upsert_accounting_account.tenant, trim(upsert_accounting_account.code), trim(upsert_accounting_account.name), upsert_accounting_account.type,
+      upsert_accounting_account.subtype, upsert_accounting_account.parent_id, v_currency, coalesce(upsert_accounting_account.reconcilable, false),
+      v_side, upsert_accounting_account.default_tax_code_id, coalesce(upsert_accounting_account.active, true))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."org_id" = save_accounting_account.tenant for update;
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."org_id" = upsert_accounting_account.tenant for update;
     if not found then
       raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
     end if;
     if exists (
       select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
       where y."account_id" = v_id and z."status" <> 'draft'
-        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+        and (v_row."type" <> upsert_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
     ) then
       raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
     end if;
-    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
-      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
-      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false),
-      "normal_side" = v_side, "default_tax_code_id" = save_accounting_account.default_tax_code_id,
-      "active" = coalesce(save_accounting_account.active, true), "updated_at" = now()
+    update "better_supabase"."accounting_accounts" y set "code" = trim(upsert_accounting_account.code), "name" = trim(upsert_accounting_account.name),
+      "type" = upsert_accounting_account.type, "subtype" = upsert_accounting_account.subtype, "parent_id" = upsert_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(upsert_accounting_account.reconcilable, false),
+      "normal_side" = v_side, "default_tax_code_id" = upsert_accounting_account.default_tax_code_id,
+      "active" = coalesce(upsert_accounting_account.active, true), "updated_at" = now()
     where y."id" = v_id
     returning * into v_row;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'normalSide', v_row."normal_side", 'level', v_row."level", 'defaultTaxCodeId', v_row."default_tax_code_id", 'active', v_row."active", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean) to authenticated, service_role;
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -21532,7 +21532,7 @@ grant execute on function "better_supabase"."page_accounting_accounts"(uuid, jso
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
 
-create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -21541,50 +21541,50 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."accounting_journals"%rowtype;
-  v_id uuid := save_accounting_journal.journal_id;
-  v_code text := upper(trim(save_accounting_journal.code));
-  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+  v_id uuid := upsert_accounting_journal.journal_id;
+  v_code text := upper(trim(upsert_accounting_journal.code));
+  v_currency text := upper(nullif(trim(upsert_accounting_journal.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_journal.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
   end if;
-  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(upsert_accounting_journal.name), '') is null then
     raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+  if upsert_accounting_journal.type is null or upsert_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
     raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
   end if;
-  if save_accounting_journal.default_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
-      and y."org_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.default_account_id
+      and y."org_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
-  if save_accounting_journal.contra_account_id is not null and not exists (
-    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.contra_account_id
-      and y."org_id" = save_accounting_journal.tenant and y."archived_at" is null
+  if upsert_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = upsert_accounting_journal.contra_account_id
+      and y."org_id" = upsert_accounting_journal.tenant and y."archived_at" is null
   ) then
     raise exception 'contra account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
   end if;
   if v_id is null then
-    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."org_id" = save_accounting_journal.tenant and y."code" = v_code;
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."org_id" = upsert_accounting_journal.tenant and y."code" = v_code;
   end if;
   if v_id is null then
     insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id", "currency", "contra_account_id", "bank_account_id")
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
-      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
+    values (upsert_accounting_journal.tenant, v_code, trim(upsert_accounting_journal.name), upsert_accounting_journal.type, upsert_accounting_journal.default_account_id, v_currency,
+      upsert_accounting_journal.contra_account_id, upsert_accounting_journal.bank_account_id)
     returning * into v_row;
   else
-    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
-      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency,
-      "contra_account_id" = save_accounting_journal.contra_account_id, "bank_account_id" = save_accounting_journal.bank_account_id, "updated_at" = now()
-    where y."id" = v_id and y."org_id" = save_accounting_journal.tenant
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(upsert_accounting_journal.name), "type" = upsert_accounting_journal.type,
+      "default_account_id" = upsert_accounting_journal.default_account_id, "currency" = v_currency,
+      "contra_account_id" = upsert_accounting_journal.contra_account_id, "bank_account_id" = upsert_accounting_journal.bank_account_id, "updated_at" = now()
+    where y."id" = v_id and y."org_id" = upsert_accounting_journal.tenant
     returning * into v_row;
     if not found then
       raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
@@ -21593,8 +21593,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'contraAccountId', v_row."contra_account_id", 'bankAccountId', v_row."bank_account_id", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_journal"(uuid, text, text, text, uuid, text, uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
 returns jsonb
@@ -21668,7 +21668,7 @@ revoke execute on function "better_supabase"."list_accounting_periods"(uuid, int
 grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
 
 -- Creates or renames a dimension (project, department, cost center) by key.
-create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+create or replace function "better_supabase"."upsert_accounting_dimension"(tenant uuid, key text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -21681,24 +21681,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_dimension.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+  if coalesce(upsert_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(upsert_accounting_dimension.name), '') is null then
     raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimensions" ("org_id", "key", "name")
-  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  values (upsert_accounting_dimension.tenant, upsert_accounting_dimension.key, trim(upsert_accounting_dimension.name))
   on conflict ("org_id", "key") do update set "name" = excluded."name"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension"(uuid, text, text) to authenticated, service_role;
 
 -- Adds or renames a value of a dimension by code; archived values take no new lines.
-create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function "better_supabase"."upsert_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -21711,26 +21711,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = upsert_accounting_dimension_value.dimension_id;
   if not found then
     raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."org_id", 'accounting.manage'), false)) then
     raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+  if nullif(trim(upsert_accounting_dimension_value.code), '') is null or nullif(trim(upsert_accounting_dimension_value.name), '') is null then
     raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
   end if;
   insert into "better_supabase"."accounting_dimension_values" as y ("org_id", "dimension_id", "code", "name", "archived_at")
-  values (v_dimension."org_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
-    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  values (v_dimension."org_id", v_dimension."id", trim(upsert_accounting_dimension_value.code), trim(upsert_accounting_dimension_value.name),
+    case when coalesce(upsert_accounting_dimension_value.archived, false) then now() end)
   on conflict ("dimension_id", "code") do update
     set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
   return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."org_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
 returns jsonb
@@ -21927,7 +21927,7 @@ revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) fr
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
 
-create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -21953,7 +21953,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = upsert_accounting_entry.journal_id;
   if not found then
     raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
   end if;
@@ -21964,32 +21964,32 @@ begin
   if not found then
     raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
   end if;
-  if save_accounting_entry.entry_date is null then
+  if upsert_accounting_entry.entry_date is null then
     raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+  if jsonb_typeof(upsert_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(upsert_accounting_entry.lines) < 2 then
     raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
-    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if (upsert_accounting_entry.source_type is null) <> (upsert_accounting_entry.source_id is null)
+    or coalesce(upsert_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
   end if;
-  if save_accounting_entry.source_type is not null and exists (
+  if upsert_accounting_entry.source_type is not null and exists (
     select 1 from "better_supabase"."accounting_entries" y
-    where y."org_id" = v_journal."org_id" and y."source_type" = save_accounting_entry.source_type
-      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
-      and y."id" is distinct from save_accounting_entry.entry_id
+    where y."org_id" = v_journal."org_id" and y."source_type" = upsert_accounting_entry.source_type
+      and y."source_id" = upsert_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from upsert_accounting_entry.entry_id
   ) then
     raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
   end if;
-  if save_accounting_entry.entry_id is null then
+  if upsert_accounting_entry.entry_id is null then
     insert into "better_supabase"."accounting_entries" ("org_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
-    values (v_journal."org_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
-      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
-      (select y."id" from "better_supabase"."accounting_periods" y where y."org_id" = v_journal."org_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    values (v_journal."org_id", v_journal."id", upsert_accounting_entry.entry_date, nullif(trim(upsert_accounting_entry.reference), ''),
+      upsert_accounting_entry.source_type, upsert_accounting_entry.source_id, nullif(trim(upsert_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."org_id" = v_journal."org_id" and upsert_accounting_entry.entry_date >= y."starts_on" and upsert_accounting_entry.entry_date <= y."ends_on"))
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."org_id" = v_journal."org_id" for update;
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = upsert_accounting_entry.entry_id and y."org_id" = v_journal."org_id" for update;
     if not found then
       raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
     end if;
@@ -21997,15 +21997,15 @@ begin
       raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
     end if;
     delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
-    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
-      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
-      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(save_accounting_entry.memo), '') then y."memo_params" end,
-      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."org_id" = v_journal."org_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = upsert_accounting_entry.entry_date,
+      "reference" = nullif(trim(upsert_accounting_entry.reference), ''), "source_type" = upsert_accounting_entry.source_type,
+      "source_id" = upsert_accounting_entry.source_id, "memo" = nullif(trim(upsert_accounting_entry.memo), ''), "memo_key" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_key" end, "memo_params" = case when y."memo" is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y."memo_params" end,
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."org_id" = v_journal."org_id" and upsert_accounting_entry.entry_date >= z."starts_on" and upsert_accounting_entry.entry_date <= z."ends_on"),
       "updated_at" = now()
     where y."id" = v_row."id"
     returning * into v_row;
   end if;
-  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(upsert_accounting_entry.lines) with ordinality q loop
     if jsonb_typeof(v_line.value) is distinct from 'object' then
       raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
     end if;
@@ -22044,7 +22044,7 @@ begin
         raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
       v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
-        "better_supabase"."accounting_fx_rate"(v_journal."org_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+        "better_supabase"."accounting_fx_rate"(v_journal."org_id", v_currency, v_settings."functional_currency", upsert_accounting_entry.entry_date));
       if v_rate <= 0 then
         raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
       end if;
@@ -22092,8 +22092,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'taxAmount', el."tax_amount"::text, 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
 returns jsonb
@@ -23452,7 +23452,7 @@ $$;
 -- { accountId | accountCode, partyId?, amount } with amount as signed minor
 -- units of the functional currency (a debit balance is positive). Each row
 -- replaces the row of its account and party, carried rows included.
-create or replace function "better_supabase"."save_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
+create or replace function "better_supabase"."upsert_accounting_opening_balances"(tenant uuid, fiscal_year integer, balances jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -23464,35 +23464,35 @@ declare
   v_account uuid;
   v_ids uuid[] := '{}';
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_opening_balances.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_OPENING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_accounting_opening_balances.balances) is distinct from 'array' then
+  if jsonb_typeof(upsert_accounting_opening_balances.balances) is distinct from 'array' then
     raise exception 'balances is an array' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
   end if;
-  for v_row in select e.value from jsonb_array_elements(save_accounting_opening_balances.balances) e loop
+  for v_row in select e.value from jsonb_array_elements(upsert_accounting_opening_balances.balances) e loop
     if jsonb_typeof(v_row.value) is distinct from 'object' or coalesce(v_row.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$' then
       raise exception 'every balance is an object with an integer amount' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end if;
     begin
       v_account := coalesce(
         nullif(v_row.value ->> 'accountId', '')::uuid,
-        (select y."id" from "better_supabase"."accounting_accounts" y where y."org_id" = save_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
+        (select y."id" from "better_supabase"."accounting_accounts" y where y."org_id" = upsert_accounting_opening_balances.tenant and y."code" = v_row.value ->> 'accountCode')
       );
-      v_ids := v_ids || "better_supabase"."accounting_opening_write"(save_accounting_opening_balances.tenant, save_accounting_opening_balances.fiscal_year,
+      v_ids := v_ids || "better_supabase"."accounting_opening_write"(upsert_accounting_opening_balances.tenant, upsert_accounting_opening_balances.fiscal_year,
         v_account, nullif(v_row.value ->> 'partyId', '')::uuid, (v_row.value ->> 'amount')::bigint);
     exception
       when invalid_text_representation then
         raise exception 'accountId and partyId are uuids' using errcode = '22023', hint = 'ACCOUNTING_OPENING_INVALID';
     end;
   end loop;
-  return jsonb_build_object('organizationId', save_accounting_opening_balances.tenant, 'fiscalYear', save_accounting_opening_balances.fiscal_year,
+  return jsonb_build_object('organizationId', upsert_accounting_opening_balances.tenant, 'fiscalYear', upsert_accounting_opening_balances.fiscal_year,
     'balances', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'fiscalYear', y."fiscal_year", 'accountId', y."account_id", 'partyId', y."party_id", 'amount', y."amount"::text, 'source', y."source") order by y."account_id", y."party_id"), '[]'::jsonb)
       from "better_supabase"."accounting_opening_balances" y where y."id" = any (v_ids)));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_opening_balances"(uuid, integer, jsonb) to authenticated, service_role;
 
 -- A fiscal year's opening balances, imported and carried, with their total
 -- (zero when the books balance).
@@ -23591,7 +23591,7 @@ revoke execute on function "better_supabase"."post_accounting_opening_balances"(
 grant execute on function "better_supabase"."post_accounting_opening_balances"(uuid, integer, uuid) to authenticated, service_role;
 
 -- The import target of the accounting_account entity: item.data is the input
--- of save_accounting_account, with parentCode for the parent by code.
+-- of upsert_accounting_account, with parentCode for the parent by code.
 create or replace function "better_supabase"."import_accounting_account"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -23613,7 +23613,7 @@ begin
     if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
       raise exception 'the parent account isn''t an account of the organization; import parents first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
-    v_row := "better_supabase"."save_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
+    v_row := "better_supabase"."upsert_accounting_account"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
       import_accounting_account.subject_id::uuid, nullif(v_data ->> 'normalSide', ''), nullif(v_data ->> 'defaultTaxCodeId', '')::uuid,
       coalesce((v_data ->> 'active')::boolean, true));
@@ -23628,7 +23628,7 @@ revoke execute on function "better_supabase"."import_accounting_account"(uuid, j
 grant execute on function "better_supabase"."import_accounting_account"(uuid, jsonb, text) to service_role;
 
 -- The import target of the accounting_journal entity: item.data is the input
--- of save_accounting_journal, with defaultAccountCode, contraAccountCode and
+-- of upsert_accounting_journal, with defaultAccountCode, contraAccountCode and
 -- bankAccountCode for accounts by code.
 create or replace function "better_supabase"."import_accounting_journal"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -23661,7 +23661,7 @@ begin
     or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
     raise exception 'an account of the journal isn''t an account of the organization; import accounts first' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
-  v_row := "better_supabase"."save_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
+  v_row := "better_supabase"."upsert_accounting_journal"(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
   return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
 end;
@@ -23705,7 +23705,7 @@ grant execute on function "better_supabase"."ensure_import_periods"(uuid, date, 
 
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
--- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
+-- accountId, debit, credit, ... }] } with the amounts of upsert_accounting_entry.
 -- The lines must balance, or the item is reported as an error and nothing is
 -- written. The entry posts unless post is false; in import mode it may land in
 -- a closed period, never in a locked one.
@@ -23755,7 +23755,7 @@ begin
   perform "better_supabase"."ensure_import_periods"(v_tenant, (v_data ->> 'entryDate')::date,
     coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
     coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
-  v_row := "better_supabase"."save_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
+  v_row := "better_supabase"."upsert_accounting_entry"(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
     v_row := "better_supabase"."post_accounting_entry"((v_row ->> 'id')::uuid);
@@ -23888,7 +23888,7 @@ create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_
 -- archived) and, when lines is given, replaces its lines. Each line names an
 -- account (accountId or accountCode), a periodNumber, an amount and optional
 -- dimensions.
-create or replace function "better_supabase"."save_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function "better_supabase"."upsert_accounting_budget"(tenant uuid, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -23899,41 +23899,41 @@ declare
   v_row "better_supabase"."accounting_budgets"%rowtype;
   v_line record;
   v_account uuid;
-  v_created boolean := save_accounting_budget.budget_id is null;
+  v_created boolean := upsert_accounting_budget.budget_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_budget.tenant, 'accounting.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_accounting_budget.tenant, 'accounting.write'), false)) then
     raise exception 'not allowed to write budgets' using errcode = '42501', hint = 'ACCOUNTING_BUDGET_FORBIDDEN';
   end if;
-  if length(trim(coalesce(save_accounting_budget.name, ''))) not between 1 and 200
-    or coalesce(save_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
+  if length(trim(coalesce(upsert_accounting_budget.name, ''))) not between 1 and 200
+    or coalesce(upsert_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
     raise exception 'a budget needs a name of 1 to 200 characters and a fiscal year' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if coalesce(save_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
+  if coalesce(upsert_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
     raise exception 'status must be draft, approved or archived' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
-  if save_accounting_budget.lines is not null and jsonb_typeof(save_accounting_budget.lines) <> 'array' then
+  if upsert_accounting_budget.lines is not null and jsonb_typeof(upsert_accounting_budget.lines) <> 'array' then
     raise exception 'lines is an array' using errcode = '22023', hint = 'ACCOUNTING_BUDGET_INVALID';
   end if;
   if v_created then
     insert into "better_supabase"."accounting_budgets" ("org_id", "name", "fiscal_year", "status", "created_by")
-    values (save_accounting_budget.tenant, trim(save_accounting_budget.name), save_accounting_budget.fiscal_year,
-      coalesce(save_accounting_budget.status, 'draft'), auth.uid())
+    values (upsert_accounting_budget.tenant, trim(upsert_accounting_budget.name), upsert_accounting_budget.fiscal_year,
+      coalesce(upsert_accounting_budget.status, 'draft'), auth.uid())
     returning * into v_row;
   else
-    update "better_supabase"."accounting_budgets" y set "name" = trim(save_accounting_budget.name), "fiscal_year" = save_accounting_budget.fiscal_year,
-      "status" = coalesce(save_accounting_budget.status, y."status"), "updated_at" = now()
-    where y."id" = save_accounting_budget.budget_id and y."org_id" = save_accounting_budget.tenant
+    update "better_supabase"."accounting_budgets" y set "name" = trim(upsert_accounting_budget.name), "fiscal_year" = upsert_accounting_budget.fiscal_year,
+      "status" = coalesce(upsert_accounting_budget.status, y."status"), "updated_at" = now()
+    where y."id" = upsert_accounting_budget.budget_id and y."org_id" = upsert_accounting_budget.tenant
     returning * into v_row;
     if not found then
       raise exception 'budget not found' using errcode = 'P0002', hint = 'ACCOUNTING_BUDGET_NOT_FOUND';
     end if;
   end if;
-  if save_accounting_budget.lines is not null then
+  if upsert_accounting_budget.lines is not null then
     delete from "better_supabase"."accounting_budget_lines" y where y."budget_id" = v_row."id";
-    for v_line in select q.value from jsonb_array_elements(save_accounting_budget.lines) q loop
+    for v_line in select q.value from jsonb_array_elements(upsert_accounting_budget.lines) q loop
       if jsonb_typeof(v_line.value) is distinct from 'object'
         or coalesce(v_line.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$'
         or coalesce(v_line.value ->> 'periodNumber', '') !~ '^([1-9]|1[0-2])$'
@@ -23962,8 +23962,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'name', v_row."name", 'fiscalYear', v_row."fiscal_year", 'status', v_row."status", 'total', coalesce((select sum(bt."amount") from "better_supabase"."accounting_budget_lines" bt where bt."budget_id" = v_row."id"), 0)::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', bx."id", 'accountId', bx."account_id", 'accountCode', ba."code", 'periodNumber', bx."period_number", 'dimensions', bx."dimensions", 'amount', bx."amount"::text) order by ba."code", bx."period_number", bx."id") from "better_supabase"."accounting_budget_lines" bx join "better_supabase"."accounting_accounts" ba on ba."id" = bx."account_id" where bx."budget_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_accounting_budget"(uuid, text, integer, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_accounting_budget"(budget_id uuid)
 returns jsonb

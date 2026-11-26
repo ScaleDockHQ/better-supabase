@@ -219,7 +219,7 @@ function functions(ctx: BlockSqlContext, n: AssignmentNames): string {
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
 -- FilterQuery over the subject type's rule fields; null matches every record.
-create or replace function ${fn("save_assignment_queue")}(tenant ${ctx.idType}, queue jsonb)
+create or replace function ${fn("upsert_assignment_queue")}(tenant ${ctx.idType}, queue jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -233,7 +233,7 @@ declare
   v_conditions jsonb;
   v_fields jsonb;
 begin
-  if not ${ctx.scope.can("save_assignment_queue.tenant", n.manage)} then
+  if not ${ctx.scope.can("upsert_assignment_queue.tenant", n.manage)} then
     ${fail("ASSIGNMENT_FORBIDDEN", "You need assignment.manage to change assignment queues")}
   end if;
   if jsonb_typeof(queue) is distinct from 'object' then
@@ -242,7 +242,7 @@ begin
   v_id := nullif(queue ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from ${t("queues")} x
-    where x.${q("id")} = v_id and x.${q("tenant")} = save_assignment_queue.tenant for update;
+    where x.${q("id")} = v_id and x.${q("tenant")} = upsert_assignment_queue.tenant for update;
     if v_old.${q("id")} is null then
       ${fail("ASSIGNMENT_NOT_FOUND", "No assignment queue in this organization has this id", "P0002")}
     end if;
@@ -268,7 +268,7 @@ begin
   end if;
   if v_old.${q("id")} is null then
     insert into ${t("queues")} (${q("tenant")}, ${q("name")}, ${q("subjectType")}, ${q("strategy")}, ${has("queues", "conditions") ? `${q("conditions")}, ` : ""}${has("queues", "rank") ? `${q("rank")}, ` : ""}${q("enabled")})
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, ${strategy("coalesce(queue ->> 'strategy', 'round_robin')")},
+    values (upsert_assignment_queue.tenant, trim(queue ->> 'name'), v_type, ${strategy("coalesce(queue ->> 'strategy', 'round_robin')")},
       ${has("queues", "conditions") ? "v_conditions, " : ""}${has("queues", "rank") ? "coalesce((queue ->> 'rank')::integer, 0), " : ""}coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
@@ -289,7 +289,7 @@ exception
     ${fail("ASSIGNMENT_INVALID", "A queue needs a name of at most 200 characters and a strategy of round_robin or weighted", "22023")}
 end;
 $$;
-${userGrant(`${fn("save_assignment_queue")}(${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_assignment_queue")}(${ctx.idType}, jsonb)`)}
 
 -- Replaces a queue's members: members is [{ userId, weight?, active? }], each
 -- a member of the queue's organization. Members who stay keep their place in
@@ -333,7 +333,7 @@ end;
 $$;
 ${userGrant(`${fn("set_assignment_members")}(uuid, jsonb)`)}
 
-create or replace function ${fn("remove_assignment_queue")}(queue uuid)
+create or replace function ${fn("delete_assignment_queue")}(queue uuid)
 returns boolean
 language plpgsql
 security definer
@@ -342,18 +342,18 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select x.${q("tenant")} into v_tenant from ${t("queues")} x where x.${q("id")} = remove_assignment_queue.queue;
+  select x.${q("tenant")} into v_tenant from ${t("queues")} x where x.${q("id")} = delete_assignment_queue.queue;
   if v_tenant is null then
     return false;
   end if;
   if not ${ctx.scope.can("v_tenant", n.manage)} then
     ${fail("ASSIGNMENT_FORBIDDEN", "You need assignment.manage to remove an assignment queue")}
   end if;
-  delete from ${t("queues")} x where x.${q("id")} = remove_assignment_queue.queue;
+  delete from ${t("queues")} x where x.${q("id")} = delete_assignment_queue.queue;
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_assignment_queue")}(uuid)`)}
+${userGrant(`${fn("delete_assignment_queue")}(uuid)`)}
 
 -- The organization's queues, optionally of one subject type, in the order
 -- assign tries them, with their members.
@@ -490,7 +490,7 @@ ${tables(ctx, n)}${functions(ctx, n)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_assignment_queue",
+      name: "upsert_assignment_queue",
       args: ["{id}", "jsonb"],
       returns: "jsonb",
     },
@@ -499,7 +499,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
-    { name: "remove_assignment_queue", args: ["uuid"], returns: "boolean" },
+    { name: "delete_assignment_queue", args: ["uuid"], returns: "boolean" },
     {
       name: "list_assignment_queues",
       args: ["{id}", "text"],

@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:0156ae638dfc349ce93a34bba72cdca298b83fe8e6f4ab8b2186bf80ba75a25e
+-- @bsb-hash sha256:a2aac760870403476c7fac16d52261b24a197e2a3f5f9f46002ff20792329cf3
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,7 @@ create index if not exists "reminders_tenant_idx" on "centrakit"."reminders" ("t
 alter table "centrakit"."reminder_deliveries" enable row level security;
 grant select on "centrakit"."reminder_deliveries" to authenticated;
 grant all on "centrakit"."reminder_deliveries" to service_role;
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -34,30 +34,30 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   if not (auth.role() = 'service_role')
-    and save_reminder.subject_type in ('message', 'conversation', 'file_node', 'task', 'project', 'customer')
-    and not (case save_reminder.subject_type
-    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'comments.read'), false)
-    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (save_reminder.subject_id)::uuid and s."tenant_id" = save_reminder.tenant) and coalesce(better_supabase.can('tenant', save_reminder.tenant, 'comments.read'), false)
-    when 'file_node' then exists (select 1 from "centrakit"."file_node" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant and (coalesce(better_supabase.can('tenant', save_reminder.tenant, 'fileNode.read'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.read', array[s."id"::text]) as r(id))))
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
-    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = (save_reminder.subject_id)::uuid and s."organization_id" = save_reminder.tenant)
-    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = (save_reminder.subject_id)::bigint and s."organization_id" = save_reminder.tenant)
+    and upsert_reminder.subject_type in ('message', 'conversation', 'file_node', 'task', 'project', 'customer')
+    and not (case upsert_reminder.subject_type
+    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (upsert_reminder.subject_id)::uuid and s."tenant_id" = upsert_reminder.tenant) and coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'comments.read'), false)
+    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (upsert_reminder.subject_id)::uuid and s."tenant_id" = upsert_reminder.tenant) and coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'comments.read'), false)
+    when 'file_node' then exists (select 1 from "centrakit"."file_node" s where s."id" = (upsert_reminder.subject_id)::uuid and s."organization_id" = upsert_reminder.tenant and (coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'fileNode.read'), false) or s."id"::text in (select r.id::text from centrakit.authz_file_node_rows('fileNode.read', array[s."id"::text]) as r(id))))
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (upsert_reminder.subject_id)::uuid and s."organization_id" = upsert_reminder.tenant)
+    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = (upsert_reminder.subject_id)::uuid and s."organization_id" = upsert_reminder.tenant)
+    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = (upsert_reminder.subject_id)::bigint and s."organization_id" = upsert_reminder.tenant)
     else false
   end) then
     raise exception 'the record was not found in this organization' using errcode = 'P0002', hint = 'REMINDER_SUBJECT_NOT_FOUND';
   end if;
   insert into "centrakit"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0), upsert_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.

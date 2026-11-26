@@ -87,11 +87,11 @@ select throws_ok(
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, service_role;
 insert into ids values
-  ('buyer', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Collective buyer"}') ->> 'id')::uuid),
-  ('other', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Another buyer"}') ->> 'id')::uuid);
+  ('buyer', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Collective buyer"}') ->> 'id')::uuid),
+  ('other', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Another buyer"}') ->> 'id')::uuid);
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Consulting', 'consulting', null, 'service', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'CONSULT', null, 'Consulting', null, null, false, false, null) ->> 'id', true);
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Consulting', 'consulting', null, 'service', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'CONSULT', null, 'Consulting', null, null, false, false, null) ->> 'id', true);
 
 select set_config('t.o1', better_supabase.order_from_lines('00000000-0000-4000-8000-000000000001',
   jsonb_build_array(jsonb_build_object('variantId', current_setting('t.v'), 'quantity', 4, 'unitAmount', '500')),

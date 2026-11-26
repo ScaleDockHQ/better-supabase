@@ -101,7 +101,7 @@ describe("documents client", () => {
 
   it("saves, lists and reads versions", async () => {
     const fake = transport({
-      save_document_version: () => ({ id: "v1", number: 1 }),
+      upsert_document_version: () => ({ id: "v1", number: 1 }),
       list_document_versions: () => [
         {
           id: "v2",

@@ -28,8 +28,8 @@ import { callerTeamIdsSql } from "./team-ids.ts";
 const COLLECTION_SCOPES = ["user", "team", "tenant"] as const;
 
 /**
- * The most ids one `add_collection_entries` or `remove_collection_entries` call
- * takes.
+ * The most ids one `create_collection_entries` or `delete_collection_entries`
+ * call takes.
  */
 const MAX_COLLECTION_IDS = 1000;
 
@@ -398,12 +398,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "page_collections", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_collection", args: ["uuid"], returns: "jsonb" },
     {
-      name: "add_collection_entries",
+      name: "create_collection_entries",
       args: ["uuid", "text[]", "text"],
       returns: "jsonb",
     },
     {
-      name: "remove_collection_entries",
+      name: "delete_collection_entries",
       args: ["uuid", "text[]"],
       returns: "integer",
     },
@@ -428,7 +428,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "rank_star", args: ["text", "text", "text"], returns: "boolean" },
     { name: "starred_subjects", args: ["{id}", "text"], returns: "jsonb" },
     {
-      name: "save_for_later",
+      name: "upsert_for_later",
       args: ["{id}", "text", "text", "text", "timestamptz"],
       returns: "jsonb",
     },
@@ -437,7 +437,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "boolean"],
       returns: "boolean",
     },
-    { name: "remove_saved_item", args: ["uuid"], returns: "boolean" },
+    { name: "delete_saved_item", args: ["uuid"], returns: "boolean" },
     {
       name: "list_saved_items",
       args: ["{id}", "boolean", "timestamptz", "uuid", "integer"],
@@ -451,7 +451,7 @@ const CONTRIBUTES: BlockContributes = {
   "bulk-actions": (own) => [
     {
       name: "collections.add",
-      run: `perform ${own.fn("add_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`,
+      run: `perform ${own.fn("create_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`,
     },
   ],
 };

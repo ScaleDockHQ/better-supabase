@@ -158,14 +158,14 @@ export function bomFunctions(ctx: BlockSqlContext): string {
     .join(", ");
 
   const assetCheck = assets
-    ? `if v_asset is not null and not exists (select 1 from ${assets.table("assets")} a where a.${assets.col("assets", "id")} = v_asset and a.${assets.col("assets", "tenant")} = save_work_center.tenant) then
+    ? `if v_asset is not null and not exists (select 1 from ${assets.table("assets")} a where a.${assets.col("assets", "id")} = v_asset and a.${assets.col("assets", "tenant")} = upsert_work_center.tenant) then
     ${q.bomInvalid("the asset isn't an asset of this organization")}
   end if;`
     : "";
 
   const instructionsCheck = drive
     ? `if exists (select 1 from jsonb_array_elements(v_operations) e where nullif(e ->> 'instructionsNodeId', '') is not null
-      and not exists (select 1 from ${drive.table("nodes")} d where d.${drive.col("nodes", "id")} = (e ->> 'instructionsNodeId')::uuid and d.${drive.col("nodes", "tenant")} = save_bom.tenant)) then
+      and not exists (select 1 from ${drive.table("nodes")} d where d.${drive.col("nodes", "id")} = (e ->> 'instructionsNodeId')::uuid and d.${drive.col("nodes", "tenant")} = upsert_bom.tenant)) then
     ${q.bomInvalid("an operation's instructions aren't a drive node of this organization")}
   end if;`
     : "";
@@ -220,7 +220,7 @@ revoke execute on function ${fn("bom_reaches")}(uuid, uuid) from public, anon, a
 -- inspectionTemplate }], components: [{ variantId, quantity, scrapBps,
 -- operation }] }; a component's operation is the sequence of the operation
 -- that uses it.
-create or replace function ${fn("save_bom")}(tenant ${idType}, variant uuid, input jsonb, bom_id uuid default null)
+create or replace function ${fn("upsert_bom")}(tenant ${idType}, variant uuid, input jsonb, bom_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -233,21 +233,21 @@ declare
   v_operations jsonb;
   v_quantity numeric;
 begin
-  if not ${q.allowed("save_bom.tenant", q.write)} then
+  if not ${q.allowed("upsert_bom.tenant", q.write)} then
     ${q.forbidden("not allowed to change bills of materials")}
   end if;
-  if jsonb_typeof(save_bom.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bom.input) is distinct from 'object' then
     ${q.bomInvalid("input must be an object")}
   end if;
-  if not ${variantOf(q, "save_bom.tenant", "save_bom.variant")} then
+  if not ${variantOf(q, "upsert_bom.tenant", "upsert_bom.variant")} then
     ${q.bomInvalid("the variant isn't a variant of this organization")}
   end if;
-  v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
+  v_quantity := coalesce(nullif(upsert_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
     ${q.bomInvalid("the quantity must be more than zero")}
   end if;
-  v_components := save_bom.input -> 'components';
-  v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
+  v_components := upsert_bom.input -> 'components';
+  v_operations := coalesce(upsert_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
     ${q.bomInvalid("a bill of materials lists at least one component")}
   end if;
@@ -260,10 +260,10 @@ begin
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
     ${q.bomInvalid("each component names a variant, a quantity above zero and scrapBps from 0 to 10000")}
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = upsert_bom.variant) then
     ${fail("MANUFACTURING_BOM_CYCLE", "a variant can't be a component of itself", "22023")}
   end if;
-  if exists (select 1 from jsonb_array_elements(v_components) e where not ${variantOf(q, "save_bom.tenant", "(e ->> 'variantId')::uuid")}) then
+  if exists (select 1 from jsonb_array_elements(v_components) e where not ${variantOf(q, "upsert_bom.tenant", "(e ->> 'variantId')::uuid")}) then
     ${q.bomInvalid("a component isn't a variant of this organization")}
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
@@ -276,7 +276,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from ${q.workCenters} x where x.${w("id")} = nullif(e ->> 'workCenterId', '')::uuid
-      and x.${w("tenant")} = save_bom.tenant and x.${w("archivedAt")} is null)) then
+      and x.${w("tenant")} = upsert_bom.tenant and x.${w("archivedAt")} is null)) then
     ${q.workCenterMissing}
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
@@ -286,42 +286,42 @@ begin
   ${instructionsCheck}
   ${templateCheck}
 
-  if save_bom.bom_id is null then
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || save_bom.variant::text, 0));
+  if upsert_bom.bom_id is null then
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bom:' || upsert_bom.variant::text, 0));
     insert into ${q.boms} (${b("tenant")}, ${b("variant")}, ${b("version")}, ${b("quantity")}, ${b("note")}, ${b("createdBy")})
-    values (save_bom.tenant, save_bom.variant,
-      coalesce((select max(x.${b("version")}) from ${q.boms} x where x.${b("variant")} = save_bom.variant), 0) + 1,
-      v_quantity, nullif(trim(save_bom.input ->> 'note'), ''), auth.uid())
+    values (upsert_bom.tenant, upsert_bom.variant,
+      coalesce((select max(x.${b("version")}) from ${q.boms} x where x.${b("variant")} = upsert_bom.variant), 0) + 1,
+      v_quantity, nullif(trim(upsert_bom.input ->> 'note'), ''), auth.uid())
     returning * into v_row;
   else
-    select * into v_row from ${q.boms} x where x.${b("id")} = save_bom.bom_id and x.${b("tenant")} = save_bom.tenant for update;
+    select * into v_row from ${q.boms} x where x.${b("id")} = upsert_bom.bom_id and x.${b("tenant")} = upsert_bom.tenant for update;
     if not found then
       ${q.bomMissing}
     end if;
-    if v_row.${b("variant")} <> save_bom.variant or v_row.${b("status")} <> 'draft' then
+    if v_row.${b("variant")} <> upsert_bom.variant or v_row.${b("status")} <> 'draft' then
       ${q.bomInvalid("only a draft version of the same variant changes; save a new version instead")}
     end if;
     delete from ${q.components} x where x.${c("bom")} = v_row.${b("id")};
     delete from ${q.operations} x where x.${o("bom")} = v_row.${b("id")};
-    update ${q.boms} x set ${b("quantity")} = v_quantity, ${b("note")} = nullif(trim(save_bom.input ->> 'note'), ''), ${b("updatedAt")} = now()
+    update ${q.boms} x set ${b("quantity")} = v_quantity, ${b("note")} = nullif(trim(upsert_bom.input ->> 'note'), ''), ${b("updatedAt")} = now()
     where x.${b("id")} = v_row.${b("id")}
     returning * into v_row;
   end if;
 
   insert into ${q.operations} (${o("tenant")}, ${o("bom")}, ${o("sequence")}, ${o("workCenter")}, ${o("title")}, ${o("setupMinutes")}, ${o("runMinutes")}, ${o("instructions")}, ${o("inspectionTemplate")})
-  select save_bom.tenant, v_row.${b("id")}, (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
+  select upsert_bom.tenant, v_row.${b("id")}, (e ->> 'sequence')::integer, (e ->> 'workCenterId')::uuid, trim(e ->> 'title'),
     coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0), coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0),
     nullif(e ->> 'instructionsNodeId', '')::uuid, nullif(e ->> 'inspectionTemplate', '')
   from jsonb_array_elements(v_operations) e;
   insert into ${q.components} (${c("tenant")}, ${c("bom")}, ${c("position")}, ${c("variant")}, ${c("quantity")}, ${c("scrapBps")}, ${c("operation")})
-  select save_bom.tenant, v_row.${b("id")}, e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
+  select upsert_bom.tenant, v_row.${b("id")}, e.n::integer, (e.value ->> 'variantId')::uuid, (e.value ->> 'quantity')::numeric,
     coalesce(nullif(e.value ->> 'scrapBps', '')::integer, 0),
     (select y.${o("id")} from ${q.operations} y where y.${o("bom")} = v_row.${b("id")} and y.${o("sequence")} = nullif(e.value ->> 'operation', '')::integer)
   from jsonb_array_elements(v_components) with ordinality e(value, n);
   return ${bomDetail(q, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_bom")}(${idType}, uuid, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_bom")}(${idType}, uuid, jsonb, uuid)`)}
 
 -- Makes a version its variant's active bill of materials; the version that was
 -- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
@@ -503,7 +503,7 @@ ${userGrant(`${fn("bom_where_used")}(uuid)`)}
 -- Creates a work center (work_center_id null) or changes one. input is {
 -- name, assetId, hoursPerDay, costRate (minor units per hour), currency,
 -- archived }; keys left out keep their value.
-create or replace function ${fn("save_work_center")}(tenant ${idType}, input jsonb, work_center_id uuid default null)
+create or replace function ${fn("upsert_work_center")}(tenant ${idType}, input jsonb, work_center_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -514,37 +514,37 @@ declare
   v_row ${q.workCenters};
   v_asset uuid;
 begin
-  if not ${q.allowed("save_work_center.tenant", q.manage)} then
+  if not ${q.allowed("upsert_work_center.tenant", q.manage)} then
     ${q.forbidden("not allowed to change work centers")}
   end if;
-  if jsonb_typeof(save_work_center.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_work_center.input) is distinct from 'object' then
     ${q.bomInvalid("input must be an object")}
   end if;
-  if save_work_center.work_center_id is not null then
+  if upsert_work_center.work_center_id is not null then
     select * into v_row from ${q.workCenters} x
-    where x.${w("id")} = save_work_center.work_center_id and x.${w("tenant")} = save_work_center.tenant for update;
+    where x.${w("id")} = upsert_work_center.work_center_id and x.${w("tenant")} = upsert_work_center.tenant for update;
     if not found then
       ${q.workCenterMissing}
     end if;
   end if;
-  v_asset := case when save_work_center.input ? 'assetId' then nullif(save_work_center.input ->> 'assetId', '')::uuid else v_row.${w("asset")} end;
+  v_asset := case when upsert_work_center.input ? 'assetId' then nullif(upsert_work_center.input ->> 'assetId', '')::uuid else v_row.${w("asset")} end;
   ${assetCheck}
-  if save_work_center.work_center_id is null then
+  if upsert_work_center.work_center_id is null then
     insert into ${q.workCenters} (${w("tenant")}, ${w("name")}, ${w("asset")}, ${w("hoursPerDay")}, ${w("costRate")}, ${w("currency")})
-    values (save_work_center.tenant, trim(save_work_center.input ->> 'name'), v_asset,
-      coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
-      coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, 0),
-      upper(nullif(save_work_center.input ->> 'currency', '')))
+    values (upsert_work_center.tenant, trim(upsert_work_center.input ->> 'name'), v_asset,
+      coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, 8),
+      coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, 0),
+      upper(nullif(upsert_work_center.input ->> 'currency', '')))
     returning * into v_row;
   else
     update ${q.workCenters} x set
-      ${w("name")} = case when save_work_center.input ? 'name' then trim(save_work_center.input ->> 'name') else x.${w("name")} end,
+      ${w("name")} = case when upsert_work_center.input ? 'name' then trim(upsert_work_center.input ->> 'name') else x.${w("name")} end,
       ${w("asset")} = v_asset,
-      ${w("hoursPerDay")} = coalesce(nullif(save_work_center.input ->> 'hoursPerDay', '')::numeric, x.${w("hoursPerDay")}),
-      ${w("costRate")} = coalesce(nullif(save_work_center.input ->> 'costRate', '')::bigint, x.${w("costRate")}),
-      ${w("currency")} = case when save_work_center.input ? 'currency' then upper(nullif(save_work_center.input ->> 'currency', '')) else x.${w("currency")} end,
-      ${w("archivedAt")} = case when not save_work_center.input ? 'archived' then x.${w("archivedAt")}
-        when (save_work_center.input ->> 'archived')::boolean then coalesce(x.${w("archivedAt")}, now()) else null end,
+      ${w("hoursPerDay")} = coalesce(nullif(upsert_work_center.input ->> 'hoursPerDay', '')::numeric, x.${w("hoursPerDay")}),
+      ${w("costRate")} = coalesce(nullif(upsert_work_center.input ->> 'costRate', '')::bigint, x.${w("costRate")}),
+      ${w("currency")} = case when upsert_work_center.input ? 'currency' then upper(nullif(upsert_work_center.input ->> 'currency', '')) else x.${w("currency")} end,
+      ${w("archivedAt")} = case when not upsert_work_center.input ? 'archived' then x.${w("archivedAt")}
+        when (upsert_work_center.input ->> 'archived')::boolean then coalesce(x.${w("archivedAt")}, now()) else null end,
       ${w("updatedAt")} = now()
     where x.${w("id")} = v_row.${w("id")}
     returning * into v_row;
@@ -552,7 +552,7 @@ begin
   return ${q.workCenterJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_work_center")}(${idType}, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_work_center")}(${idType}, jsonb, uuid)`)}
 
 -- The organization's work centers by name, archived ones included.
 create or replace function ${fn("list_work_centers")}(tenant ${idType})

@@ -46,7 +46,11 @@ records the decision.
 The data verbs are the same on every table and every instance: `list`,
 `page`, `get`, `count` and `aggregate` read; `create`, `update`, `upsert`
 and `delete` write; `attach` and `detach` link a row to a record. "Feature"
-only means a feature flag.
+only means a feature flag. SQL functions follow the same verbs: `create_*`
+inserts, `upsert_*` inserts or updates by a key, `update_*` and `delete_*`
+change one row, and `set_*` replaces one field or one child set. The old
+`save_*`, `add_*` and `remove_*` spellings are `upsert_*`, `create_*` and
+`delete_*`.
 
 ## Definition and instances
 

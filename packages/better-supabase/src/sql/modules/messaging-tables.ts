@@ -7,7 +7,7 @@ import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 export const MESSAGE_RESERVED = ["fields"] as const;
 
-/** The longest thread summary `save_thread_summary` stores. */
+/** The longest thread summary `upsert_thread_summary` stores. */
 export const MAX_SUMMARY_LENGTH = 20_000;
 
 /**
@@ -399,7 +399,7 @@ drop policy if exists ${policy("recordMentions", "read")} on ${t("recordMentions
 ${renderPolicy(makePolicy({ table: t("recordMentions"), name: policy("recordMentions", "read"), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${rm("message")})` }), { target: t("recordMentions") })}
 
 -- A thread's or a conversation's summary, which the service role writes
--- through save_thread_summary. It shows to whoever reads the conversation.
+-- through upsert_thread_summary. It shows to whoever reads the conversation.
 ${ddl.summaries}
 
 drop policy if exists ${policy("summaries", "read")} on ${t("summaries")};

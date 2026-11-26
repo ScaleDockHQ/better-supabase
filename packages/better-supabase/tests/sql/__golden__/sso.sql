@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:4bf45c2d1dd56eee7e40f7dd9128d6dbb44b847a26d9de46d6522124963fedea
+-- @bsb-hash sha256:c95c89f8bf6b69bb8611a4f40ac0b80d97e2c22f90284e0eddf9f10e319ae9a4
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -163,7 +163,7 @@ $$;
 
 -- Claims a domain for the organization (needs the manage permission).
 -- Returns it with the TXT record to publish; adding it again returns it.
-create or replace function "better_supabase"."add_organization_domain"(tenant uuid, domain text)
+create or replace function "better_supabase"."create_organization_domain"(tenant uuid, domain text)
 returns jsonb
 language plpgsql
 security definer
@@ -172,18 +172,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."sso_domains";
-  v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
+  v_domain text := lower(trim(trailing '.' from trim(create_organization_domain.domain)));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', add_organization_domain.tenant, 'sso.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', create_organization_domain.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_domain !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
+    raise exception 'Not a domain name: %', create_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
   end if;
-  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (add_organization_domain.tenant, v_domain)
+  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (create_organization_domain.tenant, v_domain)
   on conflict ("tenant_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
   null;
@@ -491,7 +491,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_organization_domain"(id uuid)
+create or replace function "better_supabase"."delete_organization_domain"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -503,7 +503,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."sso_domains" x where x."id" = remove_organization_domain.id;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = delete_organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sso.manage'), false)) then
     return false;
   end if;
@@ -1241,11 +1241,11 @@ $$;
 revoke execute on function "better_supabase"."scim_group_role"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_sync_member"(uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."sso_on_auth_user"() from public, anon, authenticated;
-revoke execute on function "better_supabase"."add_organization_domain"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."create_organization_domain"(uuid, text) from public, anon;
 revoke execute on function "better_supabase"."list_organization_domains"(uuid) from public, anon;
 revoke execute on function "better_supabase"."organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) from public, anon;
-revoke execute on function "better_supabase"."remove_organization_domain"(uuid) from public, anon;
+revoke execute on function "better_supabase"."delete_organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) from public, anon, authenticated;
@@ -1266,11 +1266,11 @@ revoke execute on function "better_supabase"."scim_save_group"(uuid, uuid, jsonb
 revoke execute on function "better_supabase"."scim_delete_group"(uuid, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."scim_group_role"(text) to service_role;
 grant execute on function "better_supabase"."scim_sync_member"(uuid) to service_role;
-grant execute on function "better_supabase"."add_organization_domain"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_organization_domain"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_organization_domains"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) to authenticated, service_role;
-grant execute on function "better_supabase"."remove_organization_domain"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."delete_organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) to service_role;
 grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) to service_role;
@@ -1307,7 +1307,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:70175c26dbde4c3335395ac854faca5bccb07c11320746a2a961d73d222c4a0d
+-- @bsb-hash sha256:0cb63da5c18dd142366f057bee3c92a324d6961d02729e6f9430f9200497ab4e
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1493,7 +1493,7 @@ $$;
 
 -- Claims a domain for the organization (needs the manage permission).
 -- Returns it with the TXT record to publish; adding it again returns it.
-create or replace function "better_supabase"."add_organization_domain"(tenant uuid, domain text)
+create or replace function "better_supabase"."create_organization_domain"(tenant uuid, domain text)
 returns jsonb
 language plpgsql
 security definer
@@ -1502,18 +1502,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."sso_domains";
-  v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
+  v_domain text := lower(trim(trailing '.' from trim(create_organization_domain.domain)));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', add_organization_domain.tenant, 'sso.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', create_organization_domain.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_domain !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
+    raise exception 'Not a domain name: %', create_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
   end if;
-  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (add_organization_domain.tenant, v_domain)
+  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (create_organization_domain.tenant, v_domain)
   on conflict ("tenant_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
   perform "better_supabase".emit_event('sso_domain.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."tenant_id"::text, (v_row."tenant_id")::text, null, 'better-supabase/sso');
@@ -1841,7 +1841,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_organization_domain"(id uuid)
+create or replace function "better_supabase"."delete_organization_domain"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1853,7 +1853,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."sso_domains" x where x."id" = remove_organization_domain.id;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = delete_organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sso.manage'), false)) then
     return false;
   end if;
@@ -2685,11 +2685,11 @@ $$;
 revoke execute on function "better_supabase"."scim_group_role"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_sync_member"(uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."sso_on_auth_user"() from public, anon, authenticated;
-revoke execute on function "better_supabase"."add_organization_domain"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."create_organization_domain"(uuid, text) from public, anon;
 revoke execute on function "better_supabase"."list_organization_domains"(uuid) from public, anon;
 revoke execute on function "better_supabase"."organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) from public, anon;
-revoke execute on function "better_supabase"."remove_organization_domain"(uuid) from public, anon;
+revoke execute on function "better_supabase"."delete_organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) from public, anon, authenticated;
@@ -2710,11 +2710,11 @@ revoke execute on function "better_supabase"."scim_save_group"(uuid, uuid, jsonb
 revoke execute on function "better_supabase"."scim_delete_group"(uuid, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."scim_group_role"(text) to service_role;
 grant execute on function "better_supabase"."scim_sync_member"(uuid) to service_role;
-grant execute on function "better_supabase"."add_organization_domain"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_organization_domain"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_organization_domains"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) to authenticated, service_role;
-grant execute on function "better_supabase"."remove_organization_domain"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."delete_organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) to service_role;
 grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) to service_role;
@@ -2751,7 +2751,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:67eca0905801b2847920e96ca720776bc891b9073447e898e06daa47a13e835a
+-- @bsb-hash sha256:88f331d589543e06f42fdcd6293afaccd6b89724ca2fab4b8b28ce538c75fc23
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2918,7 +2918,7 @@ $$;
 
 -- Claims a domain for the organization (needs the manage permission).
 -- Returns it with the TXT record to publish; adding it again returns it.
-create or replace function "app_private"."add_organization_domain"(tenant uuid, domain text)
+create or replace function "app_private"."create_organization_domain"(tenant uuid, domain text)
 returns jsonb
 language plpgsql
 security definer
@@ -2927,18 +2927,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."sso_domains";
-  v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
+  v_domain text := lower(trim(trailing '.' from trim(create_organization_domain.domain)));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', add_organization_domain.tenant, 'sso.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', create_organization_domain.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_domain !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
+    raise exception 'Not a domain name: %', create_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
   end if;
-  insert into "app_private"."sso_domains" as x ("tenant_id", "domain") values (add_organization_domain.tenant, v_domain)
+  insert into "app_private"."sso_domains" as x ("tenant_id", "domain") values (create_organization_domain.tenant, v_domain)
   on conflict ("tenant_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
   null;
@@ -3246,7 +3246,7 @@ begin
 end;
 $$;
 
-create or replace function "app_private"."remove_organization_domain"(id uuid)
+create or replace function "app_private"."delete_organization_domain"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3258,7 +3258,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."sso_domains" x where x."id" = remove_organization_domain.id;
+  select * into v_row from "app_private"."sso_domains" x where x."id" = delete_organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sso.manage'), false)) then
     return false;
   end if;
@@ -3996,11 +3996,11 @@ $$;
 revoke execute on function "app_private"."scim_group_role"(text) from public, anon, authenticated;
 revoke execute on function "app_private"."scim_sync_member"(uuid) from public, anon, authenticated;
 revoke execute on function "app_private"."sso_on_auth_user"() from public, anon, authenticated;
-revoke execute on function "app_private"."add_organization_domain"(uuid, text) from public, anon;
+revoke execute on function "app_private"."create_organization_domain"(uuid, text) from public, anon;
 revoke execute on function "app_private"."list_organization_domains"(uuid) from public, anon;
 revoke execute on function "app_private"."organization_domain"(uuid) from public, anon;
 revoke execute on function "app_private"."update_organization_domain"(uuid, text, boolean) from public, anon;
-revoke execute on function "app_private"."remove_organization_domain"(uuid) from public, anon;
+revoke execute on function "app_private"."delete_organization_domain"(uuid) from public, anon;
 revoke execute on function "app_private"."verify_organization_domain"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "app_private"."check_sso_provider"(uuid, text[], uuid) from public, anon, authenticated;
 revoke execute on function "app_private"."register_sso_provider"(uuid, uuid, text[], text, uuid) from public, anon, authenticated;
@@ -4021,11 +4021,11 @@ revoke execute on function "app_private"."scim_save_group"(uuid, uuid, jsonb, in
 revoke execute on function "app_private"."scim_delete_group"(uuid, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."scim_group_role"(text) to service_role;
 grant execute on function "app_private"."scim_sync_member"(uuid) to service_role;
-grant execute on function "app_private"."add_organization_domain"(uuid, text) to authenticated, service_role;
+grant execute on function "app_private"."create_organization_domain"(uuid, text) to authenticated, service_role;
 grant execute on function "app_private"."list_organization_domains"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."update_organization_domain"(uuid, text, boolean) to authenticated, service_role;
-grant execute on function "app_private"."remove_organization_domain"(uuid) to authenticated, service_role;
+grant execute on function "app_private"."delete_organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."verify_organization_domain"(uuid, uuid) to service_role;
 grant execute on function "app_private"."check_sso_provider"(uuid, text[], uuid) to service_role;
 grant execute on function "app_private"."register_sso_provider"(uuid, uuid, text[], text, uuid) to service_role;
@@ -4062,7 +4062,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:0473234546111ebbb12cf7a6985d8af011cceb23511b995da9cfad0b913a8530
+-- @bsb-hash sha256:8c31f4c5be2fb4d89d191a7e720a3cc3d3b8f6e215a32717aff44dd41c34b59e
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4224,7 +4224,7 @@ $$;
 
 -- Claims a domain for the organization (needs the manage permission).
 -- Returns it with the TXT record to publish; adding it again returns it.
-create or replace function "better_supabase"."add_organization_domain"(tenant uuid, domain text)
+create or replace function "better_supabase"."create_organization_domain"(tenant uuid, domain text)
 returns jsonb
 language plpgsql
 security definer
@@ -4233,18 +4233,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."sso_domains";
-  v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
+  v_domain text := lower(trim(trailing '.' from trim(create_organization_domain.domain)));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', add_organization_domain.tenant, 'sso.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', create_organization_domain.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_domain !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
+    raise exception 'Not a domain name: %', create_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
   end if;
-  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (add_organization_domain.tenant, v_domain)
+  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (create_organization_domain.tenant, v_domain)
   on conflict ("tenant_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
   null;
@@ -4552,7 +4552,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_organization_domain"(id uuid)
+create or replace function "better_supabase"."delete_organization_domain"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4564,7 +4564,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."sso_domains" x where x."id" = remove_organization_domain.id;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = delete_organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sso.manage'), false)) then
     return false;
   end if;
@@ -5302,11 +5302,11 @@ $$;
 revoke execute on function "better_supabase"."scim_group_role"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_sync_member"(uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."sso_on_auth_user"() from public, anon, authenticated;
-revoke execute on function "better_supabase"."add_organization_domain"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."create_organization_domain"(uuid, text) from public, anon;
 revoke execute on function "better_supabase"."list_organization_domains"(uuid) from public, anon;
 revoke execute on function "better_supabase"."organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) from public, anon;
-revoke execute on function "better_supabase"."remove_organization_domain"(uuid) from public, anon;
+revoke execute on function "better_supabase"."delete_organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) from public, anon, authenticated;
@@ -5327,11 +5327,11 @@ revoke execute on function "better_supabase"."scim_save_group"(uuid, uuid, jsonb
 revoke execute on function "better_supabase"."scim_delete_group"(uuid, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."scim_group_role"(text) to service_role;
 grant execute on function "better_supabase"."scim_sync_member"(uuid) to service_role;
-grant execute on function "better_supabase"."add_organization_domain"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_organization_domain"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_organization_domains"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) to authenticated, service_role;
-grant execute on function "better_supabase"."remove_organization_domain"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."delete_organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) to service_role;
 grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) to service_role;
@@ -5374,14 +5374,14 @@ as $$ select "better_supabase"."scim_sync_member"($1) $$;
 revoke execute on function "api"."scim_sync_member"(uuid) from public, anon, authenticated;
 grant execute on function "api"."scim_sync_member"(uuid) to service_role;
 
-create or replace function "api"."add_organization_domain"(tenant uuid, domain text)
+create or replace function "api"."create_organization_domain"(tenant uuid, domain text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_organization_domain"($1, $2) $$;
-revoke execute on function "api"."add_organization_domain"(uuid, text) from public, anon;
-grant execute on function "api"."add_organization_domain"(uuid, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_organization_domain"($1, $2) $$;
+revoke execute on function "api"."create_organization_domain"(uuid, text) from public, anon;
+grant execute on function "api"."create_organization_domain"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."list_organization_domains"(tenant uuid)
 returns jsonb
@@ -5412,14 +5412,14 @@ as $$ select "better_supabase"."update_organization_domain"($1, $2, $3) $$;
 revoke execute on function "api"."update_organization_domain"(uuid, text, boolean) from public, anon;
 grant execute on function "api"."update_organization_domain"(uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_organization_domain"(id uuid)
+create or replace function "api"."delete_organization_domain"(id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_organization_domain"($1) $$;
-revoke execute on function "api"."remove_organization_domain"(uuid) from public, anon;
-grant execute on function "api"."remove_organization_domain"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_organization_domain"($1) $$;
+revoke execute on function "api"."delete_organization_domain"(uuid) from public, anon;
+grant execute on function "api"."delete_organization_domain"(uuid) to authenticated, service_role;
 
 create or replace function "api"."verify_organization_domain"(id uuid, actor uuid default null)
 returns jsonb
@@ -5611,7 +5611,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:890594efd7cc65c4272de1bc07a72150a464fa085de27fceb2de68dbb5beaeaf
+-- @bsb-hash sha256:3a091f2eb56d24fe66b47bf5203a761fab8d79532e5a160b86ec946a74487844
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5763,7 +5763,7 @@ $$;
 
 -- Claims a domain for the organization (needs the manage permission).
 -- Returns it with the TXT record to publish; adding it again returns it.
-create or replace function "better_supabase"."add_organization_domain"(tenant uuid, domain text)
+create or replace function "better_supabase"."create_organization_domain"(tenant uuid, domain text)
 returns jsonb
 language plpgsql
 security definer
@@ -5772,18 +5772,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."sso_domains";
-  v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
+  v_domain text := lower(trim(trailing '.' from trim(create_organization_domain.domain)));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', add_organization_domain.tenant, 'sso.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', create_organization_domain.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_domain !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
+    raise exception 'Not a domain name: %', create_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
   end if;
-  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (add_organization_domain.tenant, v_domain)
+  insert into "better_supabase"."sso_domains" as x ("tenant_id", "domain") values (create_organization_domain.tenant, v_domain)
   on conflict ("tenant_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
   null;
@@ -6091,7 +6091,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_organization_domain"(id uuid)
+create or replace function "better_supabase"."delete_organization_domain"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6103,7 +6103,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."sso_domains" x where x."id" = remove_organization_domain.id;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = delete_organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sso.manage'), false)) then
     return false;
   end if;
@@ -6841,11 +6841,11 @@ $$;
 revoke execute on function "better_supabase"."scim_group_role"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_sync_member"(uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."sso_on_auth_user"() from public, anon, authenticated;
-revoke execute on function "better_supabase"."add_organization_domain"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."create_organization_domain"(uuid, text) from public, anon;
 revoke execute on function "better_supabase"."list_organization_domains"(uuid) from public, anon;
 revoke execute on function "better_supabase"."organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) from public, anon;
-revoke execute on function "better_supabase"."remove_organization_domain"(uuid) from public, anon;
+revoke execute on function "better_supabase"."delete_organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) from public, anon, authenticated;
@@ -6866,11 +6866,11 @@ revoke execute on function "better_supabase"."scim_save_group"(uuid, uuid, jsonb
 revoke execute on function "better_supabase"."scim_delete_group"(uuid, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."scim_group_role"(text) to service_role;
 grant execute on function "better_supabase"."scim_sync_member"(uuid) to service_role;
-grant execute on function "better_supabase"."add_organization_domain"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_organization_domain"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_organization_domains"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) to authenticated, service_role;
-grant execute on function "better_supabase"."remove_organization_domain"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."delete_organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) to service_role;
 grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) to service_role;
@@ -6907,7 +6907,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:848ab0f48a70279ed5dd5ac39210080b28ddc167db1f5c9be6c8a871ce96778f
+-- @bsb-hash sha256:f40589ad507a94a74adfa6ed70a56359b58215c9be2f1c79b0bee66a1b7adb2c
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7069,7 +7069,7 @@ $$;
 
 -- Claims a domain for the organization (needs the manage permission).
 -- Returns it with the TXT record to publish; adding it again returns it.
-create or replace function "better_supabase"."add_organization_domain"(tenant uuid, domain text)
+create or replace function "better_supabase"."create_organization_domain"(tenant uuid, domain text)
 returns jsonb
 language plpgsql
 security definer
@@ -7078,18 +7078,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."sso_domains";
-  v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
+  v_domain text := lower(trim(trailing '.' from trim(create_organization_domain.domain)));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', add_organization_domain.tenant, 'sso.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', create_organization_domain.tenant, 'sso.manage'), false) then
     raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
   if v_domain !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
+    raise exception 'Not a domain name: %', create_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
   end if;
-  insert into "better_supabase"."sso_domains" as x ("org_id", "domain") values (add_organization_domain.tenant, v_domain)
+  insert into "better_supabase"."sso_domains" as x ("org_id", "domain") values (create_organization_domain.tenant, v_domain)
   on conflict ("org_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
   null;
@@ -7397,7 +7397,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_organization_domain"(id uuid)
+create or replace function "better_supabase"."delete_organization_domain"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7409,7 +7409,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."sso_domains" x where x."id" = remove_organization_domain.id;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = delete_organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'sso.manage'), false)) then
     return false;
   end if;
@@ -8147,11 +8147,11 @@ $$;
 revoke execute on function "better_supabase"."scim_group_role"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_sync_member"(uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."sso_on_auth_user"() from public, anon, authenticated;
-revoke execute on function "better_supabase"."add_organization_domain"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."create_organization_domain"(uuid, text) from public, anon;
 revoke execute on function "better_supabase"."list_organization_domains"(uuid) from public, anon;
 revoke execute on function "better_supabase"."organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) from public, anon;
-revoke execute on function "better_supabase"."remove_organization_domain"(uuid) from public, anon;
+revoke execute on function "better_supabase"."delete_organization_domain"(uuid) from public, anon;
 revoke execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) from public, anon, authenticated;
@@ -8172,11 +8172,11 @@ revoke execute on function "better_supabase"."scim_save_group"(uuid, uuid, jsonb
 revoke execute on function "better_supabase"."scim_delete_group"(uuid, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."scim_group_role"(text) to service_role;
 grant execute on function "better_supabase"."scim_sync_member"(uuid) to service_role;
-grant execute on function "better_supabase"."add_organization_domain"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_organization_domain"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_organization_domains"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."update_organization_domain"(uuid, text, boolean) to authenticated, service_role;
-grant execute on function "better_supabase"."remove_organization_domain"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."delete_organization_domain"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_organization_domain"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."check_sso_provider"(uuid, text[], uuid) to service_role;
 grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, text[], text, uuid) to service_role;

@@ -956,14 +956,14 @@ export function createManufacturing<
     saveBom: ({ variantId, input, bomId }) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_bom",
+          "upsert_bom",
           {
             tenant: organizationId,
             variant: variantId,
             input: bomArg(input),
             bom_id: bomId ?? null,
           },
-          bom("save_bom"),
+          bom("upsert_bom"),
         ),
       ),
     activateBom: (bomId) =>
@@ -1025,13 +1025,13 @@ export function createManufacturing<
     saveWorkCenter: ({ input, workCenterId }) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_work_center",
+          "upsert_work_center",
           {
             tenant: organizationId,
             input: workCenterArg(input),
             work_center_id: workCenterId ?? null,
           },
-          (value) => workCenterOf(value, "save_work_center"),
+          (value) => workCenterOf(value, "upsert_work_center"),
         ),
       ),
     workCenterPage: workCenters.page,

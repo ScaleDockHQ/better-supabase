@@ -78,7 +78,7 @@ declare
   v_lines jsonb;
 begin
   ${SERVICE}
-  v_plan := better_supabase.save_commission_plan('${TENANT}', 'Tiered', 'tiered', null,
+  v_plan := better_supabase.upsert_commission_plan('${TENANT}', 'Tiered', 'tiered', null,
     '[{"upTo":100000,"bps":1000},{"upTo":null,"bps":500}]'::jsonb);
   perform better_supabase.assign_commission_plan('${TENANT}', (v_plan ->> 'id')::uuid, '${ALICE}');
   v_c1 := better_supabase.accrue_commission('${TENANT}', '${ALICE}', 'invoices', 'inv-1', 80000, 'EUR', '2099-03-05');

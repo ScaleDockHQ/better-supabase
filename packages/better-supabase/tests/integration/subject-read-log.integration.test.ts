@@ -65,10 +65,10 @@ describe.skipIf(!live)("subject read log", () => {
 
       await s.asRole(owner);
       await s.value(
-        "better_supabase.add_subject_member('client', $1, $2, role => 'lead')",
+        "better_supabase.create_subject_member('client', $1, $2, role => 'lead')",
         [client, lead.id],
       );
-      await s.value("better_supabase.add_subject_member('client', $1, $2)", [
+      await s.value("better_supabase.create_subject_member('client', $1, $2)", [
         client,
         nurse.id,
       ]);

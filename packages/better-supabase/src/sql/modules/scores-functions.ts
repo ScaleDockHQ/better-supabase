@@ -130,7 +130,7 @@ export function scoresFunctions(ctx: BlockSqlContext): string {
 
   const modelInsert = (
     [
-      ["tenant", "save_score_model.tenant"],
+      ["tenant", "upsert_score_model.tenant"],
       ["key", "v_key"],
       ["name", "v_name"],
       ["description", "v_description"],
@@ -194,7 +194,7 @@ export function scoresFunctions(ctx: BlockSqlContext): string {
 -- description, subjectType, rules, metrics, bands, enabled }; keys left out
 -- keep their value. Every change saves a new version. version, when given,
 -- must be the stored one.
-create or replace function ${fn("save_score_model")}(tenant ${idType}, model jsonb)
+create or replace function ${fn("upsert_score_model")}(tenant ${idType}, model jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -216,7 +216,7 @@ declare
   v_fields jsonb;
   v_entry jsonb;
 begin
-  if not ${allowed("save_score_model.tenant", manage)} then
+  if not ${allowed("upsert_score_model.tenant", manage)} then
     ${forbidden("not allowed to manage score models")}
   end if;
   if jsonb_typeof(model) is distinct from 'object' then
@@ -224,7 +224,7 @@ begin
   end if;
   v_id := nullif(model ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from ${models} x where x.${m("id")} = v_id and x.${m("tenant")} = save_score_model.tenant for update;
+    select * into v_old from ${models} x where x.${m("id")} = v_id and x.${m("tenant")} = upsert_score_model.tenant for update;
     if v_old.${m("id")} is null then
       ${modelMissing}
     end if;
@@ -303,7 +303,7 @@ ${
     from jsonb_array_elements(v_bands) x
   ), '[]'::jsonb);
   if v_old.${m("id")} is null then
-    if exists (select 1 from ${models} x where x.${m("tenant")} = save_score_model.tenant and x.${m("key")} = v_key) then
+    if exists (select 1 from ${models} x where x.${m("tenant")} = upsert_score_model.tenant and x.${m("key")} = v_key) then
       ${fail("SCORES_MODEL_KEY_TAKEN", "a score model with this key already exists", "23505")}
     end if;
     insert into ${models} (${modelInsert.map(([column]) => m(column)).join(", ")})
@@ -341,7 +341,7 @@ ${
   return ${modelJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_score_model")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_score_model")}(${idType}, jsonb)`)}
 
 -- An organization's score models, by key, for one subject type when given.
 -- Archived models stay out unless include_archived is true.${

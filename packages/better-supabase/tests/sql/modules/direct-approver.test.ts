@@ -124,7 +124,7 @@ declare
   v_sheet jsonb;
 begin
   ${as(BOB)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   ${as(ALICE)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
   begin
@@ -232,7 +232,7 @@ declare
   v_leave uuid;
 begin
   ${as(CAROL)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   ${as(ALICE)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
   ${as(DAVE)}
@@ -371,7 +371,7 @@ declare
   v_leave uuid;
 begin
   ${as(CAROL)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
   ${decideOwn(CAROL, "v_leave", "Carol decided her own leave with the option off")}
 end;
@@ -392,7 +392,7 @@ declare
   v_leave uuid;
 begin
   ${as(CAROL)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   ${decidesOwn(CAROL, "'2099-03-02', '2099-03-03'", "Carol could not decide her own leave as the sole approver")}
   ${refusedOwn(BOB, "'2099-03-09', '2099-03-10'", "Bob decided his own leave without the approve permission")}
 
@@ -452,7 +452,7 @@ declare
   v_leave uuid;
 begin
   ${as(CAROL)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   update better_supabase.employees set manager_id = '${ALICE_EMPLOYEE}' where id = '${CAROL_EMPLOYEE}';
   update better_supabase.employees set status = 'offboarded' where id = '${ALICE_EMPLOYEE}';
   ${refusedOwn(CAROL, "'2099-03-02', '2099-03-03'", "Carol decided her own leave with an active manager two levels up")}
@@ -498,7 +498,7 @@ declare
   v_expense uuid;
 begin
   ${as(BOB)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   update better_supabase.employees set start_date = '2020-01-01', end_date = current_date - 1 where id = '${BOB_EMPLOYEE}';
   ${as(ALICE)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;

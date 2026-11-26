@@ -1,6 +1,6 @@
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:3010a9b94e1b68d5ccd754f0641f6f70deed257ba530feed3d85905cad44a8c3
+-- @bsb-hash sha256:58b556f5326380568028eac19765dba2a0e74521019d447e155d7cfb0df52a3d
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1052,7 +1052,7 @@ begin
     if exists (select 1 from "better_supabase"."rfq_lines" y where y."rfq_id" = v_row."id" and y."variant_id" is null) then
       raise exception 'every line needs a variantId to create a purchase order' using errcode = '22023', hint = 'RFQ_INVALID';
     end if;
-    v_order := ("better_supabase"."save_purchase_order"(
+    v_order := ("better_supabase"."upsert_purchase_order"(
       v_row."tenant_id", null, award_rfq.location, v_invitation."supplier_type", v_invitation."supplier_id",
       v_row."currency",
       case when v_quote."lead_time_days" is null then null else now() + make_interval(days => v_quote."lead_time_days") end,

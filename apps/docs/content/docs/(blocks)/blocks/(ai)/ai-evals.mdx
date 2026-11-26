@@ -150,8 +150,8 @@ one assertion per scorer (`equals`, `is-json` and `llm-rubric`). Write it to
 | `create_eval_dataset(name, tenant, description)`                        | service |
 | `get_eval_dataset(dataset)`                                             | service |
 | `list_eval_datasets(tenant, after, max_rows)`                           | service |
-| `add_eval_items(dataset, items)`                                        | service |
-| `add_eval_items_from_feedback(dataset, rating, since)`                  | service |
+| `create_eval_items(dataset, items)`                                     | service |
+| `create_eval_items_from_feedback(dataset, rating, since)`               | service |
 | `list_eval_items(dataset, after, pending_for, limit)`                   | service |
 | `create_eval_run(dataset, prompt_name, prompt_version, model, scorers)` | service |
 | `record_eval_result(run, item, output, scores, error, latency_ms)`      | service |

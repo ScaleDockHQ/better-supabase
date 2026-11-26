@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@2 managed
--- @bsb-hash sha256:00b6fd34f118aeeb6d4876240322a48eb81bd8b1fe3d02887c59d7825970aed9
+-- @bsb-hash sha256:804e91d7c8d705790fd9e46b52207e7ed3afa955123db6d5b2152f0452315c95
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -194,7 +194,7 @@ create policy bsb_message_record_mentions_read on "better_supabase"."message_rec
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
--- through save_thread_summary. It shows to whoever reads the conversation.
+-- through upsert_thread_summary. It shows to whoever reads the conversation.
 create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -531,7 +531,7 @@ grant execute on function "better_supabase"."open_conversation"(uuid, text, json
 -- Adds members. A member adds others to a members-only conversation, anyone
 -- who reads a tenant one joins it (users is the caller), and a moderator adds
 -- anyone. Direct messages keep their members. Returns how many joined.
-create or replace function "better_supabase"."add_conversation_members"(conversation uuid, users uuid[])
+create or replace function "better_supabase"."create_conversation_members"(conversation uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -545,7 +545,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = add_conversation_members.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = create_conversation_members.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -554,11 +554,11 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(create_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(create_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
+  for v_user in select distinct x from unnest(create_conversation_members.users) x where x is not null loop
     if not coalesce(better_supabase.can_user(v_user, 'tenant', v_conv."tenant_id", 'messages.read'), false) then
       raise exception 'every member must be able to read messages in the organization' using errcode = '22023', hint = 'MESSAGING_MEMBER_INVALID';
     end if;
@@ -573,12 +573,12 @@ begin
   return v_added;
 end;
 $$;
-revoke execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) from public, anon;
-grant execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) to authenticated, service_role;
 
 -- Removes a member: the member leaves, or a moderator or the conversation's
 -- owner removes them.
-create or replace function "better_supabase"."remove_conversation_member"(conversation uuid, member uuid)
+create or replace function "better_supabase"."delete_conversation_member"(conversation uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -590,7 +590,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = remove_conversation_member.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = delete_conversation_member.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -598,12 +598,12 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or coalesce(remove_conversation_member.member = auth.uid(), false)
+    or coalesce(delete_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = remove_conversation_member.member;
+  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = delete_conversation_member.member;
   if not found then
     return false;
   end if;
@@ -611,8 +611,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) to authenticated, service_role;
 
 -- Archives a conversation (read-only from then on) or restores it: its owner
 -- or a moderator.
@@ -1326,7 +1326,7 @@ begin
   end if;
   if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
-    perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
+    perform "better_supabase"."create_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
   if not "better_supabase"."can_conversation"(v_conv."id", 'send') then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -1766,7 +1766,7 @@ grant execute on function "better_supabase"."thread_summary"(uuid, uuid) to auth
 -- messageCount and throughAt (when the newest summarized message was sent).
 -- The service role calls it after the app read the messages as the user.
 -- Returns the summary as thread_summary does.
-create or replace function "better_supabase"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function "better_supabase"."upsert_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -1779,45 +1779,45 @@ declare
   v_count integer;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+    raise exception 'upsert_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  if save_thread_summary.thread is null then
+  if upsert_thread_summary.thread is null then
     select c."id", c."tenant_id" into v_conversation, v_tenant
-    from "better_supabase"."conversations" c where c."id" = save_thread_summary.conversation;
+    from "better_supabase"."conversations" c where c."id" = upsert_thread_summary.conversation;
   else
     select m."conversation_id", m."tenant_id" into v_conversation, v_tenant
     from "better_supabase"."messages" m
-    where m."id" = save_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
-      and (save_thread_summary.conversation is null or m."conversation_id" = save_thread_summary.conversation);
+    where m."id" = upsert_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
+      and (upsert_thread_summary.conversation is null or m."conversation_id" = upsert_thread_summary.conversation);
   end if;
   if v_conversation is null then
     raise exception 'no such conversation or thread root' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
   begin
-    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+    v_count := coalesce((upsert_thread_summary.attrs ->> 'messageCount')::integer, 0);
   exception when invalid_text_representation or numeric_value_out_of_range then
     v_count := -1;
   end;
-  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and 20000
-    or char_length(save_thread_summary.attrs ->> 'model') > 200
+  if char_length(btrim(coalesce(upsert_thread_summary.summary, ''))) not between 1 and 20000
+    or char_length(upsert_thread_summary.attrs ->> 'model') > 200
     or v_count < 0
-    or save_thread_summary.attrs ->> 'throughAt' is null then
+    or upsert_thread_summary.attrs ->> 'throughAt' is null then
     raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
   end if;
   insert into "better_supabase"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at")
-  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+  values (v_tenant, v_conversation, upsert_thread_summary.thread, btrim(upsert_thread_summary.summary),
+    upsert_thread_summary.attrs ->> 'model', v_count, (upsert_thread_summary.attrs ->> 'throughAt')::timestamptz)
   on conflict ("conversation_id", "thread_id") do update
   set "summary" = excluded."summary",
     "model" = excluded."model",
     "message_count" = excluded."message_count",
     "through_at" = excluded."through_at",
     "updated_at" = now();
-  return "better_supabase"."thread_summary"(v_conversation, save_thread_summary.thread);
+  return "better_supabase"."thread_summary"(v_conversation, upsert_thread_summary.thread);
 end;
 $$;
-revoke execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+revoke execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 
 
@@ -2012,7 +2012,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@2 managed
--- @bsb-hash sha256:65e8dec4f5558a73f69472aa83bf8bf0b12a76f99b4f982950afef31ad375d70
+-- @bsb-hash sha256:e029ca5b2bd48c90240791f5f0afe23d0cc182170d7aca6fbacceee41b8eb8d2
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2209,7 +2209,7 @@ create policy bsb_message_record_mentions_read on "better_supabase"."message_rec
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
--- through save_thread_summary. It shows to whoever reads the conversation.
+-- through upsert_thread_summary. It shows to whoever reads the conversation.
 create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -2727,7 +2727,7 @@ grant execute on function "better_supabase"."open_conversation"(uuid, text, json
 -- Adds members. A member adds others to a members-only conversation, anyone
 -- who reads a tenant one joins it (users is the caller), and a moderator adds
 -- anyone. Direct messages keep their members. Returns how many joined.
-create or replace function "better_supabase"."add_conversation_members"(conversation uuid, users uuid[])
+create or replace function "better_supabase"."create_conversation_members"(conversation uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -2741,7 +2741,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = add_conversation_members.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = create_conversation_members.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -2750,11 +2750,11 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(create_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(create_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
+  for v_user in select distinct x from unnest(create_conversation_members.users) x where x is not null loop
     if not coalesce(better_supabase.can_user(v_user, 'tenant', v_conv."tenant_id", 'messages.read'), false) then
       raise exception 'every member must be able to read messages in the organization' using errcode = '22023', hint = 'MESSAGING_MEMBER_INVALID';
     end if;
@@ -2769,12 +2769,12 @@ begin
   return v_added;
 end;
 $$;
-revoke execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) from public, anon;
-grant execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) to authenticated, service_role;
 
 -- Removes a member: the member leaves, or a moderator or the conversation's
 -- owner removes them.
-create or replace function "better_supabase"."remove_conversation_member"(conversation uuid, member uuid)
+create or replace function "better_supabase"."delete_conversation_member"(conversation uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2786,7 +2786,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = remove_conversation_member.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = delete_conversation_member.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -2794,21 +2794,21 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or coalesce(remove_conversation_member.member = auth.uid(), false)
+    or coalesce(delete_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = remove_conversation_member.member;
+  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = delete_conversation_member.member;
   if not found then
     return false;
   end if;
-  perform "better_supabase".emit_event('conversation.member_removed', jsonb_build_object('organizationId', v_conv."tenant_id"::text, 'conversationId', v_conv."id", 'kind', v_conv."kind", 'subjectType', 'conversation', 'subjectId', v_conv."id"::text, 'userId', remove_conversation_member.member), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id"::text)::text, null, 'better-supabase/messaging');
+  perform "better_supabase".emit_event('conversation.member_removed', jsonb_build_object('organizationId', v_conv."tenant_id"::text, 'conversationId', v_conv."id", 'kind', v_conv."kind", 'subjectType', 'conversation', 'subjectId', v_conv."id"::text, 'userId', delete_conversation_member.member), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id"::text)::text, null, 'better-supabase/messaging');
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) to authenticated, service_role;
 
 -- Archives a conversation (read-only from then on) or restores it: its owner
 -- or a moderator.
@@ -3565,7 +3565,7 @@ begin
   end if;
   if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
-    perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
+    perform "better_supabase"."create_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
   if not "better_supabase"."can_conversation"(v_conv."id", 'send') then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -4034,7 +4034,7 @@ grant execute on function "better_supabase"."thread_summary"(uuid, uuid) to auth
 -- messageCount and throughAt (when the newest summarized message was sent).
 -- The service role calls it after the app read the messages as the user.
 -- Returns the summary as thread_summary does.
-create or replace function "better_supabase"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function "better_supabase"."upsert_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -4047,45 +4047,45 @@ declare
   v_count integer;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+    raise exception 'upsert_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  if save_thread_summary.thread is null then
+  if upsert_thread_summary.thread is null then
     select c."id", c."tenant_id" into v_conversation, v_tenant
-    from "better_supabase"."conversations" c where c."id" = save_thread_summary.conversation;
+    from "better_supabase"."conversations" c where c."id" = upsert_thread_summary.conversation;
   else
     select m."conversation_id", m."tenant_id" into v_conversation, v_tenant
     from "better_supabase"."messages" m
-    where m."id" = save_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
-      and (save_thread_summary.conversation is null or m."conversation_id" = save_thread_summary.conversation);
+    where m."id" = upsert_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
+      and (upsert_thread_summary.conversation is null or m."conversation_id" = upsert_thread_summary.conversation);
   end if;
   if v_conversation is null then
     raise exception 'no such conversation or thread root' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
   begin
-    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+    v_count := coalesce((upsert_thread_summary.attrs ->> 'messageCount')::integer, 0);
   exception when invalid_text_representation or numeric_value_out_of_range then
     v_count := -1;
   end;
-  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and 20000
-    or char_length(save_thread_summary.attrs ->> 'model') > 200
+  if char_length(btrim(coalesce(upsert_thread_summary.summary, ''))) not between 1 and 20000
+    or char_length(upsert_thread_summary.attrs ->> 'model') > 200
     or v_count < 0
-    or save_thread_summary.attrs ->> 'throughAt' is null then
+    or upsert_thread_summary.attrs ->> 'throughAt' is null then
     raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
   end if;
   insert into "better_supabase"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at")
-  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+  values (v_tenant, v_conversation, upsert_thread_summary.thread, btrim(upsert_thread_summary.summary),
+    upsert_thread_summary.attrs ->> 'model', v_count, (upsert_thread_summary.attrs ->> 'throughAt')::timestamptz)
   on conflict ("conversation_id", "thread_id") do update
   set "summary" = excluded."summary",
     "model" = excluded."model",
     "message_count" = excluded."message_count",
     "through_at" = excluded."through_at",
     "updated_at" = now();
-  return "better_supabase"."thread_summary"(v_conversation, save_thread_summary.thread);
+  return "better_supabase"."thread_summary"(v_conversation, upsert_thread_summary.thread);
 end;
 $$;
-revoke execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+revoke execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 
 
@@ -4322,7 +4322,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@2 managed
--- @bsb-hash sha256:5a5acb73872f2d3a04aba784037d039f5713a493d069ea14458fd1b7e1f76d0a
+-- @bsb-hash sha256:bc76fe0012b27ef4f7c9b93e72fd08496cee08d232da7506da5b52a70cc4d566
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4520,7 +4520,7 @@ create policy bsb_message_record_mentions_read on "app_private"."message_record_
   using (exists (select 1 from "app_private"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
--- through save_thread_summary. It shows to whoever reads the conversation.
+-- through upsert_thread_summary. It shows to whoever reads the conversation.
 create table "app_private"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -4857,7 +4857,7 @@ grant execute on function "app_private"."open_conversation"(uuid, text, jsonb, u
 -- Adds members. A member adds others to a members-only conversation, anyone
 -- who reads a tenant one joins it (users is the caller), and a moderator adds
 -- anyone. Direct messages keep their members. Returns how many joined.
-create or replace function "app_private"."add_conversation_members"(conversation uuid, users uuid[])
+create or replace function "app_private"."create_conversation_members"(conversation uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -4871,7 +4871,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "app_private"."conversations" c where c."id" = add_conversation_members.conversation;
+  select * into v_conv from "app_private"."conversations" c where c."id" = create_conversation_members.conversation;
   if not found or not "app_private"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -4880,11 +4880,11 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
-    or ("app_private"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
+    or ("app_private"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(create_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(create_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
+  for v_user in select distinct x from unnest(create_conversation_members.users) x where x is not null loop
     if not coalesce(better_supabase.can_user(v_user, 'tenant', v_conv."tenant_id", 'messages.read'), false) then
       raise exception 'every member must be able to read messages in the organization' using errcode = '22023', hint = 'MESSAGING_MEMBER_INVALID';
     end if;
@@ -4899,12 +4899,12 @@ begin
   return v_added;
 end;
 $$;
-revoke execute on function "app_private"."add_conversation_members"(uuid, uuid[]) from public, anon;
-grant execute on function "app_private"."add_conversation_members"(uuid, uuid[]) to authenticated, service_role;
+revoke execute on function "app_private"."create_conversation_members"(uuid, uuid[]) from public, anon;
+grant execute on function "app_private"."create_conversation_members"(uuid, uuid[]) to authenticated, service_role;
 
 -- Removes a member: the member leaves, or a moderator or the conversation's
 -- owner removes them.
-create or replace function "app_private"."remove_conversation_member"(conversation uuid, member uuid)
+create or replace function "app_private"."delete_conversation_member"(conversation uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4916,7 +4916,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "app_private"."conversations" c where c."id" = remove_conversation_member.conversation;
+  select * into v_conv from "app_private"."conversations" c where c."id" = delete_conversation_member.conversation;
   if not found or not "app_private"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -4924,12 +4924,12 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or coalesce(remove_conversation_member.member = auth.uid(), false)
+    or coalesce(delete_conversation_member.member = auth.uid(), false)
     or "app_private"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "app_private"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  delete from "app_private"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = remove_conversation_member.member;
+  delete from "app_private"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = delete_conversation_member.member;
   if not found then
     return false;
   end if;
@@ -4937,8 +4937,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "app_private"."remove_conversation_member"(uuid, uuid) from public, anon;
-grant execute on function "app_private"."remove_conversation_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_conversation_member"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."delete_conversation_member"(uuid, uuid) to authenticated, service_role;
 
 -- Archives a conversation (read-only from then on) or restores it: its owner
 -- or a moderator.
@@ -5652,7 +5652,7 @@ begin
   end if;
   if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
-    perform "app_private"."add_conversation_members"(v_conv."id", array[auth.uid()]);
+    perform "app_private"."create_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
   if not "app_private"."can_conversation"(v_conv."id", 'send') then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -6092,7 +6092,7 @@ grant execute on function "app_private"."thread_summary"(uuid, uuid) to authenti
 -- messageCount and throughAt (when the newest summarized message was sent).
 -- The service role calls it after the app read the messages as the user.
 -- Returns the summary as thread_summary does.
-create or replace function "app_private"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function "app_private"."upsert_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -6105,45 +6105,45 @@ declare
   v_count integer;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+    raise exception 'upsert_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  if save_thread_summary.thread is null then
+  if upsert_thread_summary.thread is null then
     select c."id", c."tenant_id" into v_conversation, v_tenant
-    from "app_private"."conversations" c where c."id" = save_thread_summary.conversation;
+    from "app_private"."conversations" c where c."id" = upsert_thread_summary.conversation;
   else
     select m."conversation_id", m."tenant_id" into v_conversation, v_tenant
     from "app_private"."messages" m
-    where m."id" = save_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
-      and (save_thread_summary.conversation is null or m."conversation_id" = save_thread_summary.conversation);
+    where m."id" = upsert_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
+      and (upsert_thread_summary.conversation is null or m."conversation_id" = upsert_thread_summary.conversation);
   end if;
   if v_conversation is null then
     raise exception 'no such conversation or thread root' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
   begin
-    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+    v_count := coalesce((upsert_thread_summary.attrs ->> 'messageCount')::integer, 0);
   exception when invalid_text_representation or numeric_value_out_of_range then
     v_count := -1;
   end;
-  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and 20000
-    or char_length(save_thread_summary.attrs ->> 'model') > 200
+  if char_length(btrim(coalesce(upsert_thread_summary.summary, ''))) not between 1 and 20000
+    or char_length(upsert_thread_summary.attrs ->> 'model') > 200
     or v_count < 0
-    or save_thread_summary.attrs ->> 'throughAt' is null then
+    or upsert_thread_summary.attrs ->> 'throughAt' is null then
     raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
   end if;
   insert into "app_private"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at")
-  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+  values (v_tenant, v_conversation, upsert_thread_summary.thread, btrim(upsert_thread_summary.summary),
+    upsert_thread_summary.attrs ->> 'model', v_count, (upsert_thread_summary.attrs ->> 'throughAt')::timestamptz)
   on conflict ("conversation_id", "thread_id") do update
   set "summary" = excluded."summary",
     "model" = excluded."model",
     "message_count" = excluded."message_count",
     "through_at" = excluded."through_at",
     "updated_at" = now();
-  return "app_private"."thread_summary"(v_conversation, save_thread_summary.thread);
+  return "app_private"."thread_summary"(v_conversation, upsert_thread_summary.thread);
 end;
 $$;
-revoke execute on function "app_private"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
-grant execute on function "app_private"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+revoke execute on function "app_private"."upsert_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."upsert_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 
 
@@ -6338,7 +6338,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@2 managed
--- @bsb-hash sha256:2ef2497f82f281b5d457113ecd9cc45c12f2297b3676cebc0c70d495b5bac455
+-- @bsb-hash sha256:9bf701dc32e0149022a9e8e78f4593a6bd14b0d2ab31f040c6de50e431195ba2
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6531,7 +6531,7 @@ create policy bsb_message_record_mentions_read on "better_supabase"."message_rec
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
--- through save_thread_summary. It shows to whoever reads the conversation.
+-- through upsert_thread_summary. It shows to whoever reads the conversation.
 create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -6868,7 +6868,7 @@ grant execute on function "better_supabase"."open_conversation"(uuid, text, json
 -- Adds members. A member adds others to a members-only conversation, anyone
 -- who reads a tenant one joins it (users is the caller), and a moderator adds
 -- anyone. Direct messages keep their members. Returns how many joined.
-create or replace function "better_supabase"."add_conversation_members"(conversation uuid, users uuid[])
+create or replace function "better_supabase"."create_conversation_members"(conversation uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -6882,7 +6882,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = add_conversation_members.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = create_conversation_members.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -6891,11 +6891,11 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(create_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(create_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
+  for v_user in select distinct x from unnest(create_conversation_members.users) x where x is not null loop
     if not coalesce(better_supabase.can_user(v_user, 'tenant', v_conv."tenant_id", 'messages.read'), false) then
       raise exception 'every member must be able to read messages in the organization' using errcode = '22023', hint = 'MESSAGING_MEMBER_INVALID';
     end if;
@@ -6910,12 +6910,12 @@ begin
   return v_added;
 end;
 $$;
-revoke execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) from public, anon;
-grant execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) to authenticated, service_role;
 
 -- Removes a member: the member leaves, or a moderator or the conversation's
 -- owner removes them.
-create or replace function "better_supabase"."remove_conversation_member"(conversation uuid, member uuid)
+create or replace function "better_supabase"."delete_conversation_member"(conversation uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6927,7 +6927,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = remove_conversation_member.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = delete_conversation_member.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -6935,12 +6935,12 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or coalesce(remove_conversation_member.member = auth.uid(), false)
+    or coalesce(delete_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = remove_conversation_member.member;
+  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = delete_conversation_member.member;
   if not found then
     return false;
   end if;
@@ -6948,8 +6948,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) to authenticated, service_role;
 
 -- Archives a conversation (read-only from then on) or restores it: its owner
 -- or a moderator.
@@ -7663,7 +7663,7 @@ begin
   end if;
   if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
-    perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
+    perform "better_supabase"."create_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
   if not "better_supabase"."can_conversation"(v_conv."id", 'send') then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -8103,7 +8103,7 @@ grant execute on function "better_supabase"."thread_summary"(uuid, uuid) to auth
 -- messageCount and throughAt (when the newest summarized message was sent).
 -- The service role calls it after the app read the messages as the user.
 -- Returns the summary as thread_summary does.
-create or replace function "better_supabase"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function "better_supabase"."upsert_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -8116,45 +8116,45 @@ declare
   v_count integer;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+    raise exception 'upsert_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  if save_thread_summary.thread is null then
+  if upsert_thread_summary.thread is null then
     select c."id", c."tenant_id" into v_conversation, v_tenant
-    from "better_supabase"."conversations" c where c."id" = save_thread_summary.conversation;
+    from "better_supabase"."conversations" c where c."id" = upsert_thread_summary.conversation;
   else
     select m."conversation_id", m."tenant_id" into v_conversation, v_tenant
     from "better_supabase"."messages" m
-    where m."id" = save_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
-      and (save_thread_summary.conversation is null or m."conversation_id" = save_thread_summary.conversation);
+    where m."id" = upsert_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
+      and (upsert_thread_summary.conversation is null or m."conversation_id" = upsert_thread_summary.conversation);
   end if;
   if v_conversation is null then
     raise exception 'no such conversation or thread root' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
   begin
-    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+    v_count := coalesce((upsert_thread_summary.attrs ->> 'messageCount')::integer, 0);
   exception when invalid_text_representation or numeric_value_out_of_range then
     v_count := -1;
   end;
-  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and 20000
-    or char_length(save_thread_summary.attrs ->> 'model') > 200
+  if char_length(btrim(coalesce(upsert_thread_summary.summary, ''))) not between 1 and 20000
+    or char_length(upsert_thread_summary.attrs ->> 'model') > 200
     or v_count < 0
-    or save_thread_summary.attrs ->> 'throughAt' is null then
+    or upsert_thread_summary.attrs ->> 'throughAt' is null then
     raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
   end if;
   insert into "better_supabase"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at")
-  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+  values (v_tenant, v_conversation, upsert_thread_summary.thread, btrim(upsert_thread_summary.summary),
+    upsert_thread_summary.attrs ->> 'model', v_count, (upsert_thread_summary.attrs ->> 'throughAt')::timestamptz)
   on conflict ("conversation_id", "thread_id") do update
   set "summary" = excluded."summary",
     "model" = excluded."model",
     "message_count" = excluded."message_count",
     "through_at" = excluded."through_at",
     "updated_at" = now();
-  return "better_supabase"."thread_summary"(v_conversation, save_thread_summary.thread);
+  return "better_supabase"."thread_summary"(v_conversation, upsert_thread_summary.thread);
 end;
 $$;
-revoke execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+revoke execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 
 
@@ -8358,23 +8358,23 @@ as $$ select "better_supabase"."open_conversation"($1, $2, $3, $4) $$;
 revoke execute on function "api"."open_conversation"(uuid, text, jsonb, uuid[]) from public, anon;
 grant execute on function "api"."open_conversation"(uuid, text, jsonb, uuid[]) to authenticated, service_role;
 
-create or replace function "api"."add_conversation_members"(conversation uuid, users uuid[])
+create or replace function "api"."create_conversation_members"(conversation uuid, users uuid[])
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_conversation_members"($1, $2) $$;
-revoke execute on function "api"."add_conversation_members"(uuid, uuid[]) from public, anon;
-grant execute on function "api"."add_conversation_members"(uuid, uuid[]) to authenticated, service_role;
+as $$ select "better_supabase"."create_conversation_members"($1, $2) $$;
+revoke execute on function "api"."create_conversation_members"(uuid, uuid[]) from public, anon;
+grant execute on function "api"."create_conversation_members"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "api"."remove_conversation_member"(conversation uuid, member uuid)
+create or replace function "api"."delete_conversation_member"(conversation uuid, member uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_conversation_member"($1, $2) $$;
-revoke execute on function "api"."remove_conversation_member"(uuid, uuid) from public, anon;
-grant execute on function "api"."remove_conversation_member"(uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_conversation_member"($1, $2) $$;
+revoke execute on function "api"."delete_conversation_member"(uuid, uuid) from public, anon;
+grant execute on function "api"."delete_conversation_member"(uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."archive_conversation"(conversation uuid, archived boolean default true)
 returns boolean
@@ -8606,14 +8606,14 @@ as $$ select "better_supabase"."thread_summary"($1, $2) $$;
 revoke execute on function "api"."thread_summary"(uuid, uuid) from public, anon;
 grant execute on function "api"."thread_summary"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function "api"."upsert_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_thread_summary"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
-grant execute on function "api"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+as $$ select "better_supabase"."upsert_thread_summary"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."upsert_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
@@ -8632,7 +8632,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@2 managed
--- @bsb-hash sha256:240bb29fef83586f217c543295fb5cf1d58f2b817e62e10cce477e7aada03238
+-- @bsb-hash sha256:b7ae25b395292ec66b4c3de0cfeaa05316c62d9a348df3cd0ed59d987104d6e4
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8812,7 +8812,7 @@ create policy bsb_message_record_mentions_select on "better_supabase"."message_r
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
--- through save_thread_summary. It shows to whoever reads the conversation.
+-- through upsert_thread_summary. It shows to whoever reads the conversation.
 -- better_supabase.thread_summaries is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."thread_summaries" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."thread_summaries" add column if not exists "tenant_id" uuid;
@@ -9147,7 +9147,7 @@ grant execute on function "better_supabase"."open_conversation"(uuid, text, json
 -- Adds members. A member adds others to a members-only conversation, anyone
 -- who reads a tenant one joins it (users is the caller), and a moderator adds
 -- anyone. Direct messages keep their members. Returns how many joined.
-create or replace function "better_supabase"."add_conversation_members"(conversation uuid, users uuid[])
+create or replace function "better_supabase"."create_conversation_members"(conversation uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -9161,7 +9161,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = add_conversation_members.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = create_conversation_members.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -9170,11 +9170,11 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(create_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(create_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
+  for v_user in select distinct x from unnest(create_conversation_members.users) x where x is not null loop
     if not coalesce(better_supabase.can_user(v_user, 'tenant', v_conv."tenant_id", 'messages.read'), false) then
       raise exception 'every member must be able to read messages in the organization' using errcode = '22023', hint = 'MESSAGING_MEMBER_INVALID';
     end if;
@@ -9189,12 +9189,12 @@ begin
   return v_added;
 end;
 $$;
-revoke execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) from public, anon;
-grant execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) to authenticated, service_role;
 
 -- Removes a member: the member leaves, or a moderator or the conversation's
 -- owner removes them.
-create or replace function "better_supabase"."remove_conversation_member"(conversation uuid, member uuid)
+create or replace function "better_supabase"."delete_conversation_member"(conversation uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -9206,7 +9206,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = remove_conversation_member.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = delete_conversation_member.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -9214,12 +9214,12 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or coalesce(remove_conversation_member.member = auth.uid(), false)
+    or coalesce(delete_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = remove_conversation_member.member;
+  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = delete_conversation_member.member;
   if not found then
     return false;
   end if;
@@ -9227,8 +9227,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) to authenticated, service_role;
 
 -- Archives a conversation (read-only from then on) or restores it: its owner
 -- or a moderator.
@@ -9942,7 +9942,7 @@ begin
   end if;
   if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'messages.send'), false) then
-    perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
+    perform "better_supabase"."create_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
   if not "better_supabase"."can_conversation"(v_conv."id", 'send') then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -10382,7 +10382,7 @@ grant execute on function "better_supabase"."thread_summary"(uuid, uuid) to auth
 -- messageCount and throughAt (when the newest summarized message was sent).
 -- The service role calls it after the app read the messages as the user.
 -- Returns the summary as thread_summary does.
-create or replace function "better_supabase"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function "better_supabase"."upsert_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -10395,45 +10395,45 @@ declare
   v_count integer;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+    raise exception 'upsert_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  if save_thread_summary.thread is null then
+  if upsert_thread_summary.thread is null then
     select c."id", c."tenant_id" into v_conversation, v_tenant
-    from "better_supabase"."conversations" c where c."id" = save_thread_summary.conversation;
+    from "better_supabase"."conversations" c where c."id" = upsert_thread_summary.conversation;
   else
     select m."conversation_id", m."tenant_id" into v_conversation, v_tenant
     from "better_supabase"."messages" m
-    where m."id" = save_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
-      and (save_thread_summary.conversation is null or m."conversation_id" = save_thread_summary.conversation);
+    where m."id" = upsert_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
+      and (upsert_thread_summary.conversation is null or m."conversation_id" = upsert_thread_summary.conversation);
   end if;
   if v_conversation is null then
     raise exception 'no such conversation or thread root' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
   begin
-    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+    v_count := coalesce((upsert_thread_summary.attrs ->> 'messageCount')::integer, 0);
   exception when invalid_text_representation or numeric_value_out_of_range then
     v_count := -1;
   end;
-  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and 20000
-    or char_length(save_thread_summary.attrs ->> 'model') > 200
+  if char_length(btrim(coalesce(upsert_thread_summary.summary, ''))) not between 1 and 20000
+    or char_length(upsert_thread_summary.attrs ->> 'model') > 200
     or v_count < 0
-    or save_thread_summary.attrs ->> 'throughAt' is null then
+    or upsert_thread_summary.attrs ->> 'throughAt' is null then
     raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
   end if;
   insert into "better_supabase"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at", "updated_at")
-  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz, now())
+  values (v_tenant, v_conversation, upsert_thread_summary.thread, btrim(upsert_thread_summary.summary),
+    upsert_thread_summary.attrs ->> 'model', v_count, (upsert_thread_summary.attrs ->> 'throughAt')::timestamptz, now())
   on conflict ("conversation_id", "thread_id") do update
   set "summary" = excluded."summary",
     "model" = excluded."model",
     "message_count" = excluded."message_count",
     "through_at" = excluded."through_at",
     "updated_at" = now();
-  return "better_supabase"."thread_summary"(v_conversation, save_thread_summary.thread);
+  return "better_supabase"."thread_summary"(v_conversation, upsert_thread_summary.thread);
 end;
 $$;
-revoke execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+revoke execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 
 
@@ -10628,7 +10628,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@2 managed
--- @bsb-hash sha256:245e487835f4b2f06ce5aed5441be9d828e5032206946e7b9709a84431603810
+-- @bsb-hash sha256:6bcf4f8acde769e338aa71cb289d52fef434aff32b57221dc71de1d0ddc7305c
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10821,7 +10821,7 @@ create policy bsb_message_record_mentions_read on "better_supabase"."message_rec
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
 -- A thread's or a conversation's summary, which the service role writes
--- through save_thread_summary. It shows to whoever reads the conversation.
+-- through upsert_thread_summary. It shows to whoever reads the conversation.
 create table "better_supabase"."thread_summaries" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
@@ -11158,7 +11158,7 @@ grant execute on function "better_supabase"."open_conversation"(uuid, text, json
 -- Adds members. A member adds others to a members-only conversation, anyone
 -- who reads a tenant one joins it (users is the caller), and a moderator adds
 -- anyone. Direct messages keep their members. Returns how many joined.
-create or replace function "better_supabase"."add_conversation_members"(conversation uuid, users uuid[])
+create or replace function "better_supabase"."create_conversation_members"(conversation uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -11172,7 +11172,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = add_conversation_members.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = create_conversation_members.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -11181,11 +11181,11 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
-    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
-    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
+    or ("better_supabase"."can_conversation"(v_conv."id", 'send') and (v_conv."access" = 'members' or coalesce(create_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv."access" = 'tenant' and v_conv."archived_at" is null and coalesce(create_conversation_members.users <@ array[auth.uid()], false))) then
     raise exception 'not allowed to add members here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
+  for v_user in select distinct x from unnest(create_conversation_members.users) x where x is not null loop
     if not coalesce(better_supabase.can_user(v_user, 'tenant', v_conv."org_id", 'messages.read'), false) then
       raise exception 'every member must be able to read messages in the organization' using errcode = '22023', hint = 'MESSAGING_MEMBER_INVALID';
     end if;
@@ -11200,12 +11200,12 @@ begin
   return v_added;
 end;
 $$;
-revoke execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) from public, anon;
-grant execute on function "better_supabase"."add_conversation_members"(uuid, uuid[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) from public, anon;
+grant execute on function "better_supabase"."create_conversation_members"(uuid, uuid[]) to authenticated, service_role;
 
 -- Removes a member: the member leaves, or a moderator or the conversation's
 -- owner removes them.
-create or replace function "better_supabase"."remove_conversation_member"(conversation uuid, member uuid)
+create or replace function "better_supabase"."delete_conversation_member"(conversation uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -11217,7 +11217,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."conversations" c where c."id" = remove_conversation_member.conversation;
+  select * into v_conv from "better_supabase"."conversations" c where c."id" = delete_conversation_member.conversation;
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -11225,12 +11225,12 @@ begin
     raise exception 'this conversation''s members can''t change' using errcode = '22023', hint = 'MESSAGING_MEMBERS_FIXED';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-    or coalesce(remove_conversation_member.member = auth.uid(), false)
+    or coalesce(delete_conversation_member.member = auth.uid(), false)
     or "better_supabase"."can_conversation"(v_conv."id", 'moderate')
     or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = auth.uid() and k."role" = 'owner')) then
     raise exception 'not allowed to remove this member' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = remove_conversation_member.member;
+  delete from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = delete_conversation_member.member;
   if not found then
     return false;
   end if;
@@ -11238,8 +11238,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_conversation_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_conversation_member"(uuid, uuid) to authenticated, service_role;
 
 -- Archives a conversation (read-only from then on) or restores it: its owner
 -- or a moderator.
@@ -11953,7 +11953,7 @@ begin
   end if;
   if v_conv."access" = 'tenant' and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and v_conv."archived_at" is null
     and coalesce(better_supabase.can('tenant', v_conv."org_id", 'messages.send'), false) then
-    perform "better_supabase"."add_conversation_members"(v_conv."id", array[auth.uid()]);
+    perform "better_supabase"."create_conversation_members"(v_conv."id", array[auth.uid()]);
   end if;
   if not "better_supabase"."can_conversation"(v_conv."id", 'send') then
     raise exception 'not allowed to send messages here' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
@@ -12393,7 +12393,7 @@ grant execute on function "better_supabase"."thread_summary"(uuid, uuid) to auth
 -- messageCount and throughAt (when the newest summarized message was sent).
 -- The service role calls it after the app read the messages as the user.
 -- Returns the summary as thread_summary does.
-create or replace function "better_supabase"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function "better_supabase"."upsert_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -12406,45 +12406,45 @@ declare
   v_count integer;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+    raise exception 'upsert_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
-  if save_thread_summary.thread is null then
+  if upsert_thread_summary.thread is null then
     select c."id", c."org_id" into v_conversation, v_tenant
-    from "better_supabase"."conversations" c where c."id" = save_thread_summary.conversation;
+    from "better_supabase"."conversations" c where c."id" = upsert_thread_summary.conversation;
   else
     select m."conversation_id", m."org_id" into v_conversation, v_tenant
     from "better_supabase"."messages" m
-    where m."id" = save_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
-      and (save_thread_summary.conversation is null or m."conversation_id" = save_thread_summary.conversation);
+    where m."id" = upsert_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
+      and (upsert_thread_summary.conversation is null or m."conversation_id" = upsert_thread_summary.conversation);
   end if;
   if v_conversation is null then
     raise exception 'no such conversation or thread root' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
   begin
-    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+    v_count := coalesce((upsert_thread_summary.attrs ->> 'messageCount')::integer, 0);
   exception when invalid_text_representation or numeric_value_out_of_range then
     v_count := -1;
   end;
-  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and 20000
-    or char_length(save_thread_summary.attrs ->> 'model') > 200
+  if char_length(btrim(coalesce(upsert_thread_summary.summary, ''))) not between 1 and 20000
+    or char_length(upsert_thread_summary.attrs ->> 'model') > 200
     or v_count < 0
-    or save_thread_summary.attrs ->> 'throughAt' is null then
+    or upsert_thread_summary.attrs ->> 'throughAt' is null then
     raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
   end if;
   insert into "better_supabase"."thread_summaries" ("org_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at")
-  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
-    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+  values (v_tenant, v_conversation, upsert_thread_summary.thread, btrim(upsert_thread_summary.summary),
+    upsert_thread_summary.attrs ->> 'model', v_count, (upsert_thread_summary.attrs ->> 'throughAt')::timestamptz)
   on conflict ("conversation_id", "thread_id") do update
   set "summary" = excluded."summary",
     "model" = excluded."model",
     "message_count" = excluded."message_count",
     "through_at" = excluded."through_at",
     "updated_at" = now();
-  return "better_supabase"."thread_summary"(v_conversation, save_thread_summary.thread);
+  return "better_supabase"."thread_summary"(v_conversation, upsert_thread_summary.thread);
 end;
 $$;
-revoke execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+revoke execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."upsert_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 
 

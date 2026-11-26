@@ -215,8 +215,8 @@ begin
   exception when sqlstate '22023' then
     null;
   end;
-  if not better_supabase.remove_usage_quota('${TENANT}', null, 'api.calls')
-    or better_supabase.remove_usage_quota('${TENANT}', null, 'api.calls') then
+  if not better_supabase.delete_usage_quota('${TENANT}', null, 'api.calls')
+    or better_supabase.delete_usage_quota('${TENANT}', null, 'api.calls') then
     raise exception 'remove result';
   end if;
   if (select count(*) from public.plan_limits) <> 1 then

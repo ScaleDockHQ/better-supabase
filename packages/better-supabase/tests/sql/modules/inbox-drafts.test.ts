@@ -24,7 +24,7 @@ describe("inbox drafts", () => {
     const sql = body();
 
     for (const name of [
-      "save_inbox_draft",
+      "upsert_inbox_draft",
       "suggest_inbox_draft",
       "list_inbox_drafts",
       "send_inbox_draft",

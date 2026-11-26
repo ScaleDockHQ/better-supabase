@@ -612,7 +612,7 @@ export function createReminders<
       tenant().andThen((organizationId) =>
         writeFields(fields, values, (checked) =>
           call(
-            "save_reminder",
+            "upsert_reminder",
             {
               tenant: organizationId,
               subject_type: subject.type,
@@ -623,7 +623,7 @@ export function createReminders<
               fields: checked,
             },
             (value) => {
-              const row = recordOf(value, "save_reminder");
+              const row = recordOf(value, "upsert_reminder");
 
               return {
                 id: textOf(row["id"]),

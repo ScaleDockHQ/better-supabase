@@ -27,11 +27,13 @@ interface Rename {
     | "index"
     | "policy"
     | "sqlFunction"
+    | "sqlFunctionName"
     | "subpath"
     | "table"
     | "trigger"
     | "type";
   readonly since: string;
+  readonly module?: string;
 }
 
 interface Naming {
@@ -119,6 +121,9 @@ const ROOTS = [
 
 const HISTORY = [
   "supabase/migrations/",
+  "tests/validation-declarative/supabase/migrations/",
+  "tests/validation-lienlink/supabase/migrations/",
+  "apps/examples/nextjs/perf-results/",
   NAMING_FILE,
   "packages/better-supabase/api/exports.json",
   "CHANGELOG.md",
@@ -127,6 +132,7 @@ const HISTORY = [
   "apps/docs/content/docs/(docs)/migration/",
   "apps/docs/content/docs/(docs)/concepts/naming.mdx",
   "scripts/check-naming.ts",
+  "packages/better-supabase/src/sql/function-renames.ts",
 ];
 
 const files: string[] = [];

@@ -401,7 +401,7 @@ export function createSavedViews<
 
       return writeFields(fields, input.fields, (checked) =>
         call(
-          "save_view",
+          "upsert_view",
           {
             tenant: input.organizationId,
             list: input.list,

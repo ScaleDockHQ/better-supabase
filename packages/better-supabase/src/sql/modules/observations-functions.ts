@@ -602,7 +602,7 @@ export function observationFunctions(ctx: BlockSqlContext): string {
 -- Creates or changes an organization's definition with this key; a system
 -- definition with the same key stays, and the organization's wins. Only
 -- the service role saves system definitions (tenant null).
-create or replace function ${fn("save_observation_definition")}(tenant ${idType}, key text, definition jsonb)
+create or replace function ${fn("upsert_observation_definition")}(tenant ${idType}, key text, definition jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -612,20 +612,20 @@ as $$
 declare
   v_row ${definitions}%rowtype;
   v_old ${definitions}%rowtype;
-  v_definition jsonb := coalesce(save_observation_definition.definition, '{}'::jsonb);
+  v_definition jsonb := coalesce(upsert_observation_definition.definition, '{}'::jsonb);
   v_title text;
   v_type text;
   v_components jsonb;
   v_component jsonb;
 begin
-  if save_observation_definition.tenant is null then
+  if upsert_observation_definition.tenant is null then
     if not ${SERVICE_CALLER} then
       ${forbidden("only the service role saves system definitions")}
     end if;
-  elsif not ${allowed("save_observation_definition.tenant", manage)} then
+  elsif not ${allowed("upsert_observation_definition.tenant", manage)} then
     ${forbidden("not allowed to manage observation definitions")}
   end if;
-  if save_observation_definition.key is null or save_observation_definition.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_observation_definition.key is null or upsert_observation_definition.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     ${definitionInvalid("the key takes lowercase letters, digits and underscores, starting with a letter")}
   end if;
   if jsonb_typeof(v_definition) <> 'object' then
@@ -675,16 +675,16 @@ begin
     ${definitionInvalid("only a components definition has components")}
   end if;
   select * into v_old from ${definitions} x
-  where x.${d("tenant")} is not distinct from save_observation_definition.tenant and x.${d("key")} = save_observation_definition.key;
+  where x.${d("tenant")} is not distinct from upsert_observation_definition.tenant and x.${d("key")} = upsert_observation_definition.key;
   if found and v_old.${d("valueType")} <> v_type and exists (select 1 from ${observations} x where x.${o("definition")} = v_old.${d("id")}) then
     ${definitionInvalid("the value type can't change once observations use the definition")}
   end if;
   ${ctx.hook("before_observation_definition_save", [
-    [idType, "save_observation_definition.tenant"],
-    ["text", "save_observation_definition.key"],
+    [idType, "upsert_observation_definition.tenant"],
+    ["text", "upsert_observation_definition.key"],
   ])}
   insert into ${definitions} (${d("tenant")}, ${d("key")}, ${definitionColumns.map(d).join(", ")})
-  values (save_observation_definition.tenant, save_observation_definition.key, ${definitionValues})
+  values (upsert_observation_definition.tenant, upsert_observation_definition.key, ${definitionValues})
   on conflict (${d("tenant")}, ${d("key")}) do update set
       ${definitionSets}
   returning * into v_row;
@@ -697,7 +697,7 @@ begin
   return ${definitionJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_observation_definition")}(${idType}, text, jsonb)`)}
+${userGrant(`${fn("upsert_observation_definition")}(${idType}, text, jsonb)`)}
 
 -- Archives a definition: it takes no new observations, and the ones it
 -- has stay.

@@ -94,7 +94,7 @@ describe("createObservations", () => {
 
   it("saves, archives and lists definitions", async () => {
     const t = fieldsTransport({
-      save_observation_definition: () => ({
+      upsert_observation_definition: () => ({
         ...DEFINITION,
         id: "d3",
         organizationId: "org-1",
@@ -156,7 +156,7 @@ describe("createObservations", () => {
     ]);
     expect(t.calls).toEqual([
       [
-        "save_observation_definition",
+        "upsert_observation_definition",
         {
           tenant: "org-1",
           key: "mews",

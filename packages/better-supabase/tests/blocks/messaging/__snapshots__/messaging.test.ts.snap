@@ -52,7 +52,7 @@ exports[`createMessaging > calls every function with snake_case arguments 1`] = 
     },
   ],
   [
-    "add_conversation_members",
+    "create_conversation_members",
     {
       "conversation": "c1",
       "users": [
@@ -62,7 +62,7 @@ exports[`createMessaging > calls every function with snake_case arguments 1`] = 
     },
   ],
   [
-    "remove_conversation_member",
+    "delete_conversation_member",
     {
       "conversation": "c1",
       "member": "u2",

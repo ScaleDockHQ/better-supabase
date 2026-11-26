@@ -157,7 +157,7 @@ describe("createWorkflows", () => {
       create_workflow_schedule: () => SCHEDULE,
       workflow_schedules_list: () => [SCHEDULE],
       pause_workflow_schedule: () => true,
-      remove_workflow_schedule: () => false,
+      delete_workflow_schedule: () => false,
     });
 
     const workflows = createWorkflows({ transport });

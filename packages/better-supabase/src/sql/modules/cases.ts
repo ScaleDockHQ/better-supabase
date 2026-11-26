@@ -329,7 +329,7 @@ ${caseReadFunctions(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_case_kind",
+      name: "upsert_case_kind",
       args: [
         "{id}",
         "text",
@@ -382,7 +382,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "uuid", "text", "boolean"],
       returns: "jsonb",
     },
-    { name: "remove_case_action", args: ["uuid"], returns: "jsonb" },
+    { name: "delete_case_action", args: ["uuid"], returns: "jsonb" },
     {
       name: "record_case_effectiveness",
       args: ["uuid", "boolean", "uuid", "text"],

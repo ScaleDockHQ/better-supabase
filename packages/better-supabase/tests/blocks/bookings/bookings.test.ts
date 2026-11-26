@@ -79,8 +79,8 @@ describe("bookings client", () => {
 
   it("saves resources and services with durations as ISO strings", async () => {
     const { calls, bookings } = recorder({
-      save_booking_resource: { id: "r1", created: true },
-      save_booking_service: { id: "s1", created: true },
+      upsert_booking_resource: { id: "r1", created: true },
+      upsert_booking_service: { id: "s1", created: true },
       set_booking_availability: 2,
     });
 
@@ -136,7 +136,7 @@ describe("bookings client", () => {
 
   it("adds and deletes exceptions", async () => {
     const { calls, bookings } = recorder({
-      add_booking_exception: { id: "e1" },
+      create_booking_exception: { id: "e1" },
       delete_booking_exception: true,
     });
 

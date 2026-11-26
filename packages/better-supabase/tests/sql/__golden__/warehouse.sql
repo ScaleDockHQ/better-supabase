@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:6e46b288850b086f47d7f9e79a0555e1230636dc7353f911b924c3d0d2199860
+-- @bsb-hash sha256:544399aa9804e95d32bad220e54d6dd0485f2f99f91b426d433c4b7670627662
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1697,7 +1697,7 @@ revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from publ
 -- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
 -- variantId (any variant when absent) goes to binId, lowest priority first,
 -- until the bin holds maxQuantity of it. Needs warehouse.manage.
-create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_putaway_rule"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1717,35 +1717,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_putaway_rule.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_putaway_rule.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
-    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
-    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
-    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
-    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
-    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
-    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+    v_id := nullif(upsert_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(upsert_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(upsert_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(upsert_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (upsert_putaway_rule.input ->> 'priority')::integer;
+    v_max := (upsert_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (upsert_putaway_rule.input ->> 'active')::boolean;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_id is not null then
     select * into v_row from "better_supabase"."putaway_rules" x
-    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_putaway_rule.tenant for update;
     if not found then
       raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
     end if;
     v_location := coalesce(v_location, v_row."location_id");
     v_bin := coalesce(v_bin, v_row."bin_id");
-    if not (save_putaway_rule.input ? 'variantId') then
+    if not (upsert_putaway_rule.input ? 'variantId') then
       v_variant := v_row."variant_id";
     end if;
-    if not (save_putaway_rule.input ? 'maxQuantity') then
+    if not (upsert_putaway_rule.input ? 'maxQuantity') then
       v_max := v_row."max_quantity";
     end if;
     v_priority := coalesce(v_priority, v_row."priority");
@@ -1756,12 +1756,12 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."stock_bins" x
-    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+    where x."id" = v_bin and x."tenant_id" = upsert_putaway_rule.tenant and x."location_id" = v_location
   ) then
     raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   if v_variant is not null and not exists (
-    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_putaway_rule.tenant
   ) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
@@ -1770,7 +1770,7 @@ begin
   end if;
   if v_id is null then
     insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
-    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    values (upsert_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
     returning * into v_row;
   else
     update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
@@ -1781,8 +1781,8 @@ begin
   return "better_supabase"."putaway_rule_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a putaway rule. Returns false when it was already gone. Needs
 -- warehouse.manage.
@@ -2083,7 +2083,7 @@ grant execute on function "better_supabase"."get_putaway_rule"(uuid) to authenti
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
 -- capacity is in the unit of variant sizes (no limit when absent). Needs
 -- warehouse.manage.
-create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_bin_slot"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2099,27 +2099,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bin_slot.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bin_slot.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
-    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
-    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+    v_bin := (upsert_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((upsert_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (upsert_bin_slot.input ->> 'capacity')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
     raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = upsert_bin_slot.tenant) then
     raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
-  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  values (upsert_bin_slot.tenant, v_bin, v_rank, v_capacity)
   on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
     "capacity" = excluded."capacity", "updated_at" = now()
   returning * into v_row;
@@ -2127,12 +2127,12 @@ begin
     'capacity', v_row."capacity"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the space one unit of a variant takes in a bin. input is
 -- { variantId, size }. Needs warehouse.manage.
-create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_variant_size"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2147,33 +2147,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', upsert_variant_size.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_variant_size.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
-    v_size := (save_variant_size.input ->> 'size')::numeric;
+    v_variant := (upsert_variant_size.input ->> 'variantId')::uuid;
+    v_size := (upsert_variant_size.input ->> 'size')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_size is null or v_size <= 0 then
     raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_variant_size.tenant) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
-  values (save_variant_size.tenant, v_variant, v_size)
+  values (upsert_variant_size.tenant, v_variant, v_size)
   on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) to authenticated, service_role;
 
 -- The bins of a location with their slot and how full they are. filters is
 -- { locationId }. used is the stock in the bin times the variant sizes.
@@ -2665,7 +2665,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:d82ba7d046f1438be026a248d6a67ab141e2c16ff3bc340c1fe0c0323688e4d0
+-- @bsb-hash sha256:ab0c9437fed52d3dd5f5d38f612329574de747a794787ef5320777cf9c7928eb
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4452,7 +4452,7 @@ revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from publ
 -- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
 -- variantId (any variant when absent) goes to binId, lowest priority first,
 -- until the bin holds maxQuantity of it. Needs warehouse.manage.
-create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_putaway_rule"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4472,35 +4472,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_putaway_rule.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_putaway_rule.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
-    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
-    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
-    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
-    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
-    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
-    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+    v_id := nullif(upsert_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(upsert_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(upsert_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(upsert_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (upsert_putaway_rule.input ->> 'priority')::integer;
+    v_max := (upsert_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (upsert_putaway_rule.input ->> 'active')::boolean;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_id is not null then
     select * into v_row from "better_supabase"."putaway_rules" x
-    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_putaway_rule.tenant for update;
     if not found then
       raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
     end if;
     v_location := coalesce(v_location, v_row."location_id");
     v_bin := coalesce(v_bin, v_row."bin_id");
-    if not (save_putaway_rule.input ? 'variantId') then
+    if not (upsert_putaway_rule.input ? 'variantId') then
       v_variant := v_row."variant_id";
     end if;
-    if not (save_putaway_rule.input ? 'maxQuantity') then
+    if not (upsert_putaway_rule.input ? 'maxQuantity') then
       v_max := v_row."max_quantity";
     end if;
     v_priority := coalesce(v_priority, v_row."priority");
@@ -4511,12 +4511,12 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."stock_bins" x
-    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+    where x."id" = v_bin and x."tenant_id" = upsert_putaway_rule.tenant and x."location_id" = v_location
   ) then
     raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   if v_variant is not null and not exists (
-    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_putaway_rule.tenant
   ) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
@@ -4525,7 +4525,7 @@ begin
   end if;
   if v_id is null then
     insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
-    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    values (upsert_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
     returning * into v_row;
   else
     update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
@@ -4536,8 +4536,8 @@ begin
   return "better_supabase"."putaway_rule_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a putaway rule. Returns false when it was already gone. Needs
 -- warehouse.manage.
@@ -4838,7 +4838,7 @@ grant execute on function "better_supabase"."get_putaway_rule"(uuid) to authenti
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
 -- capacity is in the unit of variant sizes (no limit when absent). Needs
 -- warehouse.manage.
-create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_bin_slot"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4854,27 +4854,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bin_slot.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bin_slot.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
-    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
-    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+    v_bin := (upsert_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((upsert_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (upsert_bin_slot.input ->> 'capacity')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
     raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = upsert_bin_slot.tenant) then
     raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
-  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  values (upsert_bin_slot.tenant, v_bin, v_rank, v_capacity)
   on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
     "capacity" = excluded."capacity", "updated_at" = now()
   returning * into v_row;
@@ -4882,12 +4882,12 @@ begin
     'capacity', v_row."capacity"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the space one unit of a variant takes in a bin. input is
 -- { variantId, size }. Needs warehouse.manage.
-create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_variant_size"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4902,33 +4902,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', upsert_variant_size.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_variant_size.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
-    v_size := (save_variant_size.input ->> 'size')::numeric;
+    v_variant := (upsert_variant_size.input ->> 'variantId')::uuid;
+    v_size := (upsert_variant_size.input ->> 'size')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_size is null or v_size <= 0 then
     raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_variant_size.tenant) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
-  values (save_variant_size.tenant, v_variant, v_size)
+  values (upsert_variant_size.tenant, v_variant, v_size)
   on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) to authenticated, service_role;
 
 -- The bins of a location with their slot and how full they are. filters is
 -- { locationId }. used is the stock in the bin times the variant sizes.
@@ -5429,7 +5429,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:2cf38b619e17dbf7e14b6f2113d7f4fea4acbd4e20d799d19d78519bedcd4238
+-- @bsb-hash sha256:1adef67ec0f518db1fdc26a5f2d6b80cb19591abf30a9d282cb9bb576732aa1c
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7130,7 +7130,7 @@ revoke execute on function "app_private"."putaway_rule_json"(uuid) from public, 
 -- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
 -- variantId (any variant when absent) goes to binId, lowest priority first,
 -- until the bin holds maxQuantity of it. Needs warehouse.manage.
-create or replace function "app_private"."save_putaway_rule"(tenant uuid, input jsonb)
+create or replace function "app_private"."upsert_putaway_rule"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7150,35 +7150,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_putaway_rule.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_putaway_rule.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
-    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
-    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
-    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
-    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
-    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
-    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+    v_id := nullif(upsert_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(upsert_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(upsert_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(upsert_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (upsert_putaway_rule.input ->> 'priority')::integer;
+    v_max := (upsert_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (upsert_putaway_rule.input ->> 'active')::boolean;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_id is not null then
     select * into v_row from "app_private"."putaway_rules" x
-    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_putaway_rule.tenant for update;
     if not found then
       raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
     end if;
     v_location := coalesce(v_location, v_row."location_id");
     v_bin := coalesce(v_bin, v_row."bin_id");
-    if not (save_putaway_rule.input ? 'variantId') then
+    if not (upsert_putaway_rule.input ? 'variantId') then
       v_variant := v_row."variant_id";
     end if;
-    if not (save_putaway_rule.input ? 'maxQuantity') then
+    if not (upsert_putaway_rule.input ? 'maxQuantity') then
       v_max := v_row."max_quantity";
     end if;
     v_priority := coalesce(v_priority, v_row."priority");
@@ -7189,12 +7189,12 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."stock_bins" x
-    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+    where x."id" = v_bin and x."tenant_id" = upsert_putaway_rule.tenant and x."location_id" = v_location
   ) then
     raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   if v_variant is not null and not exists (
-    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_putaway_rule.tenant
   ) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
@@ -7203,7 +7203,7 @@ begin
   end if;
   if v_id is null then
     insert into "app_private"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
-    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    values (upsert_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
     returning * into v_row;
   else
     update "app_private"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
@@ -7214,8 +7214,8 @@ begin
   return "app_private"."putaway_rule_json"(v_row."id");
 end;
 $$;
-revoke execute on function "app_private"."save_putaway_rule"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_putaway_rule"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a putaway rule. Returns false when it was already gone. Needs
 -- warehouse.manage.
@@ -7516,7 +7516,7 @@ grant execute on function "app_private"."get_putaway_rule"(uuid) to authenticate
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
 -- capacity is in the unit of variant sizes (no limit when absent). Needs
 -- warehouse.manage.
-create or replace function "app_private"."save_bin_slot"(tenant uuid, input jsonb)
+create or replace function "app_private"."upsert_bin_slot"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7532,27 +7532,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bin_slot.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bin_slot.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
-    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
-    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+    v_bin := (upsert_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((upsert_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (upsert_bin_slot.input ->> 'capacity')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
     raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = upsert_bin_slot.tenant) then
     raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "app_private"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
-  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  values (upsert_bin_slot.tenant, v_bin, v_rank, v_capacity)
   on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
     "capacity" = excluded."capacity", "updated_at" = now()
   returning * into v_row;
@@ -7560,12 +7560,12 @@ begin
     'capacity', v_row."capacity"::text);
 end;
 $$;
-revoke execute on function "app_private"."save_bin_slot"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_bin_slot"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the space one unit of a variant takes in a bin. input is
 -- { variantId, size }. Needs warehouse.manage.
-create or replace function "app_private"."save_variant_size"(tenant uuid, input jsonb)
+create or replace function "app_private"."upsert_variant_size"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7580,33 +7580,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', upsert_variant_size.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_variant_size.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
-    v_size := (save_variant_size.input ->> 'size')::numeric;
+    v_variant := (upsert_variant_size.input ->> 'variantId')::uuid;
+    v_size := (upsert_variant_size.input ->> 'size')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_size is null or v_size <= 0 then
     raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_variant_size.tenant) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "app_private"."variant_sizes" ("tenant_id", "variant_id", "size")
-  values (save_variant_size.tenant, v_variant, v_size)
+  values (upsert_variant_size.tenant, v_variant, v_size)
   on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
 end;
 $$;
-revoke execute on function "app_private"."save_variant_size"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_variant_size"(uuid, jsonb) to authenticated, service_role;
 
 -- The bins of a location with their slot and how full they are. filters is
 -- { locationId }. used is the stock in the bin times the variant sizes.
@@ -8098,7 +8098,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:12d876d58b00913af4c35ba3b6f61724dfc4977b6a5e9ce01caabd4631a60d2d
+-- @bsb-hash sha256:136191b6d95f12b2124c612ef7883f7195494fb6790cf798a851e69232faf548
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9794,7 +9794,7 @@ revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from publ
 -- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
 -- variantId (any variant when absent) goes to binId, lowest priority first,
 -- until the bin holds maxQuantity of it. Needs warehouse.manage.
-create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_putaway_rule"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -9814,35 +9814,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_putaway_rule.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_putaway_rule.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
-    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
-    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
-    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
-    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
-    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
-    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+    v_id := nullif(upsert_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(upsert_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(upsert_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(upsert_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (upsert_putaway_rule.input ->> 'priority')::integer;
+    v_max := (upsert_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (upsert_putaway_rule.input ->> 'active')::boolean;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_id is not null then
     select * into v_row from "better_supabase"."putaway_rules" x
-    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_putaway_rule.tenant for update;
     if not found then
       raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
     end if;
     v_location := coalesce(v_location, v_row."location_id");
     v_bin := coalesce(v_bin, v_row."bin_id");
-    if not (save_putaway_rule.input ? 'variantId') then
+    if not (upsert_putaway_rule.input ? 'variantId') then
       v_variant := v_row."variant_id";
     end if;
-    if not (save_putaway_rule.input ? 'maxQuantity') then
+    if not (upsert_putaway_rule.input ? 'maxQuantity') then
       v_max := v_row."max_quantity";
     end if;
     v_priority := coalesce(v_priority, v_row."priority");
@@ -9853,12 +9853,12 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."stock_bins" x
-    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+    where x."id" = v_bin and x."tenant_id" = upsert_putaway_rule.tenant and x."location_id" = v_location
   ) then
     raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   if v_variant is not null and not exists (
-    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_putaway_rule.tenant
   ) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
@@ -9867,7 +9867,7 @@ begin
   end if;
   if v_id is null then
     insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
-    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    values (upsert_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
     returning * into v_row;
   else
     update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
@@ -9878,8 +9878,8 @@ begin
   return "better_supabase"."putaway_rule_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a putaway rule. Returns false when it was already gone. Needs
 -- warehouse.manage.
@@ -10180,7 +10180,7 @@ grant execute on function "better_supabase"."get_putaway_rule"(uuid) to authenti
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
 -- capacity is in the unit of variant sizes (no limit when absent). Needs
 -- warehouse.manage.
-create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_bin_slot"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -10196,27 +10196,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bin_slot.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bin_slot.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
-    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
-    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+    v_bin := (upsert_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((upsert_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (upsert_bin_slot.input ->> 'capacity')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
     raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = upsert_bin_slot.tenant) then
     raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
-  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  values (upsert_bin_slot.tenant, v_bin, v_rank, v_capacity)
   on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
     "capacity" = excluded."capacity", "updated_at" = now()
   returning * into v_row;
@@ -10224,12 +10224,12 @@ begin
     'capacity', v_row."capacity"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the space one unit of a variant takes in a bin. input is
 -- { variantId, size }. Needs warehouse.manage.
-create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_variant_size"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -10244,33 +10244,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', upsert_variant_size.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_variant_size.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
-    v_size := (save_variant_size.input ->> 'size')::numeric;
+    v_variant := (upsert_variant_size.input ->> 'variantId')::uuid;
+    v_size := (upsert_variant_size.input ->> 'size')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_size is null or v_size <= 0 then
     raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_variant_size.tenant) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
-  values (save_variant_size.tenant, v_variant, v_size)
+  values (upsert_variant_size.tenant, v_variant, v_size)
   on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) to authenticated, service_role;
 
 -- The bins of a location with their slot and how full they are. filters is
 -- { locationId }. used is the stock in the bin times the variant sizes.
@@ -10929,14 +10929,14 @@ as $$ select "better_supabase"."post_cycle_count"($1, $2) $$;
 revoke execute on function "api"."post_cycle_count"(uuid, boolean) from public, anon;
 grant execute on function "api"."post_cycle_count"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_putaway_rule"(tenant uuid, input jsonb)
+create or replace function "api"."upsert_putaway_rule"(tenant uuid, input jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_putaway_rule"($1, $2) $$;
-revoke execute on function "api"."save_putaway_rule"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_putaway_rule"($1, $2) $$;
+revoke execute on function "api"."upsert_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_putaway_rule"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_putaway_rule"(rule_id uuid)
 returns boolean
@@ -10967,23 +10967,23 @@ as $$ select "better_supabase"."get_putaway_rule"($1) $$;
 revoke execute on function "api"."get_putaway_rule"(uuid) from public, anon;
 grant execute on function "api"."get_putaway_rule"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_bin_slot"(tenant uuid, input jsonb)
+create or replace function "api"."upsert_bin_slot"(tenant uuid, input jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_bin_slot"($1, $2) $$;
-revoke execute on function "api"."save_bin_slot"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_bin_slot"($1, $2) $$;
+revoke execute on function "api"."upsert_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_bin_slot"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_variant_size"(tenant uuid, input jsonb)
+create or replace function "api"."upsert_variant_size"(tenant uuid, input jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_variant_size"($1, $2) $$;
-revoke execute on function "api"."save_variant_size"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_variant_size"($1, $2) $$;
+revoke execute on function "api"."upsert_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_variant_size"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_bin_slots"(tenant uuid, filters jsonb)
 returns jsonb
@@ -11051,7 +11051,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:eb80e3683cc9f7f8163860243b5b88476cdd39536f2d9fc6e0f3d817f69ef73f
+-- @bsb-hash sha256:b812dba967cc0fead1f51672ab790ac7f3b312a81e01c5c835e399bb6d5bf9c8
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12731,7 +12731,7 @@ revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from publ
 -- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
 -- variantId (any variant when absent) goes to binId, lowest priority first,
 -- until the bin holds maxQuantity of it. Needs warehouse.manage.
-create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_putaway_rule"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -12751,35 +12751,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_putaway_rule.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_putaway_rule.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
-    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
-    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
-    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
-    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
-    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
-    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+    v_id := nullif(upsert_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(upsert_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(upsert_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(upsert_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (upsert_putaway_rule.input ->> 'priority')::integer;
+    v_max := (upsert_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (upsert_putaway_rule.input ->> 'active')::boolean;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_id is not null then
     select * into v_row from "better_supabase"."putaway_rules" x
-    where x."id" = v_id and x."tenant_id" = save_putaway_rule.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_putaway_rule.tenant for update;
     if not found then
       raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
     end if;
     v_location := coalesce(v_location, v_row."location_id");
     v_bin := coalesce(v_bin, v_row."bin_id");
-    if not (save_putaway_rule.input ? 'variantId') then
+    if not (upsert_putaway_rule.input ? 'variantId') then
       v_variant := v_row."variant_id";
     end if;
-    if not (save_putaway_rule.input ? 'maxQuantity') then
+    if not (upsert_putaway_rule.input ? 'maxQuantity') then
       v_max := v_row."max_quantity";
     end if;
     v_priority := coalesce(v_priority, v_row."priority");
@@ -12790,12 +12790,12 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."stock_bins" x
-    where x."id" = v_bin and x."tenant_id" = save_putaway_rule.tenant and x."location_id" = v_location
+    where x."id" = v_bin and x."tenant_id" = upsert_putaway_rule.tenant and x."location_id" = v_location
   ) then
     raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   if v_variant is not null and not exists (
-    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_putaway_rule.tenant
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_putaway_rule.tenant
   ) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
@@ -12804,7 +12804,7 @@ begin
   end if;
   if v_id is null then
     insert into "better_supabase"."putaway_rules" ("tenant_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
-    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    values (upsert_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
     returning * into v_row;
   else
     update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
@@ -12815,8 +12815,8 @@ begin
   return "better_supabase"."putaway_rule_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a putaway rule. Returns false when it was already gone. Needs
 -- warehouse.manage.
@@ -13117,7 +13117,7 @@ grant execute on function "better_supabase"."get_putaway_rule"(uuid) to authenti
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
 -- capacity is in the unit of variant sizes (no limit when absent). Needs
 -- warehouse.manage.
-create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_bin_slot"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -13133,27 +13133,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bin_slot.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bin_slot.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
-    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
-    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+    v_bin := (upsert_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((upsert_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (upsert_bin_slot.input ->> 'capacity')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
     raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = save_bin_slot.tenant) then
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."tenant_id" = upsert_bin_slot.tenant) then
     raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."bin_slots" ("tenant_id", "bin_id", "walk_rank", "capacity")
-  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  values (upsert_bin_slot.tenant, v_bin, v_rank, v_capacity)
   on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
     "capacity" = excluded."capacity", "updated_at" = now()
   returning * into v_row;
@@ -13161,12 +13161,12 @@ begin
     'capacity', v_row."capacity"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the space one unit of a variant takes in a bin. input is
 -- { variantId, size }. Needs warehouse.manage.
-create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_variant_size"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -13181,33 +13181,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', upsert_variant_size.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_variant_size.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
-    v_size := (save_variant_size.input ->> 'size')::numeric;
+    v_variant := (upsert_variant_size.input ->> 'variantId')::uuid;
+    v_size := (upsert_variant_size.input ->> 'size')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_size is null or v_size <= 0 then
     raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = save_variant_size.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."tenant_id" = upsert_variant_size.tenant) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."variant_sizes" ("tenant_id", "variant_id", "size")
-  values (save_variant_size.tenant, v_variant, v_size)
+  values (upsert_variant_size.tenant, v_variant, v_size)
   on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) to authenticated, service_role;
 
 -- The bins of a location with their slot and how full they are. filters is
 -- { locationId }. used is the stock in the bin times the variant sizes.
@@ -13699,7 +13699,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_167_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:dfbab89bd9fb0604df3684d92d4c78473e0e61842f297e3f27f2dad95bc837ec
+-- @bsb-hash sha256:11170802189ea28d302b634ae7655325f08408941e2b003e4a2d61ddb87c598c
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15395,7 +15395,7 @@ revoke execute on function "better_supabase"."putaway_rule_json"(uuid) from publ
 -- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
 -- variantId (any variant when absent) goes to binId, lowest priority first,
 -- until the bin holds maxQuantity of it. Needs warehouse.manage.
-create or replace function "better_supabase"."save_putaway_rule"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_putaway_rule"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -15415,35 +15415,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_putaway_rule.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_putaway_rule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_putaway_rule.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage putaway rules' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_putaway_rule.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
-    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
-    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
-    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
-    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
-    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
-    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+    v_id := nullif(upsert_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(upsert_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(upsert_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(upsert_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (upsert_putaway_rule.input ->> 'priority')::integer;
+    v_max := (upsert_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (upsert_putaway_rule.input ->> 'active')::boolean;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'ids are uuids, priority is an integer, maxQuantity a number and active a boolean' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_id is not null then
     select * into v_row from "better_supabase"."putaway_rules" x
-    where x."id" = v_id and x."org_id" = save_putaway_rule.tenant for update;
+    where x."id" = v_id and x."org_id" = upsert_putaway_rule.tenant for update;
     if not found then
       raise exception 'no such putaway rule' using errcode = 'P0002', hint = 'WAREHOUSE_RULE_NOT_FOUND';
     end if;
     v_location := coalesce(v_location, v_row."location_id");
     v_bin := coalesce(v_bin, v_row."bin_id");
-    if not (save_putaway_rule.input ? 'variantId') then
+    if not (upsert_putaway_rule.input ? 'variantId') then
       v_variant := v_row."variant_id";
     end if;
-    if not (save_putaway_rule.input ? 'maxQuantity') then
+    if not (upsert_putaway_rule.input ? 'maxQuantity') then
       v_max := v_row."max_quantity";
     end if;
     v_priority := coalesce(v_priority, v_row."priority");
@@ -15454,12 +15454,12 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."stock_bins" x
-    where x."id" = v_bin and x."org_id" = save_putaway_rule.tenant and x."location_id" = v_location
+    where x."id" = v_bin and x."org_id" = upsert_putaway_rule.tenant and x."location_id" = v_location
   ) then
     raise exception 'the bin has to be in the rule''s location in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   if v_variant is not null and not exists (
-    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."org_id" = save_putaway_rule.tenant
+    select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."org_id" = upsert_putaway_rule.tenant
   ) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
@@ -15468,7 +15468,7 @@ begin
   end if;
   if v_id is null then
     insert into "better_supabase"."putaway_rules" ("org_id", "location_id", "bin_id", "variant_id", "priority", "max_quantity", "active")
-    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    values (upsert_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
     returning * into v_row;
   else
     update "better_supabase"."putaway_rules" x set "location_id" = v_location, "bin_id" = v_bin, "variant_id" = v_variant,
@@ -15479,8 +15479,8 @@ begin
   return "better_supabase"."putaway_rule_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_putaway_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_putaway_rule"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a putaway rule. Returns false when it was already gone. Needs
 -- warehouse.manage.
@@ -15781,7 +15781,7 @@ grant execute on function "better_supabase"."get_putaway_rule"(uuid) to authenti
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
 -- capacity is in the unit of variant sizes (no limit when absent). Needs
 -- warehouse.manage.
-create or replace function "better_supabase"."save_bin_slot"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_bin_slot"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -15797,27 +15797,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', save_bin_slot.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bin_slot.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bin_slot.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage bin slots' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bin_slot.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
-    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
-    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+    v_bin := (upsert_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((upsert_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (upsert_bin_slot.input ->> 'capacity')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'binId is a uuid, walkRank an integer and capacity a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
     raise exception 'walkRank is between 0 and 100000 and capacity is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."org_id" = save_bin_slot.tenant) then
+  if not exists (select 1 from "better_supabase"."stock_bins" x where x."id" = v_bin and x."org_id" = upsert_bin_slot.tenant) then
     raise exception 'no such bin in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."bin_slots" ("org_id", "bin_id", "walk_rank", "capacity")
-  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  values (upsert_bin_slot.tenant, v_bin, v_rank, v_capacity)
   on conflict ("bin_id") do update set "walk_rank" = excluded."walk_rank",
     "capacity" = excluded."capacity", "updated_at" = now()
   returning * into v_row;
@@ -15825,12 +15825,12 @@ begin
     'capacity', v_row."capacity"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_bin_slot"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_bin_slot"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the space one unit of a variant takes in a bin. input is
 -- { variantId, size }. Needs warehouse.manage.
-create or replace function "better_supabase"."save_variant_size"(tenant uuid, input jsonb)
+create or replace function "better_supabase"."upsert_variant_size"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -15845,33 +15845,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', save_variant_size.tenant, 'warehouse.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_variant_size.tenant is not null and coalesce(better_supabase.can('tenant', upsert_variant_size.tenant, 'warehouse.manage'), false))) then
     raise exception 'not allowed to manage variant sizes' using errcode = '42501', hint = 'WAREHOUSE_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_variant_size.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   begin
-    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
-    v_size := (save_variant_size.input ->> 'size')::numeric;
+    v_variant := (upsert_variant_size.input ->> 'variantId')::uuid;
+    v_size := (upsert_variant_size.input ->> 'size')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     raise exception 'variantId is a uuid and size a number' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end;
   if v_size is null or v_size <= 0 then
     raise exception 'size is more than 0' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."org_id" = save_variant_size.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = v_variant and x."org_id" = upsert_variant_size.tenant) then
     raise exception 'no such variant in this organization' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   insert into "better_supabase"."variant_sizes" ("org_id", "variant_id", "size")
-  values (save_variant_size.tenant, v_variant, v_size)
+  values (upsert_variant_size.tenant, v_variant, v_size)
   on conflict ("variant_id") do update set "size" = excluded."size", "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('variantId', v_row."variant_id", 'size', v_row."size"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant_size"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_variant_size"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_variant_size"(uuid, jsonb) to authenticated, service_role;
 
 -- The bins of a location with their slot and how full they are. filters is
 -- { locationId }. used is the stock in the bin times the variant sizes.

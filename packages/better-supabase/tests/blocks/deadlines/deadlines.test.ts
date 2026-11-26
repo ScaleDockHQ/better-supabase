@@ -310,7 +310,7 @@ describe("createDeadlines", () => {
     };
 
     const t = fieldsTransport({
-      save_rule_version: () => ({
+      upsert_rule_version: () => ({
         ...version,
         status: "draft",
         counting: null,

@@ -67,7 +67,7 @@ describe.skipIf(!live)("courses", () => {
         validForMonths: 12,
       });
       expect(
-        await s.hint("better_supabase.save_course($1, $2)", [
+        await s.hint("better_supabase.upsert_course($1, $2)", [
           tenant,
           { key: "onboarding", title: "Again" },
         ]),
@@ -86,7 +86,7 @@ describe.skipIf(!live)("courses", () => {
 
       expect(second.rank > first.rank).toBe(true);
       expect(
-        await s.hint("better_supabase.save_course_module($1, $2)", [
+        await s.hint("better_supabase.upsert_course_module($1, $2)", [
           course.id,
           { title: "Bad", rank: "not a rank" },
         ]),
@@ -142,7 +142,7 @@ describe.skipIf(!live)("courses", () => {
 
       expect(intro.rank < extra.rank).toBe(true);
       expect(
-        await s.hint("better_supabase.save_course_lesson($1, $2)", [
+        await s.hint("better_supabase.upsert_course_lesson($1, $2)", [
           course.id,
           { moduleId: first.id, title: "No form", kind: "quiz" },
         ]),
@@ -274,7 +274,7 @@ describe.skipIf(!live)("courses", () => {
 
       await s.asRole(member);
       expect(
-        await s.hint("better_supabase.save_course($1, $2)", [
+        await s.hint("better_supabase.upsert_course($1, $2)", [
           tenant,
           { key: "mine", title: "Mine" },
         ]),
@@ -390,7 +390,7 @@ describe.skipIf(!live)("courses", () => {
         .orThrow();
 
       expect(
-        await s.hint("better_supabase.save_course_lesson($1, $2)", [
+        await s.hint("better_supabase.upsert_course_lesson($1, $2)", [
           course.id,
           {
             moduleId: module.id,

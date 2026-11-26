@@ -197,10 +197,10 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const emojiWritten = (
     [
-      ["tenant", "save_custom_emoji.tenant"],
-      ["shortcode", "lower(trim(both ':' from save_custom_emoji.shortcode))"],
-      ["attachment", "save_custom_emoji.attachment_id"],
-      ["url", "save_custom_emoji.url"],
+      ["tenant", "upsert_custom_emoji.tenant"],
+      ["shortcode", "lower(trim(both ':' from upsert_custom_emoji.shortcode))"],
+      ["attachment", "upsert_custom_emoji.attachment_id"],
+      ["url", "upsert_custom_emoji.url"],
       ["createdBy", "auth.uid()"],
     ] as const
   ).filter(([column]) => ctx.has("emoji", column));
@@ -612,7 +612,7 @@ as $$
 $$;
 ${userGrant(`${fn("reaction_summary")}(${ctx.idType}, text, text[])`)}
 
-create or replace function ${fn("save_custom_emoji")}(tenant ${ctx.idType}, shortcode text, attachment_id uuid default null, url text default null)
+create or replace function ${fn("upsert_custom_emoji")}(tenant ${ctx.idType}, shortcode text, attachment_id uuid default null, url text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -622,7 +622,7 @@ as $$
 declare
   v_row ${emojiTable}%rowtype;
 begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "save_custom_emoji.tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "upsert_custom_emoji.tenant", manage)}) then
     ${fail("REACTION_FORBIDDEN", "not allowed to manage custom emoji")}
   end if;
   insert into ${emojiTable} (${emojiWritten.map(([column]) => e(column)).join(", ")})
@@ -633,7 +633,7 @@ begin
   return ${emojiJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_custom_emoji")}(${ctx.idType}, text, uuid, text)`)}
+${userGrant(`${fn("upsert_custom_emoji")}(${ctx.idType}, text, uuid, text)`)}
 
 -- Deletes a custom emoji and the reactions that used it.
 create or replace function ${fn("delete_custom_emoji")}(emoji_id uuid)

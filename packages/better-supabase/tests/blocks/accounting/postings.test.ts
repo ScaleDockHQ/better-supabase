@@ -178,7 +178,7 @@ describe("accounting postings", () => {
 
   it("saves, reads and lists budgets and compares them with actuals", async () => {
     const t = fieldsTransport({
-      save_accounting_budget: () => BUDGET,
+      upsert_accounting_budget: () => BUDGET,
       get_accounting_budget: (args) =>
         args["budget_id"] === "b1" ? BUDGET : null,
       list_accounting_budgets: () => [
@@ -251,7 +251,7 @@ describe("accounting postings", () => {
     expect(period.periodNumber).toBe(1);
     expect(t.calls.slice(0, 2)).toEqual([
       [
-        "save_accounting_budget",
+        "upsert_accounting_budget",
         {
           tenant: "org-1",
           name: "Plan 2026",
@@ -270,7 +270,7 @@ describe("accounting postings", () => {
         },
       ],
       [
-        "save_accounting_budget",
+        "upsert_accounting_budget",
         {
           tenant: "org-1",
           name: "Plan 2026",

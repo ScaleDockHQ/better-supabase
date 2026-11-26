@@ -79,7 +79,7 @@ export interface FlagInput<F extends object = Record<never, never>> {
 /** One saved state of a flag (`flag_revisions`). */
 export interface FlagRevision {
   readonly revision: number;
-  /** The flag as `save_flag` left it, in `flag_definitions()` form. */
+  /** The flag as `upsert_flag` left it, in `flag_definitions()` form. */
   readonly definition: FlagDefinition;
   readonly message: string | undefined;
   readonly changedBy: string | undefined;
@@ -268,7 +268,7 @@ const recordOf = async <F extends object>(
 
 /**
  * Manages feature flags for platform staff (`flags.manage`) or the service
- * role, through the `flags` module's `list_flags`, `save_flag`, `delete_flag`
+ * role, through the `flags` module's `list_flags`, `upsert_flag`, `delete_flag`
  * and `set_flag_override`.
  */
 export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
@@ -311,7 +311,7 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
       )
         .andThen((valid) =>
           call(
-            "save_flag",
+            "upsert_flag",
             {
               key,
               definition: rowOf(input, valid),
@@ -332,7 +332,7 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
         .map((saved) => saved[0]),
     segments: () => call("list_flag_segments", {}, segmentsOf),
     saveSegment: (segment) =>
-      call("save_flag_segment", segmentRow(segment), (value) => {
+      call("upsert_flag_segment", segmentRow(segment), (value) => {
         const [saved] = segmentsOf([value]);
 
         return saved ?? segment;

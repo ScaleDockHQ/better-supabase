@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:358b93d2f01feffb886776399bd808b9e5296738558915c5a358581a129a0af4
+-- @bsb-hash sha256:58f3d53f9ae729d6e35ad41cd073df3d22a48c7d15a0d50821969193319a4136
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -123,25 +123,25 @@ grant execute on function "better_supabase"."sla_due_at"(timestamptz, integer, b
 -- Creates or changes a policy: name, subjectType, priority (null for every
 -- priority), firstResponseMinutes, nextResponseMinutes, resolutionMinutes,
 -- warnAtPercent, businessHours, archived.
-create or replace function "better_supabase"."save_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_sla_policy.policy;
+  v_id uuid := upsert_sla_policy.policy;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
-  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
-    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+  if upsert_sla_policy.attrs ? 'escalations' and upsert_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(upsert_sla_policy.attrs -> 'escalations') <> 'array'
     or exists (
-      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      select 1 from jsonb_array_elements(upsert_sla_policy.attrs -> 'escalations') s
       where jsonb_typeof(s) <> 'object'
         or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
         or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
@@ -153,21 +153,21 @@ begin
   begin
     if v_id is null then
       insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
+      values (upsert_sla_policy.tenant, upsert_sla_policy.attrs ->> 'subjectType', upsert_sla_policy.attrs ->> 'name', upsert_sla_policy.attrs ->> 'priority', (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
-        "name" = coalesce(save_sla_policy.attrs ->> 'name', x."name"),
-        "priority" = case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x."priority" end,
-        "first_response_minutes" = case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
-        "next_response_minutes" = case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
-        "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
-        "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
-        "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
-        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
-        "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_sla_policy.attrs ->> 'name', x."name"),
+        "priority" = case when upsert_sla_policy.attrs ? 'priority' then upsert_sla_policy.attrs ->> 'priority' else x."priority" end,
+        "first_response_minutes" = case when upsert_sla_policy.attrs ? 'firstResponseMinutes' then (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
+        "next_response_minutes" = case when upsert_sla_policy.attrs ? 'nextResponseMinutes' then (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
+        "resolution_minutes" = case when upsert_sla_policy.attrs ? 'resolutionMinutes' then (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
+        "warn_at_percent" = coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
+        "business_hours" = coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when upsert_sla_policy.attrs ? 'escalations' then coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
+        "archived_at" = case when coalesce((upsert_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_sla_policy.tenant;
       if not found then
         raise exception 'policy not found' using errcode = 'P0002', hint = 'SLA_POLICY_NOT_FOUND';
       end if;
@@ -180,8 +180,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."sla_policies" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Starts a record's clocks from the policy for its type and priority (the
 -- exact priority first, then the policy without one). Starting again, as
@@ -476,7 +476,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:95eeeed622a5c5a407e06650f2f25a8623f0a05b5fe4de4b98cfaa55c9e01af8
+-- @bsb-hash sha256:799e70841598aa08b251d8c5b6ec22059018af651a38bee1d454b37342188270
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -598,25 +598,25 @@ grant execute on function "better_supabase"."sla_due_at"(timestamptz, integer, b
 -- Creates or changes a policy: name, subjectType, priority (null for every
 -- priority), firstResponseMinutes, nextResponseMinutes, resolutionMinutes,
 -- warnAtPercent, businessHours, archived.
-create or replace function "better_supabase"."save_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_sla_policy.policy;
+  v_id uuid := upsert_sla_policy.policy;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
-  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
-    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+  if upsert_sla_policy.attrs ? 'escalations' and upsert_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(upsert_sla_policy.attrs -> 'escalations') <> 'array'
     or exists (
-      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      select 1 from jsonb_array_elements(upsert_sla_policy.attrs -> 'escalations') s
       where jsonb_typeof(s) <> 'object'
         or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
         or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
@@ -628,21 +628,21 @@ begin
   begin
     if v_id is null then
       insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
+      values (upsert_sla_policy.tenant, upsert_sla_policy.attrs ->> 'subjectType', upsert_sla_policy.attrs ->> 'name', upsert_sla_policy.attrs ->> 'priority', (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
-        "name" = coalesce(save_sla_policy.attrs ->> 'name', x."name"),
-        "priority" = case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x."priority" end,
-        "first_response_minutes" = case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
-        "next_response_minutes" = case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
-        "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
-        "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
-        "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
-        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
-        "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_sla_policy.attrs ->> 'name', x."name"),
+        "priority" = case when upsert_sla_policy.attrs ? 'priority' then upsert_sla_policy.attrs ->> 'priority' else x."priority" end,
+        "first_response_minutes" = case when upsert_sla_policy.attrs ? 'firstResponseMinutes' then (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
+        "next_response_minutes" = case when upsert_sla_policy.attrs ? 'nextResponseMinutes' then (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
+        "resolution_minutes" = case when upsert_sla_policy.attrs ? 'resolutionMinutes' then (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
+        "warn_at_percent" = coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
+        "business_hours" = coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when upsert_sla_policy.attrs ? 'escalations' then coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
+        "archived_at" = case when coalesce((upsert_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_sla_policy.tenant;
       if not found then
         raise exception 'policy not found' using errcode = 'P0002', hint = 'SLA_POLICY_NOT_FOUND';
       end if;
@@ -655,8 +655,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."sla_policies" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Starts a record's clocks from the policy for its type and priority (the
 -- exact priority first, then the policy without one). Starting again, as
@@ -996,7 +996,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:90fc45726d98d15b5e8e9603764a1a64c7149c704d15fbcc834666bf17ebebd3
+-- @bsb-hash sha256:5ffef635a47f76e38b855ddb78dac80f9d746ee65f671b55274e2b70894e2a87
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1123,25 +1123,25 @@ grant execute on function "app_private"."sla_due_at"(timestamptz, integer, boole
 -- Creates or changes a policy: name, subjectType, priority (null for every
 -- priority), firstResponseMinutes, nextResponseMinutes, resolutionMinutes,
 -- warnAtPercent, businessHours, archived.
-create or replace function "app_private"."save_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
+create or replace function "app_private"."upsert_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_sla_policy.policy;
+  v_id uuid := upsert_sla_policy.policy;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
-  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
-    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+  if upsert_sla_policy.attrs ? 'escalations' and upsert_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(upsert_sla_policy.attrs -> 'escalations') <> 'array'
     or exists (
-      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      select 1 from jsonb_array_elements(upsert_sla_policy.attrs -> 'escalations') s
       where jsonb_typeof(s) <> 'object'
         or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
         or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
@@ -1153,21 +1153,21 @@ begin
   begin
     if v_id is null then
       insert into "app_private"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
+      values (upsert_sla_policy.tenant, upsert_sla_policy.attrs ->> 'subjectType', upsert_sla_policy.attrs ->> 'name', upsert_sla_policy.attrs ->> 'priority', (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "app_private"."sla_policies" x set
-        "name" = coalesce(save_sla_policy.attrs ->> 'name', x."name"),
-        "priority" = case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x."priority" end,
-        "first_response_minutes" = case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
-        "next_response_minutes" = case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
-        "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
-        "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
-        "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
-        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
-        "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_sla_policy.attrs ->> 'name', x."name"),
+        "priority" = case when upsert_sla_policy.attrs ? 'priority' then upsert_sla_policy.attrs ->> 'priority' else x."priority" end,
+        "first_response_minutes" = case when upsert_sla_policy.attrs ? 'firstResponseMinutes' then (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
+        "next_response_minutes" = case when upsert_sla_policy.attrs ? 'nextResponseMinutes' then (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
+        "resolution_minutes" = case when upsert_sla_policy.attrs ? 'resolutionMinutes' then (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
+        "warn_at_percent" = coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
+        "business_hours" = coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when upsert_sla_policy.attrs ? 'escalations' then coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
+        "archived_at" = case when coalesce((upsert_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_sla_policy.tenant;
       if not found then
         raise exception 'policy not found' using errcode = 'P0002', hint = 'SLA_POLICY_NOT_FOUND';
       end if;
@@ -1180,8 +1180,8 @@ begin
   return (select to_jsonb(x) from "app_private"."sla_policies" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_sla_policy"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_sla_policy"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Starts a record's clocks from the policy for its type and priority (the
 -- exact priority first, then the policy without one). Starting again, as
@@ -1476,7 +1476,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:d9521b63c1ba0682e2f683489385d955d9bde76f8e58602d527c545aa8dd887c
+-- @bsb-hash sha256:c19718b31b2f3d47f4b2485b89c84c3e68081e2fe07e5a159669a74eb8839ab6
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1598,25 +1598,25 @@ grant execute on function "better_supabase"."sla_due_at"(timestamptz, integer, b
 -- Creates or changes a policy: name, subjectType, priority (null for every
 -- priority), firstResponseMinutes, nextResponseMinutes, resolutionMinutes,
 -- warnAtPercent, businessHours, archived.
-create or replace function "better_supabase"."save_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_sla_policy.policy;
+  v_id uuid := upsert_sla_policy.policy;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
-  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
-    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+  if upsert_sla_policy.attrs ? 'escalations' and upsert_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(upsert_sla_policy.attrs -> 'escalations') <> 'array'
     or exists (
-      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      select 1 from jsonb_array_elements(upsert_sla_policy.attrs -> 'escalations') s
       where jsonb_typeof(s) <> 'object'
         or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
         or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
@@ -1628,21 +1628,21 @@ begin
   begin
     if v_id is null then
       insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
+      values (upsert_sla_policy.tenant, upsert_sla_policy.attrs ->> 'subjectType', upsert_sla_policy.attrs ->> 'name', upsert_sla_policy.attrs ->> 'priority', (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
-        "name" = coalesce(save_sla_policy.attrs ->> 'name', x."name"),
-        "priority" = case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x."priority" end,
-        "first_response_minutes" = case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
-        "next_response_minutes" = case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
-        "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
-        "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
-        "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
-        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
-        "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_sla_policy.attrs ->> 'name', x."name"),
+        "priority" = case when upsert_sla_policy.attrs ? 'priority' then upsert_sla_policy.attrs ->> 'priority' else x."priority" end,
+        "first_response_minutes" = case when upsert_sla_policy.attrs ? 'firstResponseMinutes' then (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
+        "next_response_minutes" = case when upsert_sla_policy.attrs ? 'nextResponseMinutes' then (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
+        "resolution_minutes" = case when upsert_sla_policy.attrs ? 'resolutionMinutes' then (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
+        "warn_at_percent" = coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
+        "business_hours" = coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when upsert_sla_policy.attrs ? 'escalations' then coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
+        "archived_at" = case when coalesce((upsert_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_sla_policy.tenant;
       if not found then
         raise exception 'policy not found' using errcode = 'P0002', hint = 'SLA_POLICY_NOT_FOUND';
       end if;
@@ -1655,8 +1655,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."sla_policies" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Starts a record's clocks from the policy for its type and priority (the
 -- exact priority first, then the policy without one). Starting again, as
@@ -1948,14 +1948,14 @@ as $$ select "better_supabase"."sla_due_at"($1, $2, $3) $$;
 revoke execute on function "api"."sla_due_at"(timestamptz, integer, boolean) from public, anon;
 grant execute on function "api"."sla_due_at"(timestamptz, integer, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
+create or replace function "api"."upsert_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_sla_policy"($1, $2, $3) $$;
-revoke execute on function "api"."save_sla_policy"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_sla_policy"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_sla_policy"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."start_sla_clocks"(subject_type text, subject_id text, priority text, trusted boolean default false)
 returns jsonb
@@ -2011,7 +2011,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:0a15e3c8a6f3a4be6f69bad91768d06a1d5028e56c73edc73bb5ac105a604241
+-- @bsb-hash sha256:dda8cfe42dac84ff1e185c65192152651df36cf377ef044d258d2ebfe0b0d0c4
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2126,25 +2126,25 @@ grant execute on function "better_supabase"."sla_due_at"(timestamptz, integer, b
 -- Creates or changes a policy: name, subjectType, priority (null for every
 -- priority), firstResponseMinutes, nextResponseMinutes, resolutionMinutes,
 -- warnAtPercent, businessHours, archived.
-create or replace function "better_supabase"."save_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_sla_policy.policy;
+  v_id uuid := upsert_sla_policy.policy;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
-  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
-    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+  if upsert_sla_policy.attrs ? 'escalations' and upsert_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(upsert_sla_policy.attrs -> 'escalations') <> 'array'
     or exists (
-      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      select 1 from jsonb_array_elements(upsert_sla_policy.attrs -> 'escalations') s
       where jsonb_typeof(s) <> 'object'
         or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
         or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
@@ -2156,21 +2156,21 @@ begin
   begin
     if v_id is null then
       insert into "better_supabase"."sla_policies" ("tenant_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
+      values (upsert_sla_policy.tenant, upsert_sla_policy.attrs ->> 'subjectType', upsert_sla_policy.attrs ->> 'name', upsert_sla_policy.attrs ->> 'priority', (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
-        "name" = coalesce(save_sla_policy.attrs ->> 'name', x."name"),
-        "priority" = case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x."priority" end,
-        "first_response_minutes" = case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
-        "next_response_minutes" = case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
-        "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
-        "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
-        "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
-        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
-        "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_sla_policy.attrs ->> 'name', x."name"),
+        "priority" = case when upsert_sla_policy.attrs ? 'priority' then upsert_sla_policy.attrs ->> 'priority' else x."priority" end,
+        "first_response_minutes" = case when upsert_sla_policy.attrs ? 'firstResponseMinutes' then (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
+        "next_response_minutes" = case when upsert_sla_policy.attrs ? 'nextResponseMinutes' then (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
+        "resolution_minutes" = case when upsert_sla_policy.attrs ? 'resolutionMinutes' then (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
+        "warn_at_percent" = coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
+        "business_hours" = coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when upsert_sla_policy.attrs ? 'escalations' then coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
+        "archived_at" = case when coalesce((upsert_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_sla_policy.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_sla_policy.tenant;
       if not found then
         raise exception 'policy not found' using errcode = 'P0002', hint = 'SLA_POLICY_NOT_FOUND';
       end if;
@@ -2183,8 +2183,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."sla_policies" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Starts a record's clocks from the policy for its type and priority (the
 -- exact priority first, then the policy without one). Starting again, as
@@ -2479,7 +2479,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:7e5bfb97192b5e122b3f2e5927c84b7d75ef489cad266a9fcdf98f479c668307
+-- @bsb-hash sha256:e9b518c7203e3dea28227b7e13375023d9a9e449c267dd15550a3d8783441c52
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2601,25 +2601,25 @@ grant execute on function "better_supabase"."sla_due_at"(timestamptz, integer, b
 -- Creates or changes a policy: name, subjectType, priority (null for every
 -- priority), firstResponseMinutes, nextResponseMinutes, resolutionMinutes,
 -- warnAtPercent, businessHours, archived.
-create or replace function "better_supabase"."save_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_sla_policy"(tenant uuid, policy uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_sla_policy.policy;
+  v_id uuid := upsert_sla_policy.policy;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_sla_policy.tenant, 'sla.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_sla_policy.tenant, 'sla.manage'), false)) then
     raise exception 'not allowed to manage service levels' using errcode = '42501', hint = 'SLA_FORBIDDEN';
   end if;
-  if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
-    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+  if upsert_sla_policy.attrs ? 'escalations' and upsert_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(upsert_sla_policy.attrs -> 'escalations') <> 'array'
     or exists (
-      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      select 1 from jsonb_array_elements(upsert_sla_policy.attrs -> 'escalations') s
       where jsonb_typeof(s) <> 'object'
         or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
         or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
@@ -2631,21 +2631,21 @@ begin
   begin
     if v_id is null then
       insert into "better_supabase"."sla_policies" ("org_id", "subject_type", "name", "priority", "first_response_minutes", "next_response_minutes", "resolution_minutes", "warn_at_percent", "business_hours", "escalations")
-      values (save_sla_policy.tenant, save_sla_policy.attrs ->> 'subjectType', save_sla_policy.attrs ->> 'name', save_sla_policy.attrs ->> 'priority', (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (save_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
+      values (upsert_sla_policy.tenant, upsert_sla_policy.attrs ->> 'subjectType', upsert_sla_policy.attrs ->> 'name', upsert_sla_policy.attrs ->> 'priority', (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer, (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer, coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80), coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, false), coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb))
       returning "id" into v_id;
     else
       update "better_supabase"."sla_policies" x set
-        "name" = coalesce(save_sla_policy.attrs ->> 'name', x."name"),
-        "priority" = case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x."priority" end,
-        "first_response_minutes" = case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
-        "next_response_minutes" = case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
-        "resolution_minutes" = case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
-        "warn_at_percent" = coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
-        "business_hours" = coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
-        "escalations" = case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
-        "archived_at" = case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_sla_policy.attrs ->> 'name', x."name"),
+        "priority" = case when upsert_sla_policy.attrs ? 'priority' then upsert_sla_policy.attrs ->> 'priority' else x."priority" end,
+        "first_response_minutes" = case when upsert_sla_policy.attrs ? 'firstResponseMinutes' then (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x."first_response_minutes" end,
+        "next_response_minutes" = case when upsert_sla_policy.attrs ? 'nextResponseMinutes' then (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x."next_response_minutes" end,
+        "resolution_minutes" = case when upsert_sla_policy.attrs ? 'resolutionMinutes' then (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer else x."resolution_minutes" end,
+        "warn_at_percent" = coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, x."warn_at_percent"),
+        "business_hours" = coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, x."business_hours"),
+        "escalations" = case when upsert_sla_policy.attrs ? 'escalations' then coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x."escalations" end,
+        "archived_at" = case when coalesce((upsert_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."org_id" = save_sla_policy.tenant;
+      where x."id" = v_id and x."org_id" = upsert_sla_policy.tenant;
       if not found then
         raise exception 'policy not found' using errcode = 'P0002', hint = 'SLA_POLICY_NOT_FOUND';
       end if;
@@ -2658,8 +2658,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."sla_policies" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sla_policy"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Starts a record's clocks from the policy for its type and priority (the
 -- exact priority first, then the policy without one). Starting again, as

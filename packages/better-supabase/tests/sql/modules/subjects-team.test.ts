@@ -63,7 +63,7 @@ describe("record teams", () => {
       `create policy bsb_subject_members_read on "better_supabase"."subject_members"`,
     );
     expect(sql).toContain(
-      `create or replace function "better_supabase"."add_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)`,
+      `create or replace function "better_supabase"."create_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)`,
     );
     expect(sql).toContain(
       `create or replace function "better_supabase"."my_subjects"(tenant uuid, subject_type text default null, page_size integer default 100, cursor text default null)`,

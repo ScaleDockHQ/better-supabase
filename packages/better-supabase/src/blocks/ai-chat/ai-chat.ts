@@ -634,7 +634,7 @@ export function createAiChat<
     projects: {
       create: ({ organizationId, input, fields: extra = {} }) =>
         call(
-          "save_ai_project",
+          "upsert_ai_project",
           {
             id: null,
             tenant: organizationId,
@@ -644,7 +644,7 @@ export function createAiChat<
         ),
       update: ({ projectId, input, fields: extra = {} }) =>
         call(
-          "save_ai_project",
+          "upsert_ai_project",
           {
             id: projectId,
             tenant: null,
@@ -670,7 +670,7 @@ export function createAiChat<
     participants: {
       add: ({ chatId, userId, ...addOptions }) =>
         call(
-          "add_ai_chat_participant",
+          "create_ai_chat_participant",
           {
             chat: chatId,
             participant: userId,
@@ -681,13 +681,13 @@ export function createAiChat<
         ),
       remove: ({ chatId, userId }) =>
         call(
-          "remove_ai_chat_participant",
+          "delete_ai_chat_participant",
           { chat: chatId, participant: userId },
           isTrue,
         ),
       addParty: ({ chatId, party, role }) =>
         call(
-          "add_ai_chat_party",
+          "create_ai_chat_party",
           {
             chat: chatId,
             party_kind: party.kind,
@@ -698,7 +698,7 @@ export function createAiChat<
         ),
       removeParty: ({ chatId, party }) =>
         call(
-          "remove_ai_chat_party",
+          "delete_ai_chat_party",
           { chat: chatId, party_kind: party.kind, party: partyValue(party) },
           isTrue,
         ),
@@ -731,7 +731,7 @@ export function createAiChat<
         ),
       saveAssistant: ({ chatId, message, options: saveOptions }) =>
         service(
-          "save_ai_assistant_message",
+          "upsert_ai_assistant_message",
           {
             chat: chatId,
             message: messageOf(message, saveOptions.native, saveOptions.fields),

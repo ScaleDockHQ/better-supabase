@@ -28,7 +28,7 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('programme', (better_supabase.save_inspection_program(
+insert into ids values ('programme', (better_supabase.upsert_inspection_program(
   '00000000-0000-4000-8000-000000000001', 'Audit programme 2027', '2027-01-01', '2027-12-31') ->> 'id')::uuid);
 insert into ids values ('warehouse', (better_supabase.schedule_inspection(
   '00000000-0000-4000-8000-000000000001',
@@ -68,7 +68,7 @@ select throws_ok(
   'a kind outside options.kinds is refused'
 );
 select throws_ok(
-  $$select better_supabase.add_inspection_finding((select id from ids where name = 'warehouse'), 'major_nonconformity', 'Too early')$$,
+  $$select better_supabase.create_inspection_finding((select id from ids where name = 'warehouse'), 'major_nonconformity', 'Too early')$$,
   '55000',
   null,
   'a planned inspection takes no findings'
@@ -79,7 +79,7 @@ select is(
   'in_progress',
   'the lead starts the inspection'
 );
-insert into ids values ('labels', (better_supabase.add_inspection_finding(
+insert into ids values ('labels', (better_supabase.create_inspection_finding(
   (select id from ids where name = 'warehouse'), 'major_nonconformity', 'Unlabelled stock',
   clause => 'ISO 9001 8.5.2') ->> 'id')::uuid);
 select is(
@@ -88,7 +88,7 @@ select is(
   'the first finding is numbered 1'
 );
 select throws_ok(
-  $$select better_supabase.add_inspection_finding((select id from ids where name = 'warehouse'), 'gossip', 'Odd')$$,
+  $$select better_supabase.create_inspection_finding((select id from ids where name = 'warehouse'), 'gossip', 'Odd')$$,
   '22023',
   null,
   'a finding type outside options.findingTypes is refused'

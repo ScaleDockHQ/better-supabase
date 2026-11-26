@@ -57,7 +57,7 @@ function fakeTransport(handlers: Record<string, Handler>) {
 describe("createAgents", () => {
   it("maps rows, including ratings, scopes and skills", async () => {
     const { transport, calls } = fakeTransport({
-      save_agent: () => agentRow(),
+      upsert_agent: () => agentRow(),
       get_agent: (args) => (args["id"] === "gone" ? null : agentRow()),
     });
 
@@ -81,7 +81,7 @@ describe("createAgents", () => {
       .orThrow();
 
     expect(calls[0]).toEqual({
-      fn: "save_agent",
+      fn: "upsert_agent",
       args: {
         tenant: "o1",
         id: undefined,
@@ -125,7 +125,7 @@ describe("createAgents", () => {
 
   it("defaults sparse rows", async () => {
     const { transport } = fakeTransport({
-      save_agent: () =>
+      upsert_agent: () =>
         agentRow({
           owner_id: null,
           description: null,

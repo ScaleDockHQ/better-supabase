@@ -333,7 +333,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_observation_definition",
+      name: "upsert_observation_definition",
       args: ["{id}", "text", "jsonb"],
       returns: "jsonb",
     },

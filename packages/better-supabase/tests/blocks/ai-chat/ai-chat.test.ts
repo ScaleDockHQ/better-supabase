@@ -122,11 +122,11 @@ const ANSWERS: Record<string, unknown> = {
   list_ai_chats: { items: [chatRow], next: `${AT}|c1` },
   delete_ai_chat: true,
   purge_ai_chats: "3",
-  save_ai_project: projectRow,
+  upsert_ai_project: projectRow,
   list_ai_projects: [projectRow],
   delete_ai_project: true,
   append_ai_user_message: { message_id: "m1", parent_id: null, created: true },
-  save_ai_assistant_message: {
+  upsert_ai_assistant_message: {
     message_id: "m2",
     parent_id: "m1",
     created: false,
@@ -808,9 +808,9 @@ describe("createAiChat", () => {
     };
 
     const { user, chat } = fake({
-      add_ai_chat_participant: participant,
+      create_ai_chat_participant: participant,
       list_ai_chat_participants: [{ ...participant, role: "viewer" }],
-      remove_ai_chat_participant: true,
+      delete_ai_chat_participant: true,
     });
 
     const added = await chat.participants
@@ -862,8 +862,8 @@ describe("createAiChat", () => {
     };
 
     const { user, chat } = fake({
-      add_ai_chat_party: participant,
-      remove_ai_chat_party: true,
+      create_ai_chat_party: participant,
+      delete_ai_chat_party: true,
       list_ai_chat_participants: [participant],
       ai_chat_share_summaries: [
         {
@@ -935,7 +935,7 @@ describe("createAiChat", () => {
     const { user, server, chat } = fake({
       ...ANSWERS,
       create_ai_chat: { ...chatRow, organization_id: null },
-      save_ai_project: { ...projectRow, organization_id: null },
+      upsert_ai_project: { ...projectRow, organization_id: null },
       record_ai_moderation_event: { ...moderationRow, organization_id: null },
     });
 

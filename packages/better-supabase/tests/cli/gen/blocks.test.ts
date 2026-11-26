@@ -261,8 +261,8 @@ describe("blocks.generated.ts", () => {
         release_task_claim: "release_ticket_claim",
         release_task_hold: "release_ticket_hold",
         renew_task_claim: "renew_ticket_claim",
-        save_project: "save_initiative",
-        save_task_checklist_item: "save_ticket_checklist_item",
+        upsert_project: "upsert_initiative",
+        upsert_task_checklist_item: "upsert_ticket_checklist_item",
         set_task_assignees: "set_ticket_assignees",
         task_stage_times: "ticket_stage_times",
         task_tree: "ticket_tree",
@@ -385,7 +385,7 @@ describe("blocks.generated.ts", () => {
       names: {
         functions: {
           create_task: "create_ticket",
-          save_project: "tickets_save_project",
+          upsert_project: "tickets_upsert_project",
         },
       },
     });

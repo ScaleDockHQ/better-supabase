@@ -76,8 +76,8 @@ describe("createDocumentTemplates with every option set", () => {
       get_document_template: () => row(),
       set_document_template_active: () => row({ active: true }),
       list_document_text_blocks: () => [block],
-      save_document_text_block: () => block,
-      save_document_template: () => row(),
+      upsert_document_text_block: () => block,
+      upsert_document_template: () => row(),
     });
 
     const listed = await templates

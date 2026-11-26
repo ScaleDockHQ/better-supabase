@@ -595,8 +595,8 @@ export function createTemplates<
     ).andThen(fields.rows);
 
   const saveVersion = (template: string, body: unknown) =>
-    call("save_template_draft", { template_id: template, body }, (value) =>
-      versionOf(recordOf(value, "save_template_draft")),
+    call("upsert_template_draft", { template_id: template, body }, (value) =>
+      versionOf(recordOf(value, "upsert_template_draft")),
     );
 
   const startRuns = async (
@@ -728,7 +728,7 @@ export function createTemplates<
         }
 
         return call(
-          "save_template",
+          "upsert_template",
           {
             template_id: input.id ?? null,
             tenant: input.organizationId,
@@ -738,7 +738,7 @@ export function createTemplates<
             settings: settings ?? null,
             fields: extra.data,
           },
-          (value) => templateOf(recordOf(value, "save_template")),
+          (value) => templateOf(recordOf(value, "upsert_template")),
         ).andThen(fields.row);
       }),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
@@ -779,7 +779,7 @@ export function createTemplates<
     get,
     getMany,
     remove: (id) =>
-      call("remove_template", { template_id: id }, (value) => value === true),
+      call("delete_template", { template_id: id }, (value) => value === true),
     setDefault: ({ id, isDefault = true }) =>
       call(
         "set_default_template",

@@ -79,7 +79,7 @@ describe("createCustomFields", () => {
 
   it("sends the subject and the block's tenant", async () => {
     const fake = fakeTransport({
-      read_field_values: [],
+      get_field_values: [],
       set_field_value: { id: "v1" },
     });
 
@@ -94,7 +94,7 @@ describe("createCustomFields", () => {
       .orThrow();
     expect(fake.calls).toEqual([
       [
-        "read_field_values",
+        "get_field_values",
         { tenant: "org-1", subject_type: "employees", subject_id: "e1" },
       ],
       [
@@ -201,7 +201,7 @@ describe("createCustomFields", () => {
 
     const fake = fakeTransport({
       set_field_value: row,
-      read_field_values: [row],
+      get_field_values: [row],
       delete_field_value: true,
     });
 
@@ -247,7 +247,7 @@ describe("createCustomFields", () => {
 
   it("passes the legal entity only when one is given", async () => {
     const fake = fakeTransport({
-      read_field_values: [],
+      get_field_values: [],
       set_field_value: { id: "v1" },
     });
 
@@ -386,7 +386,7 @@ describe("createCustomFields", () => {
   });
 
   it("installs nothing without packs, and saves a definition", async () => {
-    const fake = fakeTransport({ save_field_definition: { id: "d1" } });
+    const fake = fakeTransport({ upsert_field_definition: { id: "d1" } });
 
     const fields = createCustomFields({
       transport: fake.transport,

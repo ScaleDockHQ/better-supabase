@@ -18,7 +18,7 @@ select set_config(
 );
 
 select throws_ok(
-  $$select better_supabase.save_field_definition('00000000-0000-4000-8000-000000000001', 'not_a_subject', 'x', 'X', 'text', false)$$,
+  $$select better_supabase.upsert_field_definition('00000000-0000-4000-8000-000000000001', 'not_a_subject', 'x', 'X', 'text', false)$$,
   '22023',
   'the entity is not a registered subject type',
   'a definition for an unregistered entity fails with CUSTOM_FIELD_ENTITY_UNKNOWN'
@@ -70,7 +70,7 @@ select is(
   'the label follows the pack'
 );
 
-select better_supabase.save_field_definition('00000000-0000-4000-8000-000000000001', 'person', 'nickname', 'Nickname', 'text', false);
+select better_supabase.upsert_field_definition('00000000-0000-4000-8000-000000000001', 'person', 'nickname', 'Nickname', 'text', false);
 select throws_ok(
   $$select better_supabase.install_field_pack('00000000-0000-4000-8000-000000000001',
     '{"apiVersion": 1, "key": "other", "version": 1, "subjects": {"person": [{"key": "nickname", "label": "Nick", "type": "text"}]}}'::jsonb)$$,
@@ -106,13 +106,13 @@ from better_supabase.field_definitions d,
 where d.tenant_id = '00000000-0000-4000-8000-000000000001' and d.entity = 'customer' and d.key = 'tier';
 
 select is(
-  (select r ->> 'text' from jsonb_array_elements(better_supabase.read_field_values(
+  (select r ->> 'text' from jsonb_array_elements(better_supabase.get_field_values(
     '00000000-0000-4000-8000-000000000001', 'customer', 'c1', (select id from ids where name = 'nl'))) r),
   'platinum',
   'the legal entity''s own value wins'
 );
 select is(
-  (select r ->> 'text' from jsonb_array_elements(better_supabase.read_field_values(
+  (select r ->> 'text' from jsonb_array_elements(better_supabase.get_field_values(
     '00000000-0000-4000-8000-000000000001', 'customer', 'c1', (select id from ids where name = 'de'))) r),
   'gold',
   'an entity without its own value falls back to the organization''s'

@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:e156ec30b04394f2fc9e01c29131ae26c2bf483a272129656281d2ad0089d16d
+-- @bsb-hash sha256:e808af2e1253b76224b58c7a942cf29158b763be2a0a2ac6c5d0c8a3f0da8a19
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ create trigger "bsb_membership_roles" after insert or update of "role" on "bette
   for each row execute function "better_supabase"."membership_roles_from_role"();
 
 -- Adding or removing a role moves "role" to the highest-ranked one left. An
--- emptied set leaves it alone; remove_member_role refuses the last role.
+-- emptied set leaves it alone; delete_member_role refuses the last role.
 create or replace function "better_supabase"."membership_role_from_roles"()
 returns trigger
 language plpgsql

@@ -266,10 +266,13 @@ export function contractsFunctions(ctx: BlockSqlContext): string {
     [
       ["tenant", `v_contract.${c("tenant")}`],
       ["contract", `v_contract.${c("id")}`],
-      ["title", "trim(save_contract_obligation.title)"],
-      ["description", "nullif(trim(save_contract_obligation.description), '')"],
-      ["dueOn", "save_contract_obligation.due_on"],
-      ["owner", "save_contract_obligation.owner_id"],
+      ["title", "trim(upsert_contract_obligation.title)"],
+      [
+        "description",
+        "nullif(trim(upsert_contract_obligation.description), '')",
+      ],
+      ["dueOn", "upsert_contract_obligation.due_on"],
+      ["owner", "upsert_contract_obligation.owner_id"],
     ] as const
   ).filter(([column]) => obligationKeeps(column));
 
@@ -802,7 +805,7 @@ $$;
 ${serviceGrant(`${fn("run_contract_renewals")}(date)`)}
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function ${fn("save_contract_obligation")}(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function ${fn("upsert_contract_obligation")}(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -813,35 +816,35 @@ declare
   v_contract ${contracts}%rowtype;
   v_row ${obligations}%rowtype;
 begin
-  select * into v_contract from ${contracts} x where x.${c("id")} = save_contract_obligation.contract_id;
+  select * into v_contract from ${contracts} x where x.${c("id")} = upsert_contract_obligation.contract_id;
   if not found then
     ${notFound}
   end if;
   if not ${allowed(`v_contract.${c("tenant")}`, write)} then
     ${forbidden("not allowed to change contract obligations")}
   end if;
-  if nullif(trim(save_contract_obligation.title), '') is null then
+  if nullif(trim(upsert_contract_obligation.title), '') is null then
     ${invalid("an obligation needs a title")}
   end if;
 ${
   obligationKeeps("description")
     ? ""
-    : `  if nullif(trim(save_contract_obligation.description), '') is not null then
+    : `  if nullif(trim(upsert_contract_obligation.description), '') is not null then
     ${fail("CONTRACT_FIELD_UNSUPPORTED", "this obligations table keeps no description", "0A000")}
   end if;
 `
-}  if save_contract_obligation.owner_id is not null and not ${isMember(`v_contract.${c("tenant")}`, "save_contract_obligation.owner_id")} then
+}  if upsert_contract_obligation.owner_id is not null and not ${isMember(`v_contract.${c("tenant")}`, "upsert_contract_obligation.owner_id")} then
     ${invalid("the owner must be a member of the organization")}
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     insert into ${obligations} (${savedObligation.map(([column]) => o(column)).join(", ")})
     values (${savedObligation.map(([, value]) => value).join(", ")})
     returning * into v_row;
   else
     update ${obligations} x set ${
       obligationKeeps("description") && obligationKeeps("updatedAt")
-        ? `${o("title")} = trim(save_contract_obligation.title), ${o("description")} = nullif(trim(save_contract_obligation.description), ''),
-      ${o("dueOn")} = save_contract_obligation.due_on, ${o("owner")} = save_contract_obligation.owner_id, ${o("updatedAt")} = now()`
+        ? `${o("title")} = trim(upsert_contract_obligation.title), ${o("description")} = nullif(trim(upsert_contract_obligation.description), ''),
+      ${o("dueOn")} = upsert_contract_obligation.due_on, ${o("owner")} = upsert_contract_obligation.owner_id, ${o("updatedAt")} = now()`
         : [
             ...savedObligation.filter(
               ([column]) => column !== "tenant" && column !== "contract",
@@ -853,17 +856,17 @@ ${
             .map(([column, value]) => `${o(column)} = ${value}`)
             .join(", ")
     }
-      where x.${o("id")} = save_contract_obligation.obligation_id and x.${o("contract")} = v_contract.${c("id")}
+      where x.${o("id")} = upsert_contract_obligation.obligation_id and x.${o("contract")} = v_contract.${c("id")}
       returning * into v_row;
     if not found then
       ${fail("CONTRACT_OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
     end if;
   end if;
-  ${createdOrUpdated("save_contract_obligation.obligation_id is null", (verb) => obligationRecord(`contract_obligation.${verb}`, "v_row", `${verb} obligation`))}
+  ${createdOrUpdated("upsert_contract_obligation.obligation_id is null", (verb) => obligationRecord(`contract_obligation.${verb}`, "v_row", `${verb} obligation`))}
   return ${obligationJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_contract_obligation")}(uuid, text, date, uuid, text, uuid)`)}
+${userGrant(`${fn("upsert_contract_obligation")}(uuid, text, date, uuid, text, uuid)`)}
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
 create or replace function ${fn("set_contract_obligation_status")}(obligation_id uuid, status text)

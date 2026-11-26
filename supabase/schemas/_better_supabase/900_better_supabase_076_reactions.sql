@@ -1,6 +1,6 @@
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:c517a456ce7f901f25655edb1dccff2dcebfa2731aed00b658c08e1f80732703
+-- @bsb-hash sha256:d703ced822a523fbd7d1e818ba426199e7a04660eac89a54a9beeb2efa3d46dd
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -486,7 +486,7 @@ $$;
 revoke execute on function "better_supabase"."reaction_summary"(uuid, text, text[]) from public, anon;
 grant execute on function "better_supabase"."reaction_summary"(uuid, text, text[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."save_custom_emoji"(tenant uuid, shortcode text, attachment_id uuid default null, url text default null)
+create or replace function "better_supabase"."upsert_custom_emoji"(tenant uuid, shortcode text, attachment_id uuid default null, url text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -499,19 +499,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_custom_emoji.tenant, 'reactions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_custom_emoji.tenant, 'reactions.manage'), false)) then
     raise exception 'not allowed to manage custom emoji' using errcode = '42501', hint = 'REACTION_FORBIDDEN';
   end if;
   insert into "better_supabase"."custom_emoji" ("tenant_id", "shortcode", "attachment_id", "url", "created_by")
-  values (save_custom_emoji.tenant, lower(trim(both ':' from save_custom_emoji.shortcode)), save_custom_emoji.attachment_id, save_custom_emoji.url, auth.uid())
+  values (upsert_custom_emoji.tenant, lower(trim(both ':' from upsert_custom_emoji.shortcode)), upsert_custom_emoji.attachment_id, upsert_custom_emoji.url, auth.uid())
   on conflict ("tenant_id", "shortcode") do update
     set "attachment_id" = excluded."attachment_id", "url" = excluded."url"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'shortcode', v_row."shortcode", 'attachmentId', v_row."attachment_id", 'url', v_row."url", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_custom_emoji"(uuid, text, uuid, text) from public, anon;
-grant execute on function "better_supabase"."save_custom_emoji"(uuid, text, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_custom_emoji"(uuid, text, uuid, text) from public, anon;
+grant execute on function "better_supabase"."upsert_custom_emoji"(uuid, text, uuid, text) to authenticated, service_role;
 
 -- Deletes a custom emoji and the reactions that used it.
 create or replace function "better_supabase"."delete_custom_emoji"(emoji_id uuid)
@@ -799,14 +799,14 @@ as $$ select "better_supabase"."reaction_summary"($1, $2, $3) $$;
 revoke execute on function "api"."reaction_summary"(uuid, text, text[]) from public, anon;
 grant execute on function "api"."reaction_summary"(uuid, text, text[]) to authenticated, service_role;
 
-create or replace function "api"."save_custom_emoji"(tenant uuid, shortcode text, attachment_id uuid default null, url text default null)
+create or replace function "api"."upsert_custom_emoji"(tenant uuid, shortcode text, attachment_id uuid default null, url text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_custom_emoji"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_custom_emoji"(uuid, text, uuid, text) from public, anon;
-grant execute on function "api"."save_custom_emoji"(uuid, text, uuid, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_custom_emoji"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_custom_emoji"(uuid, text, uuid, text) from public, anon;
+grant execute on function "api"."upsert_custom_emoji"(uuid, text, uuid, text) to authenticated, service_role;
 
 create or replace function "api"."delete_custom_emoji"(emoji_id uuid)
 returns boolean

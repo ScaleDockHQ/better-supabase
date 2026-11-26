@@ -42,12 +42,12 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
 
   const variant = async (sku: string, backorder = false): Promise<string> => {
     const product = await call<{ id: string }>(
-      "better_supabase.save_product($1, null, $2, null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, $2, null, null, 'physical')",
       [tenant, sku],
     );
 
     const saved = await call<{ id: string }>(
-      "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, null, true, $3)",
+      "better_supabase.upsert_variant($1, null, $2, '{}'::uuid[], null, null, null, true, $3)",
       [product.id, sku, backorder],
     );
 
@@ -57,7 +57,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
   const location = async (code: string): Promise<string> =>
     (
       await call<{ id: string }>(
-        "better_supabase.save_location($1, null, $2, $2, 'warehouse')",
+        "better_supabase.upsert_location($1, null, $2, $2, 'warehouse')",
         [tenant, code],
       )
     ).id;
@@ -367,19 +367,19 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     ]);
 
     const order = await call<{ id: string }>(
-      "better_supabase.save_purchase_order($1, null, $2, 'company', 'acme-supplies', 'EUR', null, $3::jsonb, null)",
+      "better_supabase.upsert_purchase_order($1, null, $2, 'company', 'acme-supplies', 'EUR', null, $3::jsonb, null)",
       [tenant, warehouse, lines],
     );
 
     expect(
       await session.hint(
-        "better_supabase.save_purchase_order($1, null, $2, 'company', null, 'EUR', null, $3::jsonb, null)",
+        "better_supabase.upsert_purchase_order($1, null, $2, 'company', null, 'EUR', null, $3::jsonb, null)",
         [tenant, warehouse, lines],
       ),
     ).toBe("INVENTORY_SUPPLIER_INVALID");
     expect(
       await session.hint(
-        "better_supabase.save_purchase_order($1, null, $2, null, null, 'EUX', null, $3::jsonb, null)",
+        "better_supabase.upsert_purchase_order($1, null, $2, null, null, 'EUX', null, $3::jsonb, null)",
         [tenant, warehouse, lines],
       ),
     ).toBe("INVENTORY_CURRENCY_INVALID");
@@ -387,7 +387,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     expect(await level(tee, warehouse)).toMatchObject({ incoming: 10 });
     expect(
       await session.hint(
-        "better_supabase.save_purchase_order($1, $2, $3, null, null, 'EUR', null, $4::jsonb, null)",
+        "better_supabase.upsert_purchase_order($1, $2, $3, null, null, 'EUR', null, $4::jsonb, null)",
         [tenant, order.id, warehouse, lines],
       ),
     ).toBe("INVENTORY_PURCHASE_ORDER_LOCKED");
@@ -441,7 +441,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     ).toBe("INVENTORY_PURCHASE_ORDER_STATUS");
 
     const cancelled = await call<{ id: string }>(
-      "better_supabase.save_purchase_order($1, null, $2, null, null, 'EUR', null, $3::jsonb, null)",
+      "better_supabase.upsert_purchase_order($1, null, $2, null, null, 'EUR', null, $3::jsonb, null)",
       [
         tenant,
         store,

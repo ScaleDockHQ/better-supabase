@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:d42d21f3f06b54d0c9ceeed704b9a5efd540b042387fd7f4d708eb78ecdd0507
+-- @bsb-hash sha256:b58ceb4191dd46bc4a00d39227d1697360f9ac7581b6541fe7641e1c24d33794
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1921,7 +1921,7 @@ grant execute on function "better_supabase"."recompute_invoice_status"(uuid) to 
 -- a paid invoice is open again until the charge is paid too. fields: the
 -- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
-create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
+create or replace function "better_supabase"."create_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1934,39 +1934,39 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice;
   if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
     if v_row."id" is not null and (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) or better_supabase.row_visible('"better_supabase"."invoices"'::regclass, 'id', v_row."id")) then
       raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice for update;
   if not found then
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+  if coalesce(create_invoice_charge.amount, 0) <= 0 then
     raise exception 'a charge has a positive amount' using errcode = '22023', hint = 'INVOICE_CHARGE_INVALID';
   end if;
-  if upper(add_invoice_charge.currency) is distinct from v_row."currency" then
+  if upper(create_invoice_charge.currency) is distinct from v_row."currency" then
     raise exception 'a charge must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
   end if;
-  if add_invoice_charge.actor is not null then
-    if jsonb_typeof(add_invoice_charge.actor) <> 'object' then
+  if create_invoice_charge.actor is not null then
+    if jsonb_typeof(create_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(add_invoice_charge.actor ->> 'ip', '')::inet, nullif(add_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(create_invoice_charge.actor ->> 'ip', '')::inet, nullif(create_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(add_invoice_charge.actor::text, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(create_invoice_charge.actor::text, ''), true);
   insert into "better_supabase"."invoice_charges" ("tenant_id", "invoice_id", "amount", "currency", "description", "created_by")
-  values (v_row."tenant_id", v_row."id", add_invoice_charge.amount, v_row."currency", nullif(trim(add_invoice_charge.description), ''), auth.uid())
+  values (v_row."tenant_id", v_row."id", create_invoice_charge.amount, v_row."currency", nullif(trim(create_invoice_charge.description), ''), auth.uid())
   returning "id" into v_charge;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -1996,9 +1996,9 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
+revoke execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
+create or replace function "better_supabase"."delete_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2012,7 +2012,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."invoices" x join "better_supabase"."invoice_charges" c on c."invoice_id" = x."id"
-  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
+  where c."id" = delete_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
   for update of x;
   if v_row."id" is null then
     raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
@@ -2020,18 +2020,18 @@ begin
   if v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice changes its charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if remove_invoice_charge.actor is not null then
-    if jsonb_typeof(remove_invoice_charge.actor) <> 'object' then
+  if delete_invoice_charge.actor is not null then
+    if jsonb_typeof(delete_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(remove_invoice_charge.actor ->> 'ip', '')::inet, nullif(remove_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(delete_invoice_charge.actor ->> 'ip', '')::inet, nullif(delete_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(remove_invoice_charge.actor::text, ''), true);
-  delete from "better_supabase"."invoice_charges" c where c."id" = remove_invoice_charge.charge
+  perform set_config('better_supabase.transition_actor', coalesce(delete_invoice_charge.actor::text, ''), true);
+  delete from "better_supabase"."invoice_charges" c where c."id" = delete_invoice_charge.charge
   returning c."amount" into v_amount;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -2061,8 +2061,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
@@ -2500,7 +2500,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
     if v_level."fee" > 0 then
-      perform "better_supabase"."add_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
+      perform "better_supabase"."create_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
         description => 'Reminder fee, level ' || v_level."level");
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
@@ -4808,7 +4808,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:244f22c655ab66ab4089c483b3cf7f0dd30c245900b5daeb43ed2ca3f8dd18d2
+-- @bsb-hash sha256:b33808f0d134079fa6b0ad96a9100f0c026fd96b24e259164f01f18c46fd6c85
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6843,7 +6843,7 @@ grant execute on function "better_supabase"."recompute_invoice_status"(uuid) to 
 -- a paid invoice is open again until the charge is paid too. fields: the
 -- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
-create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
+create or replace function "better_supabase"."create_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6856,39 +6856,39 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice;
   if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
     if v_row."id" is not null and (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) or better_supabase.row_visible('"better_supabase"."invoices"'::regclass, 'id', v_row."id")) then
       raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice for update;
   if not found then
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+  if coalesce(create_invoice_charge.amount, 0) <= 0 then
     raise exception 'a charge has a positive amount' using errcode = '22023', hint = 'INVOICE_CHARGE_INVALID';
   end if;
-  if upper(add_invoice_charge.currency) is distinct from v_row."currency" then
+  if upper(create_invoice_charge.currency) is distinct from v_row."currency" then
     raise exception 'a charge must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
   end if;
-  if add_invoice_charge.actor is not null then
-    if jsonb_typeof(add_invoice_charge.actor) <> 'object' then
+  if create_invoice_charge.actor is not null then
+    if jsonb_typeof(create_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(add_invoice_charge.actor ->> 'ip', '')::inet, nullif(add_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(create_invoice_charge.actor ->> 'ip', '')::inet, nullif(create_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(add_invoice_charge.actor::text, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(create_invoice_charge.actor::text, ''), true);
   insert into "better_supabase"."invoice_charges" ("tenant_id", "invoice_id", "amount", "currency", "description", "created_by")
-  values (v_row."tenant_id", v_row."id", add_invoice_charge.amount, v_row."currency", nullif(trim(add_invoice_charge.description), ''), auth.uid())
+  values (v_row."tenant_id", v_row."id", create_invoice_charge.amount, v_row."currency", nullif(trim(create_invoice_charge.description), ''), auth.uid())
   returning "id" into v_charge;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -6908,7 +6908,7 @@ begin
   if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('invoice_charge', v_charge::text);
   end if;
-  perform "better_supabase".emit_event('invoice.charged', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  perform "better_supabase".emit_event('invoice.charged', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', v_charge, 'amount', create_invoice_charge.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.charged',
     category => 'billing',
@@ -6917,7 +6917,7 @@ begin
     target_label => v_row."identifier",
     summary => 'invoice charged',
     tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text)
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', v_charge, 'amount', create_invoice_charge.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text)
   );
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
@@ -6930,9 +6930,9 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
+revoke execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
+create or replace function "better_supabase"."delete_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6946,7 +6946,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."invoices" x join "better_supabase"."invoice_charges" c on c."invoice_id" = x."id"
-  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
+  where c."id" = delete_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
   for update of x;
   if v_row."id" is null then
     raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
@@ -6954,18 +6954,18 @@ begin
   if v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice changes its charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if remove_invoice_charge.actor is not null then
-    if jsonb_typeof(remove_invoice_charge.actor) <> 'object' then
+  if delete_invoice_charge.actor is not null then
+    if jsonb_typeof(delete_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(remove_invoice_charge.actor ->> 'ip', '')::inet, nullif(remove_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(delete_invoice_charge.actor ->> 'ip', '')::inet, nullif(delete_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(remove_invoice_charge.actor::text, ''), true);
-  delete from "better_supabase"."invoice_charges" c where c."id" = remove_invoice_charge.charge
+  perform set_config('better_supabase.transition_actor', coalesce(delete_invoice_charge.actor::text, ''), true);
+  delete from "better_supabase"."invoice_charges" c where c."id" = delete_invoice_charge.charge
   returning c."amount" into v_amount;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -6982,8 +6982,8 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_charge', remove_invoice_charge.charge::text);
-  perform "better_supabase".emit_event('invoice.charge_removed', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_charge', delete_invoice_charge.charge::text);
+  perform "better_supabase".emit_event('invoice.charge_removed', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', delete_invoice_charge.charge, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.charge_removed',
     category => 'billing',
@@ -6992,7 +6992,7 @@ begin
     target_label => v_row."identifier",
     summary => 'invoice charge_removed',
     tenant => (v_row."tenant_id"::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text)
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', delete_invoice_charge.charge, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text)
   );
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
       'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text,
@@ -7005,8 +7005,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
@@ -7585,7 +7585,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
     if v_level."fee" > 0 then
-      perform "better_supabase"."add_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
+      perform "better_supabase"."create_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
         description => 'Reminder fee, level ' || v_level."level");
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
@@ -10627,7 +10627,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:41b584446c8df0931c32dbbb37b825f9a4dd9b4ac13b1b0690f89bb66a4b3c9a
+-- @bsb-hash sha256:61e67dc36f430cc71f088ec10e6834ec455453eba7e1455e8a77ed93066bcef5
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12552,7 +12552,7 @@ grant execute on function "app_private"."recompute_invoice_status"(uuid) to auth
 -- a paid invoice is open again until the charge is paid too. fields: the
 -- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
-create or replace function "app_private"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
+create or replace function "app_private"."create_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -12565,39 +12565,39 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = add_invoice_charge.invoice;
+  select * into v_row from "app_private"."invoices" x where x."id" = create_invoice_charge.invoice;
   if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
     if v_row."id" is not null and (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) or better_supabase.row_visible('"app_private"."invoices"'::regclass, 'id', v_row."id")) then
       raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  select * into v_row from "app_private"."invoices" x where x."id" = create_invoice_charge.invoice for update;
   if not found then
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+  if coalesce(create_invoice_charge.amount, 0) <= 0 then
     raise exception 'a charge has a positive amount' using errcode = '22023', hint = 'INVOICE_CHARGE_INVALID';
   end if;
-  if upper(add_invoice_charge.currency) is distinct from v_row."currency" then
+  if upper(create_invoice_charge.currency) is distinct from v_row."currency" then
     raise exception 'a charge must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
   end if;
-  if add_invoice_charge.actor is not null then
-    if jsonb_typeof(add_invoice_charge.actor) <> 'object' then
+  if create_invoice_charge.actor is not null then
+    if jsonb_typeof(create_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(add_invoice_charge.actor ->> 'ip', '')::inet, nullif(add_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(create_invoice_charge.actor ->> 'ip', '')::inet, nullif(create_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(add_invoice_charge.actor::text, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(create_invoice_charge.actor::text, ''), true);
   insert into "app_private"."invoice_charges" ("tenant_id", "invoice_id", "amount", "currency", "description", "created_by")
-  values (v_row."tenant_id", v_row."id", add_invoice_charge.amount, v_row."currency", nullif(trim(add_invoice_charge.description), ''), auth.uid())
+  values (v_row."tenant_id", v_row."id", create_invoice_charge.amount, v_row."currency", nullif(trim(create_invoice_charge.description), ''), auth.uid())
   returning "id" into v_charge;
   update "app_private"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -12627,9 +12627,9 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
-grant execute on function "app_private"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-create or replace function "app_private"."remove_invoice_charge"(charge uuid, actor jsonb default null)
+revoke execute on function "app_private"."create_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."create_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
+create or replace function "app_private"."delete_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -12643,7 +12643,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "app_private"."invoices" x join "app_private"."invoice_charges" c on c."invoice_id" = x."id"
-  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
+  where c."id" = delete_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
   for update of x;
   if v_row."id" is null then
     raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
@@ -12651,18 +12651,18 @@ begin
   if v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice changes its charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if remove_invoice_charge.actor is not null then
-    if jsonb_typeof(remove_invoice_charge.actor) <> 'object' then
+  if delete_invoice_charge.actor is not null then
+    if jsonb_typeof(delete_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(remove_invoice_charge.actor ->> 'ip', '')::inet, nullif(remove_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(delete_invoice_charge.actor ->> 'ip', '')::inet, nullif(delete_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(remove_invoice_charge.actor::text, ''), true);
-  delete from "app_private"."invoice_charges" c where c."id" = remove_invoice_charge.charge
+  perform set_config('better_supabase.transition_actor', coalesce(delete_invoice_charge.actor::text, ''), true);
+  delete from "app_private"."invoice_charges" c where c."id" = delete_invoice_charge.charge
   returning c."amount" into v_amount;
   update "app_private"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -12692,8 +12692,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."remove_invoice_charge"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."delete_invoice_charge"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."delete_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
@@ -13131,7 +13131,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
     if v_level."fee" > 0 then
-      perform "app_private"."add_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
+      perform "app_private"."create_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
         description => 'Reminder fee, level ' || v_level."level");
       select * into v_row from "app_private"."invoices" x where x."id" = v_row."id";
     end if;
@@ -15439,7 +15439,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:a0114598f5c1fb6e6fadcadabd28041357feb5dfdec027b604125072bf5e5b58
+-- @bsb-hash sha256:d49e0a3bd55c7f92a2e5b66086384613904ae6ac06ba81a90472f9ba75059f00
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17359,7 +17359,7 @@ grant execute on function "better_supabase"."recompute_invoice_status"(uuid) to 
 -- a paid invoice is open again until the charge is paid too. fields: the
 -- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
-create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
+create or replace function "better_supabase"."create_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -17372,39 +17372,39 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice;
   if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
     if v_row."id" is not null and (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) or better_supabase.row_visible('"better_supabase"."invoices"'::regclass, 'id', v_row."id")) then
       raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice for update;
   if not found then
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+  if coalesce(create_invoice_charge.amount, 0) <= 0 then
     raise exception 'a charge has a positive amount' using errcode = '22023', hint = 'INVOICE_CHARGE_INVALID';
   end if;
-  if upper(add_invoice_charge.currency) is distinct from v_row."currency" then
+  if upper(create_invoice_charge.currency) is distinct from v_row."currency" then
     raise exception 'a charge must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
   end if;
-  if add_invoice_charge.actor is not null then
-    if jsonb_typeof(add_invoice_charge.actor) <> 'object' then
+  if create_invoice_charge.actor is not null then
+    if jsonb_typeof(create_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(add_invoice_charge.actor ->> 'ip', '')::inet, nullif(add_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(create_invoice_charge.actor ->> 'ip', '')::inet, nullif(create_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(add_invoice_charge.actor::text, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(create_invoice_charge.actor::text, ''), true);
   insert into "better_supabase"."invoice_charges" ("tenant_id", "invoice_id", "amount", "currency", "description", "created_by")
-  values (v_row."tenant_id", v_row."id", add_invoice_charge.amount, v_row."currency", nullif(trim(add_invoice_charge.description), ''), auth.uid())
+  values (v_row."tenant_id", v_row."id", create_invoice_charge.amount, v_row."currency", nullif(trim(create_invoice_charge.description), ''), auth.uid())
   returning "id" into v_charge;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -17434,9 +17434,9 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
+revoke execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
+create or replace function "better_supabase"."delete_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -17450,7 +17450,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."invoices" x join "better_supabase"."invoice_charges" c on c."invoice_id" = x."id"
-  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
+  where c."id" = delete_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
   for update of x;
   if v_row."id" is null then
     raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
@@ -17458,18 +17458,18 @@ begin
   if v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice changes its charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if remove_invoice_charge.actor is not null then
-    if jsonb_typeof(remove_invoice_charge.actor) <> 'object' then
+  if delete_invoice_charge.actor is not null then
+    if jsonb_typeof(delete_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(remove_invoice_charge.actor ->> 'ip', '')::inet, nullif(remove_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(delete_invoice_charge.actor ->> 'ip', '')::inet, nullif(delete_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(remove_invoice_charge.actor::text, ''), true);
-  delete from "better_supabase"."invoice_charges" c where c."id" = remove_invoice_charge.charge
+  perform set_config('better_supabase.transition_actor', coalesce(delete_invoice_charge.actor::text, ''), true);
+  delete from "better_supabase"."invoice_charges" c where c."id" = delete_invoice_charge.charge
   returning c."amount" into v_amount;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -17499,8 +17499,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
@@ -17938,7 +17938,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
     if v_level."fee" > 0 then
-      perform "better_supabase"."add_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
+      perform "better_supabase"."create_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
         description => 'Reminder fee, level ' || v_level."level");
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
@@ -20383,23 +20383,23 @@ as $$ select "better_supabase"."recompute_invoice_status"($1) $$;
 revoke execute on function "api"."recompute_invoice_status"(uuid) from public, anon;
 grant execute on function "api"."recompute_invoice_status"(uuid) to authenticated, service_role;
 
-create or replace function "api"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
+create or replace function "api"."create_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_invoice_charge"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
-grant execute on function "api"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."create_invoice_charge"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
+grant execute on function "api"."create_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "api"."remove_invoice_charge"(charge uuid, actor jsonb default null)
+create or replace function "api"."delete_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_invoice_charge"($1, $2) $$;
-revoke execute on function "api"."remove_invoice_charge"(uuid, jsonb) from public, anon;
-grant execute on function "api"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."delete_invoice_charge"($1, $2) $$;
+revoke execute on function "api"."delete_invoice_charge"(uuid, jsonb) from public, anon;
+grant execute on function "api"."delete_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."invoice_aging"(tenant uuid, currency text, as_of date, direction text default 'sales')
 returns jsonb
@@ -20823,7 +20823,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:c8c2d886223ff81d8ee833b844dda7bc9eee08989da05df805079f6aa1e5d208
+-- @bsb-hash sha256:225f7a3a0a0a2ac22e2343cfcd3eef372fe1285d2af87eb062f724618845717d
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22710,7 +22710,7 @@ grant execute on function "better_supabase"."recompute_invoice_status"(uuid) to 
 -- a paid invoice is open again until the charge is paid too. fields: the
 -- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
-create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
+create or replace function "better_supabase"."create_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -22723,39 +22723,39 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice;
   if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
     if v_row."id" is not null and (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) or better_supabase.row_visible('"better_supabase"."invoices"'::regclass, 'id', v_row."id")) then
       raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice for update;
   if not found then
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+  if coalesce(create_invoice_charge.amount, 0) <= 0 then
     raise exception 'a charge has a positive amount' using errcode = '22023', hint = 'INVOICE_CHARGE_INVALID';
   end if;
-  if upper(add_invoice_charge.currency) is distinct from v_row."currency" then
+  if upper(create_invoice_charge.currency) is distinct from v_row."currency" then
     raise exception 'a charge must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
   end if;
-  if add_invoice_charge.actor is not null then
-    if jsonb_typeof(add_invoice_charge.actor) <> 'object' then
+  if create_invoice_charge.actor is not null then
+    if jsonb_typeof(create_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(add_invoice_charge.actor ->> 'ip', '')::inet, nullif(add_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(create_invoice_charge.actor ->> 'ip', '')::inet, nullif(create_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(add_invoice_charge.actor::text, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(create_invoice_charge.actor::text, ''), true);
   insert into "better_supabase"."invoice_charges" ("tenant_id", "invoice_id", "amount", "currency", "description", "created_by")
-  values (v_row."tenant_id", v_row."id", add_invoice_charge.amount, v_row."currency", nullif(trim(add_invoice_charge.description), ''), auth.uid())
+  values (v_row."tenant_id", v_row."id", create_invoice_charge.amount, v_row."currency", nullif(trim(create_invoice_charge.description), ''), auth.uid())
   returning "id" into v_charge;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -22785,9 +22785,9 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
+revoke execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
+create or replace function "better_supabase"."delete_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -22801,7 +22801,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."invoices" x join "better_supabase"."invoice_charges" c on c."invoice_id" = x."id"
-  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
+  where c."id" = delete_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
   for update of x;
   if v_row."id" is null then
     raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
@@ -22809,18 +22809,18 @@ begin
   if v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice changes its charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if remove_invoice_charge.actor is not null then
-    if jsonb_typeof(remove_invoice_charge.actor) <> 'object' then
+  if delete_invoice_charge.actor is not null then
+    if jsonb_typeof(delete_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(remove_invoice_charge.actor ->> 'ip', '')::inet, nullif(remove_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(delete_invoice_charge.actor ->> 'ip', '')::inet, nullif(delete_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(remove_invoice_charge.actor::text, ''), true);
-  delete from "better_supabase"."invoice_charges" c where c."id" = remove_invoice_charge.charge
+  perform set_config('better_supabase.transition_actor', coalesce(delete_invoice_charge.actor::text, ''), true);
+  delete from "better_supabase"."invoice_charges" c where c."id" = delete_invoice_charge.charge
   returning c."amount" into v_amount;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -22850,8 +22850,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
@@ -23289,7 +23289,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
     if v_level."fee" > 0 then
-      perform "better_supabase"."add_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
+      perform "better_supabase"."create_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
         description => 'Reminder fee, level ' || v_level."level");
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;
@@ -25594,7 +25594,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@4 managed
--- @bsb-hash sha256:4282852a19a829e3e865e9d2e7cc77b2070e702a3fb2ffd70385a4c86a2ae76b
+-- @bsb-hash sha256:82c8b10742800a63ec3d29e6a92193b660a80222cf0956dd3b4eeb860bdf063e
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27514,7 +27514,7 @@ grant execute on function "better_supabase"."recompute_invoice_status"(uuid) to 
 -- a paid invoice is open again until the charge is paid too. fields: the
 -- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
-create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
+create or replace function "better_supabase"."create_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -27527,39 +27527,39 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice;
   if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
     if v_row."id" is not null and (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) or better_supabase.row_visible('"better_supabase"."invoices"'::regclass, 'id', v_row."id")) then
       raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = create_invoice_charge.invoice for update;
   if not found then
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+  if coalesce(create_invoice_charge.amount, 0) <= 0 then
     raise exception 'a charge has a positive amount' using errcode = '22023', hint = 'INVOICE_CHARGE_INVALID';
   end if;
-  if upper(add_invoice_charge.currency) is distinct from v_row."currency" then
+  if upper(create_invoice_charge.currency) is distinct from v_row."currency" then
     raise exception 'a charge must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
   end if;
-  if add_invoice_charge.actor is not null then
-    if jsonb_typeof(add_invoice_charge.actor) <> 'object' then
+  if create_invoice_charge.actor is not null then
+    if jsonb_typeof(create_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(add_invoice_charge.actor ->> 'ip', '')::inet, nullif(add_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(create_invoice_charge.actor ->> 'ip', '')::inet, nullif(create_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(add_invoice_charge.actor::text, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(create_invoice_charge.actor::text, ''), true);
   insert into "better_supabase"."invoice_charges" ("org_id", "invoice_id", "amount", "currency", "description", "created_by")
-  values (v_row."org_id", v_row."id", add_invoice_charge.amount, v_row."currency", nullif(trim(add_invoice_charge.description), ''), auth.uid())
+  values (v_row."org_id", v_row."id", create_invoice_charge.amount, v_row."currency", nullif(trim(create_invoice_charge.description), ''), auth.uid())
   returning "id" into v_charge;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = x."org_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -27589,9 +27589,9 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = v_row."org_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
-create or replace function "better_supabase"."remove_invoice_charge"(charge uuid, actor jsonb default null)
+revoke execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_invoice_charge"(uuid, bigint, text, text, jsonb) to authenticated, service_role;
+create or replace function "better_supabase"."delete_invoice_charge"(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -27605,7 +27605,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."invoices" x join "better_supabase"."invoice_charges" c on c."invoice_id" = x."id"
-  where c."id" = remove_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
+  where c."id" = delete_invoice_charge.charge and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))
   for update of x;
   if v_row."id" is null then
     raise exception 'no such charge on an invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_CHARGE_NOT_FOUND';
@@ -27613,18 +27613,18 @@ begin
   if v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice changes its charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
   end if;
-  if remove_invoice_charge.actor is not null then
-    if jsonb_typeof(remove_invoice_charge.actor) <> 'object' then
+  if delete_invoice_charge.actor is not null then
+    if jsonb_typeof(delete_invoice_charge.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(remove_invoice_charge.actor ->> 'ip', '')::inet, nullif(remove_invoice_charge.actor ->> 'id', '')::uuid;
+      perform nullif(delete_invoice_charge.actor ->> 'ip', '')::inet, nullif(delete_invoice_charge.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
       raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_actor', coalesce(remove_invoice_charge.actor::text, ''), true);
-  delete from "better_supabase"."invoice_charges" c where c."id" = remove_invoice_charge.charge
+  perform set_config('better_supabase.transition_actor', coalesce(delete_invoice_charge.actor::text, ''), true);
+  delete from "better_supabase"."invoice_charges" c where c."id" = delete_invoice_charge.charge
   returning c."amount" into v_amount;
   update "better_supabase"."invoices" x set
     "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = x."org_id" and a."code" = 'invoice:' || x."id"::text)), 0),
@@ -27654,8 +27654,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = v_row."org_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."remove_invoice_charge"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."delete_invoice_charge"(uuid, jsonb) to authenticated, service_role;
 
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.
@@ -28093,7 +28093,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
     if v_level."fee" > 0 then
-      perform "better_supabase"."add_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
+      perform "better_supabase"."create_invoice_charge"(invoice => v_row."id", amount => v_level."fee", currency => v_row."currency"::text,
         description => 'Reminder fee, level ' || v_level."level");
       select * into v_row from "better_supabase"."invoices" x where x."id" = v_row."id";
     end if;

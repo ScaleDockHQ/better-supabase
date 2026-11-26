@@ -26,10 +26,10 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('forklift', (better_supabase.save_qualification_type(
+insert into ids values ('forklift', (better_supabase.upsert_qualification_type(
   '00000000-0000-4000-8000-000000000001', 'forklift', 'Forklift licence', array['member'],
   valid_for_months => 12) ->> 'id')::uuid);
-insert into ids values ('rule', (better_supabase.add_qualification_requirement(
+insert into ids values ('rule', (better_supabase.create_qualification_requirement(
   (select id from ids where name = 'forklift'), 'role', 'member') ->> 'id')::uuid);
 
 select isnt(
@@ -50,13 +50,13 @@ select is(
   'a member the role requirement names lacks the licence'
 );
 select throws_ok(
-  $$select better_supabase.save_qualification_type('00000000-0000-4000-8000-000000000001', 'bad', 'Bad', array['member'], valid_for_months => 300)$$,
+  $$select better_supabase.upsert_qualification_type('00000000-0000-4000-8000-000000000001', 'bad', 'Bad', array['member'], valid_for_months => 300)$$,
   '22023',
   'valid_for_months is between 1 and 240',
   'a validity past 240 months is refused'
 );
 select throws_ok(
-  $$select better_supabase.add_qualification_requirement((select id from ids where name = 'forklift'), 'asset_kind', 'truck')$$,
+  $$select better_supabase.create_qualification_requirement((select id from ids where name = 'forklift'), 'asset_kind', 'truck')$$,
   '22023',
   null,
   'an asset kind requirement on a member-only type is refused'

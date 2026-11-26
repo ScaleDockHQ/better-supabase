@@ -34,7 +34,7 @@ describe("ai-keys module", () => {
       "delete_ai_provider_keys",
       "due_ai_batches",
       "update_ai_batch",
-      "save_ai_batch_items",
+      "upsert_ai_batch_items",
     ]) {
       expect(sql).toMatch(
         new RegExp(
@@ -46,7 +46,7 @@ describe("ai-keys module", () => {
 
   it("rejects a key credential_ref outside the key's tenant", () => {
     expect(body()).toContain(
-      "(save_ai_provider_key.credential_ref ->> 'tenant') is distinct from (save_ai_provider_key.tenant)::text",
+      "(upsert_ai_provider_key.credential_ref ->> 'tenant') is distinct from (upsert_ai_provider_key.tenant)::text",
     );
   });
 

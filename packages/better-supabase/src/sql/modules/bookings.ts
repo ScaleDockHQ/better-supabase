@@ -388,7 +388,7 @@ function setup(p: Parts): string {
   end if;`;
 
   return `
-create or replace function ${fn("save_booking_resource")}(tenant ${ctx.idType}, item jsonb)
+create or replace function ${fn("upsert_booking_resource")}(tenant ${ctx.idType}, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -396,8 +396,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_resource.item, '{}'::jsonb);
-  v_tenant ${ctx.idType} := save_booking_resource.tenant;
+  v_item jsonb := coalesce(upsert_booking_resource.item, '{}'::jsonb);
+  v_tenant ${ctx.idType} := upsert_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not ${allowed(p.scope, "v_tenant", p.manage)} then
@@ -410,7 +410,7 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${fn("save_booking_resource")}(${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_booking_resource")}(${ctx.idType}, jsonb)`)}
 
 -- Replaces a resource's weekly hours with source.hours: { weekday (1 is
 -- Monday), start, end } in the resource's time zone.
@@ -444,7 +444,7 @@ ${userGrant(`${fn("set_booking_availability")}(uuid, jsonb)`)}
 
 -- Closes a resource for a range (a holiday, a meeting), or opens it outside
 -- its weekly hours with available = true.
-create or replace function ${fn("add_booking_exception")}(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function ${fn("create_booking_exception")}(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language plpgsql
 security definer
@@ -455,23 +455,23 @@ declare
   v_tenant ${ctx.idType};
   v_id uuid;
 begin
-  select ${r("tenant")} into v_tenant from ${p.resources} where ${r("id")} = add_booking_exception.resource;
+  select ${r("tenant")} into v_tenant from ${p.resources} where ${r("id")} = create_booking_exception.resource;
   if not found then
     ${fail("BOOKING_RESOURCE_NOT_FOUND", "resource not found", "P0002")}
   end if;
   if not ${allowed(p.scope, "v_tenant", p.manage)} then
     ${fail("BOOKING_FORBIDDEN", "not allowed to manage bookings")}
   end if;
-  if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
+  if create_booking_exception.ends_at is null or create_booking_exception.starts_at is null or create_booking_exception.ends_at <= create_booking_exception.starts_at then
     ${fail("BOOKING_RANGE_INVALID", "an exception needs a start before its end", "22023")}
   end if;
   insert into ${p.exceptions} (${x("tenant")}, ${x("resource")}, ${x("during")}, ${x("available")}, ${x("reason")})
-  values (v_tenant, add_booking_exception.resource, tstzrange(add_booking_exception.starts_at, add_booking_exception.ends_at), coalesce(add_booking_exception.available, false), add_booking_exception.reason)
+  values (v_tenant, create_booking_exception.resource, tstzrange(create_booking_exception.starts_at, create_booking_exception.ends_at), coalesce(create_booking_exception.available, false), create_booking_exception.reason)
   returning ${x("id")} into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${fn("add_booking_exception")}(uuid, timestamptz, timestamptz, boolean, text)`)}
+${userGrant(`${fn("create_booking_exception")}(uuid, timestamptz, timestamptz, boolean, text)`)}
 
 create or replace function ${fn("delete_booking_exception")}(exception_id uuid)
 returns boolean
@@ -496,7 +496,7 @@ end;
 $$;
 ${userGrant(`${fn("delete_booking_exception")}(uuid)`)}
 
-create or replace function ${fn("save_booking_service")}(tenant ${ctx.idType}, item jsonb)
+create or replace function ${fn("upsert_booking_service")}(tenant ${ctx.idType}, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -504,8 +504,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_service.item, '{}'::jsonb);
-  v_tenant ${ctx.idType} := save_booking_service.tenant;
+  v_item jsonb := coalesce(upsert_booking_service.item, '{}'::jsonb);
+  v_tenant ${ctx.idType} := upsert_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not ${allowed(p.scope, "v_tenant", p.manage)} then
@@ -515,7 +515,7 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${fn("save_booking_service")}(${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_booking_service")}(${ctx.idType}, jsonb)`)}
 `;
 }
 

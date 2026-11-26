@@ -106,7 +106,7 @@ describe("createConnectors", () => {
         }),
       ],
       get_connector: (args) => (args["id"] === "gone" ? null : serverRow()),
-      save_connector_server: () => serverRow(),
+      upsert_connector_server: () => serverRow(),
     });
 
     const connectors = createConnectors({ transport });
@@ -288,7 +288,7 @@ describe("createConnectors", () => {
               expires_at: AT,
             }
           : null,
-      save_connector_session: () => true,
+      upsert_connector_session: () => true,
       purge_connector_sessions: () => 4,
       check_connector_fingerprint: (args) =>
         args["fingerprint"] === "new" ? "bogus" : "approved",
@@ -342,7 +342,7 @@ describe("createConnectors", () => {
     expect(
       calls
         .filter(({ fn }) =>
-          ["save_connector_session", "decide_connector_fingerprint"].includes(
+          ["upsert_connector_session", "decide_connector_fingerprint"].includes(
             fn,
           ),
         )

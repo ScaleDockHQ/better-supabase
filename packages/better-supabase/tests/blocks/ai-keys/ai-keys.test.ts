@@ -150,7 +150,7 @@ describe("createAiKeys keys", () => {
     let replaced: unknown = OLD_REF;
 
     const { transport, calls } = fakeTransport({
-      save_ai_provider_key: () => ({ key: keyRow(), replaced }),
+      upsert_ai_provider_key: () => ({ key: keyRow(), replaced }),
     });
 
     const providers = createAiKeys({ transport, credentials });
@@ -377,7 +377,7 @@ describe("createAiKeys batches", () => {
     const service = fakeTransport({
       due_ai_batches: () => [batchRow()],
       update_ai_batch: () => batchRow({ status: "completed" }),
-      save_ai_batch_items: () => 1,
+      upsert_ai_batch_items: () => 1,
     });
 
     const { batches } = createAiKeys({

@@ -929,7 +929,7 @@ function organizationsClient<
     addMemberRole({ organizationId, userId, role }) {
       return run(
         "organizations",
-        "add_member_role",
+        "create_member_role",
         { organization: organizationId, member: userId, role },
         (value) => {
           if (value === true) {
@@ -947,7 +947,7 @@ function organizationsClient<
     removeMemberRole({ organizationId, userId, role }) {
       return run(
         "organizations",
-        "remove_member_role",
+        "delete_member_role",
         { organization: organizationId, member: userId, role },
         (value) => {
           if (value === true) {
@@ -965,7 +965,7 @@ function organizationsClient<
     removeMember({ organizationId, userId }) {
       return run(
         "organizations",
-        "remove_member",
+        "delete_member",
         { organization: organizationId, member: userId },
         () => {
           organizationEvent("organization.member_removed", {

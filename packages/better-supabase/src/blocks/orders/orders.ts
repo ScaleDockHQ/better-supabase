@@ -1045,7 +1045,7 @@ export function createOrders<
   const orders: Orders<F> = {
     saveShippingRate: ({ organizationId, input }) =>
       call(
-        "save_shipping_rate",
+        "upsert_shipping_rate",
         {
           tenant: organizationId,
           rate: input.id ?? null,
@@ -1065,7 +1065,7 @@ export function createOrders<
           },
         },
         (value) => ({
-          id: textOf(recordOf(value, "save_shipping_rate")["id"]),
+          id: textOf(recordOf(value, "upsert_shipping_rate")["id"]),
         }),
       ),
     deleteShippingRate: (rateId) =>

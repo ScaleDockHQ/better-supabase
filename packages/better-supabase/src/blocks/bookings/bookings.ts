@@ -604,7 +604,7 @@ export function createBookings<
         .andThen((value) => withFields(fields, value, bookingOf(value))),
     saveResource: ({ organizationId, input }) =>
       call(
-        "save_booking_resource",
+        "upsert_booking_resource",
         { tenant: organizationId, item: itemOf(input) },
         idOf,
       ),
@@ -616,7 +616,7 @@ export function createBookings<
       ),
     addException: ({ resourceId, exception }) =>
       call(
-        "add_booking_exception",
+        "create_booking_exception",
         {
           resource: resourceId,
           starts_at: String(exception.startsAt),
@@ -634,7 +634,7 @@ export function createBookings<
       ),
     saveService: ({ organizationId, input }) =>
       call(
-        "save_booking_service",
+        "upsert_booking_service",
         { tenant: organizationId, item: itemOf(input) },
         idOf,
       ),

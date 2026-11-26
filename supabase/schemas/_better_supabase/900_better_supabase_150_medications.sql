@@ -1,6 +1,6 @@
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:29f9ebfa4f3aed6171189ac75f0cb205cf7f031f058d86715689843fa0fbfb1e
+-- @bsb-hash sha256:1f902410f02b5157cb850d9336adf6536c30be1ddc3fb719b80c51ef7bc0b25f
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,7 +191,7 @@ create policy bsb_medication_administrations_read on "better_supabase"."medicati
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
 
-create or replace function "better_supabase"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
+create or replace function "better_supabase"."upsert_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -211,16 +211,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_medication.tenant, 'medications.prescribe'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_medication.tenant, 'medications.prescribe'), false)) then
     raise exception 'not allowed to change the medication catalog' using errcode = '42501', hint = 'MEDICATION_FORBIDDEN';
   end if;
-  v_name := nullif(trim(save_medication.name), '');
-  v_med_unit := nullif(trim(save_medication.unit), '');
-  v_system := coalesce(nullif(trim(save_medication.code_system), ''), 'custom');
-  v_code := nullif(trim(save_medication.code), '');
-  v_form := nullif(trim(save_medication.form), '');
-  v_strength := nullif(trim(save_medication.strength), '');
-  v_high_risk := coalesce(save_medication.high_risk, false);
+  v_name := nullif(trim(upsert_medication.name), '');
+  v_med_unit := nullif(trim(upsert_medication.unit), '');
+  v_system := coalesce(nullif(trim(upsert_medication.code_system), ''), 'custom');
+  v_code := nullif(trim(upsert_medication.code), '');
+  v_form := nullif(trim(upsert_medication.form), '');
+  v_strength := nullif(trim(upsert_medication.strength), '');
+  v_high_risk := coalesce(upsert_medication.high_risk, false);
   if v_name is null or length(v_name) > 300 then
     raise exception 'a medication needs a name of at most 300 characters' using errcode = '22023', hint = 'MEDICATION_INVALID';
   end if;
@@ -241,14 +241,14 @@ begin
   end if;
   if exists (
     select 1 from "better_supabase"."medications" x
-    where x."tenant_id" = save_medication.tenant and x."code_system" = v_system and x."code" = v_code
-      and x."id" is distinct from save_medication.medication_id
+    where x."tenant_id" = upsert_medication.tenant and x."code_system" = v_system and x."code" = v_code
+      and x."id" is distinct from upsert_medication.medication_id
   ) then
     raise exception 'the catalog already has a medication with this code' using errcode = '22023', hint = 'MEDICATION_INVALID';
   end if;
-  if save_medication.medication_id is null then
+  if upsert_medication.medication_id is null then
     insert into "better_supabase"."medications" ("tenant_id", "name", "code_system", "code", "form", "strength", "unit", "high_risk")
-    values (save_medication.tenant, v_name, v_system, v_code, v_form, v_strength, v_med_unit, v_high_risk)
+    values (upsert_medication.tenant, v_name, v_system, v_code, v_form, v_strength, v_med_unit, v_high_risk)
     returning * into v_medication;
   else
     update "better_supabase"."medications" x set
@@ -261,7 +261,7 @@ begin
     "high_risk" = v_high_risk,
     "archived_at" = null,
     "updated_at" = now()
-    where x."id" = save_medication.medication_id and x."tenant_id" = save_medication.tenant
+    where x."id" = upsert_medication.medication_id and x."tenant_id" = upsert_medication.tenant
     returning x.* into v_medication;
     if not found then
       raise exception 'medication not found' using errcode = 'P0002', hint = 'MEDICATION_NOT_FOUND';
@@ -270,8 +270,8 @@ begin
   return jsonb_build_object('id', v_medication."id", 'organizationId', v_medication."tenant_id", 'name', v_medication."name", 'codeSystem', v_medication."code_system", 'code', v_medication."code", 'form', v_medication."form", 'strength', v_medication."strength", 'unit', v_medication."unit", 'highRisk', v_medication."high_risk", 'archivedAt', v_medication."archived_at", 'createdAt', v_medication."created_at", 'updatedAt', v_medication."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_medication"(uuid, text, text, text, text, text, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_medication"(uuid, text, text, text, text, text, text, boolean, uuid) to authenticated, service_role;
 
 -- Archives a medication: new orders can't use it; its orders stay.
 create or replace function "better_supabase"."archive_medication"(medication_id uuid)
@@ -1719,14 +1719,14 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 
 
-create or replace function "api"."save_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
+create or replace function "api"."upsert_medication"(tenant uuid, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_medication"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid) from public, anon;
-grant execute on function "api"."save_medication"(uuid, text, text, text, text, text, text, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_medication"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_medication"(uuid, text, text, text, text, text, text, boolean, uuid) from public, anon;
+grant execute on function "api"."upsert_medication"(uuid, text, text, text, text, text, text, boolean, uuid) to authenticated, service_role;
 
 create or replace function "api"."archive_medication"(medication_id uuid)
 returns jsonb

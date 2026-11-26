@@ -98,8 +98,8 @@ const ANSWERS: Record<string, unknown> = {
     { ...stepRow, id: "s3", run_id: "r1", step_key: "plan" },
   ],
   list_pending_ai_tool_approvals: [approvalRow],
-  load_ai_harness_session: sessionRow,
-  save_ai_harness_session: sessionRow,
+  get_ai_harness_session: sessionRow,
+  upsert_ai_harness_session: sessionRow,
   lock_ai_harness_session: true,
   unlock_ai_harness_session: false,
 };
@@ -296,7 +296,7 @@ describe("createHarnessSessions", () => {
       status: "active",
     });
     expect(lastArgs(server)).toEqual({ chat: "c1", harness: "claude-code" });
-    const none = fake({ load_ai_harness_session: null });
+    const none = fake({ get_ai_harness_session: null });
     expect(
       await none.sessions.load({ chatId: "c1", harnessId: "x" }).orThrow(),
     ).toBeUndefined();

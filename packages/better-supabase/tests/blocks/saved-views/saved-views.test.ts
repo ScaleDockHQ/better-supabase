@@ -118,7 +118,7 @@ describe("saved views client", () => {
   });
 
   it("saves a checked state without the page", async () => {
-    const fake = transport({ save_view: { id: "v1", rank: "V" } });
+    const fake = transport({ upsert_view: { id: "v1", rank: "V" } });
 
     const views = createSavedViews({
       transport: fake,
@@ -140,7 +140,7 @@ describe("saved views client", () => {
 
     expect(saved).toEqual({ id: "v1", rank: "V", fields: {} });
     expect(fake.calls[0]).toEqual({
-      fn: "save_view",
+      fn: "upsert_view",
       args: {
         tenant: "org",
         list: "tasks",

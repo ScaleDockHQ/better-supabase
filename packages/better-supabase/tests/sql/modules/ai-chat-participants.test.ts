@@ -39,8 +39,8 @@ describe("ai-chat participants", () => {
     const sql = body();
 
     for (const name of [
-      "add_ai_chat_participant",
-      "remove_ai_chat_participant",
+      "create_ai_chat_participant",
+      "delete_ai_chat_participant",
       "list_ai_chat_participants",
     ]) {
       expect(sql).toContain(
@@ -59,7 +59,7 @@ describe("ai-chat participants", () => {
     const sql = body({ participantExtraColumns: { note: "text" } });
 
     expect(sql).toContain(
-      "coalesce(add_ai_chat_participant.fields, '{}'::jsonb) -> 'note'",
+      "coalesce(create_ai_chat_participant.fields, '{}'::jsonb) -> 'note'",
     );
   });
 

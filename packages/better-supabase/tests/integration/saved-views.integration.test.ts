@@ -36,7 +36,7 @@ describe.skipIf(!live)("saved views in Postgres", () => {
     name: string,
     extra: { team?: string | null; id?: string | null } = {},
   ): string =>
-    `sv_it.save_view('${org}', 'tasks', '${name}', 'table', '${scope}', ${
+    `sv_it.upsert_view('${org}', 'tasks', '${name}', 'table', '${scope}', ${
       extra.team ? `'${extra.team}'` : "null"
     }, '{"query":{"q":"x"}}'::jsonb, ${extra.id ? `'${extra.id}'` : "null"})`;
 
@@ -66,9 +66,11 @@ describe.skipIf(!live)("saved views in Postgres", () => {
       )
     ).id;
     await db.value(
-      `better_supabase.add_team_member('${team}', '${member.id}')`,
+      `better_supabase.create_team_member('${team}', '${member.id}')`,
     );
-    await db.value(`better_supabase.add_team_member('${team}', '${owner.id}')`);
+    await db.value(
+      `better_supabase.create_team_member('${team}', '${owner.id}')`,
+    );
   });
 
   afterAll(async () => {

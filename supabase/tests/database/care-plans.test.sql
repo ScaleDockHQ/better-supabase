@@ -36,13 +36,13 @@ insert into ids values ('plan', (better_supabase.create_care_plan(
   '00000000-0000-4000-8000-000000000001',
   '{"subjectType": "customer", "subjectId": "00000000-0000-4000-8000-00000000a001", "title": "Support plan"}'::jsonb
 ) ->> 'id')::uuid);
-insert into ids values ('problem', (better_supabase.add_care_plan_problem(
+insert into ids values ('problem', (better_supabase.create_care_plan_problem(
   (select id from ids where name = 'plan'), '{"code": "25", "title": "Risk of falls"}'::jsonb) ->> 'id')::uuid);
-insert into ids values ('goal', (better_supabase.add_care_plan_goal(
+insert into ids values ('goal', (better_supabase.create_care_plan_goal(
   (select id from ids where name = 'problem'), '{"title": "Walks with a frame"}'::jsonb) ->> 'id')::uuid);
-insert into ids values ('task', (better_supabase.add_care_plan_action(
+insert into ids values ('task', (better_supabase.create_care_plan_action(
   (select id from ids where name = 'goal'), '{"title": "Walk twice a day"}'::jsonb) ->> 'id')::uuid);
-insert into ids values ('measure', (better_supabase.add_care_plan_action(
+insert into ids values ('measure', (better_supabase.create_care_plan_action(
   (select id from ids where name = 'goal'),
   '{"kind": "measure", "measureKind": "bed_rails", "title": "Bed rail at night"}'::jsonb) ->> 'id')::uuid);
 

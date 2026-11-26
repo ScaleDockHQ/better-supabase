@@ -212,12 +212,12 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_option_set",
+      name: "upsert_option_set",
       args: ["{id}", "uuid", "text", "text", "text", "text", "text", "boolean"],
       returns: "jsonb",
     },
     {
-      name: "save_option_set_item",
+      name: "upsert_option_set_item",
       args: ["uuid", "uuid", "text", "text", "integer", "text", "text", "text"],
       returns: "jsonb",
     },

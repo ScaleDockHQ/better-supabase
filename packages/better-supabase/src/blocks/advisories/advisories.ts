@@ -750,7 +750,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
     saveProduct: (input) =>
       withTenant((organizationId) =>
         call(
-          "save_advisory_product",
+          "upsert_advisory_product",
           {
             tenant: organizationId,
             key: input.key,
@@ -853,7 +853,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
 
         return withTenant((organizationId) =>
           call(
-            "save_vulnerability",
+            "upsert_vulnerability",
             {
               tenant: organizationId,
               vuln_id: input.vulnId,
@@ -973,7 +973,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
     saveVexStatement: (input) =>
       withTenant((organizationId) =>
         call(
-          "save_vex_statement",
+          "upsert_vex_statement",
           {
             tenant: organizationId,
             product_id: input.productId,
@@ -1035,7 +1035,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
     saveAdvisory: (input) =>
       withTenant((organizationId) =>
         call(
-          "save_advisory",
+          "upsert_advisory",
           {
             tenant: organizationId,
             tracking_id: input.trackingId,

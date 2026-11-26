@@ -530,15 +530,23 @@ const hasRole = (ctx: BlockSqlContext, logical: string): boolean =>
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
-    { name: "save_company", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
-    { name: "save_person", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "upsert_company",
+      args: ["{id}", "uuid", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "upsert_person",
+      args: ["{id}", "uuid", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "set_company_person",
       args: ["uuid", "uuid", "text", "boolean"],
       returns: "boolean",
     },
     {
-      name: "remove_company_person",
+      name: "delete_company_person",
       args: ["uuid", "uuid"],
       returns: "boolean",
     },
@@ -554,7 +562,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "get_person", args: ["uuid"], returns: "jsonb" },
     { name: "company_people_of", args: ["uuid"], returns: "jsonb" },
     { name: "list_person_identities", args: ["uuid"], returns: "jsonb" },
-    { name: "save_payment_term", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "upsert_payment_term", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "list_payment_terms", args: ["{id}"], returns: "jsonb" },
     { name: "delete_payment_term", args: ["uuid"], returns: "boolean" },
     {
@@ -568,11 +576,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "add_person_identity",
+      name: "create_person_identity",
       args: ["uuid", "text", "text", "boolean"],
       returns: "jsonb",
     },
-    { name: "remove_person_identity", args: ["uuid"], returns: "boolean" },
+    { name: "delete_person_identity", args: ["uuid"], returns: "boolean" },
     {
       name: "find_person_by_identity",
       args: ["{id}", "text", "text"],

@@ -55,7 +55,7 @@ describe("createTax", () => {
 
   it("saves and lists tax codes with their rates", async () => {
     const t = fieldsTransport({
-      save_tax_code: () => CODE,
+      upsert_tax_code: () => CODE,
       list_tax_codes: () => [{ ...CODE, archivedAt: AT }],
     });
 
@@ -318,8 +318,8 @@ describe("createTax", () => {
     };
 
     const t = fieldsTransport({
-      save_tax_code: () => FULL_CODE,
-      save_tax_rate: () => ({ ...RATE, validTo: "2026-12-31" }),
+      upsert_tax_code: () => FULL_CODE,
+      upsert_tax_rate: () => ({ ...RATE, validTo: "2026-12-31" }),
       compute_document_tax: () => ({
         groups: [{ rateBps: 0, net: "5", tax: "0", gross: "5" }],
         subtotal: "5",
@@ -406,7 +406,7 @@ describe("createTax", () => {
       list_tax_codes: () => [
         { ...CODE, salesAccountId: null, purchaseAccountId: "acc-2" },
       ],
-      save_tax_rate: () => RATE,
+      upsert_tax_rate: () => RATE,
       prepare_tax_return: () => ({
         id: "t3",
         organizationId: "org-1",

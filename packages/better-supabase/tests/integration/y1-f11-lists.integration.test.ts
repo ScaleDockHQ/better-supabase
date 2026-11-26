@@ -262,7 +262,7 @@ describe.skipIf(!live)("the F11 block lists follow the list contract", () => {
         ["google", "Gamma key"],
       ].entries()) {
         await s.value(
-          "better_supabase.save_ai_provider_key($1, $2, $3::jsonb, $4, '{}'::jsonb, $5)",
+          "better_supabase.upsert_ai_provider_key($1, $2, $3::jsonb, $4, '{}'::jsonb, $5)",
           [
             org,
             provider,

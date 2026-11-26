@@ -654,7 +654,7 @@ export function createCourses<
           .args(extra)
           .andThen((checked) =>
             call(
-              "save_course",
+              "upsert_course",
               {
                 tenant: organizationId,
                 course: {
@@ -662,7 +662,7 @@ export function createCourses<
                   ...(checked === undefined ? {} : { fields: checked }),
                 },
               },
-              (value) => courseOf(value, "save_course"),
+              (value) => courseOf(value, "upsert_course"),
             ).andThen(fields.row),
           ),
       );
@@ -708,9 +708,9 @@ export function createCourses<
       ),
     saveModule: ({ courseId, module }) =>
       call(
-        "save_course_module",
+        "upsert_course_module",
         { course_id: courseId, module: definedOf(module) },
-        (value) => moduleOf(value, "save_course_module"),
+        (value) => moduleOf(value, "upsert_course_module"),
       ),
     deleteModule: (moduleId) =>
       call(
@@ -720,9 +720,9 @@ export function createCourses<
       ),
     saveLesson: ({ courseId, lesson }) =>
       call(
-        "save_course_lesson",
+        "upsert_course_lesson",
         { course_id: courseId, lesson: definedOf(lesson) },
-        (value) => lessonOf(value, "save_course_lesson"),
+        (value) => lessonOf(value, "upsert_course_lesson"),
       ),
     deleteLesson: (lessonId) =>
       call(

@@ -187,8 +187,8 @@ export class BlockSession {
 
     if (names.includes("teams") && !names.includes("employees")) {
       await this.client.query(`
-        drop function if exists better_supabase.add_team_member(uuid, uuid, uuid) cascade;
-        drop function if exists better_supabase.remove_team_member(uuid, uuid, uuid) cascade;
+        drop function if exists better_supabase.create_team_member(uuid, uuid, uuid) cascade;
+        drop function if exists better_supabase.delete_team_member(uuid, uuid, uuid) cascade;
       `);
     }
 

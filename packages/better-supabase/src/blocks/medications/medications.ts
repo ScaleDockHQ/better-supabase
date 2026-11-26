@@ -720,7 +720,7 @@ export function createMedications<
   const client: Medications<F> = {
     saveMedication: ({ organizationId, input }) =>
       call(
-        "save_medication",
+        "upsert_medication",
         {
           tenant: organizationId,
           name: input.name,
@@ -733,7 +733,7 @@ export function createMedications<
           medication_id: input.medicationId ?? null,
           ...fieldsArg(input.fields),
         },
-        one("save_medication", medicationOf),
+        one("upsert_medication", medicationOf),
       ),
     archiveMedication: (medicationId) =>
       call(

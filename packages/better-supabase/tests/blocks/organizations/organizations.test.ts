@@ -153,7 +153,7 @@ describe("createOrganizations", () => {
 
   it("maps database errors and keeps the block code as the hint", async () => {
     const { transport } = fake({
-      remove_member: pgError("42501", "ORGANIZATION_FORBIDDEN"),
+      delete_member: pgError("42501", "ORGANIZATION_FORBIDDEN"),
     });
 
     const result = await createOrganizations({ transport }).removeMember({
@@ -529,8 +529,8 @@ describe("createOrganizations", () => {
 
   it("adds and removes roles, and reads the role set", async () => {
     const { transport, calls } = fake({
-      add_member_role: true,
-      remove_member_role: false,
+      create_member_role: true,
+      delete_member_role: false,
       list_members: [
         { user_id: "user-2", role: "admin", roles: ["admin", "billing"] },
       ],
@@ -570,11 +570,11 @@ describe("createOrganizations", () => {
     expect(seen).toEqual(["organization.role_added", "invitation.created"]);
     expect(calls.map((call) => [call.fn, call.args])).toMatchObject([
       [
-        "add_member_role",
+        "create_member_role",
         { organization: "org-1", member: "user-2", role: "billing" },
       ],
       [
-        "remove_member_role",
+        "delete_member_role",
         { organization: "org-1", member: "user-2", role: "member" },
       ],
       ["list_members", {}],
@@ -587,7 +587,7 @@ describe("createOrganizations", () => {
 
   it("removes members, leaves, marks use and declines invitations", async () => {
     const { transport, calls } = fake({
-      remove_member: true,
+      delete_member: true,
       leave_organization: true,
       mark_used: true,
       decline_invitation: true,
@@ -631,7 +631,7 @@ describe("createOrganizations", () => {
       "organization.member_left",
     ]);
     expect(calls.map((call) => call.fn)).toEqual([
-      "remove_member",
+      "delete_member",
       "leave_organization",
       "mark_used",
       "decline_invitation",

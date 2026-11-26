@@ -173,7 +173,7 @@ create trigger ${tenant.trigger("membership_roles")} after insert or update of $
   for each row execute function ${fromRole}();
 
 -- Adding or removing a role moves ${role} to the highest-ranked one left. An
--- emptied set leaves it alone; remove_member_role refuses the last role.
+-- emptied set leaves it alone; delete_member_role refuses the last role.
 create or replace function ${toRole}()
 returns trigger
 language plpgsql

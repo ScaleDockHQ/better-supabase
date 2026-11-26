@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:2855b5361f9835570b151d75a5585945aed3d4d587ada0217e9d2f1dd5411898
+-- @bsb-hash sha256:063ecde2e2e9db1411a322f00d94a8b5714e9b09d2e44ebe778ac364e6ee57b9
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1855,7 +1855,7 @@ revoke execute on function "better_supabase"."documents_to_compact"(integer, int
 grant execute on function "better_supabase"."documents_to_compact"(integer, integer) to service_role;
 
 -- Saves the client's merged state as a version of subject 'document'.
-create or replace function "better_supabase"."save_document_version"(document_id uuid, state text, label text default null)
+create or replace function "better_supabase"."upsert_document_version"(document_id uuid, state text, label text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1865,7 +1865,7 @@ as $$
 declare
   v_doc "better_supabase"."documents"%rowtype;
 begin
-  select * into v_doc from "better_supabase"."documents" d where d."id" = save_document_version.document_id;
+  select * into v_doc from "better_supabase"."documents" d where d."id" = upsert_document_version.document_id;
   if not found then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
   end if;
@@ -1999,12 +1999,12 @@ begin
     raise exception 'not allowed to edit this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   return "better_supabase"."version_insert"(v_doc."tenant_id", 'document', v_doc."id"::text,
-    jsonb_build_object('state', save_document_version.state, 'name', v_doc."name"),
-    null, nullif(trim(save_document_version.label), ''), 'manual', false, auth.uid());
+    jsonb_build_object('state', upsert_document_version.state, 'name', v_doc."name"),
+    null, nullif(trim(upsert_document_version.label), ''), 'manual', false, auth.uid());
 end;
 $$;
-revoke execute on function "better_supabase"."save_document_version"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_document_version"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_document_version"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_document_version"(uuid, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_document_versions"(document_id uuid)
 returns jsonb
@@ -2602,14 +2602,14 @@ as $$ select "better_supabase"."documents_to_compact"($1, $2) $$;
 revoke execute on function "api"."documents_to_compact"(integer, integer) from public, anon, authenticated;
 grant execute on function "api"."documents_to_compact"(integer, integer) to service_role;
 
-create or replace function "api"."save_document_version"(document_id uuid, state text, label text default null)
+create or replace function "api"."upsert_document_version"(document_id uuid, state text, label text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_document_version"($1, $2, $3) $$;
-revoke execute on function "api"."save_document_version"(uuid, text, text) from public, anon;
-grant execute on function "api"."save_document_version"(uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_document_version"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_document_version"(uuid, text, text) from public, anon;
+grant execute on function "api"."upsert_document_version"(uuid, text, text) to authenticated, service_role;
 
 create or replace function "api"."list_document_versions"(document_id uuid)
 returns jsonb

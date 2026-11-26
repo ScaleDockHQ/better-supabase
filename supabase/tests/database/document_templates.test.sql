@@ -48,13 +48,13 @@ insert into ids values ('nl', (better_supabase.create_legal_entity('00000000-000
 insert into ids values ('de', (better_supabase.create_legal_entity('00000000-0000-4000-8000-000000000001', 'DE01', 'Acme GmbH') ->> 'id')::uuid);
 
 -- The chain: organization default, organization nl, entity DE01, entity DE01 de.
-insert into ids values ('org', (better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+insert into ids values ('org', (better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
   'invoice', '<p>org {{document.number}}</p>') ->> 'id')::uuid);
-insert into ids values ('org_nl', (better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+insert into ids values ('org_nl', (better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
   'invoice', '<p>org nl {{document.number}}</p>', 'nl') ->> 'id')::uuid);
-insert into ids values ('de_any', (better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+insert into ids values ('de_any', (better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
   'invoice', '<p>de any {{document.number}}</p>', null, 'default', (select id from ids where name = 'de')) ->> 'id')::uuid);
-insert into ids values ('de_de', (better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+insert into ids values ('de_de', (better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
   'invoice', '<p>de de {{document.number}}</p>', 'DE', 'default', (select id from ids where name = 'de')) ->> 'id')::uuid);
 
 select is(
@@ -118,7 +118,7 @@ declare
   v_hint text;
 begin
   begin
-    perform better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+    perform better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
       'invoice', '<p>{{document.nope}}</p>', null, 'broken');
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -128,12 +128,12 @@ end $$;
 select is(current_setting('test.hint'), 'DOCUMENT_TEMPLATE_UNKNOWN_VARIABLE',
   'an unknown variable is refused with its hint');
 select throws_ok(
-  $$select better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+  $$select better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
     'invoice', '{{#each lines}}<p>{{description}}</p>', null, 'broken')$$,
   '22023', null, 'an unclosed block is refused'
 );
 select throws_ok(
-  $$select better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+  $$select better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
     'quote', '<p>{{shipping.carrier}}</p>', null, 'broken')$$,
   '22023', null, 'a variable of another document type is refused'
 );
@@ -144,7 +144,7 @@ select is(
 );
 
 -- A document takes its party's language.
-insert into ids values ('buyer', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null,
+insert into ids values ('buyer', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null,
   '{"name": "<b>Buyer</b> B.V.", "language": "nl"}') ->> 'id')::uuid);
 insert into ids values ('inv', (better_supabase.create_invoice('00000000-0000-4000-8000-000000000001',
   jsonb_build_object('title', 'Consulting', 'currency', 'EUR', 'company', jsonb_build_object('id', (select id from ids where name = 'buyer'))),
@@ -185,7 +185,7 @@ select is(
   'issuing an invoice freezes its render'
 );
 
-select better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+select better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
   'invoice', '<p>edited {{document.number}}</p>', 'nl');
 select is(
   better_supabase.render_document('00000000-0000-4000-8000-000000000001', 'invoice',
@@ -216,7 +216,7 @@ select is(
   'a member reads the templates'
 );
 select throws_ok(
-  $$select better_supabase.save_document_template('00000000-0000-4000-8000-000000000001',
+  $$select better_supabase.upsert_document_template('00000000-0000-4000-8000-000000000001',
     'invoice', '<p>x</p>', 'es')$$,
   '42501', null, 'a member cannot save a template'
 );

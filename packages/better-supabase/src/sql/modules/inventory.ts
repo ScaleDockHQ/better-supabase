@@ -746,7 +746,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_location",
+      name: "upsert_location",
       args: ["{id}", "uuid", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
@@ -790,11 +790,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_bin",
+      name: "upsert_bin",
       args: ["uuid", "uuid", "text", "text", "boolean", "boolean"],
       returns: "jsonb",
     },
-    { name: "save_lot", args: ["uuid", "text", "date"], returns: "jsonb" },
+    { name: "upsert_lot", args: ["uuid", "text", "date"], returns: "jsonb" },
     { name: "stock_detail", args: ["uuid", "uuid"], returns: "jsonb" },
     {
       name: "pick_serials",
@@ -820,7 +820,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(orders
       ? [
           {
-            name: "save_purchase_order",
+            name: "upsert_purchase_order",
             args: [
               "{id}",
               "uuid",

@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:093eeb509ff9776a4cba9a7b95e5323d5c73f668cfcdfeb11612e7a5dfc25915
+-- @bsb-hash sha256:b62587021f1654dcd9437790010c3cad40a17305a90d645098875acce5c8afe4
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -396,7 +396,7 @@ revoke execute on function "better_supabase"."observation_insert"(uuid, uuid, te
 -- Creates or changes an organization's definition with this key; a system
 -- definition with the same key stays, and the organization's wins. Only
 -- the service role saves system definitions (tenant null).
-create or replace function "better_supabase"."save_observation_definition"(tenant uuid, key text, definition jsonb)
+create or replace function "better_supabase"."upsert_observation_definition"(tenant uuid, key text, definition jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -406,7 +406,7 @@ as $$
 declare
   v_row "better_supabase"."observation_definitions"%rowtype;
   v_old "better_supabase"."observation_definitions"%rowtype;
-  v_definition jsonb := coalesce(save_observation_definition.definition, '{}'::jsonb);
+  v_definition jsonb := coalesce(upsert_observation_definition.definition, '{}'::jsonb);
   v_title text;
   v_type text;
   v_components jsonb;
@@ -415,14 +415,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_observation_definition.tenant is null then
+  if upsert_observation_definition.tenant is null then
     if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
       raise exception 'only the service role saves system definitions' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_observation_definition.tenant, 'observations.manage'), false)) then
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_observation_definition.tenant, 'observations.manage'), false)) then
     raise exception 'not allowed to manage observation definitions' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
   end if;
-  if save_observation_definition.key is null or save_observation_definition.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_observation_definition.key is null or upsert_observation_definition.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'the key takes lowercase letters, digits and underscores, starting with a letter' using errcode = '22023', hint = 'OBSERVATION_DEFINITION_INVALID';
   end if;
   if jsonb_typeof(v_definition) <> 'object' then
@@ -534,7 +534,7 @@ begin
     raise exception 'only a components definition has components' using errcode = '22023', hint = 'OBSERVATION_DEFINITION_INVALID';
   end if;
   select * into v_old from "better_supabase"."observation_definitions" x
-  where x."tenant_id" is not distinct from save_observation_definition.tenant and x."key" = save_observation_definition.key;
+  where x."tenant_id" is not distinct from upsert_observation_definition.tenant and x."key" = upsert_observation_definition.key;
   if found and v_old."value_type" <> v_type and exists (select 1 from "better_supabase"."observations" x where x."definition_id" = v_old."id") then
     raise exception 'the value type can''t change once observations use the definition' using errcode = '22023', hint = 'OBSERVATION_DEFINITION_INVALID';
   end if;
@@ -543,11 +543,11 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_observation_definition.tenant, save_observation_definition.key;
+        using upsert_observation_definition.tenant, upsert_observation_definition.key;
     end if;
   end;
   insert into "better_supabase"."observation_definitions" ("tenant_id", "key", "title", "value_type", "unit", "code_system", "code", "components", "decimals", "valid_low", "valid_high", "reference_low", "reference_high", "critical_low", "critical_high")
-  values (save_observation_definition.tenant, save_observation_definition.key, v_title, v_type, nullif(trim(v_definition ->> 'unit'), ''), nullif(trim(v_definition ->> 'codeSystem'), ''), nullif(trim(v_definition ->> 'code'), ''), v_components, (v_definition ->> 'decimals')::integer, (v_definition ->> 'validLow')::numeric, (v_definition ->> 'validHigh')::numeric, (v_definition ->> 'referenceLow')::numeric, (v_definition ->> 'referenceHigh')::numeric, (v_definition ->> 'criticalLow')::numeric, (v_definition ->> 'criticalHigh')::numeric)
+  values (upsert_observation_definition.tenant, upsert_observation_definition.key, v_title, v_type, nullif(trim(v_definition ->> 'unit'), ''), nullif(trim(v_definition ->> 'codeSystem'), ''), nullif(trim(v_definition ->> 'code'), ''), v_components, (v_definition ->> 'decimals')::integer, (v_definition ->> 'validLow')::numeric, (v_definition ->> 'validHigh')::numeric, (v_definition ->> 'referenceLow')::numeric, (v_definition ->> 'referenceHigh')::numeric, (v_definition ->> 'criticalLow')::numeric, (v_definition ->> 'criticalHigh')::numeric)
   on conflict ("tenant_id", "key") do update set
       "title" = excluded."title",
       "value_type" = excluded."value_type",
@@ -605,8 +605,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'system', v_row."tenant_id" is null, 'key', v_row."key", 'title', v_row."title", 'valueType', v_row."value_type", 'unit', v_row."unit", 'codeSystem', v_row."code_system", 'code', v_row."code", 'components', coalesce(v_row."components", '[]'::jsonb), 'decimals', v_row."decimals", 'validLow', v_row."valid_low", 'validHigh', v_row."valid_high", 'referenceLow', v_row."reference_low", 'referenceHigh', v_row."reference_high", 'criticalLow', v_row."critical_low", 'criticalHigh', v_row."critical_high", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_observation_definition"(uuid, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_observation_definition"(uuid, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_observation_definition"(uuid, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_observation_definition"(uuid, text, jsonb) to authenticated, service_role;
 
 -- Archives a definition: it takes no new observations, and the ones it
 -- has stay.
@@ -2646,14 +2646,14 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 
 
-create or replace function "api"."save_observation_definition"(tenant uuid, key text, definition jsonb)
+create or replace function "api"."upsert_observation_definition"(tenant uuid, key text, definition jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_observation_definition"($1, $2, $3) $$;
-revoke execute on function "api"."save_observation_definition"(uuid, text, jsonb) from public, anon;
-grant execute on function "api"."save_observation_definition"(uuid, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_observation_definition"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_observation_definition"(uuid, text, jsonb) from public, anon;
+grant execute on function "api"."upsert_observation_definition"(uuid, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."archive_observation_definition"(definition_id uuid)
 returns jsonb

@@ -328,7 +328,7 @@ function functions(ctx: BlockSqlContext, n: SegmentNames): string {
 -- fields of the subject type, whose columns name the subject table's columns.
 -- Changing the conditions clears refreshed_at, so refresh_due_segments picks
 -- the segment up.
-create or replace function ${fn("save_segment")}(tenant ${ctx.idType}, segment jsonb)
+create or replace function ${fn("upsert_segment")}(tenant ${ctx.idType}, segment jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -344,7 +344,7 @@ declare
   v_conditions jsonb;
   v_fields jsonb;
 begin
-  if not ${ctx.scope.can("save_segment.tenant", n.edit)} then
+  if not ${ctx.scope.can("upsert_segment.tenant", n.edit)} then
     ${fail("SEGMENT_FORBIDDEN", "You need segments.edit to save a segment")}
   end if;
   if jsonb_typeof(segment) is distinct from 'object' then
@@ -353,7 +353,7 @@ begin
   v_id := nullif(segment ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from ${t("segments")} x
-    where x.${s("id")} = v_id and x.${s("tenant")} = save_segment.tenant for update;
+    where x.${s("id")} = v_id and x.${s("tenant")} = upsert_segment.tenant for update;
     if v_old.${s("id")} is null then
       ${fail("SEGMENT_NOT_FOUND", "No segment in this organization has this id", "P0002")}
     end if;
@@ -387,7 +387,7 @@ ${
   perform ${check}(v_conditions, v_fields, 1);
   if v_old.${s("id")} is null then
     insert into ${t("segments")} (${s("tenant")}, ${s("name")}, ${optionalColumn("description")}${s("subjectType")}, ${s("conditions")}${n.has("createdBy") ? `, ${s("createdBy")}` : ""})
-    values (save_segment.tenant, v_name, ${n.has("description") ? "v_description, " : ""}v_type, v_conditions${n.has("createdBy") ? ", auth.uid()" : ""})
+    values (upsert_segment.tenant, v_name, ${n.has("description") ? "v_description, " : ""}v_type, v_conditions${n.has("createdBy") ? ", auth.uid()" : ""})
     returning * into v_row;
   elsif v_old.${s("name")} = v_name${n.has("description") ? ` and v_old.${s("description")} is not distinct from v_description` : ""}
     and v_old.${s("conditions")} = v_conditions then
@@ -407,10 +407,10 @@ exception when unique_violation then
   ${fail("SEGMENT_NAME_TAKEN", "Another segment in this organization has this name", "23505")}
 end;
 $$;
-${userGrant(`${fn("save_segment")}(${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_segment")}(${ctx.idType}, jsonb)`)}
 
 -- Deletes a segment and its members. Members leave without segment.left.
-create or replace function ${fn("remove_segment")}(segment uuid)
+create or replace function ${fn("delete_segment")}(segment uuid)
 returns boolean
 language plpgsql
 security definer
@@ -419,7 +419,7 @@ as $$
 declare
   v_row ${t("segments")};
 begin
-  select * into v_row from ${t("segments")} x where x.${s("id")} = remove_segment.segment;
+  select * into v_row from ${t("segments")} x where x.${s("id")} = delete_segment.segment;
   if v_row.${s("id")} is null then
     return false;
   end if;
@@ -431,7 +431,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_segment")}(uuid)`)}
+${userGrant(`${fn("delete_segment")}(uuid)`)}
 
 -- The organization's segments, optionally of one subject type, by name.
 create or replace function ${fn("segments_list")}(tenant ${ctx.idType}, subject_type text default null)
@@ -662,8 +662,8 @@ ${tables(ctx, n)}${functions(ctx, n)}`;
 
 function contract(): readonly BlockSqlContractFunction[] {
   return [
-    { name: "save_segment", args: ["{id}", "jsonb"], returns: "jsonb" },
-    { name: "remove_segment", args: ["uuid"], returns: "boolean" },
+    { name: "upsert_segment", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "delete_segment", args: ["uuid"], returns: "boolean" },
     { name: "segments_list", args: ["{id}", "text"], returns: "jsonb" },
     { name: "page_segments", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "segment_get", args: ["uuid"], returns: "jsonb" },

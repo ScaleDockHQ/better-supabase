@@ -126,7 +126,7 @@ describe("createShifts", () => {
 
   it("saves, lists and archives templates and generates shifts", async () => {
     const t = fieldsTransport({
-      save_shift_template: () => TEMPLATE,
+      upsert_shift_template: () => TEMPLATE,
       archive_shift_template: () => ({ ...TEMPLATE, archivedAt: AT }),
       list_shift_templates: () => [
         TEMPLATE,
@@ -199,7 +199,7 @@ describe("createShifts", () => {
     expect(generated[1]?.startsAt.toString()).toBe(START);
     expect(t.calls).toEqual([
       [
-        "save_shift_template",
+        "upsert_shift_template",
         {
           tenant: "org-1",
           name: "Early",
@@ -215,7 +215,7 @@ describe("createShifts", () => {
         },
       ],
       [
-        "save_shift_template",
+        "upsert_shift_template",
         {
           tenant: "org-1",
           name: "Late",
@@ -246,7 +246,7 @@ describe("createShifts", () => {
 
   it("upserts with extra fields, cancels and publishes shifts", async () => {
     const t = fieldsTransport({
-      save_shift: () => SHIFT,
+      upsert_shift: () => SHIFT,
       cancel_shift: () => ({ ...SHIFT, status: "canceled", canceledAt: AT }),
       publish_shifts: () => 4,
     });
@@ -321,7 +321,7 @@ describe("createShifts", () => {
     expect(published).toBe(4);
     expect(t.calls).toEqual([
       [
-        "save_shift",
+        "upsert_shift",
         {
           tenant: "org-1",
           starts_at: START,
@@ -337,7 +337,7 @@ describe("createShifts", () => {
         },
       ],
       [
-        "save_shift",
+        "upsert_shift",
         {
           tenant: "org-1",
           starts_at: START,

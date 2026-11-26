@@ -151,7 +151,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const extras = extrasOf(ctx);
   const views = ctx.table("views");
-  const required = insertExtraColumns(views, extras, "save_view.fields");
+  const required = insertExtraColumns(views, extras, "upsert_view.fields");
   const c = (column: string): string => ctx.col("views", column);
 
   const [id, tenant, list, scope, owner, team, name, kind, state, rank] = [
@@ -303,8 +303,8 @@ ${tables}
 ${renderPolicy(makePolicy({ table: views, name: ctx.naming.rename("saved_views_read"), command: "select", roles: ["authenticated"], using: visible }), { target: views })}
 ${preferences?.ddl ?? ""}
 
-${extraFieldsArg(extras).drop(fn("save_view"), `${ctx.idType}, text, text, text, text, text, jsonb, uuid`)}
-create or replace function ${fn("save_view")}(tenant ${ctx.idType}, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid${extraFieldsArg(extras).param})
+${extraFieldsArg(extras).drop(fn("upsert_view"), `${ctx.idType}, text, text, text, text, text, jsonb, uuid`)}
+create or replace function ${fn("upsert_view")}(tenant ${ctx.idType}, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -312,41 +312,41 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_view.view_id;
-  v_inserted boolean := save_view.view_id is null;
+  v_id uuid := upsert_view.view_id;
+  v_inserted boolean := upsert_view.view_id is null;
   v_row ${views};
   v_last text;
   v_rank text;
   v_service boolean := auth.role() = 'service_role';
 begin
-  if save_view.scope is null or save_view.scope not in (${textList(SAVED_VIEW_SCOPES)}) then
+  if upsert_view.scope is null or upsert_view.scope not in (${textList(SAVED_VIEW_SCOPES)}) then
     ${fail("SAVED_VIEW_INVALID", "scope must be user, team or tenant", "22023")}
   end if;
-  if save_view.kind is null or save_view.kind not in (${textList(SAVED_VIEW_KINDS)}) then
+  if upsert_view.kind is null or upsert_view.kind not in (${textList(SAVED_VIEW_KINDS)}) then
     ${fail("SAVED_VIEW_INVALID", "unknown view kind", "22023")}
   end if;
-  if save_view.state is null or jsonb_typeof(save_view.state) <> 'object' then
+  if upsert_view.state is null or jsonb_typeof(upsert_view.state) <> 'object' then
     ${fail("SAVED_VIEW_INVALID", "state must be an object", "22023")}
   end if;
-  if not (v_service or ${ctx.scope.can("save_view.tenant", read)}) then
+  if not (v_service or ${ctx.scope.can("upsert_view.tenant", read)}) then
     ${fail("SAVED_VIEW_FORBIDDEN", "not allowed to save views")}
   end if;${collection}
-  if save_view.scope = 'user' and auth.uid() is null then
+  if upsert_view.scope = 'user' and auth.uid() is null then
     ${fail("SAVED_VIEW_INVALID", "a personal view needs a signed-in user", "22023")}
   end if;
-  if save_view.scope <> 'user' and not (v_service or ${ctx.scope.can("save_view.tenant", share)}) then
+  if upsert_view.scope <> 'user' and not (v_service or ${ctx.scope.can("upsert_view.tenant", share)}) then
     ${fail("SAVED_VIEW_FORBIDDEN", "not allowed to share views")}
   end if;
-  if save_view.scope = 'team' then
-    if save_view.team is null then
+  if upsert_view.scope = 'team' then
+    if upsert_view.team is null then
       ${fail("SAVED_VIEW_INVALID", "a team view needs a team", "22023")}
     end if;
-    if not (v_service or ${inTeam("save_view.team")}) then
+    if not (v_service or ${inTeam("upsert_view.team")}) then
       ${fail("SAVED_VIEW_FORBIDDEN", "not a member of this team")}
     end if;
   end if;
   if v_id is not null then
-    select * into v_row from ${views} where ${id} = v_id and ${tenant} = save_view.tenant for update;
+    select * into v_row from ${views} where ${id} = v_id and ${tenant} = upsert_view.tenant for update;
     if not found then
       ${fail("SAVED_VIEW_NOT_FOUND", "saved view not found", "P0002")}
     end if;
@@ -355,44 +355,44 @@ begin
     end if;
   end if;
   ${ctx.hook("before_view_save", [
-    [ctx.idType, "save_view.tenant"],
-    ["text", "save_view.list"],
-    ["text", "save_view.scope"],
-    ["jsonb", "save_view.state"],
+    [ctx.idType, "upsert_view.tenant"],
+    ["text", "upsert_view.list"],
+    ["text", "upsert_view.scope"],
+    ["jsonb", "upsert_view.state"],
   ])}
   if v_id is null then
     select max(v.${rank} collate "C") into v_last from ${views} v
-      where v.${tenant} = save_view.tenant and v.${list} = save_view.list;
+      where v.${tenant} = upsert_view.tenant and v.${list} = upsert_view.list;
     v_rank := ${rankAfter("v_last")};
     insert into ${views} (${tenant}, ${list}, ${scope}, ${owner}, ${team}, ${name}, ${kind}, ${state}, ${rank}${required.columns})
-    values (save_view.tenant, save_view.list, save_view.scope, auth.uid(),
-      case when save_view.scope = 'team' then save_view.team end,
-      save_view.name, save_view.kind, save_view.state, v_rank${required.values})
+    values (upsert_view.tenant, upsert_view.list, upsert_view.scope, auth.uid(),
+      case when upsert_view.scope = 'team' then upsert_view.team end,
+      upsert_view.name, upsert_view.kind, upsert_view.state, v_rank${required.values})
     returning ${id} into v_id;
   else
     update ${views} set
-      ${list} = save_view.list,
-      ${scope} = save_view.scope,
-      ${team} = case when save_view.scope = 'team' then save_view.team end,
+      ${list} = upsert_view.list,
+      ${scope} = upsert_view.scope,
+      ${team} = case when upsert_view.scope = 'team' then upsert_view.team end,
       ${owner} = coalesce(${owner}, auth.uid()),
-      ${name} = save_view.name,
-      ${kind} = save_view.kind,
-      ${state} = save_view.state,
+      ${name} = upsert_view.name,
+      ${kind} = upsert_view.kind,
+      ${state} = upsert_view.state,
       -- The default is per list, scope and team; moving the view drops it.
       ${isDefault} = case
-        when ${scope} = save_view.scope and ${list} = save_view.list
-          and ${team} is not distinct from case when save_view.scope = 'team' then save_view.team end
+        when ${scope} = upsert_view.scope and ${list} = upsert_view.list
+          and ${team} is not distinct from case when upsert_view.scope = 'team' then upsert_view.team end
         then ${isDefault} else false end,
       ${updatedAt} = now()
     where ${id} = v_id
     returning ${rank} into v_rank;
-  end if;${writeExtraColumns(views, extras, "save_view.fields", `x.${id} = v_id`)}
+  end if;${writeExtraColumns(views, extras, "upsert_view.fields", `x.${id} = v_id`)}
   ${createdOrUpdated("v_inserted", (verb) =>
     ctx.record({
       type: `saved_view.${verb}`,
-      payload: `jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name)`,
+      payload: `jsonb_build_object('organizationId', upsert_view.tenant, 'id', v_id, 'kind', upsert_view.kind, 'name', upsert_view.name)`,
       subject: `'saved-views/' || v_id::text`,
-      tenant: "save_view.tenant",
+      tenant: "upsert_view.tenant",
       audit: false,
     }),
   )}
@@ -407,7 +407,7 @@ begin
   });
 end;
 $$;
-${userGrant(`${fn("save_view")}(${ctx.idType}, text, text, text, text, text, jsonb, uuid${extraFieldsArg(extras).type})`)}
+${userGrant(`${fn("upsert_view")}(${ctx.idType}, text, text, text, text, text, jsonb, uuid${extraFieldsArg(extras).type})`)}
 
 create or replace function ${fn("list_views")}(tenant ${ctx.idType}, list text)
 returns jsonb
@@ -556,7 +556,7 @@ end;
 $$;
 ${userGrant(`${fn("delete_view")}(uuid)`)}
 
--- A copy of a view the caller sees, saved through save_view, so the copy
+-- A copy of a view the caller sees, saved through upsert_view, so the copy
 -- needs the same rights as a new view of that scope.
 create or replace function ${fn("duplicate_view")}(view_id uuid, scope text, name text, team text)
 returns jsonb
@@ -571,7 +571,7 @@ begin
   if not found or not ${maySee("v_row")} then
     ${fail("SAVED_VIEW_NOT_FOUND", "saved view not found", "P0002")}
   end if;
-  return ${fn("save_view")}(v_row.${tenant}, v_row.${list},
+  return ${fn("upsert_view")}(v_row.${tenant}, v_row.${list},
     coalesce(duplicate_view.name, v_row.${name}), v_row.${kind},
     coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row.${state}, null${
       extras.length === 0
@@ -595,13 +595,13 @@ function collectionCheck(collections: BlockSqlContext): string {
   const c = (column: string): string => collections.col("collections", column);
 
   return `
-  if save_view.state ? 'collectionId' and (
-    jsonb_typeof(save_view.state -> 'collectionId') <> 'string'
-    or (save_view.state ->> 'collectionId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  if upsert_view.state ? 'collectionId' and (
+    jsonb_typeof(upsert_view.state -> 'collectionId') <> 'string'
+    or (upsert_view.state ->> 'collectionId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     or not exists (
       select 1 from ${collections.table("collections")} c
-      where c.${c("id")} = (save_view.state ->> 'collectionId')::uuid
-        and c.${c("tenant")} = save_view.tenant
+      where c.${c("id")} = (upsert_view.state ->> 'collectionId')::uuid
+        and c.${c("tenant")} = upsert_view.tenant
         and (v_service or c.${c("scope")} <> 'user' or c.${c("owner")} = auth.uid())
     )) then
     ${fail("SAVED_VIEW_COLLECTION_NOT_FOUND", "the view's collection is not found", "P0002")}
@@ -723,7 +723,7 @@ ${userGrant(`${fn}(uuid, boolean, boolean, boolean)`)}
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_view",
+      name: "upsert_view",
       args: [
         "{id}",
         "text",

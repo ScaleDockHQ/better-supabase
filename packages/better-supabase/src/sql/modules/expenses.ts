@@ -386,7 +386,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_expense_category",
+      name: "upsert_expense_category",
       args: ["{id}", "text", "text", "text", "bigint", "bigint"],
       returns: "jsonb",
     },
@@ -408,7 +408,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "add_expense_line",
+      name: "create_expense_line",
       args: ["uuid", "uuid", "date", "bigint", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
@@ -417,7 +417,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "uuid", "date", "bigint", "text", "text", "text", "jsonb"],
       returns: "jsonb",
     },
-    { name: "remove_expense_line", args: ["uuid"], returns: "jsonb" },
+    { name: "delete_expense_line", args: ["uuid"], returns: "jsonb" },
     { name: "check_expense_report", args: ["uuid"], returns: "jsonb" },
     { name: "submit_expense_report", args: ["uuid"], returns: "jsonb" },
     {

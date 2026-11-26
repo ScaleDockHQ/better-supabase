@@ -113,11 +113,11 @@ describe("memberships roles.many", () => {
     const organizations = fileOf(files, "organizations");
 
     expect(organizations).toContain(
-      'function "better_supabase"."add_member_role"(organization uuid, member uuid, role text)',
+      'function "better_supabase"."create_member_role"(organization uuid, member uuid, role text)',
     );
     expect(organizations).toContain("ORGANIZATION_ROLE_LAST");
     expect(organizations).toContain(
-      'grant execute on function "better_supabase"."remove_member_role"(uuid, uuid, text) to authenticated, service_role;',
+      'grant execute on function "better_supabase"."delete_member_role"(uuid, uuid, text) to authenticated, service_role;',
     );
     expect(organizations).toMatch(
       /insert into "better_supabase"\."membership_roles" \("organization_id", "user_id", "role"\) values \(organization, new_owner, 'owner'\)/,

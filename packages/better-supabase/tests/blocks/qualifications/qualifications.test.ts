@@ -105,7 +105,7 @@ const validate = (
 describe("createQualifications", () => {
   it("saves, lists and archives qualification types", async () => {
     const t = fieldsTransport({
-      save_qualification_type: () => TYPE,
+      upsert_qualification_type: () => TYPE,
       list_qualification_types: () => [TYPE, BARE_TYPE],
       archive_qualification_type: () => ({ ...TYPE, archivedAt: AT }),
       restore_qualification_type: () => TYPE,
@@ -166,7 +166,7 @@ describe("createQualifications", () => {
     expect(archived.archivedAt?.toString()).toBe(AT);
     expect(t.calls).toEqual([
       [
-        "save_qualification_type",
+        "upsert_qualification_type",
         {
           tenant: "org-1",
           key: "forklift",
@@ -180,7 +180,7 @@ describe("createQualifications", () => {
         },
       ],
       [
-        "save_qualification_type",
+        "upsert_qualification_type",
         {
           tenant: "org-1",
           key: "insurance",
@@ -201,9 +201,9 @@ describe("createQualifications", () => {
 
   it("adds, lists and removes requirements", async () => {
     const t = fieldsTransport({
-      add_qualification_requirement: () => REQUIREMENT,
+      create_qualification_requirement: () => REQUIREMENT,
       list_qualification_requirements: () => [REQUIREMENT],
-      remove_qualification_requirement: () => REQUIREMENT,
+      delete_qualification_requirement: () => REQUIREMENT,
     });
 
     const qualifications = createQualifications({ transport: t });
@@ -223,11 +223,11 @@ describe("createQualifications", () => {
     expect(listed).toHaveLength(1);
     expect(t.calls).toEqual([
       [
-        "add_qualification_requirement",
+        "create_qualification_requirement",
         { type_id: "t1", target_type: "role", target_value: "member" },
       ],
       ["list_qualification_requirements", { type_id: "t1" }],
-      ["remove_qualification_requirement", { requirement_id: "r1" }],
+      ["delete_qualification_requirement", { requirement_id: "r1" }],
     ]);
   });
 

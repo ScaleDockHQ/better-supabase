@@ -26,7 +26,7 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('aup', (better_supabase.save_compliance_policy(
+insert into ids values ('aup', (better_supabase.upsert_compliance_policy(
   '00000000-0000-4000-8000-000000000001', 'acceptable-use', 'Acceptable use') ->> 'id')::uuid);
 insert into ids values ('v1', (better_supabase.publish_compliance_policy(
   (select id from ids where name = 'aup'), '{"body":"Be kind"}'::jsonb, 'v1') ->> 'versionId')::uuid);

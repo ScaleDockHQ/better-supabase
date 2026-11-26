@@ -536,7 +536,7 @@ begin
     from ${t("requisitionLines")} l where l.${rl("requisition")} = any (purchase_order_from_requisitions.requisitions)
     group by 1
   ) y;
-  v_order := ${fn("save_purchase_order")}(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
+  v_order := ${fn("upsert_purchase_order")}(v_tenant, null, v_location, v_supplier_type, v_supplier_id, v_currency, null, v_lines, null);
   update ${t("requisitions")} x set ${rq("status")} = 'ordered', ${rq("purchaseOrder")} = (v_order ->> 'id')::uuid, ${rq("updatedAt")} = now()
   where x.${rq("id")} = any (purchase_order_from_requisitions.requisitions);
   return v_order;

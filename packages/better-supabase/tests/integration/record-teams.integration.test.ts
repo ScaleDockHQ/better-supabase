@@ -75,10 +75,10 @@ describe.skipIf(!live)("record teams", () => {
 
       await s.asRole(nurse);
       expect(
-        await s.hint("better_supabase.add_subject_member('client', $1, $2)", [
-          client,
-          nurse.id,
-        ]),
+        await s.hint(
+          "better_supabase.create_subject_member('client', $1, $2)",
+          [client, nurse.id],
+        ),
       ).toBe("SUBJECT_MEMBER_FORBIDDEN");
 
       await s.asRole(owner);
@@ -88,28 +88,28 @@ describe.skipIf(!live)("record teams", () => {
         role: string;
         active: boolean;
       }>(
-        "better_supabase.add_subject_member('client', $1, $2, role => 'lead')",
+        "better_supabase.create_subject_member('client', $1, $2, role => 'lead')",
         [client, nurse.id],
       );
 
       expect(added).toMatchObject({ role: "lead", active: true });
       expect(
         await s.hint(
-          "better_supabase.add_subject_member('client', $1, $2, role => 'boss')",
+          "better_supabase.create_subject_member('client', $1, $2, role => 'boss')",
           [client, outsider.id],
         ),
       ).toBe("SUBJECT_MEMBER_INVALID");
       expect(
-        await s.hint("better_supabase.add_subject_member('client', $1)", [
+        await s.hint("better_supabase.create_subject_member('client', $1)", [
           client,
         ]),
       ).toBe("SUBJECT_MEMBER_INVALID");
       await s.value(
-        "better_supabase.add_subject_member('client', $1, $2, ends_on => current_date - 1)",
+        "better_supabase.create_subject_member('client', $1, $2, ends_on => current_date - 1)",
         [client, former.id],
       );
       await s.value(
-        "better_supabase.add_subject_member('client', $1, $2, starts_on => current_date + 1)",
+        "better_supabase.create_subject_member('client', $1, $2, starts_on => current_date + 1)",
         [client, outsider.id],
       );
       await s.service();
@@ -143,7 +143,7 @@ describe.skipIf(!live)("record teams", () => {
       );
       expect(await can(ward)).toBe(false);
       await s.value(
-        "better_supabase.add_subject_member('client', $1, team_id => $2)",
+        "better_supabase.create_subject_member('client', $1, team_id => $2)",
         [client, team!.id],
       );
       expect(await can(ward)).toBe(true);

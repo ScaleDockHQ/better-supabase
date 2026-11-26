@@ -363,7 +363,7 @@ ${manageFunctions(ctx, names, bindings)}${getFunctions(ctx.idType, names, bindin
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_pipeline",
+      name: "upsert_pipeline",
       args: [
         "{id}",
         "uuid",
@@ -380,7 +380,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "restore_pipeline", args: ["uuid"], returns: "boolean" },
     { name: "restore_pipeline_stage", args: ["uuid"], returns: "boolean" },
     {
-      name: "save_pipeline_stage",
+      name: "upsert_pipeline_stage",
       args: [
         "uuid",
         "uuid",

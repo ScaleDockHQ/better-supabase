@@ -778,7 +778,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     ...orderVariantContract(ctx),
     {
-      name: "save_shipping_rate",
+      name: "upsert_shipping_rate",
       args: ["{id}", "uuid", "jsonb"],
       returns: "jsonb",
     },

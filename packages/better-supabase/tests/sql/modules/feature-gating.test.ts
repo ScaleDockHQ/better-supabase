@@ -44,7 +44,7 @@ describe.each([
     gone: [
       "accounting_budgets",
       "accounting_budget_lines",
-      "save_accounting_budget",
+      "upsert_accounting_budget",
       "accounting_budget_vs_actual",
     ],
   },
@@ -64,6 +64,6 @@ describe.each([
 
 test("keeps the budgets when only one of their tables is on", () => {
   expect(render("accounting", { budgetLines: null })).not.toContain(
-    "save_accounting_budget",
+    "upsert_accounting_budget",
   );
 });

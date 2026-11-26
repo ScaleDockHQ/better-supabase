@@ -17,7 +17,7 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('test.model', better_supabase.save_score_model(
+select set_config('test.model', better_supabase.upsert_score_model(
   '00000000-0000-4000-8000-000000000001',
   '{
     "key": "lead",
@@ -41,13 +41,13 @@ select is(
   'bands are stored highest min first'
 );
 select throws_ok(
-  $$select better_supabase.save_score_model('00000000-0000-4000-8000-000000000001', '{"key": "lead", "name": "Again", "subjectType": "lead"}')$$,
+  $$select better_supabase.upsert_score_model('00000000-0000-4000-8000-000000000001', '{"key": "lead", "name": "Again", "subjectType": "lead"}')$$,
   '23505',
   null,
   'a model key is unique in the organization'
 );
 select throws_ok(
-  $$select better_supabase.save_score_model('00000000-0000-4000-8000-000000000001', '{"key": "bad", "name": "Bad", "subjectType": "lead", "metrics": [{"id": "m", "source": "field", "field": "stage"}]}')$$,
+  $$select better_supabase.upsert_score_model('00000000-0000-4000-8000-000000000001', '{"key": "bad", "name": "Bad", "subjectType": "lead", "metrics": [{"id": "m", "source": "field", "field": "stage"}]}')$$,
   '22023',
   null,
   'a field metric names a number field'
@@ -104,7 +104,7 @@ select is(
   'a member reads a record''s current scores'
 );
 select throws_ok(
-  $$select better_supabase.save_score_model('00000000-0000-4000-8000-000000000001', '{"key": "mine", "name": "Mine", "subjectType": "lead"}')$$,
+  $$select better_supabase.upsert_score_model('00000000-0000-4000-8000-000000000001', '{"key": "mine", "name": "Mine", "subjectType": "lead"}')$$,
   '42501',
   null,
   'a member can''t manage score models'

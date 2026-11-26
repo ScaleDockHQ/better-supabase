@@ -242,7 +242,7 @@ ${createdBy ? `create index if not exists ${sqlIdent(`${ctx.tableName("hostnames
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
 -- with the TXT record to publish; adding it again returns the same row.
-create or replace function ${fn("add_hostname")}(tenant ${id}, hostname text)
+create or replace function ${fn("create_hostname")}(tenant ${id}, hostname text)
 returns jsonb
 language plpgsql
 security definer
@@ -251,18 +251,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${t};
-  v_hostname text := lower(trim(trailing '.' from trim(add_hostname.hostname)));
+  v_hostname text := lower(trim(trailing '.' from trim(create_hostname.hostname)));
   v_kind text := 'custom';
   v_label text;
   v_new boolean;
 begin
-  if not (${SERVICE_CALLER} or ${can("add_hostname.tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${can("create_hostname.tenant", manage)}) then
     ${fail("DOMAIN_FORBIDDEN", "You may not manage this organization's hostnames")}
   end if;
   if v_hostname is null or length(v_hostname) > 253 or v_hostname !~ ${sqlString(HOSTNAME)} then
-    ${raise("Not a hostname: %", "22023", "DOMAIN_INVALID", "add_hostname.hostname")}
+    ${raise("Not a hostname: %", "22023", "DOMAIN_INVALID", "create_hostname.hostname")}
   end if;${platformCheck}
-  select * into v_row from ${t} x where x.${c("tenant")} = add_hostname.tenant and x.${c("hostname")} = v_hostname;
+  select * into v_row from ${t} x where x.${c("tenant")} = create_hostname.tenant and x.${c("hostname")} = v_hostname;
   if v_row.${c("id")} is not null then
     return ${publicRow("v_row")};
   end if;
@@ -270,7 +270,7 @@ begin
     ${raise("Another organization holds %", "23505", "DOMAIN_TAKEN", "v_hostname")}
   end if;
   insert into ${t} (${c("tenant")}, ${c("hostname")}, ${c("kind")}, ${c("verifiedAt")})
-  values (add_hostname.tenant, v_hostname, ${ctx.cast("hostnames", "kind", "v_kind")}, case when v_kind = 'subdomain' then now() end)
+  values (create_hostname.tenant, v_hostname, ${ctx.cast("hostnames", "kind", "v_kind")}, case when v_kind = 'subdomain' then now() end)
   returning * into v_row;
   ${hostnameEvent("hostname.added", "v_row")}
   if v_row.${c("verifiedAt")} is not null then
@@ -383,7 +383,7 @@ end;
 $$;
 
 -- Removes a hostname; false when there is none the caller manages.
-create or replace function ${fn("remove_hostname")}(id uuid)
+create or replace function ${fn("delete_hostname")}(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -392,7 +392,7 @@ as $$
 declare
   v_row ${t};
 begin
-  select * into v_row from ${t} x where x.${c("id")} = remove_hostname.id;
+  select * into v_row from ${t} x where x.${c("id")} = delete_hostname.id;
   if v_row.${c("id")} is null or not (${SERVICE_CALLER} or ${can(`v_row.${c("tenant")}`, manage)}) then
     return false;
   end if;
@@ -426,30 +426,30 @@ as $$
     and x.${c("verifiedAt")} is not null
 $$;
 
-revoke execute on function ${fn("add_hostname")}(${id}, text) from public, anon;
+revoke execute on function ${fn("create_hostname")}(${id}, text) from public, anon;
 revoke execute on function ${fn("list_hostnames")}(${id}, jsonb) from public, anon;
 revoke execute on function ${fn("hostname_by_id")}(uuid) from public, anon;
 revoke execute on function ${fn("verify_hostname")}(uuid, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("set_primary_hostname")}(uuid) from public, anon;
-revoke execute on function ${fn("remove_hostname")}(uuid) from public, anon;
+revoke execute on function ${fn("delete_hostname")}(uuid) from public, anon;
 revoke execute on function ${fn("resolve_hostname")}(text) from public;
-grant execute on function ${fn("add_hostname")}(${id}, text) to authenticated, service_role;
+grant execute on function ${fn("create_hostname")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("list_hostnames")}(${id}, jsonb) to authenticated, service_role;
 grant execute on function ${fn("hostname_by_id")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("verify_hostname")}(uuid, uuid) to service_role;
 grant execute on function ${fn("set_primary_hostname")}(uuid) to authenticated, service_role;
-grant execute on function ${fn("remove_hostname")}(uuid) to authenticated, service_role;
+grant execute on function ${fn("delete_hostname")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("resolve_hostname")}(text) to anon, authenticated, service_role;`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
   return [
-    { name: "add_hostname", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "create_hostname", args: ["{id}", "text"], returns: "jsonb" },
     { name: "list_hostnames", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "hostname_by_id", args: ["uuid"], returns: "jsonb" },
     { name: "verify_hostname", args: ["uuid", "uuid"], returns: "jsonb" },
     { name: "set_primary_hostname", args: ["uuid"], returns: "jsonb" },
-    { name: "remove_hostname", args: ["uuid"], returns: "boolean" },
+    { name: "delete_hostname", args: ["uuid"], returns: "boolean" },
     { name: "resolve_hostname", args: ["text"], returns: "jsonb" },
   ];
 }

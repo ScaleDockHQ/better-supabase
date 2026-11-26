@@ -46,7 +46,7 @@ export function recurringContract(
 
   return [
     {
-      name: "save_template_schedule",
+      name: "upsert_template_schedule",
       args: [
         "uuid",
         "uuid",
@@ -59,7 +59,7 @@ export function recurringContract(
       ],
       returns: "jsonb",
     },
-    { name: "remove_template_schedule", args: ["uuid"], returns: "boolean" },
+    { name: "delete_template_schedule", args: ["uuid"], returns: "boolean" },
     {
       name: "template_schedules_list",
       args: ["{id}", "uuid"],
@@ -195,7 +195,7 @@ for each row execute function ${removeRule}();
 -- Creates a schedule (schedule_id null) or changes one: template_id applies
 -- in tenant with input at each occurrence of rrule from dtstart in tzid.
 -- templates.manage in tenant; the template must be visible there.
-create or replace function ${fn("save_template_schedule")}(schedule_id uuid, template_id uuid, tenant ${id}, dtstart timestamptz, tzid text, rrule text, input jsonb, enabled boolean)
+create or replace function ${fn("upsert_template_schedule")}(schedule_id uuid, template_id uuid, tenant ${id}, dtstart timestamptz, tzid text, rrule text, input jsonb, enabled boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -207,61 +207,61 @@ declare
   v_row ${s}%rowtype;
   v_rule ${rules}%rowtype;
 begin
-  if save_template_schedule.tenant is null then
+  if upsert_template_schedule.tenant is null then
     ${fail("TEMPLATE_INVALID", "A schedule needs a tenant", "22023")}
   end if;
-  if not ${shared.mayManage("save_template_schedule.tenant")} then
+  if not ${shared.mayManage("upsert_template_schedule.tenant")} then
     ${fail("TEMPLATE_FORBIDDEN", "You may not schedule templates here")}
   end if;
-  if save_template_schedule.dtstart is null or coalesce(length(save_template_schedule.rrule), 0) not between 1 and 1000 then
+  if upsert_template_schedule.dtstart is null or coalesce(length(upsert_template_schedule.rrule), 0) not between 1 and 1000 then
     ${fail("TEMPLATE_SCHEDULE_INVALID", "A schedule needs a start and a rule", "22023")}
   end if;
-  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(save_template_schedule.tzid, 'UTC')) then
+  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(upsert_template_schedule.tzid, 'UTC')) then
     ${fail("TEMPLATE_SCHEDULE_INVALID", "tzid must be an IANA time zone", "22023")}
   end if;
-  if save_template_schedule.input is not null and jsonb_typeof(save_template_schedule.input) <> 'object' then
+  if upsert_template_schedule.input is not null and jsonb_typeof(upsert_template_schedule.input) <> 'object' then
     ${fail("TEMPLATE_INVALID", "input must be an object", "22023")}
   end if;
-  select * into v_tpl from ${t} x where x.${ct("id")} = save_template_schedule.template_id;
-  if not found or not (${shared.system("v_tpl.")} or v_tpl.${ct("tenant")} = save_template_schedule.tenant${shared.visible("v_tpl.", "save_template_schedule.tenant")}) then
+  select * into v_tpl from ${t} x where x.${ct("id")} = upsert_template_schedule.template_id;
+  if not found or not (${shared.system("v_tpl.")} or v_tpl.${ct("tenant")} = upsert_template_schedule.tenant${shared.visible("v_tpl.", "upsert_template_schedule.tenant")}) then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
-  if save_template_schedule.schedule_id is null then
+  if upsert_template_schedule.schedule_id is null then
     insert into ${s} (${cs("template")}, ${cs("tenant")}, ${cs("input")}, ${cs("enabled")}${creator ? `, ${cs("createdBy")}` : ""})
-    values (v_tpl.${ct("id")}, save_template_schedule.tenant, coalesce(save_template_schedule.input, '{}'::jsonb),
-      coalesce(save_template_schedule.enabled, true)${creator ? ", (select auth.uid())" : ""})
+    values (v_tpl.${ct("id")}, upsert_template_schedule.tenant, coalesce(upsert_template_schedule.input, '{}'::jsonb),
+      coalesce(upsert_template_schedule.enabled, true)${creator ? ", (select auth.uid())" : ""})
     returning * into v_row;
   else
     update ${s} x set
       ${cs("template")} = v_tpl.${ct("id")},
-      ${cs("input")} = coalesce(save_template_schedule.input, x.${cs("input")}),
-      ${cs("enabled")} = coalesce(save_template_schedule.enabled, x.${cs("enabled")}),
+      ${cs("input")} = coalesce(upsert_template_schedule.input, x.${cs("input")}),
+      ${cs("enabled")} = coalesce(upsert_template_schedule.enabled, x.${cs("enabled")}),
       ${cs("updatedAt")} = now()
-    where x.${cs("id")} = save_template_schedule.schedule_id and x.${cs("tenant")} = save_template_schedule.tenant
+    where x.${cs("id")} = upsert_template_schedule.schedule_id and x.${cs("tenant")} = upsert_template_schedule.tenant
     returning * into v_row;
     if not found then
       ${fail("TEMPLATE_SCHEDULE_NOT_FOUND", "No such schedule", "P0002")}
     end if;
   end if;
   update ${rules} u set
-    ${cu("dtstart")} = save_template_schedule.dtstart,
-    ${cu("tzid")} = coalesce(save_template_schedule.tzid, 'UTC'),
-    ${cu("rrule")} = save_template_schedule.rrule
+    ${cu("dtstart")} = upsert_template_schedule.dtstart,
+    ${cu("tzid")} = coalesce(upsert_template_schedule.tzid, 'UTC'),
+    ${cu("rrule")} = upsert_template_schedule.rrule
   where ${ruleOf("u", "v_row")}
   returning * into v_rule;
   if not found then
     insert into ${rules} (${cu("tenant")}, ${cu("subjectType")}, ${cu("subjectId")}, ${cu("dtstart")}, ${cu("tzid")}, ${cu("rrule")})
-    values (v_row.${cs("tenant")}, ${subject}, v_row.${cs("id")}::text, save_template_schedule.dtstart,
-      coalesce(save_template_schedule.tzid, 'UTC'), save_template_schedule.rrule)
+    values (v_row.${cs("tenant")}, ${subject}, v_row.${cs("id")}::text, upsert_template_schedule.dtstart,
+      coalesce(upsert_template_schedule.tzid, 'UTC'), upsert_template_schedule.rrule)
     returning * into v_rule;
   end if;
   return ${scheduleJson("v_row", "v_rule")};
 end;
 $$;
-${userGrant(`${fn("save_template_schedule")}(uuid, uuid, ${id}, timestamptz, text, text, jsonb, boolean)`)}
+${userGrant(`${fn("upsert_template_schedule")}(uuid, uuid, ${id}, timestamptz, text, text, jsonb, boolean)`)}
 
 -- Removes a schedule and its rule. templates.manage in its tenant.
-create or replace function ${fn("remove_template_schedule")}(schedule_id uuid)
+create or replace function ${fn("delete_template_schedule")}(schedule_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -271,7 +271,7 @@ as $$
 declare
   v_row ${s}%rowtype;
 begin
-  select * into v_row from ${s} x where x.${cs("id")} = remove_template_schedule.schedule_id;
+  select * into v_row from ${s} x where x.${cs("id")} = delete_template_schedule.schedule_id;
   if not found then
     return false;
   end if;
@@ -282,7 +282,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_template_schedule")}(uuid)`)}
+${userGrant(`${fn("delete_template_schedule")}(uuid)`)}
 
 -- The tenant's schedules with their rules, of one template when given.
 -- templates.read in tenant.

@@ -71,7 +71,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     backorder = false,
   ): Promise<string> => {
     const product = await call<{ id: string }>(
-      "better_supabase.save_product($1, null, $2, null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, $2, null, null, 'physical')",
       [tenant, sku],
     );
 
@@ -80,7 +80,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     ]);
 
     const saved = await call<{ id: string }>(
-      "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, 500, true, $3)",
+      "better_supabase.upsert_variant($1, null, $2, '{}'::uuid[], null, null, 500, true, $3)",
       [product.id, sku, backorder],
     );
 
@@ -219,7 +219,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     await session.as(owner);
     warehouse = (
       await call<{ id: string }>(
-        "better_supabase.save_location($1, null, 'WH-1', 'Warehouse', 'warehouse')",
+        "better_supabase.upsert_location($1, null, 'WH-1', 'Warehouse', 'warehouse')",
         [tenant],
       )
     ).id;
@@ -236,7 +236,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     ]);
     flat = (
       await call<{ id: string }>(
-        "better_supabase.save_shipping_rate($1, null, $2)",
+        "better_supabase.upsert_shipping_rate($1, null, $2)",
         [
           tenant,
           JSON.stringify({

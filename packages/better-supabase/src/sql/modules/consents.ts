@@ -281,7 +281,7 @@ ${consentGateFunctions(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_consent_purpose",
+      name: "upsert_consent_purpose",
       args: [
         "{id}",
         "text",

@@ -87,18 +87,18 @@ describe.skipIf(!live)("quote stock holds in Postgres", () => {
     await session.as(owner);
 
     const warehouse = await call<{ id: string }>(
-      "better_supabase.save_location($1, null, 'WH-1', 'WH-1', 'warehouse')",
+      "better_supabase.upsert_location($1, null, 'WH-1', 'WH-1', 'warehouse')",
       [tenant],
     );
 
     const product = await call<{ id: string }>(
-      "better_supabase.save_product($1, null, 'TEE', null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, 'TEE', null, null, 'physical')",
       [tenant],
     );
 
     tee = (
       await call<{ id: string }>(
-        "better_supabase.save_variant($1, null, 'TEE', '{}'::uuid[], null, null, null, true, false)",
+        "better_supabase.upsert_variant($1, null, 'TEE', '{}'::uuid[], null, null, null, true, false)",
         [product.id],
       )
     ).id;

@@ -57,7 +57,7 @@ const RENDERED = {
 
 describe("createDocumentTemplates", () => {
   it("saves a template into the request's organization", async () => {
-    const t = fieldsTransport({ save_document_template: () => TEMPLATE });
+    const t = fieldsTransport({ upsert_document_template: () => TEMPLATE });
 
     const templates = createDocumentTemplates({
       transport: t,
@@ -76,7 +76,7 @@ describe("createDocumentTemplates", () => {
     expect(saved.legalEntityId).toBeNull();
     expect(saved.createdAt.toString()).toBe("2026-10-30T10:00:00Z");
     expect(t.calls[0]).toEqual([
-      "save_document_template",
+      "upsert_document_template",
       {
         tenant: "org-1",
         document_type: "invoice",

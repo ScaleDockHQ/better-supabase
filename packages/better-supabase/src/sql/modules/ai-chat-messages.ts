@@ -188,26 +188,26 @@ export function aiChatMessages(
   const replyExtras = insertExtraColumns(
     t.messages,
     names.extras.messages,
-    "coalesce(save_ai_assistant_message.message -> 'fields', '{}'::jsonb)",
+    "coalesce(upsert_ai_assistant_message.message -> 'fields', '{}'::jsonb)",
   );
 
   const [replyColumns, replyValues] = message([
     ["chat", `\n    v_chat.${ch.id}`],
     ["id", "v_id"],
-    ["parent", key("save_ai_assistant_message.parent_id")],
+    ["parent", key("upsert_ai_assistant_message.parent_id")],
     ["owner", `v_chat.${ch.owner}`],
     ["role", ctx.cast("messages", "role", "v_role")],
-    ["parts", "\n    save_ai_assistant_message.message -> 'parts'"],
+    ["parts", "\n    upsert_ai_assistant_message.message -> 'parts'"],
     [
       "metadata",
-      "\n    case when jsonb_typeof(save_ai_assistant_message.message -> 'metadata') = 'object' then save_ai_assistant_message.message -> 'metadata' else '{}'::jsonb end",
+      "\n    case when jsonb_typeof(upsert_ai_assistant_message.message -> 'metadata') = 'object' then upsert_ai_assistant_message.message -> 'metadata' else '{}'::jsonb end",
     ],
     [
       "format",
-      `\n    coalesce(save_ai_assistant_message.format, '${mode.native ? "native" : "canonical"}')`,
+      `\n    coalesce(upsert_ai_assistant_message.format, '${mode.native ? "native" : "canonical"}')`,
     ],
-    ["native", "save_ai_assistant_message.native"],
-    ["model", "\n    save_ai_assistant_message.model"],
+    ["native", "upsert_ai_assistant_message.native"],
+    ["model", "\n    upsert_ai_assistant_message.model"],
     ["status", ctx.cast("messages", "status", "v_status")],
   ]);
 
@@ -242,7 +242,7 @@ export function aiChatMessages(
 
   const completed = ctx.record({
     type: "ai_chat_message.completed",
-    payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'messageId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'model', coalesce(save_ai_assistant_message.model, v_chat.${ch.model}), 'status', v_status)`,
+    payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'messageId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'model', coalesce(upsert_ai_assistant_message.model, v_chat.${ch.model}), 'status', v_status)`,
     subject: `'ai-chats/' || v_chat.${ch.id}::text`,
     tenant: `v_chat.${ch.tenant}`,
     key: `'ai_chat_message.completed:' || v_chat.${ch.id}::text || ':' || v_id`,
@@ -266,7 +266,7 @@ ${appendUserMessage(ctx, names, parts)}
 -- Stores a reply under parent_id (the service role only): an upsert by id, so
 -- the server saves once at the end and again after a resumed stream. Copies
 -- source parts to ${t.sources} and moves the leaf to the reply.
-create or replace function ${fn("save_ai_assistant_message")}(chat uuid, message jsonb, parent_id text, status text default 'complete', model text default null, format text default 'canonical', native jsonb default null, run uuid default null)
+create or replace function ${fn("upsert_ai_assistant_message")}(chat uuid, message jsonb, parent_id text, status text default 'complete', model text default null, format text default 'canonical', native jsonb default null, run uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -276,26 +276,26 @@ ${variableConflict(ctx, "messages", "sources", "chats", "runs")}
 declare
   v_chat ${t.chats};
   v_id ${mode.idType};
-  v_role text := coalesce(save_ai_assistant_message.message ->> 'role', 'assistant');
-  v_status text := coalesce(save_ai_assistant_message.status, 'complete');
+  v_role text := coalesce(upsert_ai_assistant_message.message ->> 'role', 'assistant');
+  v_status text := coalesce(upsert_ai_assistant_message.status, 'complete');
   v_created boolean;
 begin
   if not ${SERVICE_CALLER} then
     ${serviceOnly}
   end if;
-  select * into v_chat from ${t.chats} x where x.${ch.id} = save_ai_assistant_message.chat for update;
+  select * into v_chat from ${t.chats} x where x.${ch.id} = upsert_ai_assistant_message.chat for update;
   if not found then
-    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "save_ai_assistant_message.chat")}
+    ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "upsert_ai_assistant_message.chat")}
   end if;
-  if nullif(save_ai_assistant_message.message ->> 'id', '') is null or v_role = 'user'
-    or jsonb_typeof(save_ai_assistant_message.message -> 'parts') is distinct from 'array' then
+  if nullif(upsert_ai_assistant_message.message ->> 'id', '') is null or v_role = 'user'
+    or jsonb_typeof(upsert_ai_assistant_message.message -> 'parts') is distinct from 'array' then
     ${raise("A reply needs an id, a role other than user and parts", "22023", "AI_MESSAGE_INVALID")}
   end if;
-  v_id := ${key("save_ai_assistant_message.message ->> 'id'")};
-  if save_ai_assistant_message.parent_id is not null and not exists (
-    select 1 from ${t.messages} x where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = ${key("save_ai_assistant_message.parent_id")}
+  v_id := ${key("upsert_ai_assistant_message.message ->> 'id'")};
+  if upsert_ai_assistant_message.parent_id is not null and not exists (
+    select 1 from ${t.messages} x where x.${m.chat} = v_chat.${ch.id} and x.${m.id} = ${key("upsert_ai_assistant_message.parent_id")}
   ) then
-    ${raise("No message %", "P0002", "AI_MESSAGE_NOT_FOUND", "save_ai_assistant_message.parent_id")}
+    ${raise("No message %", "P0002", "AI_MESSAGE_NOT_FOUND", "upsert_ai_assistant_message.parent_id")}
   end if;
   insert into ${t.messages} (${replyColumns}${replyExtras.columns})
   values (${replyValues}${replyExtras.values}
@@ -311,25 +311,25 @@ begin
       ],
     ])}
     ${m.status} = excluded.${m.status}
-  returning (xmax = 0) into v_created;${writeExtraColumns(t.messages, names.extras.messages, "coalesce(save_ai_assistant_message.message -> 'fields', '{}'::jsonb)", `x.${m.chat} = v_chat.${ch.id} and x.${m.id} = v_id`)}
+  returning (xmax = 0) into v_created;${writeExtraColumns(t.messages, names.extras.messages, "coalesce(upsert_ai_assistant_message.message -> 'fields', '{}'::jsonb)", `x.${m.chat} = v_chat.${ch.id} and x.${m.id} = v_id`)}
   delete from ${t.sources} x where x.${s.chat} = v_chat.${ch.id} and x.${s.message} = v_id;
   insert into ${t.sources} (${sourceColumns})
   select distinct on (${SOURCE_ID}) ${sourceValues}
-  from jsonb_array_elements(save_ai_assistant_message.message -> 'parts') e
+  from jsonb_array_elements(upsert_ai_assistant_message.message -> 'parts') e
   where e ->> 'type' in ('source', 'source-url', 'source-document') and nullif(${SOURCE_ID}, '') is not null and ${SOURCE_KIND} in ('url', 'document')
   order by ${SOURCE_ID};
   update ${t.chats} x set ${ch.leaf} = v_id, ${ch.lastMessageAt} = clock_timestamp(), ${ch.updatedAt} = now() where x.${ch.id} = v_chat.${ch.id};
-  if save_ai_assistant_message.run is not null then
-    update ${t.runs} x set ${r.message} = v_id where x.${r.id} = save_ai_assistant_message.run and x.${r.chat} = v_chat.${ch.id};
+  if upsert_ai_assistant_message.run is not null then
+    update ${t.runs} x set ${r.message} = v_id where x.${r.id} = upsert_ai_assistant_message.run and x.${r.chat} = v_chat.${ch.id};
   end if;
   if v_status = 'complete' then
     ${completed}
   end if;
   perform ${fn("ai_chat_notify")}(v_chat.${ch.id}, v_chat.${ch.owner}, 'message.saved', jsonb_build_object('messageId', v_id), not v_chat.${ch.temporary});
-  return jsonb_build_object('message_id', v_id, 'parent_id', save_ai_assistant_message.parent_id, 'created', v_created);
+  return jsonb_build_object('message_id', v_id, 'parent_id', upsert_ai_assistant_message.parent_id, 'created', v_created);
 end;
 $$;
-${serviceGrant(`${fn("save_ai_assistant_message")}(uuid, jsonb, text, text, text, text, jsonb, uuid)`)}
+${serviceGrant(`${fn("upsert_ai_assistant_message")}(uuid, jsonb, text, text, text, text, jsonb, uuid)`)}
 
 -- Claims the chat for one reply stream (the service role only). A claim
 -- held by a run that ended, whose stream closed, or that started more than

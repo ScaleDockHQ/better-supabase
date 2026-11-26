@@ -642,7 +642,7 @@ export function createMessaging<
           ),
     save: (target, saved) =>
       service(
-        "save_thread_summary",
+        "upsert_thread_summary",
         {
           ...targetArgs(target),
           summary: saved.summary,
@@ -666,13 +666,13 @@ export function createMessaging<
     openSubject: (subject) => open({ kind: "subject", subject }),
     addMembers: ({ conversationId, userIds }) =>
       call(
-        "add_conversation_members",
+        "create_conversation_members",
         { conversation: conversationId, users: [...userIds] },
         num,
       ),
     removeMember: ({ conversationId, userId }) =>
       call(
-        "remove_conversation_member",
+        "delete_conversation_member",
         { conversation: conversationId, member: userId },
         (value) => value === true,
       ),

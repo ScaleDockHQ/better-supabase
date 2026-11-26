@@ -465,7 +465,7 @@ export function createCommissions(options: CommissionsOptions): Commissions {
     savePlan: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_commission_plan",
+          "upsert_commission_plan",
           {
             tenant: organizationId,
             name: input.name,
@@ -477,7 +477,7 @@ export function createCommissions(options: CommissionsOptions): Commissions {
               archived: input.archived,
             }),
           },
-          (value) => planOf(value, "save_commission_plan"),
+          (value) => planOf(value, "upsert_commission_plan"),
         ),
       ),
     assignPlan: (input) =>

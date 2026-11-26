@@ -66,7 +66,7 @@ describe("activities module, recordings", () => {
   it("adds nothing by default", () => {
     const sql = sqlOf();
     expect(sql).not.toContain("activity_recordings");
-    expect(sql).not.toContain("save_activity_notes");
+    expect(sql).not.toContain("upsert_activity_notes");
   });
 
   it("stores recordings on ai-files with transcripts and notes", () => {
@@ -117,12 +117,12 @@ describe("activities module, recordings", () => {
         .find((contract) => contract.module === "activities")
         ?.functions.map((fn) => fn.name);
 
-    expect(names({})).not.toContain("save_activity_notes");
+    expect(names({})).not.toContain("upsert_activity_notes");
     expect(names({ recordings: true })).toEqual(
       expect.arrayContaining([
         "attach_activity_recording",
-        "save_activity_transcript",
-        "save_activity_notes",
+        "upsert_activity_transcript",
+        "upsert_activity_notes",
       ]),
     );
   });

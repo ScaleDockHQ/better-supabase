@@ -77,7 +77,7 @@ function fakeTransport(results: Record<string, unknown>) {
 describe("createIncidents regulatory filings", () => {
   it("saves and reads the regulatory profile", async () => {
     const fake = fakeTransport({
-      save_incident_regulatory_profile: PROFILE,
+      upsert_incident_regulatory_profile: PROFILE,
       get_incident_regulatory_profile: {
         incidentId: "i1",
         awareAt: AT,
@@ -118,7 +118,7 @@ describe("createIncidents regulatory filings", () => {
     expect(saved.filings[1]?.dueAt).toBeUndefined();
 
     expect(fake.calls[0]).toEqual([
-      "save_incident_regulatory_profile",
+      "upsert_incident_regulatory_profile",
       {
         incident_id: "i1",
         attrs: {
@@ -241,7 +241,7 @@ describe("createIncidents regulatory filings", () => {
       transport: fakeTransport({
         submit_incident_filing: { ...FILING, regime: "sox" },
         list_incident_filings: [{ ...FILING, stage: "late" }],
-        save_incident_regulatory_profile: { ...PROFILE, regimes: ["x"] },
+        upsert_incident_regulatory_profile: { ...PROFILE, regimes: ["x"] },
         get_incident_regulatory_profile: { ...PROFILE, classification: "huge" },
       }).transport,
     });
@@ -269,10 +269,10 @@ describe("createIncidents regulatory filings", () => {
 describe("createIncidents postmortems and public pages", () => {
   it("saves, publishes and edits postmortem actions", async () => {
     const fake = fakeTransport({
-      save_incident_postmortem: POSTMORTEM,
+      upsert_incident_postmortem: POSTMORTEM,
       publish_incident_postmortem: POSTMORTEM,
-      add_incident_postmortem_action: { ...ACTION, dueAt: AT },
-      remove_incident_postmortem_action: { ...POSTMORTEM, actions: null },
+      create_incident_postmortem_action: { ...ACTION, dueAt: AT },
+      delete_incident_postmortem_action: { ...POSTMORTEM, actions: null },
     });
 
     const incidents = createIncidents({ transport: fake.transport });
@@ -332,7 +332,7 @@ describe("createIncidents postmortems and public pages", () => {
   it("rejects a postmortem with an unknown status", async () => {
     const incidents = createIncidents({
       transport: fakeTransport({
-        save_incident_postmortem: { ...POSTMORTEM, status: "lost" },
+        upsert_incident_postmortem: { ...POSTMORTEM, status: "lost" },
       }).transport,
     });
 

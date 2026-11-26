@@ -200,7 +200,7 @@ function identifierFunctions(ctx: BlockSqlContext, names: Names): string {
 -- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
 -- variant. A code is stored once per variant, type and party, so a second
 -- call returns the existing row with created false.
-create or replace function ${fn("save_product_identifier")}(tenant ${ctx.idType}, variant uuid, type text, value text, party uuid default null)
+create or replace function ${fn("upsert_product_identifier")}(tenant ${ctx.idType}, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -209,32 +209,32 @@ as $$
 declare
   v_id uuid;
   v_created boolean := false;
-  v_value text := btrim(save_product_identifier.value);
+  v_value text := btrim(upsert_product_identifier.value);
 begin
-  ${guard(names, "save_product_identifier.tenant")}
-  ${checks("v_value", "save_product_identifier.type")}
-  if not exists (select 1 from ${variants} x where x.${v("id")} = save_product_identifier.variant and x.${v("tenant")} = save_product_identifier.tenant) then
+  ${guard(names, "upsert_product_identifier.tenant")}
+  ${checks("v_value", "upsert_product_identifier.type")}
+  if not exists (select 1 from ${variants} x where x.${v("id")} = upsert_product_identifier.variant and x.${v("tenant")} = upsert_product_identifier.tenant) then
     ${fail("CATALOG_VARIANT_NOT_FOUND", "variant not found", "P0002")}
   end if;
   select x.${i("id")} into v_id from ${identifiers} x
-  where x.${i("variant")} = save_product_identifier.variant and x.${i("type")} = save_product_identifier.type and x.${i("value")} = v_value
-    and coalesce(x.${i("party")}, ${NO_PARTY}) = coalesce(save_product_identifier.party, ${NO_PARTY});
+  where x.${i("variant")} = upsert_product_identifier.variant and x.${i("type")} = upsert_product_identifier.type and x.${i("value")} = v_value
+    and coalesce(x.${i("party")}, ${NO_PARTY}) = coalesce(upsert_product_identifier.party, ${NO_PARTY});
   if v_id is null then
     begin
       insert into ${identifiers} as x (${i("tenant")}, ${i("variant")}, ${i("type")}, ${i("value")}, ${i("party")})
-      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      values (upsert_product_identifier.tenant, upsert_product_identifier.variant, upsert_product_identifier.type, v_value, upsert_product_identifier.party)
       returning x.${i("id")} into v_id;
       v_created := true;
     exception when unique_violation then
       select x.${i("id")} into v_id from ${identifiers} x
-      where x.${i("variant")} = save_product_identifier.variant and x.${i("type")} = save_product_identifier.type and x.${i("value")} = v_value
-        and coalesce(x.${i("party")}, ${NO_PARTY}) = coalesce(save_product_identifier.party, ${NO_PARTY});
+      where x.${i("variant")} = upsert_product_identifier.variant and x.${i("type")} = upsert_product_identifier.type and x.${i("value")} = v_value
+        and coalesce(x.${i("party")}, ${NO_PARTY}) = coalesce(upsert_product_identifier.party, ${NO_PARTY});
     end;
   end if;
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-${userGrant(`${fn("save_product_identifier")}(${ctx.idType}, uuid, text, text, uuid)`)}
+${userGrant(`${fn("upsert_product_identifier")}(${ctx.idType}, uuid, text, text, uuid)`)}
 
 -- Removes an identifier.
 create or replace function ${fn("delete_product_identifier")}(identifier uuid)
@@ -300,7 +300,7 @@ function relationFunctions(ctx: BlockSqlContext, names: Names): string {
 -- Links the variant "from" to the variant "to": "from" has "to" as an
 -- alternative or an accessory, or is superseded by it. A repeated call
 -- returns created false. A supersession can't point back along its own chain.
-create or replace function ${fn("save_product_relation")}(tenant ${ctx.idType}, from_variant uuid, to_variant uuid, kind text)
+create or replace function ${fn("upsert_product_relation")}(tenant ${ctx.idType}, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language plpgsql
 security definer
@@ -309,34 +309,34 @@ as $$
 declare
   v_created boolean;
 begin
-  ${guard(names, "save_product_relation.tenant")}
-  if save_product_relation.kind is null or save_product_relation.kind not in (${list(RELATION_KINDS)}) then
+  ${guard(names, "upsert_product_relation.tenant")}
+  if upsert_product_relation.kind is null or upsert_product_relation.kind not in (${list(RELATION_KINDS)}) then
     ${fail("CATALOG_RELATION_KIND_INVALID", `the kind must be one of ${RELATION_KINDS.join(", ")}`, "22023")}
   end if;
-  if save_product_relation.from_variant = save_product_relation.to_variant then
+  if upsert_product_relation.from_variant = upsert_product_relation.to_variant then
     ${fail("CATALOG_RELATION_INVALID", "a variant can't relate to itself", "22023")}
   end if;
-  if (select count(*) from ${variants} x where x.${v("tenant")} = save_product_relation.tenant and x.${v("id")} in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+  if (select count(*) from ${variants} x where x.${v("tenant")} = upsert_product_relation.tenant and x.${v("id")} in (upsert_product_relation.from_variant, upsert_product_relation.to_variant)) <> 2 then
     ${fail("CATALOG_VARIANT_NOT_FOUND", "variant not found", "P0002")}
   end if;
-  if save_product_relation.kind = 'superseded_by' and exists (
+  if upsert_product_relation.kind = 'superseded_by' and exists (
     with recursive chain(id, depth) as (
-      select save_product_relation.to_variant, 0
+      select upsert_product_relation.to_variant, 0
       union all
       select y.${r("to")}, c.depth + 1 from ${relations} y join chain c on y.${r("from")} = c.id and y.${r("kind")} = 'superseded_by' where c.depth < 50
     )
-    select 1 from chain where id = save_product_relation.from_variant
+    select 1 from chain where id = upsert_product_relation.from_variant
   ) then
     ${fail("CATALOG_RELATION_CYCLE", "the replacement already points back at this variant", "22023")}
   end if;
   insert into ${relations} (${r("tenant")}, ${r("from")}, ${r("to")}, ${r("kind")})
-  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  values (upsert_product_relation.tenant, upsert_product_relation.from_variant, upsert_product_relation.to_variant, upsert_product_relation.kind)
   on conflict do nothing;
   v_created := found;
   return jsonb_build_object('created', v_created);
 end;
 $$;
-${userGrant(`${fn("save_product_relation")}(${ctx.idType}, uuid, uuid, text)`)}
+${userGrant(`${fn("upsert_product_relation")}(${ctx.idType}, uuid, uuid, text)`)}
 
 -- Removes one relation.
 create or replace function ${fn("delete_product_relation")}(from_variant uuid, to_variant uuid, kind text)
@@ -572,37 +572,37 @@ function supplierItemFunctions(ctx: BlockSqlContext, names: Names): string {
   return `${mappingsOn(ctx) ? mappingFunctions(ctx, names) : ""}
 -- Creates a supplier item (item null) or updates one; on an update a null
 -- argument keeps the column. price is in minor units.
-create or replace function ${fn("save_supplier_item")}(tenant ${ctx.idType}, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function ${fn("upsert_supplier_item")}(tenant ${ctx.idType}, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_supplier_item.item;
-  v_code text := btrim(save_supplier_item.code);
+  v_id uuid := upsert_supplier_item.item;
+  v_code text := btrim(upsert_supplier_item.code);
 begin
-  ${guard(names, "save_supplier_item.tenant")}
+  ${guard(names, "upsert_supplier_item.tenant")}
   if v_code is null or length(v_code) not between 1 and 100 then
     ${fail("CATALOG_SUPPLIER_ITEM_INVALID", "the code must be 1 to 100 characters", "22023")}
   end if;
-  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+  if upsert_supplier_item.price is not null and upsert_supplier_item.price < 0 then
     ${fail("CATALOG_SUPPLIER_ITEM_INVALID", "the price can't be negative", "22023")}
   end if;
-  if save_supplier_item.currency is not null and ${fn("currency_minor_units")}(save_supplier_item.currency) is null then
+  if upsert_supplier_item.currency is not null and ${fn("currency_minor_units")}(upsert_supplier_item.currency) is null then
     ${fail("CATALOG_CURRENCY_INVALID", "not an ISO 4217 currency code", "22023")}
   end if;
   begin
     if v_id is null then
       insert into ${items} as x (${s("tenant")}, ${s("supplier")}, ${s("code")}, ${s("description")}, ${s("price")}, ${s("currency")}, ${s("unit")}, ${s("keywordsText")})
-      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      values (upsert_supplier_item.tenant, upsert_supplier_item.supplier, v_code, upsert_supplier_item.description, upsert_supplier_item.price, upsert_supplier_item.currency, upsert_supplier_item.unit, upsert_supplier_item.keywords)
       returning x.${s("id")} into v_id;
     else
-      update ${items} x set ${s("supplier")} = coalesce(save_supplier_item.supplier, x.${s("supplier")}), ${s("code")} = v_code,
-        ${s("description")} = coalesce(save_supplier_item.description, x.${s("description")}), ${s("price")} = coalesce(save_supplier_item.price, x.${s("price")}),
-        ${s("currency")} = coalesce(save_supplier_item.currency, x.${s("currency")}), ${s("unit")} = coalesce(save_supplier_item.unit, x.${s("unit")}),
-        ${s("keywordsText")} = coalesce(save_supplier_item.keywords, x.${s("keywordsText")}), ${s("updatedAt")} = now()
-      where x.${s("id")} = save_supplier_item.item and x.${s("tenant")} = save_supplier_item.tenant;
+      update ${items} x set ${s("supplier")} = coalesce(upsert_supplier_item.supplier, x.${s("supplier")}), ${s("code")} = v_code,
+        ${s("description")} = coalesce(upsert_supplier_item.description, x.${s("description")}), ${s("price")} = coalesce(upsert_supplier_item.price, x.${s("price")}),
+        ${s("currency")} = coalesce(upsert_supplier_item.currency, x.${s("currency")}), ${s("unit")} = coalesce(upsert_supplier_item.unit, x.${s("unit")}),
+        ${s("keywordsText")} = coalesce(upsert_supplier_item.keywords, x.${s("keywordsText")}), ${s("updatedAt")} = now()
+      where x.${s("id")} = upsert_supplier_item.item and x.${s("tenant")} = upsert_supplier_item.tenant;
       if not found then
         ${fail("CATALOG_SUPPLIER_ITEM_NOT_FOUND", "supplier item not found", "P0002")}
       end if;
@@ -613,7 +613,7 @@ begin
   return jsonb_build_object('id', v_id, 'code', v_code);
 end;
 $$;
-${userGrant(`${fn("save_supplier_item")}(${ctx.idType}, uuid, uuid, text, text, bigint, text, text, text)`)}
+${userGrant(`${fn("upsert_supplier_item")}(${ctx.idType}, uuid, uuid, text, text, bigint, text, text, text)`)}
 
 -- Deletes a supplier item. The variant it was promoted to stays.
 create or replace function ${fn("delete_supplier_item")}(item uuid)
@@ -934,7 +934,7 @@ export function supplyContract(
     ...(identifiersOn(ctx)
       ? ([
           {
-            name: "save_product_identifier",
+            name: "upsert_product_identifier",
             args: ["{id}", "uuid", "text", "text", "uuid"],
             returns: "jsonb",
           },
@@ -954,7 +954,7 @@ export function supplyContract(
     ...(relationsOn(ctx)
       ? ([
           {
-            name: "save_product_relation",
+            name: "upsert_product_relation",
             args: ["{id}", "uuid", "uuid", "text"],
             returns: "jsonb",
           },
@@ -974,7 +974,7 @@ export function supplyContract(
     ...(supplierItemsOn(ctx)
       ? ([
           {
-            name: "save_supplier_item",
+            name: "upsert_supplier_item",
             args: [
               "{id}",
               "uuid",

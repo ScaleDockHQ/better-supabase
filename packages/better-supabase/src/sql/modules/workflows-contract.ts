@@ -96,7 +96,7 @@ export function workflowsContract(
             returns: "boolean",
           },
           {
-            name: "remove_workflow_schedule",
+            name: "delete_workflow_schedule",
             args: ["uuid"],
             returns: "boolean",
           },

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:f4a1231fcd7291bfdcee58e0522ea4c739f6fd3d8b09b2b1b0479fe734d47baa
+-- @bsb-hash sha256:fe62a5cda1157f1d01d00644be126f98e11e798194c57013c40a00adccc79249
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -141,7 +141,7 @@ create policy bsb_donations_read on "better_supabase"."donations"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
-create or replace function "better_supabase"."save_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function "better_supabase"."upsert_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -154,27 +154,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_donation_fund.tenant, 'donations.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_donation_fund.tenant, 'donations.manage'), false)) then
     raise exception 'not allowed to manage donations' using errcode = '42501', hint = 'DONATIONS_FORBIDDEN';
   end if;
-  if save_donation_fund.key is null or save_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_donation_fund.key is null or upsert_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if nullif(trim(save_donation_fund.name), '') is null then
+  if nullif(trim(upsert_donation_fund.name), '') is null then
     raise exception 'a fund needs a name' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if coalesce(save_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
+  if coalesce(upsert_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
     raise exception 'kind is fund or campaign' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.goal is not null and (save_donation_fund.goal <= 0 or save_donation_fund.currency is null or save_donation_fund.currency !~ '^[A-Z]{3}$') then
+  if upsert_donation_fund.goal is not null and (upsert_donation_fund.goal <= 0 or upsert_donation_fund.currency is null or upsert_donation_fund.currency !~ '^[A-Z]{3}$') then
     raise exception 'a goal is more than zero minor units of a three-letter currency' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
+  if upsert_donation_fund.starts_on is not null and upsert_donation_fund.ends_on is not null and upsert_donation_fund.ends_on < upsert_donation_fund.starts_on then
     raise exception 'ends_on is on or after starts_on' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
   insert into "better_supabase"."donation_funds" ("tenant_id", "key", "name", "kind", "goal", "currency", "starts_on", "ends_on")
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), coalesce(save_donation_fund.kind, 'fund'),
-    save_donation_fund.goal, save_donation_fund.currency, save_donation_fund.starts_on, save_donation_fund.ends_on)
+  values (upsert_donation_fund.tenant, upsert_donation_fund.key, trim(upsert_donation_fund.name), coalesce(upsert_donation_fund.kind, 'fund'),
+    upsert_donation_fund.goal, upsert_donation_fund.currency, upsert_donation_fund.starts_on, upsert_donation_fund.ends_on)
   on conflict ("tenant_id", "key") do update set
     "name" = excluded."name", "kind" = excluded."kind", "goal" = excluded."goal",
     "currency" = excluded."currency", "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on",
@@ -183,8 +183,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "better_supabase"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
-grant execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
+grant execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_donation_fund"(fund_id uuid)
 returns jsonb
@@ -1393,7 +1393,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:dc6a41efe0281901647162594f1635dad334cf0c817a9e8b595eee1f6e23d3d7
+-- @bsb-hash sha256:452c458ab2e5d9d03a17337c7419254b21fe22dc1afbd63fd73fa2fb1caddd8a
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1533,7 +1533,7 @@ create policy bsb_donations_read on "better_supabase"."donations"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
-create or replace function "better_supabase"."save_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function "better_supabase"."upsert_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1546,27 +1546,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_donation_fund.tenant, 'donations.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_donation_fund.tenant, 'donations.manage'), false)) then
     raise exception 'not allowed to manage donations' using errcode = '42501', hint = 'DONATIONS_FORBIDDEN';
   end if;
-  if save_donation_fund.key is null or save_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_donation_fund.key is null or upsert_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if nullif(trim(save_donation_fund.name), '') is null then
+  if nullif(trim(upsert_donation_fund.name), '') is null then
     raise exception 'a fund needs a name' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if coalesce(save_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
+  if coalesce(upsert_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
     raise exception 'kind is fund or campaign' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.goal is not null and (save_donation_fund.goal <= 0 or save_donation_fund.currency is null or save_donation_fund.currency !~ '^[A-Z]{3}$') then
+  if upsert_donation_fund.goal is not null and (upsert_donation_fund.goal <= 0 or upsert_donation_fund.currency is null or upsert_donation_fund.currency !~ '^[A-Z]{3}$') then
     raise exception 'a goal is more than zero minor units of a three-letter currency' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
+  if upsert_donation_fund.starts_on is not null and upsert_donation_fund.ends_on is not null and upsert_donation_fund.ends_on < upsert_donation_fund.starts_on then
     raise exception 'ends_on is on or after starts_on' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
   insert into "better_supabase"."donation_funds" ("tenant_id", "key", "name", "kind", "goal", "currency", "starts_on", "ends_on")
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), coalesce(save_donation_fund.kind, 'fund'),
-    save_donation_fund.goal, save_donation_fund.currency, save_donation_fund.starts_on, save_donation_fund.ends_on)
+  values (upsert_donation_fund.tenant, upsert_donation_fund.key, trim(upsert_donation_fund.name), coalesce(upsert_donation_fund.kind, 'fund'),
+    upsert_donation_fund.goal, upsert_donation_fund.currency, upsert_donation_fund.starts_on, upsert_donation_fund.ends_on)
   on conflict ("tenant_id", "key") do update set
     "name" = excluded."name", "kind" = excluded."kind", "goal" = excluded."goal",
     "currency" = excluded."currency", "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on",
@@ -1575,8 +1575,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "better_supabase"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
-grant execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
+grant execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_donation_fund"(fund_id uuid)
 returns jsonb
@@ -2908,7 +2908,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:ccdb30bea76e5c33a0babc3182fb7d4d23c0c8b6b4aeacf6a64b9d8750000e0a
+-- @bsb-hash sha256:c097e0aa39a364210d16d23c421b26dacbea9535d02694a7a1d6f8c97e78e54d
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3053,7 +3053,7 @@ create policy bsb_donations_read on "app_private"."donations"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
-create or replace function "app_private"."save_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function "app_private"."upsert_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3066,27 +3066,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_donation_fund.tenant, 'donations.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_donation_fund.tenant, 'donations.manage'), false)) then
     raise exception 'not allowed to manage donations' using errcode = '42501', hint = 'DONATIONS_FORBIDDEN';
   end if;
-  if save_donation_fund.key is null or save_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_donation_fund.key is null or upsert_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if nullif(trim(save_donation_fund.name), '') is null then
+  if nullif(trim(upsert_donation_fund.name), '') is null then
     raise exception 'a fund needs a name' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if coalesce(save_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
+  if coalesce(upsert_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
     raise exception 'kind is fund or campaign' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.goal is not null and (save_donation_fund.goal <= 0 or save_donation_fund.currency is null or save_donation_fund.currency !~ '^[A-Z]{3}$') then
+  if upsert_donation_fund.goal is not null and (upsert_donation_fund.goal <= 0 or upsert_donation_fund.currency is null or upsert_donation_fund.currency !~ '^[A-Z]{3}$') then
     raise exception 'a goal is more than zero minor units of a three-letter currency' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
+  if upsert_donation_fund.starts_on is not null and upsert_donation_fund.ends_on is not null and upsert_donation_fund.ends_on < upsert_donation_fund.starts_on then
     raise exception 'ends_on is on or after starts_on' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
   insert into "app_private"."donation_funds" ("tenant_id", "key", "name", "kind", "goal", "currency", "starts_on", "ends_on")
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), coalesce(save_donation_fund.kind, 'fund'),
-    save_donation_fund.goal, save_donation_fund.currency, save_donation_fund.starts_on, save_donation_fund.ends_on)
+  values (upsert_donation_fund.tenant, upsert_donation_fund.key, trim(upsert_donation_fund.name), coalesce(upsert_donation_fund.kind, 'fund'),
+    upsert_donation_fund.goal, upsert_donation_fund.currency, upsert_donation_fund.starts_on, upsert_donation_fund.ends_on)
   on conflict ("tenant_id", "key") do update set
     "name" = excluded."name", "kind" = excluded."kind", "goal" = excluded."goal",
     "currency" = excluded."currency", "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on",
@@ -3095,8 +3095,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "app_private"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
-grant execute on function "app_private"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
+grant execute on function "app_private"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
 
 create or replace function "app_private"."archive_donation_fund"(fund_id uuid)
 returns jsonb
@@ -4305,7 +4305,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:9b3a750780c4cfd519bbca29b86429475f5a64a9ceec676f1ce00c8da8888a6c
+-- @bsb-hash sha256:b5abb0bd042494236682eaecf0948145271361264c61b3669fad3849b196db8f
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4445,7 +4445,7 @@ create policy bsb_donations_read on "better_supabase"."donations"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
-create or replace function "better_supabase"."save_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function "better_supabase"."upsert_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4458,27 +4458,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_donation_fund.tenant, 'donations.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_donation_fund.tenant, 'donations.manage'), false)) then
     raise exception 'not allowed to manage donations' using errcode = '42501', hint = 'DONATIONS_FORBIDDEN';
   end if;
-  if save_donation_fund.key is null or save_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_donation_fund.key is null or upsert_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if nullif(trim(save_donation_fund.name), '') is null then
+  if nullif(trim(upsert_donation_fund.name), '') is null then
     raise exception 'a fund needs a name' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if coalesce(save_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
+  if coalesce(upsert_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
     raise exception 'kind is fund or campaign' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.goal is not null and (save_donation_fund.goal <= 0 or save_donation_fund.currency is null or save_donation_fund.currency !~ '^[A-Z]{3}$') then
+  if upsert_donation_fund.goal is not null and (upsert_donation_fund.goal <= 0 or upsert_donation_fund.currency is null or upsert_donation_fund.currency !~ '^[A-Z]{3}$') then
     raise exception 'a goal is more than zero minor units of a three-letter currency' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
+  if upsert_donation_fund.starts_on is not null and upsert_donation_fund.ends_on is not null and upsert_donation_fund.ends_on < upsert_donation_fund.starts_on then
     raise exception 'ends_on is on or after starts_on' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
   insert into "better_supabase"."donation_funds" ("tenant_id", "key", "name", "kind", "goal", "currency", "starts_on", "ends_on")
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), coalesce(save_donation_fund.kind, 'fund'),
-    save_donation_fund.goal, save_donation_fund.currency, save_donation_fund.starts_on, save_donation_fund.ends_on)
+  values (upsert_donation_fund.tenant, upsert_donation_fund.key, trim(upsert_donation_fund.name), coalesce(upsert_donation_fund.kind, 'fund'),
+    upsert_donation_fund.goal, upsert_donation_fund.currency, upsert_donation_fund.starts_on, upsert_donation_fund.ends_on)
   on conflict ("tenant_id", "key") do update set
     "name" = excluded."name", "kind" = excluded."kind", "goal" = excluded."goal",
     "currency" = excluded."currency", "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on",
@@ -4487,8 +4487,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "better_supabase"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
-grant execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
+grant execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_donation_fund"(fund_id uuid)
 returns jsonb
@@ -5684,14 +5684,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."donations" as restri
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function "api"."upsert_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_donation_fund"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
-grant execute on function "api"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_donation_fund"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
+grant execute on function "api"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
 
 create or replace function "api"."archive_donation_fund"(fund_id uuid)
 returns jsonb
@@ -5870,7 +5870,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:85ea033d56c09e92a4b87a9dd35846c7352c09663fbd44b918a976957064cf2e
+-- @bsb-hash sha256:353af071603d008d69df8b51a4644248f51f944cd4655e0d2d9f84ab740293aa
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5995,7 +5995,7 @@ create policy bsb_donations_select on "better_supabase"."donations"
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
-create or replace function "better_supabase"."save_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function "better_supabase"."upsert_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6008,27 +6008,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_donation_fund.tenant, 'donations.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_donation_fund.tenant, 'donations.manage'), false)) then
     raise exception 'not allowed to manage donations' using errcode = '42501', hint = 'DONATIONS_FORBIDDEN';
   end if;
-  if save_donation_fund.key is null or save_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_donation_fund.key is null or upsert_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if nullif(trim(save_donation_fund.name), '') is null then
+  if nullif(trim(upsert_donation_fund.name), '') is null then
     raise exception 'a fund needs a name' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if coalesce(save_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
+  if coalesce(upsert_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
     raise exception 'kind is fund or campaign' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.goal is not null and (save_donation_fund.goal <= 0 or save_donation_fund.currency is null or save_donation_fund.currency !~ '^[A-Z]{3}$') then
+  if upsert_donation_fund.goal is not null and (upsert_donation_fund.goal <= 0 or upsert_donation_fund.currency is null or upsert_donation_fund.currency !~ '^[A-Z]{3}$') then
     raise exception 'a goal is more than zero minor units of a three-letter currency' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
+  if upsert_donation_fund.starts_on is not null and upsert_donation_fund.ends_on is not null and upsert_donation_fund.ends_on < upsert_donation_fund.starts_on then
     raise exception 'ends_on is on or after starts_on' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
   insert into "better_supabase"."donation_funds" ("tenant_id", "key", "name", "kind", "goal", "currency", "starts_on", "ends_on")
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), better_supabase.as_column_type(coalesce(save_donation_fund.kind, 'fund'), (null::"better_supabase"."donation_funds")."kind"),
-    save_donation_fund.goal, save_donation_fund.currency, save_donation_fund.starts_on, save_donation_fund.ends_on)
+  values (upsert_donation_fund.tenant, upsert_donation_fund.key, trim(upsert_donation_fund.name), better_supabase.as_column_type(coalesce(upsert_donation_fund.kind, 'fund'), (null::"better_supabase"."donation_funds")."kind"),
+    upsert_donation_fund.goal, upsert_donation_fund.currency, upsert_donation_fund.starts_on, upsert_donation_fund.ends_on)
   on conflict ("tenant_id", "key") do update set
     "name" = excluded."name", "kind" = excluded."kind", "goal" = excluded."goal",
     "currency" = excluded."currency", "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on",
@@ -6037,8 +6037,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "better_supabase"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
-grant execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
+grant execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_donation_fund"(fund_id uuid)
 returns jsonb
@@ -7247,7 +7247,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:724f246ae266b551ee0d65e6f48f81d64c24a6fcb8324561f4936f6ea2ea4b07
+-- @bsb-hash sha256:5dc654846fe06ae402162b38e811cfe27ca03fbe4ac3c6af60cb115e93ae145e
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7387,7 +7387,7 @@ create policy bsb_donations_read on "better_supabase"."donations"
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
 -- Creates or updates the fund or campaign with this key.
-create or replace function "better_supabase"."save_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function "better_supabase"."upsert_donation_fund"(tenant uuid, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7400,27 +7400,27 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_donation_fund.tenant, 'donations.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_donation_fund.tenant, 'donations.manage'), false)) then
     raise exception 'not allowed to manage donations' using errcode = '42501', hint = 'DONATIONS_FORBIDDEN';
   end if;
-  if save_donation_fund.key is null or save_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_donation_fund.key is null or upsert_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if nullif(trim(save_donation_fund.name), '') is null then
+  if nullif(trim(upsert_donation_fund.name), '') is null then
     raise exception 'a fund needs a name' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if coalesce(save_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
+  if coalesce(upsert_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
     raise exception 'kind is fund or campaign' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.goal is not null and (save_donation_fund.goal <= 0 or save_donation_fund.currency is null or save_donation_fund.currency !~ '^[A-Z]{3}$') then
+  if upsert_donation_fund.goal is not null and (upsert_donation_fund.goal <= 0 or upsert_donation_fund.currency is null or upsert_donation_fund.currency !~ '^[A-Z]{3}$') then
     raise exception 'a goal is more than zero minor units of a three-letter currency' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
-  if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
+  if upsert_donation_fund.starts_on is not null and upsert_donation_fund.ends_on is not null and upsert_donation_fund.ends_on < upsert_donation_fund.starts_on then
     raise exception 'ends_on is on or after starts_on' using errcode = '22023', hint = 'DONATION_FUND_INVALID';
   end if;
   insert into "better_supabase"."donation_funds" ("org_id", "key", "name", "kind", "goal", "currency", "starts_on", "ends_on")
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), coalesce(save_donation_fund.kind, 'fund'),
-    save_donation_fund.goal, save_donation_fund.currency, save_donation_fund.starts_on, save_donation_fund.ends_on)
+  values (upsert_donation_fund.tenant, upsert_donation_fund.key, trim(upsert_donation_fund.name), coalesce(upsert_donation_fund.kind, 'fund'),
+    upsert_donation_fund.goal, upsert_donation_fund.currency, upsert_donation_fund.starts_on, upsert_donation_fund.ends_on)
   on conflict ("org_id", "key") do update set
     "name" = excluded."name", "kind" = excluded."kind", "goal" = excluded."goal",
     "currency" = excluded."currency", "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on",
@@ -7429,8 +7429,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "better_supabase"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
-grant execute on function "better_supabase"."save_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) from public, anon;
+grant execute on function "better_supabase"."upsert_donation_fund"(uuid, text, text, text, bigint, text, date, date) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_donation_fund"(fund_id uuid)
 returns jsonb

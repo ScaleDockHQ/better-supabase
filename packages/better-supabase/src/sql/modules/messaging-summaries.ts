@@ -4,10 +4,10 @@ import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { messagingRowJson } from "./messaging-names.ts";
 import { MAX_SUMMARY_LENGTH } from "./messaging-tables.ts";
 
-/** A column and the value `save_thread_summary` writes to it. */
+/** A column and the value `upsert_thread_summary` writes to it. */
 type Write = readonly [string, string];
 
-/** `thread_summary` and the service role's `save_thread_summary`. */
+/** `thread_summary` and the service role's `upsert_thread_summary`. */
 export function summaryFunctions(q: MessagingSql): string {
   const { t, fn } = q;
   const ms = q.cols("messages");
@@ -18,7 +18,7 @@ export function summaryFunctions(q: MessagingSql): string {
   const savedAt = has("updatedAt") ? su("updatedAt") : su("throughAt");
 
   const model: readonly Write[] = has("model")
-    ? [["model", "save_thread_summary.attrs ->> 'model'"]]
+    ? [["model", "upsert_thread_summary.attrs ->> 'model'"]]
     : [];
 
   const stamped: readonly Write[] =
@@ -29,11 +29,11 @@ export function summaryFunctions(q: MessagingSql): string {
   const writes: readonly Write[] = [
     ["tenant", "v_tenant"],
     ["conversation", "v_conversation"],
-    ["thread", "save_thread_summary.thread"],
-    ["summary", "btrim(save_thread_summary.summary)"],
+    ["thread", "upsert_thread_summary.thread"],
+    ["summary", "btrim(upsert_thread_summary.summary)"],
     ...model,
     ["messageCount", "v_count"],
-    ["throughAt", "(save_thread_summary.attrs ->> 'throughAt')::timestamptz"],
+    ["throughAt", "(upsert_thread_summary.attrs ->> 'throughAt')::timestamptz"],
     ...stamped,
   ];
 
@@ -88,7 +88,7 @@ ${userGrant(`${fn("thread_summary")}(uuid, uuid)`)}
 -- messageCount and throughAt (when the newest summarized message was sent).
 -- The service role calls it after the app read the messages as the user.
 -- Returns the summary as thread_summary does.
-create or replace function ${fn("save_thread_summary")}(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+create or replace function ${fn("upsert_thread_summary")}(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -101,29 +101,29 @@ declare
   v_count integer;
 begin
   if not ${q.service} then
-    ${fail("MESSAGING_FORBIDDEN", "save_thread_summary runs as the service role")}
+    ${fail("MESSAGING_FORBIDDEN", "upsert_thread_summary runs as the service role")}
   end if;
-  if save_thread_summary.thread is null then
+  if upsert_thread_summary.thread is null then
     select c.${cv("id")}, c.${cv("tenant")} into v_conversation, v_tenant
-    from ${t("conversations")} c where c.${cv("id")} = save_thread_summary.conversation;
+    from ${t("conversations")} c where c.${cv("id")} = upsert_thread_summary.conversation;
   else
     select m.${ms("conversation")}, m.${ms("tenant")} into v_conversation, v_tenant
     from ${t("messages")} m
-    where m.${ms("id")} = save_thread_summary.thread and m.${ms("thread")} is null and m.${ms("sentAt")} is not null
-      and (save_thread_summary.conversation is null or m.${ms("conversation")} = save_thread_summary.conversation);
+    where m.${ms("id")} = upsert_thread_summary.thread and m.${ms("thread")} is null and m.${ms("sentAt")} is not null
+      and (upsert_thread_summary.conversation is null or m.${ms("conversation")} = upsert_thread_summary.conversation);
   end if;
   if v_conversation is null then
     ${fail("MESSAGING_NOT_FOUND", "no such conversation or thread root", "P0002")}
   end if;
   begin
-    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+    v_count := coalesce((upsert_thread_summary.attrs ->> 'messageCount')::integer, 0);
   exception when invalid_text_representation or numeric_value_out_of_range then
     v_count := -1;
   end;
-  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and ${String(MAX_SUMMARY_LENGTH)}
-    or char_length(save_thread_summary.attrs ->> 'model') > 200
+  if char_length(btrim(coalesce(upsert_thread_summary.summary, ''))) not between 1 and ${String(MAX_SUMMARY_LENGTH)}
+    or char_length(upsert_thread_summary.attrs ->> 'model') > 200
     or v_count < 0
-    or save_thread_summary.attrs ->> 'throughAt' is null then
+    or upsert_thread_summary.attrs ->> 'throughAt' is null then
     ${fail("MESSAGING_SUMMARY_INVALID", `a summary needs 1 to ${String(MAX_SUMMARY_LENGTH)} characters, a message count and throughAt`, "22023")}
   end if;
   insert into ${t("summaries")} (${writes.map(([column]) => su(column)).join(", ")})
@@ -131,9 +131,9 @@ begin
     ${values(writes.slice(4))})
   on conflict (${su("conversation")}, ${su("thread")}) do update
   set ${updates.join(",\n    ")};
-  return ${fn("thread_summary")}(v_conversation, save_thread_summary.thread);
+  return ${fn("thread_summary")}(v_conversation, upsert_thread_summary.thread);
 end;
 $$;
-${serviceGrant(`${fn("save_thread_summary")}(uuid, uuid, text, jsonb)`)}
+${serviceGrant(`${fn("upsert_thread_summary")}(uuid, uuid, text, jsonb)`)}
 `;
 }

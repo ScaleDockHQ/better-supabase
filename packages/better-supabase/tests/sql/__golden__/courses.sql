@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:ea485a14d0dc08d9aa928d96a788b6e3bf344465fc4c7fafcb7c345c742fe54c
+-- @bsb-hash sha256:1c7badf1fc21ff760a69a2331bbe4de1ec71ea17e768360299a73e596caa433f
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -234,7 +234,7 @@ revoke execute on function "better_supabase"."course_sync"(uuid) from public, an
 -- Creates or changes a course. course is { id?, key, title, summary, status,
 -- certificate, validForMonths, fields }; keys left out keep their value.
 -- validForMonths is how long a certificate stays valid; null never expires.
-create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
+create or replace function "better_supabase"."upsert_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -255,34 +255,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_course.tenant is not null and coalesce(better_supabase.can('tenant', save_course.tenant, 'courses.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_course.tenant is not null and coalesce(better_supabase.can('tenant', upsert_course.tenant, 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course.course is null or jsonb_typeof(save_course.course) <> 'object' then
+  if upsert_course.course is null or jsonb_typeof(upsert_course.course) <> 'object' then
     raise exception 'course must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course.course ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course.course ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = save_course.tenant for update;
+    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = upsert_course.tenant for update;
     if v_old."id" is null then
       raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_course.course ->> 'key', v_old."key");
-  v_title := trim(coalesce(save_course.course ->> 'title', v_old."title"));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
-  v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_key := coalesce(upsert_course.course ->> 'key', v_old."key");
+  v_title := trim(coalesce(upsert_course.course ->> 'title', v_old."title"));
+  v_summary := case when upsert_course.course ? 'summary' then nullif(trim(upsert_course.course ->> 'summary'), '') else v_old."summary" end;
+  v_status := coalesce(upsert_course.course ->> 'status', v_old."status", 'draft');
+  v_certificate := case when upsert_course.course ? 'certificate' then (upsert_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
   v_valid_for := v_old."valid_for_months";
-  if save_course.course ? 'validForMonths' then
-    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+  if upsert_course.course ? 'validForMonths' then
+    if jsonb_typeof(upsert_course.course -> 'validForMonths') = 'null' then
       v_valid_for := null;
-    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
-      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
-      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+    elsif jsonb_typeof(upsert_course.course -> 'validForMonths') <> 'number'
+      or (upsert_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (upsert_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
       raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
     else
-      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+      v_valid_for := (upsert_course.course ->> 'validForMonths')::integer;
     end if;
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
@@ -299,7 +299,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
+    values (upsert_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -325,8 +325,8 @@ begin
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course"(uuid, jsonb) to authenticated, service_role;
 
 -- Archives a course: it takes status archived, which hides it from everyone
 -- without courses.manage, and records course.archived. Enrollments and
@@ -601,7 +601,7 @@ grant execute on function "better_supabase"."list_courses"(uuid, jsonb) to authe
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.
-create or replace function "better_supabase"."save_course_module"(course_id uuid, module jsonb)
+create or replace function "better_supabase"."upsert_course_module"(course_id uuid, module jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -620,29 +620,29 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_module.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_module.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_module.module is null or jsonb_typeof(save_course_module.module) <> 'object' then
+  if upsert_course_module.module is null or jsonb_typeof(upsert_course_module.module) <> 'object' then
     raise exception 'module must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_module.module ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_module.module ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_modules" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
       raise exception 'course module not found' using errcode = 'P0002', hint = 'COURSE_MODULE_NOT_FOUND';
     end if;
   end if;
-  v_title := trim(coalesce(save_course_module.module ->> 'title', v_old."title"));
+  v_title := trim(coalesce(upsert_course_module.module ->> 'title', v_old."title"));
   if v_title is null or length(v_title) not between 1 and 200 then
     raise exception 'title must be 1 to 200 characters' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_modules" x where x."course_id" = v_course."id";
-  v_rank := coalesce(nullif(save_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
+  v_rank := coalesce(nullif(upsert_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -664,8 +664,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'title', v_row."title", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_module"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_module"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a module with its lessons; false when it was already gone.
 create or replace function "better_supabase"."delete_course_module"(module_id uuid)
@@ -701,7 +701,7 @@ grant execute on function "better_supabase"."delete_course_module"(uuid) to auth
 -- mediaUrl, formId, required, minutes, rank? }; keys left out keep their
 -- value, and a lesson without a rank goes last in its module. A quiz lesson
 -- names the form that grades it.
-create or replace function "better_supabase"."save_course_lesson"(course_id uuid, lesson jsonb)
+create or replace function "better_supabase"."upsert_course_lesson"(course_id uuid, lesson jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -719,17 +719,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_lesson.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_lesson.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_lesson.lesson is null or jsonb_typeof(save_course_lesson.lesson) <> 'object' then
+  if upsert_course_lesson.lesson is null or jsonb_typeof(upsert_course_lesson.lesson) <> 'object' then
     raise exception 'lesson must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_lesson.lesson ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_lesson.lesson ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_lessons" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
@@ -738,14 +738,14 @@ begin
   end if;
   select
     v_course."tenant_id" as tenant,
-    coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
-    trim(coalesce(save_course_lesson.lesson ->> 'title', v_old."title")) as title,
-    coalesce(save_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
-    case when save_course_lesson.lesson ? 'body' then nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
-    case when save_course_lesson.lesson ? 'mediaUrl' then nullif(save_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
-    case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
-    case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
-    case when save_course_lesson.lesson ? 'minutes' then (save_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
+    coalesce(nullif(upsert_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
+    trim(coalesce(upsert_course_lesson.lesson ->> 'title', v_old."title")) as title,
+    coalesce(upsert_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
+    case when upsert_course_lesson.lesson ? 'body' then nullif(upsert_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
+    case when upsert_course_lesson.lesson ? 'mediaUrl' then nullif(upsert_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
+    case when upsert_course_lesson.lesson ? 'formId' then nullif(upsert_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
+    case when upsert_course_lesson.lesson ? 'required' then (upsert_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
+    case when upsert_course_lesson.lesson ? 'minutes' then (upsert_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from "better_supabase"."course_modules" x where x."id" = v_new.module and x."course_id" = v_course."id") then
     raise exception 'moduleId: pass a module of this course' using errcode = '22023', hint = 'COURSE_INVALID';
@@ -772,7 +772,7 @@ begin
     raise exception 'minutes must be from 1 to 10000' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_lessons" x where x."module_id" = v_new.module and x."id" is distinct from v_old."id";
-  v_last := coalesce(nullif(save_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
+  v_last := coalesce(nullif(upsert_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -796,8 +796,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'moduleId', v_row."module_id", 'title', v_row."title", 'kind', v_row."kind", 'body', v_row."body", 'mediaUrl', v_row."media_url", 'formId', v_row."form_id", 'required', v_row."required", 'minutes', v_row."duration_minutes", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a lesson with its progress; false when it was already gone.
 create or replace function "better_supabase"."delete_course_lesson"(lesson_id uuid)
@@ -1397,7 +1397,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:cece24cb4bbdf30cef4bb906f18c3dd29bcf620fd93ab1aae56349cc1a33a709
+-- @bsb-hash sha256:9d8e95e41dc7f2877a4310b0fa13eb5ac99f0acac97afef8b70a5993dfe209fd
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1650,7 +1650,7 @@ revoke execute on function "better_supabase"."course_sync"(uuid) from public, an
 -- Creates or changes a course. course is { id?, key, title, summary, status,
 -- certificate, validForMonths, fields }; keys left out keep their value.
 -- validForMonths is how long a certificate stays valid; null never expires.
-create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
+create or replace function "better_supabase"."upsert_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1671,34 +1671,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_course.tenant is not null and coalesce(better_supabase.can('tenant', save_course.tenant, 'courses.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_course.tenant is not null and coalesce(better_supabase.can('tenant', upsert_course.tenant, 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course.course is null or jsonb_typeof(save_course.course) <> 'object' then
+  if upsert_course.course is null or jsonb_typeof(upsert_course.course) <> 'object' then
     raise exception 'course must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course.course ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course.course ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = save_course.tenant for update;
+    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = upsert_course.tenant for update;
     if v_old."id" is null then
       raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_course.course ->> 'key', v_old."key");
-  v_title := trim(coalesce(save_course.course ->> 'title', v_old."title"));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
-  v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_key := coalesce(upsert_course.course ->> 'key', v_old."key");
+  v_title := trim(coalesce(upsert_course.course ->> 'title', v_old."title"));
+  v_summary := case when upsert_course.course ? 'summary' then nullif(trim(upsert_course.course ->> 'summary'), '') else v_old."summary" end;
+  v_status := coalesce(upsert_course.course ->> 'status', v_old."status", 'draft');
+  v_certificate := case when upsert_course.course ? 'certificate' then (upsert_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
   v_valid_for := v_old."valid_for_months";
-  if save_course.course ? 'validForMonths' then
-    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+  if upsert_course.course ? 'validForMonths' then
+    if jsonb_typeof(upsert_course.course -> 'validForMonths') = 'null' then
       v_valid_for := null;
-    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
-      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
-      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+    elsif jsonb_typeof(upsert_course.course -> 'validForMonths') <> 'number'
+      or (upsert_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (upsert_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
       raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
     else
-      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+      v_valid_for := (upsert_course.course ->> 'validForMonths')::integer;
     end if;
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
@@ -1715,7 +1715,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
+    values (upsert_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -1761,8 +1761,8 @@ begin
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course"(uuid, jsonb) to authenticated, service_role;
 
 -- Archives a course: it takes status archived, which hides it from everyone
 -- without courses.manage, and records course.archived. Enrollments and
@@ -2067,7 +2067,7 @@ grant execute on function "better_supabase"."list_courses"(uuid, jsonb) to authe
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.
-create or replace function "better_supabase"."save_course_module"(course_id uuid, module jsonb)
+create or replace function "better_supabase"."upsert_course_module"(course_id uuid, module jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2086,29 +2086,29 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_module.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_module.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_module.module is null or jsonb_typeof(save_course_module.module) <> 'object' then
+  if upsert_course_module.module is null or jsonb_typeof(upsert_course_module.module) <> 'object' then
     raise exception 'module must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_module.module ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_module.module ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_modules" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
       raise exception 'course module not found' using errcode = 'P0002', hint = 'COURSE_MODULE_NOT_FOUND';
     end if;
   end if;
-  v_title := trim(coalesce(save_course_module.module ->> 'title', v_old."title"));
+  v_title := trim(coalesce(upsert_course_module.module ->> 'title', v_old."title"));
   if v_title is null or length(v_title) not between 1 and 200 then
     raise exception 'title must be 1 to 200 characters' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_modules" x where x."course_id" = v_course."id";
-  v_rank := coalesce(nullif(save_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
+  v_rank := coalesce(nullif(upsert_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -2130,8 +2130,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'title', v_row."title", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_module"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_module"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a module with its lessons; false when it was already gone.
 create or replace function "better_supabase"."delete_course_module"(module_id uuid)
@@ -2167,7 +2167,7 @@ grant execute on function "better_supabase"."delete_course_module"(uuid) to auth
 -- mediaUrl, formId, required, minutes, rank? }; keys left out keep their
 -- value, and a lesson without a rank goes last in its module. A quiz lesson
 -- names the form that grades it.
-create or replace function "better_supabase"."save_course_lesson"(course_id uuid, lesson jsonb)
+create or replace function "better_supabase"."upsert_course_lesson"(course_id uuid, lesson jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2185,17 +2185,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_lesson.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_lesson.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_lesson.lesson is null or jsonb_typeof(save_course_lesson.lesson) <> 'object' then
+  if upsert_course_lesson.lesson is null or jsonb_typeof(upsert_course_lesson.lesson) <> 'object' then
     raise exception 'lesson must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_lesson.lesson ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_lesson.lesson ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_lessons" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
@@ -2204,14 +2204,14 @@ begin
   end if;
   select
     v_course."tenant_id" as tenant,
-    coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
-    trim(coalesce(save_course_lesson.lesson ->> 'title', v_old."title")) as title,
-    coalesce(save_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
-    case when save_course_lesson.lesson ? 'body' then nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
-    case when save_course_lesson.lesson ? 'mediaUrl' then nullif(save_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
-    case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
-    case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
-    case when save_course_lesson.lesson ? 'minutes' then (save_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
+    coalesce(nullif(upsert_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
+    trim(coalesce(upsert_course_lesson.lesson ->> 'title', v_old."title")) as title,
+    coalesce(upsert_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
+    case when upsert_course_lesson.lesson ? 'body' then nullif(upsert_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
+    case when upsert_course_lesson.lesson ? 'mediaUrl' then nullif(upsert_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
+    case when upsert_course_lesson.lesson ? 'formId' then nullif(upsert_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
+    case when upsert_course_lesson.lesson ? 'required' then (upsert_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
+    case when upsert_course_lesson.lesson ? 'minutes' then (upsert_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from "better_supabase"."course_modules" x where x."id" = v_new.module and x."course_id" = v_course."id") then
     raise exception 'moduleId: pass a module of this course' using errcode = '22023', hint = 'COURSE_INVALID';
@@ -2238,7 +2238,7 @@ begin
     raise exception 'minutes must be from 1 to 10000' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_lessons" x where x."module_id" = v_new.module and x."id" is distinct from v_old."id";
-  v_last := coalesce(nullif(save_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
+  v_last := coalesce(nullif(upsert_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -2262,8 +2262,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'moduleId', v_row."module_id", 'title', v_row."title", 'kind', v_row."kind", 'body', v_row."body", 'mediaUrl', v_row."media_url", 'formId', v_row."form_id", 'required', v_row."required", 'minutes', v_row."duration_minutes", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a lesson with its progress; false when it was already gone.
 create or replace function "better_supabase"."delete_course_lesson"(lesson_id uuid)
@@ -2952,7 +2952,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:a02fcdf510f3982921f30180f6bb868afe9533f90874fac404a14e6e58c64712
+-- @bsb-hash sha256:3f0bb633100914d7035cac6310b108fa003570c52119af7cbb01ca68119b8568
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3190,7 +3190,7 @@ revoke execute on function "app_private"."course_sync"(uuid) from public, anon, 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
 -- certificate, validForMonths, fields }; keys left out keep their value.
 -- validForMonths is how long a certificate stays valid; null never expires.
-create or replace function "app_private"."save_course"(tenant uuid, course jsonb)
+create or replace function "app_private"."upsert_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3211,34 +3211,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_course.tenant is not null and coalesce(better_supabase.can('tenant', save_course.tenant, 'courses.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_course.tenant is not null and coalesce(better_supabase.can('tenant', upsert_course.tenant, 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course.course is null or jsonb_typeof(save_course.course) <> 'object' then
+  if upsert_course.course is null or jsonb_typeof(upsert_course.course) <> 'object' then
     raise exception 'course must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course.course ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course.course ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "app_private"."courses" x where x."id" = v_id and x."tenant_id" = save_course.tenant for update;
+    select * into v_old from "app_private"."courses" x where x."id" = v_id and x."tenant_id" = upsert_course.tenant for update;
     if v_old."id" is null then
       raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_course.course ->> 'key', v_old."key");
-  v_title := trim(coalesce(save_course.course ->> 'title', v_old."title"));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
-  v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_key := coalesce(upsert_course.course ->> 'key', v_old."key");
+  v_title := trim(coalesce(upsert_course.course ->> 'title', v_old."title"));
+  v_summary := case when upsert_course.course ? 'summary' then nullif(trim(upsert_course.course ->> 'summary'), '') else v_old."summary" end;
+  v_status := coalesce(upsert_course.course ->> 'status', v_old."status", 'draft');
+  v_certificate := case when upsert_course.course ? 'certificate' then (upsert_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
   v_valid_for := v_old."valid_for_months";
-  if save_course.course ? 'validForMonths' then
-    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+  if upsert_course.course ? 'validForMonths' then
+    if jsonb_typeof(upsert_course.course -> 'validForMonths') = 'null' then
       v_valid_for := null;
-    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
-      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
-      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+    elsif jsonb_typeof(upsert_course.course -> 'validForMonths') <> 'number'
+      or (upsert_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (upsert_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
       raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
     else
-      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+      v_valid_for := (upsert_course.course ->> 'validForMonths')::integer;
     end if;
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
@@ -3255,7 +3255,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "app_private"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
+    values (upsert_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -3281,8 +3281,8 @@ begin
   return "app_private"."course_json"(v_row."id");
 end;
 $$;
-revoke execute on function "app_private"."save_course"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_course"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_course"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_course"(uuid, jsonb) to authenticated, service_role;
 
 -- Archives a course: it takes status archived, which hides it from everyone
 -- without courses.manage, and records course.archived. Enrollments and
@@ -3557,7 +3557,7 @@ grant execute on function "app_private"."list_courses"(uuid, jsonb) to authentic
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.
-create or replace function "app_private"."save_course_module"(course_id uuid, module jsonb)
+create or replace function "app_private"."upsert_course_module"(course_id uuid, module jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3576,29 +3576,29 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "app_private"."courses" x where x."id" = save_course_module.course_id;
+  select * into v_course from "app_private"."courses" x where x."id" = upsert_course_module.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_module.module is null or jsonb_typeof(save_course_module.module) <> 'object' then
+  if upsert_course_module.module is null or jsonb_typeof(upsert_course_module.module) <> 'object' then
     raise exception 'module must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_module.module ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_module.module ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "app_private"."course_modules" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
       raise exception 'course module not found' using errcode = 'P0002', hint = 'COURSE_MODULE_NOT_FOUND';
     end if;
   end if;
-  v_title := trim(coalesce(save_course_module.module ->> 'title', v_old."title"));
+  v_title := trim(coalesce(upsert_course_module.module ->> 'title', v_old."title"));
   if v_title is null or length(v_title) not between 1 and 200 then
     raise exception 'title must be 1 to 200 characters' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "app_private"."course_modules" x where x."course_id" = v_course."id";
-  v_rank := coalesce(nullif(save_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
+  v_rank := coalesce(nullif(upsert_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -3620,8 +3620,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'title', v_row."title", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_course_module"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_course_module"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_course_module"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_course_module"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a module with its lessons; false when it was already gone.
 create or replace function "app_private"."delete_course_module"(module_id uuid)
@@ -3657,7 +3657,7 @@ grant execute on function "app_private"."delete_course_module"(uuid) to authenti
 -- mediaUrl, formId, required, minutes, rank? }; keys left out keep their
 -- value, and a lesson without a rank goes last in its module. A quiz lesson
 -- names the form that grades it.
-create or replace function "app_private"."save_course_lesson"(course_id uuid, lesson jsonb)
+create or replace function "app_private"."upsert_course_lesson"(course_id uuid, lesson jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3675,17 +3675,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "app_private"."courses" x where x."id" = save_course_lesson.course_id;
+  select * into v_course from "app_private"."courses" x where x."id" = upsert_course_lesson.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_lesson.lesson is null or jsonb_typeof(save_course_lesson.lesson) <> 'object' then
+  if upsert_course_lesson.lesson is null or jsonb_typeof(upsert_course_lesson.lesson) <> 'object' then
     raise exception 'lesson must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_lesson.lesson ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_lesson.lesson ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "app_private"."course_lessons" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
@@ -3694,14 +3694,14 @@ begin
   end if;
   select
     v_course."tenant_id" as tenant,
-    coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
-    trim(coalesce(save_course_lesson.lesson ->> 'title', v_old."title")) as title,
-    coalesce(save_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
-    case when save_course_lesson.lesson ? 'body' then nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
-    case when save_course_lesson.lesson ? 'mediaUrl' then nullif(save_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
-    case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
-    case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
-    case when save_course_lesson.lesson ? 'minutes' then (save_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
+    coalesce(nullif(upsert_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
+    trim(coalesce(upsert_course_lesson.lesson ->> 'title', v_old."title")) as title,
+    coalesce(upsert_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
+    case when upsert_course_lesson.lesson ? 'body' then nullif(upsert_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
+    case when upsert_course_lesson.lesson ? 'mediaUrl' then nullif(upsert_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
+    case when upsert_course_lesson.lesson ? 'formId' then nullif(upsert_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
+    case when upsert_course_lesson.lesson ? 'required' then (upsert_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
+    case when upsert_course_lesson.lesson ? 'minutes' then (upsert_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from "app_private"."course_modules" x where x."id" = v_new.module and x."course_id" = v_course."id") then
     raise exception 'moduleId: pass a module of this course' using errcode = '22023', hint = 'COURSE_INVALID';
@@ -3728,7 +3728,7 @@ begin
     raise exception 'minutes must be from 1 to 10000' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "app_private"."course_lessons" x where x."module_id" = v_new.module and x."id" is distinct from v_old."id";
-  v_last := coalesce(nullif(save_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
+  v_last := coalesce(nullif(upsert_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -3752,8 +3752,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'moduleId', v_row."module_id", 'title', v_row."title", 'kind', v_row."kind", 'body', v_row."body", 'mediaUrl', v_row."media_url", 'formId', v_row."form_id", 'required', v_row."required", 'minutes', v_row."duration_minutes", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_course_lesson"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_course_lesson"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_course_lesson"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_course_lesson"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a lesson with its progress; false when it was already gone.
 create or replace function "app_private"."delete_course_lesson"(lesson_id uuid)
@@ -4353,7 +4353,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:671fb721e549e92931eabb9e362f1008f05cdf485f50ab192aadf1bc8c54228c
+-- @bsb-hash sha256:b4ca2fe7928e175070aa2865bd06f9b8e7d541bb73ea20e13a3d2d98697d96cf
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4586,7 +4586,7 @@ revoke execute on function "better_supabase"."course_sync"(uuid) from public, an
 -- Creates or changes a course. course is { id?, key, title, summary, status,
 -- certificate, validForMonths, fields }; keys left out keep their value.
 -- validForMonths is how long a certificate stays valid; null never expires.
-create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
+create or replace function "better_supabase"."upsert_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4607,34 +4607,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_course.tenant is not null and coalesce(better_supabase.can('tenant', save_course.tenant, 'courses.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_course.tenant is not null and coalesce(better_supabase.can('tenant', upsert_course.tenant, 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course.course is null or jsonb_typeof(save_course.course) <> 'object' then
+  if upsert_course.course is null or jsonb_typeof(upsert_course.course) <> 'object' then
     raise exception 'course must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course.course ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course.course ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = save_course.tenant for update;
+    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = upsert_course.tenant for update;
     if v_old."id" is null then
       raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_course.course ->> 'key', v_old."key");
-  v_title := trim(coalesce(save_course.course ->> 'title', v_old."title"));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
-  v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_key := coalesce(upsert_course.course ->> 'key', v_old."key");
+  v_title := trim(coalesce(upsert_course.course ->> 'title', v_old."title"));
+  v_summary := case when upsert_course.course ? 'summary' then nullif(trim(upsert_course.course ->> 'summary'), '') else v_old."summary" end;
+  v_status := coalesce(upsert_course.course ->> 'status', v_old."status", 'draft');
+  v_certificate := case when upsert_course.course ? 'certificate' then (upsert_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
   v_valid_for := v_old."valid_for_months";
-  if save_course.course ? 'validForMonths' then
-    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+  if upsert_course.course ? 'validForMonths' then
+    if jsonb_typeof(upsert_course.course -> 'validForMonths') = 'null' then
       v_valid_for := null;
-    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
-      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
-      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+    elsif jsonb_typeof(upsert_course.course -> 'validForMonths') <> 'number'
+      or (upsert_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (upsert_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
       raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
     else
-      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+      v_valid_for := (upsert_course.course ->> 'validForMonths')::integer;
     end if;
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
@@ -4651,7 +4651,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
+    values (upsert_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -4677,8 +4677,8 @@ begin
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course"(uuid, jsonb) to authenticated, service_role;
 
 -- Archives a course: it takes status archived, which hides it from everyone
 -- without courses.manage, and records course.archived. Enrollments and
@@ -4953,7 +4953,7 @@ grant execute on function "better_supabase"."list_courses"(uuid, jsonb) to authe
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.
-create or replace function "better_supabase"."save_course_module"(course_id uuid, module jsonb)
+create or replace function "better_supabase"."upsert_course_module"(course_id uuid, module jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4972,29 +4972,29 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_module.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_module.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_module.module is null or jsonb_typeof(save_course_module.module) <> 'object' then
+  if upsert_course_module.module is null or jsonb_typeof(upsert_course_module.module) <> 'object' then
     raise exception 'module must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_module.module ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_module.module ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_modules" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
       raise exception 'course module not found' using errcode = 'P0002', hint = 'COURSE_MODULE_NOT_FOUND';
     end if;
   end if;
-  v_title := trim(coalesce(save_course_module.module ->> 'title', v_old."title"));
+  v_title := trim(coalesce(upsert_course_module.module ->> 'title', v_old."title"));
   if v_title is null or length(v_title) not between 1 and 200 then
     raise exception 'title must be 1 to 200 characters' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_modules" x where x."course_id" = v_course."id";
-  v_rank := coalesce(nullif(save_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
+  v_rank := coalesce(nullif(upsert_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -5016,8 +5016,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'title', v_row."title", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_module"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_module"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a module with its lessons; false when it was already gone.
 create or replace function "better_supabase"."delete_course_module"(module_id uuid)
@@ -5053,7 +5053,7 @@ grant execute on function "better_supabase"."delete_course_module"(uuid) to auth
 -- mediaUrl, formId, required, minutes, rank? }; keys left out keep their
 -- value, and a lesson without a rank goes last in its module. A quiz lesson
 -- names the form that grades it.
-create or replace function "better_supabase"."save_course_lesson"(course_id uuid, lesson jsonb)
+create or replace function "better_supabase"."upsert_course_lesson"(course_id uuid, lesson jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5071,17 +5071,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_lesson.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_lesson.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_lesson.lesson is null or jsonb_typeof(save_course_lesson.lesson) <> 'object' then
+  if upsert_course_lesson.lesson is null or jsonb_typeof(upsert_course_lesson.lesson) <> 'object' then
     raise exception 'lesson must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_lesson.lesson ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_lesson.lesson ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_lessons" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
@@ -5090,14 +5090,14 @@ begin
   end if;
   select
     v_course."tenant_id" as tenant,
-    coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
-    trim(coalesce(save_course_lesson.lesson ->> 'title', v_old."title")) as title,
-    coalesce(save_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
-    case when save_course_lesson.lesson ? 'body' then nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
-    case when save_course_lesson.lesson ? 'mediaUrl' then nullif(save_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
-    case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
-    case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
-    case when save_course_lesson.lesson ? 'minutes' then (save_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
+    coalesce(nullif(upsert_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
+    trim(coalesce(upsert_course_lesson.lesson ->> 'title', v_old."title")) as title,
+    coalesce(upsert_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
+    case when upsert_course_lesson.lesson ? 'body' then nullif(upsert_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
+    case when upsert_course_lesson.lesson ? 'mediaUrl' then nullif(upsert_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
+    case when upsert_course_lesson.lesson ? 'formId' then nullif(upsert_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
+    case when upsert_course_lesson.lesson ? 'required' then (upsert_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
+    case when upsert_course_lesson.lesson ? 'minutes' then (upsert_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from "better_supabase"."course_modules" x where x."id" = v_new.module and x."course_id" = v_course."id") then
     raise exception 'moduleId: pass a module of this course' using errcode = '22023', hint = 'COURSE_INVALID';
@@ -5124,7 +5124,7 @@ begin
     raise exception 'minutes must be from 1 to 10000' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_lessons" x where x."module_id" = v_new.module and x."id" is distinct from v_old."id";
-  v_last := coalesce(nullif(save_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
+  v_last := coalesce(nullif(upsert_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -5148,8 +5148,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'moduleId', v_row."module_id", 'title', v_row."title", 'kind', v_row."kind", 'body', v_row."body", 'mediaUrl', v_row."media_url", 'formId', v_row."form_id", 'required', v_row."required", 'minutes', v_row."duration_minutes", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a lesson with its progress; false when it was already gone.
 create or replace function "better_supabase"."delete_course_lesson"(lesson_id uuid)
@@ -5736,14 +5736,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."course_certificates"
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_course"(tenant uuid, course jsonb)
+create or replace function "api"."upsert_course"(tenant uuid, course jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_course"($1, $2) $$;
-revoke execute on function "api"."save_course"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_course"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_course"($1, $2) $$;
+revoke execute on function "api"."upsert_course"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_course"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."archive_course"(course_id uuid)
 returns jsonb
@@ -5782,14 +5782,14 @@ as $$ select "better_supabase"."list_courses"($1, $2) $$;
 revoke execute on function "api"."list_courses"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_courses"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_course_module"(course_id uuid, module jsonb)
+create or replace function "api"."upsert_course_module"(course_id uuid, module jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_course_module"($1, $2) $$;
-revoke execute on function "api"."save_course_module"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_course_module"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_course_module"($1, $2) $$;
+revoke execute on function "api"."upsert_course_module"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_course_module"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_course_module"(module_id uuid)
 returns boolean
@@ -5800,14 +5800,14 @@ as $$ select "better_supabase"."delete_course_module"($1) $$;
 revoke execute on function "api"."delete_course_module"(uuid) from public, anon;
 grant execute on function "api"."delete_course_module"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_course_lesson"(course_id uuid, lesson jsonb)
+create or replace function "api"."upsert_course_lesson"(course_id uuid, lesson jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_course_lesson"($1, $2) $$;
-revoke execute on function "api"."save_course_lesson"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_course_lesson"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_course_lesson"($1, $2) $$;
+revoke execute on function "api"."upsert_course_lesson"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_course_lesson"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_course_lesson"(lesson_id uuid)
 returns boolean
@@ -5930,7 +5930,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:758aa296a31ae898e9d4e3946874f14bbfa5716404cecb3892d397a92f2687bb
+-- @bsb-hash sha256:9243942fd94b93efe64fb150ec3b37dbf8445c81b38b84e154761a576ed8c522
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6149,7 +6149,7 @@ revoke execute on function "better_supabase"."course_sync"(uuid) from public, an
 -- Creates or changes a course. course is { id?, key, title, summary, status,
 -- certificate, validForMonths, fields }; keys left out keep their value.
 -- validForMonths is how long a certificate stays valid; null never expires.
-create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
+create or replace function "better_supabase"."upsert_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6170,34 +6170,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_course.tenant is not null and coalesce(better_supabase.can('tenant', save_course.tenant, 'courses.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_course.tenant is not null and coalesce(better_supabase.can('tenant', upsert_course.tenant, 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course.course is null or jsonb_typeof(save_course.course) <> 'object' then
+  if upsert_course.course is null or jsonb_typeof(upsert_course.course) <> 'object' then
     raise exception 'course must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course.course ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course.course ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = save_course.tenant for update;
+    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."tenant_id" = upsert_course.tenant for update;
     if v_old."id" is null then
       raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_course.course ->> 'key', v_old."key");
-  v_title := trim(coalesce(save_course.course ->> 'title', v_old."title"));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
-  v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_key := coalesce(upsert_course.course ->> 'key', v_old."key");
+  v_title := trim(coalesce(upsert_course.course ->> 'title', v_old."title"));
+  v_summary := case when upsert_course.course ? 'summary' then nullif(trim(upsert_course.course ->> 'summary'), '') else v_old."summary" end;
+  v_status := coalesce(upsert_course.course ->> 'status', v_old."status", 'draft');
+  v_certificate := case when upsert_course.course ? 'certificate' then (upsert_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
   v_valid_for := v_old."valid_for_months";
-  if save_course.course ? 'validForMonths' then
-    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+  if upsert_course.course ? 'validForMonths' then
+    if jsonb_typeof(upsert_course.course -> 'validForMonths') = 'null' then
       v_valid_for := null;
-    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
-      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
-      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+    elsif jsonb_typeof(upsert_course.course -> 'validForMonths') <> 'number'
+      or (upsert_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (upsert_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
       raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
     else
-      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+      v_valid_for := (upsert_course.course ->> 'validForMonths')::integer;
     end if;
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
@@ -6214,7 +6214,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, better_supabase.as_column_type(v_status, (null::"better_supabase"."courses")."status"), v_certificate, v_valid_for, auth.uid())
+    values (upsert_course.tenant, v_key, v_title, v_summary, better_supabase.as_column_type(v_status, (null::"better_supabase"."courses")."status"), v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -6240,8 +6240,8 @@ begin
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course"(uuid, jsonb) to authenticated, service_role;
 
 -- Archives a course: it takes status archived, which hides it from everyone
 -- without courses.manage, and records course.archived. Enrollments and
@@ -6516,7 +6516,7 @@ grant execute on function "better_supabase"."list_courses"(uuid, jsonb) to authe
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.
-create or replace function "better_supabase"."save_course_module"(course_id uuid, module jsonb)
+create or replace function "better_supabase"."upsert_course_module"(course_id uuid, module jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6535,29 +6535,29 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_module.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_module.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_module.module is null or jsonb_typeof(save_course_module.module) <> 'object' then
+  if upsert_course_module.module is null or jsonb_typeof(upsert_course_module.module) <> 'object' then
     raise exception 'module must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_module.module ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_module.module ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_modules" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
       raise exception 'course module not found' using errcode = 'P0002', hint = 'COURSE_MODULE_NOT_FOUND';
     end if;
   end if;
-  v_title := trim(coalesce(save_course_module.module ->> 'title', v_old."title"));
+  v_title := trim(coalesce(upsert_course_module.module ->> 'title', v_old."title"));
   if v_title is null or length(v_title) not between 1 and 200 then
     raise exception 'title must be 1 to 200 characters' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_modules" x where x."course_id" = v_course."id";
-  v_rank := coalesce(nullif(save_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
+  v_rank := coalesce(nullif(upsert_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -6579,8 +6579,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'title', v_row."title", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_module"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_module"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a module with its lessons; false when it was already gone.
 create or replace function "better_supabase"."delete_course_module"(module_id uuid)
@@ -6616,7 +6616,7 @@ grant execute on function "better_supabase"."delete_course_module"(uuid) to auth
 -- mediaUrl, formId, required, minutes, rank? }; keys left out keep their
 -- value, and a lesson without a rank goes last in its module. A quiz lesson
 -- names the form that grades it.
-create or replace function "better_supabase"."save_course_lesson"(course_id uuid, lesson jsonb)
+create or replace function "better_supabase"."upsert_course_lesson"(course_id uuid, lesson jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6634,17 +6634,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_lesson.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_lesson.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_course."tenant_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_lesson.lesson is null or jsonb_typeof(save_course_lesson.lesson) <> 'object' then
+  if upsert_course_lesson.lesson is null or jsonb_typeof(upsert_course_lesson.lesson) <> 'object' then
     raise exception 'lesson must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_lesson.lesson ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_lesson.lesson ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_lessons" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
@@ -6653,14 +6653,14 @@ begin
   end if;
   select
     v_course."tenant_id" as tenant,
-    coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
-    trim(coalesce(save_course_lesson.lesson ->> 'title', v_old."title")) as title,
-    coalesce(save_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
-    case when save_course_lesson.lesson ? 'body' then nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
-    case when save_course_lesson.lesson ? 'mediaUrl' then nullif(save_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
-    case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
-    case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
-    case when save_course_lesson.lesson ? 'minutes' then (save_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
+    coalesce(nullif(upsert_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
+    trim(coalesce(upsert_course_lesson.lesson ->> 'title', v_old."title")) as title,
+    coalesce(upsert_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
+    case when upsert_course_lesson.lesson ? 'body' then nullif(upsert_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
+    case when upsert_course_lesson.lesson ? 'mediaUrl' then nullif(upsert_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
+    case when upsert_course_lesson.lesson ? 'formId' then nullif(upsert_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
+    case when upsert_course_lesson.lesson ? 'required' then (upsert_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
+    case when upsert_course_lesson.lesson ? 'minutes' then (upsert_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from "better_supabase"."course_modules" x where x."id" = v_new.module and x."course_id" = v_course."id") then
     raise exception 'moduleId: pass a module of this course' using errcode = '22023', hint = 'COURSE_INVALID';
@@ -6687,7 +6687,7 @@ begin
     raise exception 'minutes must be from 1 to 10000' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_lessons" x where x."module_id" = v_new.module and x."id" is distinct from v_old."id";
-  v_last := coalesce(nullif(save_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
+  v_last := coalesce(nullif(upsert_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -6711,8 +6711,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'moduleId', v_row."module_id", 'title', v_row."title", 'kind', v_row."kind", 'body', v_row."body", 'mediaUrl', v_row."media_url", 'formId', v_row."form_id", 'required', v_row."required", 'minutes', v_row."duration_minutes", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a lesson with its progress; false when it was already gone.
 create or replace function "better_supabase"."delete_course_lesson"(lesson_id uuid)
@@ -7312,7 +7312,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:9ee339ef6eed67a04040f2c4fa06c6ebeeebfafe0107aafb29ca4ff0269d54ed
+-- @bsb-hash sha256:76802adf1deed7e93cf7ae80719cd68aca6fd3413d5b1888a30aaa9f5e550291
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7545,7 +7545,7 @@ revoke execute on function "better_supabase"."course_sync"(uuid) from public, an
 -- Creates or changes a course. course is { id?, key, title, summary, status,
 -- certificate, validForMonths, fields }; keys left out keep their value.
 -- validForMonths is how long a certificate stays valid; null never expires.
-create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
+create or replace function "better_supabase"."upsert_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7566,34 +7566,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_course.tenant is not null and coalesce(better_supabase.can('tenant', save_course.tenant, 'courses.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_course.tenant is not null and coalesce(better_supabase.can('tenant', upsert_course.tenant, 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course.course is null or jsonb_typeof(save_course.course) <> 'object' then
+  if upsert_course.course is null or jsonb_typeof(upsert_course.course) <> 'object' then
     raise exception 'course must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course.course ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course.course ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."org_id" = save_course.tenant for update;
+    select * into v_old from "better_supabase"."courses" x where x."id" = v_id and x."org_id" = upsert_course.tenant for update;
     if v_old."id" is null then
       raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_course.course ->> 'key', v_old."key");
-  v_title := trim(coalesce(save_course.course ->> 'title', v_old."title"));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
-  v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_key := coalesce(upsert_course.course ->> 'key', v_old."key");
+  v_title := trim(coalesce(upsert_course.course ->> 'title', v_old."title"));
+  v_summary := case when upsert_course.course ? 'summary' then nullif(trim(upsert_course.course ->> 'summary'), '') else v_old."summary" end;
+  v_status := coalesce(upsert_course.course ->> 'status', v_old."status", 'draft');
+  v_certificate := case when upsert_course.course ? 'certificate' then (upsert_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
   v_valid_for := v_old."valid_for_months";
-  if save_course.course ? 'validForMonths' then
-    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+  if upsert_course.course ? 'validForMonths' then
+    if jsonb_typeof(upsert_course.course -> 'validForMonths') = 'null' then
       v_valid_for := null;
-    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
-      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
-      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+    elsif jsonb_typeof(upsert_course.course -> 'validForMonths') <> 'number'
+      or (upsert_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (upsert_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
       raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
     else
-      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+      v_valid_for := (upsert_course.course ->> 'validForMonths')::integer;
     end if;
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
@@ -7610,7 +7610,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."courses" ("org_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
+    values (upsert_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("org_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -7636,8 +7636,8 @@ begin
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course"(uuid, jsonb) to authenticated, service_role;
 
 -- Archives a course: it takes status archived, which hides it from everyone
 -- without courses.manage, and records course.archived. Enrollments and
@@ -7912,7 +7912,7 @@ grant execute on function "better_supabase"."list_courses"(uuid, jsonb) to authe
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.
-create or replace function "better_supabase"."save_course_module"(course_id uuid, module jsonb)
+create or replace function "better_supabase"."upsert_course_module"(course_id uuid, module jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7931,29 +7931,29 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_module.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_module.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."org_id" is not null and coalesce(better_supabase.can('tenant', v_course."org_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_module.module is null or jsonb_typeof(save_course_module.module) <> 'object' then
+  if upsert_course_module.module is null or jsonb_typeof(upsert_course_module.module) <> 'object' then
     raise exception 'module must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_module.module ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_module.module ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_modules" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
       raise exception 'course module not found' using errcode = 'P0002', hint = 'COURSE_MODULE_NOT_FOUND';
     end if;
   end if;
-  v_title := trim(coalesce(save_course_module.module ->> 'title', v_old."title"));
+  v_title := trim(coalesce(upsert_course_module.module ->> 'title', v_old."title"));
   if v_title is null or length(v_title) not between 1 and 200 then
     raise exception 'title must be 1 to 200 characters' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_modules" x where x."course_id" = v_course."id";
-  v_rank := coalesce(nullif(save_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
+  v_rank := coalesce(nullif(upsert_course_module.module ->> 'rank', ''), coalesce(v_old."rank", case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -7975,8 +7975,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'title', v_row."title", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_module"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_module"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_module"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a module with its lessons; false when it was already gone.
 create or replace function "better_supabase"."delete_course_module"(module_id uuid)
@@ -8012,7 +8012,7 @@ grant execute on function "better_supabase"."delete_course_module"(uuid) to auth
 -- mediaUrl, formId, required, minutes, rank? }; keys left out keep their
 -- value, and a lesson without a rank goes last in its module. A quiz lesson
 -- names the form that grades it.
-create or replace function "better_supabase"."save_course_lesson"(course_id uuid, lesson jsonb)
+create or replace function "better_supabase"."upsert_course_lesson"(course_id uuid, lesson jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -8030,17 +8030,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_course from "better_supabase"."courses" x where x."id" = save_course_lesson.course_id;
+  select * into v_course from "better_supabase"."courses" x where x."id" = upsert_course_lesson.course_id;
   if v_course."id" is null then
     raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_course."org_id" is not null and coalesce(better_supabase.can('tenant', v_course."org_id", 'courses.manage'), false))) then
     raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
-  if save_course_lesson.lesson is null or jsonb_typeof(save_course_lesson.lesson) <> 'object' then
+  if upsert_course_lesson.lesson is null or jsonb_typeof(upsert_course_lesson.lesson) <> 'object' then
     raise exception 'lesson must be an object' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
-  v_id := nullif(save_course_lesson.lesson ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_lesson.lesson ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."course_lessons" x where x."id" = v_id and x."course_id" = v_course."id" for update;
     if v_old."id" is null then
@@ -8049,14 +8049,14 @@ begin
   end if;
   select
     v_course."org_id" as tenant,
-    coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
-    trim(coalesce(save_course_lesson.lesson ->> 'title', v_old."title")) as title,
-    coalesce(save_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
-    case when save_course_lesson.lesson ? 'body' then nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
-    case when save_course_lesson.lesson ? 'mediaUrl' then nullif(save_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
-    case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
-    case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
-    case when save_course_lesson.lesson ? 'minutes' then (save_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
+    coalesce(nullif(upsert_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old."module_id") as module,
+    trim(coalesce(upsert_course_lesson.lesson ->> 'title', v_old."title")) as title,
+    coalesce(upsert_course_lesson.lesson ->> 'kind', v_old."kind", 'content') as kind,
+    case when upsert_course_lesson.lesson ? 'body' then nullif(upsert_course_lesson.lesson -> 'body', 'null'::jsonb) else v_old."body" end as body,
+    case when upsert_course_lesson.lesson ? 'mediaUrl' then nullif(upsert_course_lesson.lesson ->> 'mediaUrl', '') else v_old."media_url" end as media,
+    case when upsert_course_lesson.lesson ? 'formId' then nullif(upsert_course_lesson.lesson ->> 'formId', '')::uuid else v_old."form_id" end as form,
+    case when upsert_course_lesson.lesson ? 'required' then (upsert_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old."required", true) end as required,
+    case when upsert_course_lesson.lesson ? 'minutes' then (upsert_course_lesson.lesson ->> 'minutes')::integer else v_old."duration_minutes" end as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from "better_supabase"."course_modules" x where x."id" = v_new.module and x."course_id" = v_course."id") then
     raise exception 'moduleId: pass a module of this course' using errcode = '22023', hint = 'COURSE_INVALID';
@@ -8083,7 +8083,7 @@ begin
     raise exception 'minutes must be from 1 to 10000' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   select max(x."rank") into v_last from "better_supabase"."course_lessons" x where x."module_id" = v_new.module and x."id" is distinct from v_old."id";
-  v_last := coalesce(nullif(save_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
+  v_last := coalesce(nullif(upsert_course_lesson.lesson ->> 'rank', ''), case when v_old."module_id" = v_new.module then v_old."rank" else case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -8107,8 +8107,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'courseId', v_row."course_id", 'moduleId', v_row."module_id", 'title', v_row."title", 'kind', v_row."kind", 'body', v_row."body", 'mediaUrl', v_row."media_url", 'formId', v_row."form_id", 'required', v_row."required", 'minutes', v_row."duration_minutes", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_course_lesson"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_course_lesson"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a lesson with its progress; false when it was already gone.
 create or replace function "better_supabase"."delete_course_lesson"(lesson_id uuid)

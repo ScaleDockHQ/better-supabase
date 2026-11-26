@@ -554,8 +554,8 @@ ${userGrant(`${fn("delete_calendar")}(uuid)`)}
 -- occurrence of that series and takes the series' uid. Only the service role
 -- may pass an actor other than the caller; a new event's creator and owner are
 -- the actor, else the caller.
-drop function if exists ${fn("save_calendar_event")}(uuid, jsonb);
-create or replace function ${fn("save_calendar_event")}(calendar_id uuid, item jsonb, actor uuid default null)
+drop function if exists ${fn("upsert_calendar_event")}(uuid, jsonb);
+create or replace function ${fn("upsert_calendar_event")}(calendar_id uuid, item jsonb, actor uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -563,24 +563,24 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_calendar_event.item, '{}'::jsonb);
+  v_item jsonb := coalesce(upsert_calendar_event.item, '{}'::jsonb);
   v_tenant ${ctx.idType};
   v_tz text;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
   v_master uuid := nullif(v_item ->> 'recurrenceId', '')::uuid;
   v_uid text := nullif(v_item ->> 'uid', '');
   v_created boolean := false;
-  v_actor uuid := coalesce(save_calendar_event.actor, auth.uid());
+  v_actor uuid := coalesce(upsert_calendar_event.actor, auth.uid());
   v_exdates timestamptz[];${features.rdates ? "\n  v_rdates timestamptz[];" : ""}
 begin
-  select ${k("tenant")}, ${k("tz")} into v_tenant, v_tz from ${calendars} where ${k("id")} = save_calendar_event.calendar_id;
+  select ${k("tenant")}, ${k("tz")} into v_tenant, v_tz from ${calendars} where ${k("id")} = upsert_calendar_event.calendar_id;
   if not found then
     ${fail("CALENDAR_NOT_FOUND", "calendar not found", "P0002")}
   end if;
-  if not ${writesCalendar("save_calendar_event.calendar_id", "v_tenant")} then
+  if not ${writesCalendar("upsert_calendar_event.calendar_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
   end if;
-  if save_calendar_event.actor is not null and save_calendar_event.actor is distinct from auth.uid() and auth.role() <> 'service_role' then
+  if upsert_calendar_event.actor is not null and upsert_calendar_event.actor is distinct from auth.uid() and auth.role() <> 'service_role' then
     ${fail("CALENDAR_FORBIDDEN", "only the service role saves an event as another user")}
   end if;${
     features.access
@@ -620,13 +620,13 @@ ${
     }
   ${ctx.hook("before_calendar_event_save", [
     [ctx.idType, "v_tenant"],
-    ["uuid", "save_calendar_event.calendar_id"],
+    ["uuid", "upsert_calendar_event.calendar_id"],
     ["jsonb", "v_item"],
   ])}
   if v_id is null then
     if v_master is not null then
       select ${e("uid")} into v_uid from ${events}
-        where ${e("id")} = v_master and ${e("calendar")} = save_calendar_event.calendar_id and ${e("recurrence")} is null and ${recurrence.recurring("")};
+        where ${e("id")} = v_master and ${e("calendar")} = upsert_calendar_event.calendar_id and ${e("recurrence")} is null and ${recurrence.recurring("")};
       if not found or v_item ->> 'originalStart' is null then
         ${fail("CALENDAR_EVENT_INVALID", "an override needs a recurring event and an originalStart", "22023")}
       end if;
@@ -637,12 +637,12 @@ ${
     v_id := gen_random_uuid();
     v_uid := coalesce(v_uid, v_id::text);
     insert into ${events} (${e("id")}, ${e("tenant")}, ${e("calendar")}, ${e("uid")}, ${e("recurrence")}, ${e("originalStart")}, ${fields.map(([column]) => column).join(", ")}${ctx.has("events", "createdBy") ? `, ${e("createdBy")}` : ""}${features.access && ctx.has("events", "owner") ? `, ${e("owner")}` : ""}${eventInserted.columns})
-    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, ${fields.map(([, value]) => value).join(", ")}${ctx.has("events", "createdBy") ? ", v_actor" : ""}${features.access && ctx.has("events", "owner") ? ", v_actor" : ""}${eventInserted.values});
+    values (v_id, v_tenant, upsert_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, ${fields.map(([, value]) => value).join(", ")}${ctx.has("events", "createdBy") ? ", v_actor" : ""}${features.access && ctx.has("events", "owner") ? ", v_actor" : ""}${eventInserted.values});
     v_created := true;
   else
     update ${events} set
     ${updateSet(ctx)}${updateExtraColumns(events, eventExtras(ctx), "v_item", "")}
-    where ${e("id")} = v_id and ${e("calendar")} = save_calendar_event.calendar_id
+    where ${e("id")} = v_id and ${e("calendar")} = upsert_calendar_event.calendar_id
     returning ${e("uid")} into v_uid;
     if not found then
       ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
@@ -653,15 +653,15 @@ ${
   end if;
   ${reminderRule(ctx, "save")}
   if v_created then
-    ${record("calendar_event.created", "v_id", "save_calendar_event.calendar_id", "v_tenant")}
+    ${record("calendar_event.created", "v_id", "upsert_calendar_event.calendar_id", "v_tenant")}
   else
-    ${record("calendar_event.updated", "v_id", "save_calendar_event.calendar_id", "v_tenant")}
+    ${record("calendar_event.updated", "v_id", "upsert_calendar_event.calendar_id", "v_tenant")}
   end if;
   ${ctx.hook("after_calendar_event_save", [["uuid", "v_id"]])}
   return jsonb_build_object('id', v_id, 'uid', v_uid, 'created', v_created);
 end;
 $$;
-${userGrant(`${fn("save_calendar_event")}(uuid, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_calendar_event")}(uuid, jsonb, uuid)`)}
 
 create or replace function ${fn("purge_calendar_event")}(event_id uuid)
 returns boolean
@@ -782,7 +782,7 @@ begin
   where ${e("id")} = v_id;`
   }
   ${reminderRule(ctx, "save")}
-  v_new := ${fn("save_calendar_event")}(v_calendar, (coalesce(split_calendar_event.item, '{}'::jsonb) - 'id' - 'recurrenceId' - 'originalStart') || jsonb_build_object(
+  v_new := ${fn("upsert_calendar_event")}(v_calendar, (coalesce(split_calendar_event.item, '{}'::jsonb) - 'id' - 'recurrenceId' - 'originalStart') || jsonb_build_object(
     'uid', v_new_uid,
     'exdates', coalesce((select jsonb_agg(d order by d) from unnest(v_exdates) d where d >= split_calendar_event.split_at), '[]'::jsonb)${
       features.rdates
@@ -845,10 +845,10 @@ begin${
       v_item := v_item || jsonb_build_object('recurrenceId', v_master);
     end if;
     if v_id is null then
-      perform ${fn("save_calendar_event")}(import_calendar_events.calendar_id, v_item - 'id');
+      perform ${fn("upsert_calendar_event")}(import_calendar_events.calendar_id, v_item - 'id');
       v_created := v_created + 1;
     else
-      perform ${fn("save_calendar_event")}(import_calendar_events.calendar_id, (v_item - 'recurrenceId' - 'originalStart') || jsonb_build_object('id', v_id));
+      perform ${fn("upsert_calendar_event")}(import_calendar_events.calendar_id, (v_item - 'recurrenceId' - 'originalStart') || jsonb_build_object('id', v_id));
       v_updated := v_updated + 1;
     end if;
   end loop;

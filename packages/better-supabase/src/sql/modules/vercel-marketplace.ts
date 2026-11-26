@@ -523,7 +523,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function ${fn("remove_marketplace_installation")}(configuration_id text)
+create or replace function ${fn("delete_marketplace_installation")}(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -540,7 +540,7 @@ begin${guard}
     ],
     ", ",
   )}
-  where x.${ic("configurationId")} = remove_marketplace_installation.configuration_id
+  where x.${ic("configurationId")} = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row.${ic("id")} is null then
     return null;
@@ -969,7 +969,7 @@ $$;
 
 ${serviceGrant(`${fn("upsert_marketplace_installation")}(text, text, text, text, jsonb)`)}
 ${serviceGrant(`${fn("marketplace_installation")}(text)`)}
-${serviceGrant(`${fn("remove_marketplace_installation")}(text)`)}
+${serviceGrant(`${fn("delete_marketplace_installation")}(text)`)}
 ${serviceGrant(`${fn("upsert_marketplace_plan")}(text, text, text, jsonb)`)}
 ${serviceGrant(`${fn("upsert_marketplace_resource")}(text, text, text, text, text, jsonb)`)}
 ${serviceGrant(`${fn("record_marketplace_invoice")}(text, text, text, timestamptz, timestamptz, numeric, text, jsonb, timestamptz)`)}
@@ -997,7 +997,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "marketplace_installation", args: ["text"], returns: "jsonb" },
     {
-      name: "remove_marketplace_installation",
+      name: "delete_marketplace_installation",
       args: ["text"],
       returns: "jsonb",
     },

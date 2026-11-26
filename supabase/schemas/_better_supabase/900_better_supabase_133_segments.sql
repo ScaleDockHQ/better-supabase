@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:a3b9e1ca27910c34f73b77537054ee456f268320d54246f4f5881b228eca1f30
+-- @bsb-hash sha256:60ec766b149a0da91cfe5d63608b5d8b8440eab098c534b61557e6523a6e12f8
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,7 +51,7 @@ create policy bsb_segment_members_read on "better_supabase"."segment_members"
 -- fields of the subject type, whose columns name the subject table's columns.
 -- Changing the conditions clears refreshed_at, so refresh_due_segments picks
 -- the segment up.
-create or replace function "better_supabase"."save_segment"(tenant uuid, segment jsonb)
+create or replace function "better_supabase"."upsert_segment"(tenant uuid, segment jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -70,7 +70,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_segment.tenant, 'segments.write'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_segment.tenant, 'segments.write'), false) then
     raise exception 'You need segments.edit to save a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(segment) is distinct from 'object' then
@@ -79,7 +79,7 @@ begin
   v_id := nullif(segment ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."segments" x
-    where x."id" = v_id and x."tenant_id" = save_segment.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_segment.tenant for update;
     if v_old."id" is null then
       raise exception 'No segment in this organization has this id' using errcode = 'P0002', hint = 'SEGMENT_NOT_FOUND';
     end if;
@@ -107,7 +107,7 @@ begin
   perform "better_supabase"."rule_check"(v_conditions, v_fields, 1);
   if v_old."id" is null then
     insert into "better_supabase"."segments" ("tenant_id", "name", "description", "subject_type", "conditions", "created_by")
-    values (save_segment.tenant, v_name, v_description, v_type, v_conditions, auth.uid())
+    values (upsert_segment.tenant, v_name, v_description, v_type, v_conditions, auth.uid())
     returning * into v_row;
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions then
@@ -150,11 +150,11 @@ exception when unique_violation then
   raise exception 'Another segment in this organization has this name' using errcode = '23505', hint = 'SEGMENT_NAME_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_segment"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_segment"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_segment"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_segment"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a segment and its members. Members leave without segment.left.
-create or replace function "better_supabase"."remove_segment"(segment uuid)
+create or replace function "better_supabase"."delete_segment"(segment uuid)
 returns boolean
 language plpgsql
 security definer
@@ -166,7 +166,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."segments" x where x."id" = remove_segment.segment;
+  select * into v_row from "better_supabase"."segments" x where x."id" = delete_segment.segment;
   if v_row."id" is null then
     return false;
   end if;
@@ -187,8 +187,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_segment"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_segment"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_segment"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_segment"(uuid) to authenticated, service_role;
 
 -- The organization's segments, optionally of one subject type, by name.
 create or replace function "better_supabase"."segments_list"(tenant uuid, subject_type text default null)
@@ -1249,23 +1249,23 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_segment"(tenant uuid, segment jsonb)
+create or replace function "api"."upsert_segment"(tenant uuid, segment jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_segment"($1, $2) $$;
-revoke execute on function "api"."save_segment"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_segment"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_segment"($1, $2) $$;
+revoke execute on function "api"."upsert_segment"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_segment"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."remove_segment"(segment uuid)
+create or replace function "api"."delete_segment"(segment uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_segment"($1) $$;
-revoke execute on function "api"."remove_segment"(uuid) from public, anon;
-grant execute on function "api"."remove_segment"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_segment"($1) $$;
+revoke execute on function "api"."delete_segment"(uuid) from public, anon;
+grant execute on function "api"."delete_segment"(uuid) to authenticated, service_role;
 
 create or replace function "api"."segments_list"(tenant uuid, subject_type text default null)
 returns jsonb

@@ -629,7 +629,7 @@ function variantStatusChangeOf(
 }
 
 function productOf(value: unknown): SavedProduct {
-  const row = recordOf(value, "save_product");
+  const row = recordOf(value, "upsert_product");
 
   return {
     id: textOf(row["id"]),
@@ -639,7 +639,7 @@ function productOf(value: unknown): SavedProduct {
 }
 
 function variantOf(value: unknown): SavedVariant {
-  const row = recordOf(value, "save_variant");
+  const row = recordOf(value, "upsert_variant");
   const sku = optionalText(row["sku"]);
 
   return {
@@ -747,7 +747,7 @@ export function createCatalog<
     return AsyncResult.from(() => extraFieldsArg(fields, extra))
       .andThen((more) =>
         call(
-          "save_product",
+          "upsert_product",
           {
             tenant: organizationId,
             product: productId,
@@ -798,7 +798,7 @@ export function createCatalog<
       call("purge_product", { product: productId }, (value) => value === true),
     saveOption: ({ productId, input }) =>
       call(
-        "save_product_option",
+        "upsert_product_option",
         {
           product: productId,
           option: input.id ?? null,
@@ -806,11 +806,11 @@ export function createCatalog<
           option_values: input.values,
         },
         (value) => {
-          const row = recordOf(value, "save_product_option");
+          const row = recordOf(value, "upsert_product_option");
 
           return {
             id: textOf(row["id"]),
-            values: recordsOf(row["values"], "save_product_option").map(
+            values: recordsOf(row["values"], "upsert_product_option").map(
               (entry) => ({
                 id: textOf(entry["id"]),
                 value: textOf(entry["value"]),
@@ -847,9 +847,13 @@ export function createCatalog<
         matrixOf,
       ),
     createVariant: ({ productId, input }) =>
-      call("save_variant", variantArgs(productId, null, input), variantOf),
+      call("upsert_variant", variantArgs(productId, null, input), variantOf),
     updateVariant: ({ productId, variantId, input }) =>
-      call("save_variant", variantArgs(productId, variantId, input), variantOf),
+      call(
+        "upsert_variant",
+        variantArgs(productId, variantId, input),
+        variantOf,
+      ),
     reorderVariant: ({ variantId, rank }) => {
       const key = rankOf(rank);
 
@@ -875,14 +879,14 @@ export function createCatalog<
       call("purge_variant", { variant: variantId }, (value) => value === true),
     savePriceList: ({ organizationId, input }) =>
       call(
-        "save_price_list",
+        "upsert_price_list",
         {
           tenant: organizationId,
           price_list: input.id ?? null,
           name: input.name,
           customer_group: input.customerGroup ?? null,
         },
-        (value) => ({ id: textOf(recordOf(value, "save_price_list")["id"]) }),
+        (value) => ({ id: textOf(recordOf(value, "upsert_price_list")["id"]) }),
       ),
     deletePriceList: (priceListId) =>
       call(
@@ -948,7 +952,7 @@ export function createCatalog<
       ),
     saveCategory: ({ organizationId, input }) =>
       call(
-        "save_category",
+        "upsert_category",
         {
           tenant: organizationId,
           category: input.id ?? null,
@@ -959,7 +963,7 @@ export function createCatalog<
           fields: input.fields,
         },
         (value) => {
-          const row = recordOf(value, "save_category");
+          const row = recordOf(value, "upsert_category");
 
           return {
             id: textOf(row["id"]),
@@ -996,7 +1000,7 @@ export function createCatalog<
       ),
     saveCollection: ({ organizationId, input }) =>
       call(
-        "save_collection",
+        "upsert_collection",
         {
           tenant: organizationId,
           collection: input.id ?? null,
@@ -1006,7 +1010,7 @@ export function createCatalog<
           rule: input.kind === "rule" ? input.rule : null,
         },
         (value) => {
-          const row = recordOf(value, "save_collection");
+          const row = recordOf(value, "upsert_collection");
 
           return {
             id: textOf(row["id"]),
@@ -1051,7 +1055,7 @@ export function createCatalog<
       ),
     saveChannel: ({ organizationId, input }) =>
       call(
-        "save_catalog_channel",
+        "upsert_catalog_channel",
         {
           tenant: organizationId,
           channel: input.id ?? null,
@@ -1062,7 +1066,7 @@ export function createCatalog<
           active: input.active ?? null,
         },
         (value) => {
-          const row = recordOf(value, "save_catalog_channel");
+          const row = recordOf(value, "upsert_catalog_channel");
 
           return {
             id: textOf(row["id"]),
@@ -1139,7 +1143,7 @@ export function createCatalog<
       ),
     addProductMedia: ({ productId, attachmentId, input = {} }) =>
       call(
-        "add_product_media",
+        "create_product_media",
         {
           product: productId,
           attachment: attachmentId,
@@ -1147,7 +1151,7 @@ export function createCatalog<
           alt: input.alt ?? null,
         },
         (value) => {
-          const row = recordOf(value, "add_product_media");
+          const row = recordOf(value, "create_product_media");
 
           return { id: textOf(row["id"]), position: Number(row["position"]) };
         },
@@ -1170,7 +1174,7 @@ export function createCatalog<
       ),
     removeProductMedia: (mediaId) =>
       call(
-        "remove_product_media",
+        "delete_product_media",
         { media: mediaId },
         (value) => value === true,
       ),

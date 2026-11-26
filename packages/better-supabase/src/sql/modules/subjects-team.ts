@@ -375,7 +375,7 @@ export function recordTeamSql(
           .map(
             (subject) => `    when ${sqlString(subject.type)} then
       select s.${subject.tenant!} into v_tenant from ${subject.qualified} s
-      where ${live(subject, "add_subject_member.subject_id")};`,
+      where ${live(subject, "create_subject_member.subject_id")};`,
           )
           .join("\n");
 
@@ -413,10 +413,10 @@ export function recordTeamSql(
     memberships === undefined
       ? ""
       : `
-  if add_subject_member.user_id is not null and not exists (
+  if create_subject_member.user_id is not null and not exists (
     select 1 from ${memberships.table("memberships")} om
     where om.${memberships.col("memberships", "tenant")} = v_tenant
-      and om.${memberships.col("memberships", "user")} = add_subject_member.user_id
+      and om.${memberships.col("memberships", "user")} = create_subject_member.user_id
   ) then
     ${fail("SUBJECT_MEMBER_INVALID", "user is not a member of the record's tenant", "22023")}
   end if;`;
@@ -424,13 +424,13 @@ export function recordTeamSql(
   const teamCheck =
     teams === undefined
       ? `
-  if add_subject_member.team_id is not null then
+  if create_subject_member.team_id is not null then
     ${fail("SUBJECT_MEMBER_INVALID", "a team needs the teams block", "22023")}
   end if;`
       : `
-  if add_subject_member.team_id is not null and not exists (
+  if create_subject_member.team_id is not null and not exists (
     select 1 from ${teams.table("teams")} tt
-    where tt.${teams.col("teams", "id")} = add_subject_member.team_id
+    where tt.${teams.col("teams", "id")} = create_subject_member.team_id
       and tt.${teams.col("teams", "tenant")} = v_tenant
   ) then
     ${fail("SUBJECT_MEMBER_INVALID", "team is not in the record's tenant", "22023")}
@@ -458,7 +458,7 @@ ${renderPolicy(
 -- Puts a user or a team on a record's team, or reopens their membership in
 -- that role with the new dates. Needs subjects.manage in the record's tenant,
 -- or can_subject(..., 'manage') on a type that declares a manage action.
-create or replace function ${fn("add_subject_member")}(subject_type text, subject_id text, user_id uuid default null, team_id ${team} default null, role text default 'member', starts_on date default null, ends_on date default null)
+create or replace function ${fn("create_subject_member")}(subject_type text, subject_id text, user_id uuid default null, team_id ${team} default null, role text default 'member', starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -469,20 +469,20 @@ declare
   v_tenant ${ctx.idType};
   v_row ${t};
 begin
-  if not (add_subject_member.subject_type = any (${types})) then
+  if not (create_subject_member.subject_type = any (${types})) then
     ${fail("SUBJECT_MEMBER_INVALID", "this subject type has no record team (subjects.<type>.team)", "22023")}
   end if;
-  if (add_subject_member.user_id is null) = (add_subject_member.team_id is null) then
+  if (create_subject_member.user_id is null) = (create_subject_member.team_id is null) then
     ${fail("SUBJECT_MEMBER_INVALID", "pass exactly one of user_id and team_id", "22023")}
   end if;
-  if add_subject_member.role is null or not (add_subject_member.role = any (${sqlString(`{${roles.join(",")}}`)}::text[])) then
+  if create_subject_member.role is null or not (create_subject_member.role = any (${sqlString(`{${roles.join(",")}}`)}::text[])) then
     ${fail("SUBJECT_MEMBER_INVALID", `role must be one of ${roles.join(", ")}`, "22023")}
   end if;
-  if add_subject_member.ends_on < add_subject_member.starts_on then
+  if create_subject_member.ends_on < create_subject_member.starts_on then
     ${fail("SUBJECT_MEMBER_INVALID", "ends_on is before starts_on", "22023")}
   end if;
   begin
-    case add_subject_member.subject_type
+    case create_subject_member.subject_type
 ${tenantLookup}
       else
         v_tenant := null;
@@ -494,18 +494,18 @@ ${tenantLookup}
   if v_tenant is null then
     ${fail("SUBJECT_MEMBER_NOT_FOUND", "subject not found", "P0002")}
   end if;
-  if not ${allowed("add_subject_member.subject_type", "add_subject_member.subject_id", "v_tenant")} then
+  if not ${allowed("create_subject_member.subject_type", "create_subject_member.subject_id", "v_tenant")} then
     ${fail("SUBJECT_MEMBER_FORBIDDEN", "not allowed to manage this record's team")}
   end if;${userCheck}${teamCheck}
-  if add_subject_member.user_id is not null then
+  if create_subject_member.user_id is not null then
     insert into ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("user")}, ${c("role")}, ${c("startsOn")}, ${c("endsOn")}, ${c("createdBy")})
-    values (v_tenant, add_subject_member.subject_type, add_subject_member.subject_id, add_subject_member.user_id, add_subject_member.role, add_subject_member.starts_on, add_subject_member.ends_on, auth.uid())
+    values (v_tenant, create_subject_member.subject_type, create_subject_member.subject_id, create_subject_member.user_id, create_subject_member.role, create_subject_member.starts_on, create_subject_member.ends_on, auth.uid())
     on conflict (${c("subjectType")}, ${c("subjectId")}, ${c("user")}, ${c("role")}) where ${c("user")} is not null
     do update set ${c("startsOn")} = excluded.${c("startsOn")}, ${c("endsOn")} = excluded.${c("endsOn")}
     returning * into v_row;
   else
     insert into ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("team")}, ${c("role")}, ${c("startsOn")}, ${c("endsOn")}, ${c("createdBy")})
-    values (v_tenant, add_subject_member.subject_type, add_subject_member.subject_id, add_subject_member.team_id, add_subject_member.role, add_subject_member.starts_on, add_subject_member.ends_on, auth.uid())
+    values (v_tenant, create_subject_member.subject_type, create_subject_member.subject_id, create_subject_member.team_id, create_subject_member.role, create_subject_member.starts_on, create_subject_member.ends_on, auth.uid())
     on conflict (${c("subjectType")}, ${c("subjectId")}, ${c("team")}, ${c("role")}) where ${c("team")} is not null
     do update set ${c("startsOn")} = excluded.${c("startsOn")}, ${c("endsOn")} = excluded.${c("endsOn")}
     returning * into v_row;
@@ -514,10 +514,10 @@ ${tenantLookup}
   return ${memberJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_subject_member")}(text, text, uuid, ${team}, text, date, date)`)}
+${userGrant(`${fn("create_subject_member")}(text, text, uuid, ${team}, text, date, date)`)}
 
 -- Ends a membership: it counts through ends_on (today by default), so access
--- stops the next day. The same callers as add_subject_member.
+-- stops the next day. The same callers as create_subject_member.
 create or replace function ${fn("end_subject_member")}(member_id uuid, ends_on date default current_date)
 returns jsonb
 language plpgsql
@@ -783,7 +783,7 @@ export function recordTeamContract(
       returns: "boolean",
     },
     {
-      name: "add_subject_member",
+      name: "create_subject_member",
       args: ["text", "text", "uuid", team, "text", "date", "date"],
       returns: "jsonb",
     },

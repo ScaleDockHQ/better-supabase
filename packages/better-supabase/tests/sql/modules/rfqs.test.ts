@@ -37,13 +37,13 @@ describe("rfqs module", () => {
 
   it("refuses to create a purchase order without the inventory block", () => {
     expect(sqlOf()).toContain("needs the inventory block");
-    expect(sqlOf()).not.toContain("save_purchase_order");
+    expect(sqlOf()).not.toContain("upsert_purchase_order");
   });
 
   it("creates the purchase order through inventory when it is installed", () => {
     const sql = sqlOf([...BASE, "inventory"]);
 
-    expect(sql).toContain("save_purchase_order");
+    expect(sql).toContain("upsert_purchase_order");
     expect(sql).toContain("every line needs a variantId");
   });
 

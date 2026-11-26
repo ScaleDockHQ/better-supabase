@@ -1,6 +1,6 @@
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:fd7fcef58a0b28471086ba5410aa109f0a73c69fa85496c843e269220fe3607b
+-- @bsb-hash sha256:96ceacb0fc948c45851171342cd83c3eaae53232594b204e8ee6b96ca1b9f23c
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,7 +112,7 @@ create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_red
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
 
-create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "better_supabase"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -120,8 +120,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant uuid := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant uuid := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -133,7 +133,7 @@ begin
   end if;
   if v_id is not null then
     select x."tenant_id" into v_tenant from "better_supabase"."promotions" x where x."id" = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       raise exception 'promotion not found' using errcode = 'P0002', hint = 'PROMOTIONS_NOT_FOUND';
     end if;
   end if;
@@ -241,8 +241,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.
@@ -842,14 +842,14 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "api"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_promotion"($1, $2, $3) $$;
-revoke execute on function "api"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_promotion"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_promotion_active"(promotion uuid, active boolean)
 returns boolean

@@ -704,7 +704,7 @@ export function createDispatch<
       ),
     removePart: (partId) =>
       call(
-        "remove_work_order_part",
+        "delete_work_order_part",
         { part_id: partId },
         (value) => value === true,
       ),

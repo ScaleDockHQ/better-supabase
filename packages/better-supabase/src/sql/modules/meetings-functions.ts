@@ -472,7 +472,7 @@ $$;
 ${userGrant(`${fn("set_meeting_attendee")}(uuid, uuid, text, text)`)}
 
 -- Removes a user from a meeting.
-create or replace function ${fn("remove_meeting_attendee")}(meeting_id uuid, user_id uuid)
+create or replace function ${fn("delete_meeting_attendee")}(meeting_id uuid, user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -483,12 +483,12 @@ declare
   v_row ${meetings};
   v_attendee ${attendees};
 begin
-  ${load(q, "remove_meeting_attendee", "meeting_id")}
+  ${load(q, "delete_meeting_attendee", "meeting_id")}
   if not ${q.runs("v_row")} then
     ${q.forbidden("not allowed to change who attends this meeting")}
   end if;
   delete from ${attendees} x
-  where x.${a("meeting")} = v_row.${m("id")} and x.${a("user")} = remove_meeting_attendee.user_id
+  where x.${a("meeting")} = v_row.${m("id")} and x.${a("user")} = delete_meeting_attendee.user_id
   returning * into v_attendee;
   if not found then
     ${fail("MEETING_ATTENDEE_NOT_FOUND", "that user is not an attendee", "P0002")}
@@ -496,7 +496,7 @@ begin
   return ${attendeeJson("v_attendee")};
 end;
 $$;
-${userGrant(`${fn("remove_meeting_attendee")}(uuid, uuid)`)}
+${userGrant(`${fn("delete_meeting_attendee")}(uuid, uuid)`)}
 `;
 }
 
@@ -509,7 +509,7 @@ function agendaFunctions(ctx: BlockSqlContext, q: MeetingsSql): string {
 -- Adds an agenda item, or with item.id changes one. item is { id, title,
 -- notes, presenterId, minutes, status, outcome, ordinal }. Without an ordinal
 -- a new item goes last; with one, the items from there move down.
-create or replace function ${fn("save_meeting_agenda_item")}(meeting_id uuid, item jsonb)
+create or replace function ${fn("upsert_meeting_agenda_item")}(meeting_id uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -523,42 +523,42 @@ declare
   v_ordinal integer;
   v_status text;
 begin
-  ${load(q, "save_meeting_agenda_item", "meeting_id")}
+  ${load(q, "upsert_meeting_agenda_item", "meeting_id")}
   if not ${q.runs("v_row")} then
     ${q.forbidden("not allowed to change this agenda")}
   end if;
   if v_row.${m("status")} = 'cancelled' then
     ${q.invalid("a cancelled meeting takes no changes")}
   end if;
-  if jsonb_typeof(save_meeting_agenda_item.item) is distinct from 'object' then
+  if jsonb_typeof(upsert_meeting_agenda_item.item) is distinct from 'object' then
     ${q.invalid("item must be an object")}
   end if;
   begin
-    v_id := nullif(save_meeting_agenda_item.item ->> 'id', '')::uuid;
-    v_ordinal := (save_meeting_agenda_item.item ->> 'ordinal')::integer;
+    v_id := nullif(upsert_meeting_agenda_item.item ->> 'id', '')::uuid;
+    v_ordinal := (upsert_meeting_agenda_item.item ->> 'ordinal')::integer;
   exception when invalid_text_representation then
     ${q.invalid("id is a uuid and ordinal an integer")}
   end;
-  v_status := save_meeting_agenda_item.item ->> 'status';
+  v_status := upsert_meeting_agenda_item.item ->> 'status';
   if v_status is not null and v_status not in (${quoted(MEETING_AGENDA_STATUSES)}) then
     ${q.invalid("status is open, covered or skipped")}
   end if;
   if v_ordinal is not null and v_ordinal < 1 then
     ${q.invalid("ordinal starts at 1")}
   end if;
-  if length(save_meeting_agenda_item.item ->> 'minutes') > 50000 then
+  if length(upsert_meeting_agenda_item.item ->> 'minutes') > 50000 then
     ${q.invalid("minutes is at most 50000 characters")}
   end if;
   if v_id is null then
-    if coalesce(length(trim(save_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
+    if coalesce(length(trim(upsert_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
       ${q.invalid("an agenda item needs a title of 1 to 300 characters")}
     end if;
     v_ordinal := coalesce(v_ordinal, (select coalesce(max(y.${g("ordinal")}), 0) + 1 from ${agenda} y where y.${g("meeting")} = v_row.${m("id")}));
     update ${agenda} y set ${g("ordinal")} = y.${g("ordinal")} + 1
     where y.${g("meeting")} = v_row.${m("id")} and y.${g("ordinal")} >= v_ordinal;
     insert into ${agenda} (${g("tenant")}, ${g("meeting")}, ${g("ordinal")}, ${g("title")}${hasNotes ? `, ${g("notes")}` : ""}, ${g("presenter")}, ${g("minutes")}, ${g("status")}${hasOutcome ? `, ${g("outcome")}` : ""})
-    values (v_row.${m("tenant")}, v_row.${m("id")}, v_ordinal, trim(save_meeting_agenda_item.item ->> 'title')${hasNotes ? ", nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '')" : ""},
-      nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(save_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open')${hasOutcome ? ", nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '')" : ""})
+    values (v_row.${m("tenant")}, v_row.${m("id")}, v_ordinal, trim(upsert_meeting_agenda_item.item ->> 'title')${hasNotes ? ", nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '')" : ""},
+      nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(upsert_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open')${hasOutcome ? ", nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '')" : ""})
     returning * into v_item;
   else
     select * into v_item from ${agenda} y where y.${g("id")} = v_id and y.${g("meeting")} = v_row.${m("id")} for update;
@@ -571,10 +571,10 @@ begin
     end if;
     update ${agenda} y set
       ${g("ordinal")} = coalesce(v_ordinal, y.${g("ordinal")}),
-      ${g("title")} = case when save_meeting_agenda_item.item ? 'title' then trim(save_meeting_agenda_item.item ->> 'title') else y.${g("title")} end,${hasNotes ? `\n      ${g("notes")} = case when save_meeting_agenda_item.item ? 'notes' then nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '') else y.${g("notes")} end,` : ""}
-      ${g("presenter")} = case when save_meeting_agenda_item.item ? 'presenterId' then nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y.${g("presenter")} end,
-      ${g("minutes")} = case when save_meeting_agenda_item.item ? 'minutes' then nullif(save_meeting_agenda_item.item ->> 'minutes', '') else y.${g("minutes")} end,
-      ${g("status")} = coalesce(v_status, y.${g("status")})${hasOutcome ? `,\n      ${g("outcome")} = case when save_meeting_agenda_item.item ? 'outcome' then nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '') else y.${g("outcome")} end` : ""}
+      ${g("title")} = case when upsert_meeting_agenda_item.item ? 'title' then trim(upsert_meeting_agenda_item.item ->> 'title') else y.${g("title")} end,${hasNotes ? `\n      ${g("notes")} = case when upsert_meeting_agenda_item.item ? 'notes' then nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '') else y.${g("notes")} end,` : ""}
+      ${g("presenter")} = case when upsert_meeting_agenda_item.item ? 'presenterId' then nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y.${g("presenter")} end,
+      ${g("minutes")} = case when upsert_meeting_agenda_item.item ? 'minutes' then nullif(upsert_meeting_agenda_item.item ->> 'minutes', '') else y.${g("minutes")} end,
+      ${g("status")} = coalesce(v_status, y.${g("status")})${hasOutcome ? `,\n      ${g("outcome")} = case when upsert_meeting_agenda_item.item ? 'outcome' then nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '') else y.${g("outcome")} end` : ""}
     where y.${g("id")} = v_item.${g("id")}
     returning * into v_item;
   end if;
@@ -585,7 +585,7 @@ begin
   return ${agendaJson("v_item")};
 end;
 $$;
-${userGrant(`${fn("save_meeting_agenda_item")}(uuid, jsonb)`)}
+${userGrant(`${fn("upsert_meeting_agenda_item")}(uuid, jsonb)`)}
 
 -- Removes an agenda item and closes the gap in the numbering. Decisions and
 -- tasks that named it keep existing without it.
@@ -767,7 +767,7 @@ function actionFunctions(ctx: BlockSqlContext, q: MeetingsSql): string {
 -- Opens a task from a meeting. task and assignees are what create_task takes;
 -- the task keeps living in the tasks block, and this only records where it
 -- came from, with the agenda item and the decision it follows from.
-create or replace function ${fn("add_meeting_action_item")}(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function ${fn("create_meeting_action_item")}(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -778,23 +778,23 @@ declare
   v_row ${meetings};
   v_task jsonb;
 begin
-  ${load(q, "add_meeting_action_item", "meeting_id")}
+  ${load(q, "create_meeting_action_item", "meeting_id")}
   if not ${q.runs("v_row")} then
     ${q.forbidden("not allowed to add action items to this meeting")}
   end if;
-  if add_meeting_action_item.agenda_item_id is not null and not exists (
-    select 1 from ${agenda} y where y.${g("id")} = add_meeting_action_item.agenda_item_id and y.${g("meeting")} = v_row.${m("id")}
+  if create_meeting_action_item.agenda_item_id is not null and not exists (
+    select 1 from ${agenda} y where y.${g("id")} = create_meeting_action_item.agenda_item_id and y.${g("meeting")} = v_row.${m("id")}
   ) then
     ${q.invalid("the agenda item belongs to another meeting")}
   end if;
-  if add_meeting_action_item.decision_id is not null and not exists (
-    select 1 from ${decisions} y where y.${d("id")} = add_meeting_action_item.decision_id and y.${d("meeting")} = v_row.${m("id")}
+  if create_meeting_action_item.decision_id is not null and not exists (
+    select 1 from ${decisions} y where y.${d("id")} = create_meeting_action_item.decision_id and y.${d("meeting")} = v_row.${m("id")}
   ) then
     ${q.invalid("the decision belongs to another meeting")}
   end if;
-  v_task := ${tasks.fn("create_task")}(v_row.${m("tenant")}, add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
+  v_task := ${tasks.fn("create_task")}(v_row.${m("tenant")}, create_meeting_action_item.task, coalesce(create_meeting_action_item.assignees, '{}'));
   insert into ${actions} (${x("task")}, ${x("tenant")}, ${x("meeting")}, ${x("agendaItem")}, ${x("decision")})
-  values ((v_task ->> 'id')::uuid, v_row.${m("tenant")}, v_row.${m("id")}, add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
+  values ((v_task ->> 'id')::uuid, v_row.${m("tenant")}, v_row.${m("id")}, create_meeting_action_item.agenda_item_id, create_meeting_action_item.decision_id);
   ${ctx.record({
     type: "meeting_action_item.created",
     payload: `jsonb_build_object('organizationId', v_row.${m("tenant")}, 'meetingId', v_row.${m("id")}, 'taskId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title')`,
@@ -802,10 +802,10 @@ begin
     tenant: `v_row.${m("tenant")}`,
     audit: false,
   })}
-  return v_task || jsonb_build_object('meetingId', v_row.${m("id")}, 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
+  return v_task || jsonb_build_object('meetingId', v_row.${m("id")}, 'agendaItemId', create_meeting_action_item.agenda_item_id, 'decisionId', create_meeting_action_item.decision_id);
 end;
 $$;
-${userGrant(`${fn("add_meeting_action_item")}(uuid, jsonb, uuid[], uuid, uuid)`)}
+${userGrant(`${fn("create_meeting_action_item")}(uuid, jsonb, uuid[], uuid, uuid)`)}
 `;
 }
 

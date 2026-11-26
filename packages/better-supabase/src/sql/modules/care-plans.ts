@@ -453,7 +453,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "create_care_plan", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "update_care_plan", args: ["uuid", "jsonb"], returns: "jsonb" },
     {
-      name: "add_care_plan_problem",
+      name: "create_care_plan_problem",
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
@@ -462,13 +462,21 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
-    { name: "add_care_plan_goal", args: ["uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "create_care_plan_goal",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "update_care_plan_goal",
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
-    { name: "add_care_plan_action", args: ["uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "create_care_plan_action",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "update_care_plan_action",
       args: ["uuid", "jsonb"],

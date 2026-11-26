@@ -6,6 +6,7 @@ import type {
 } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
+import { SQL_FUNCTION_RENAMES } from "./function-renames.ts";
 import { moduleContextSource } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { rerunnableDdl } from "./pipeline/static.ts";
@@ -164,10 +165,22 @@ export function upgradePlan(
 export function moduleDeprecations(
   modules: Readonly<Record<string, BlockSql>> = SQL_MODULES,
 ): readonly (BlockSqlDeprecation & { readonly module: string })[] {
-  return Object.values(modules).flatMap((module) =>
-    (module.deprecated ?? []).map((entry) => ({
-      ...entry,
-      module: module.name,
+  const renamed = SQL_FUNCTION_RENAMES.filter(([module]) => module in modules);
+
+  return [
+    ...Object.values(modules).flatMap((module) =>
+      (module.deprecated ?? []).map((entry) => ({
+        ...entry,
+        module: module.name,
+      })),
+    ),
+    ...renamed.map(([module, from, to]) => ({
+      kind: "function" as const,
+      symbol: `better_supabase.${from}`,
+      use: `better_supabase.${to}`,
+      since: "0.88.0",
+      removed: "0.88.0",
+      module,
     })),
-  );
+  ];
 }

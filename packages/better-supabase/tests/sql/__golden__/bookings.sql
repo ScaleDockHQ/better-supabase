@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:fbb78ec44fdd5baca831cf2fa71c4b5058eb2fdcc39d00a67982939b6c404ceb
+-- @bsb-hash sha256:8358c2398c777d262ebc4175f0906e967c388c16ae9698a0bc5b19923c4920f3
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,7 +126,7 @@ create policy bsb_bookings_read on "better_supabase"."bookings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid()));
 
-create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -134,8 +134,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_resource.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_resource.tenant;
+  v_item jsonb := coalesce(upsert_booking_resource.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -161,8 +161,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a resource's weekly hours with source.hours: { weekday (1 is
 -- Monday), start, end } in the resource's time zone.
@@ -200,7 +200,7 @@ grant execute on function "better_supabase"."set_booking_availability"(uuid, jso
 
 -- Closes a resource for a range (a holiday, a meeting), or opens it outside
 -- its weekly hours with available = true.
-create or replace function "better_supabase"."add_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function "better_supabase"."create_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language plpgsql
 security definer
@@ -214,24 +214,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = add_booking_exception.resource;
+  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = create_booking_exception.resource;
   if not found then
     raise exception 'resource not found' using errcode = 'P0002', hint = 'BOOKING_RESOURCE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.manage'), false)) then
     raise exception 'not allowed to manage bookings' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
-  if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
+  if create_booking_exception.ends_at is null or create_booking_exception.starts_at is null or create_booking_exception.ends_at <= create_booking_exception.starts_at then
     raise exception 'an exception needs a start before its end' using errcode = '22023', hint = 'BOOKING_RANGE_INVALID';
   end if;
   insert into "better_supabase"."booking_exceptions" ("tenant_id", "resource_id", "during", "available", "reason")
-  values (v_tenant, add_booking_exception.resource, tstzrange(add_booking_exception.starts_at, add_booking_exception.ends_at), coalesce(add_booking_exception.available, false), add_booking_exception.reason)
+  values (v_tenant, create_booking_exception.resource, tstzrange(create_booking_exception.starts_at, create_booking_exception.ends_at), coalesce(create_booking_exception.available, false), create_booking_exception.reason)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
-grant execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
+grant execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_booking_exception"(exception_id uuid)
 returns boolean
@@ -260,7 +260,7 @@ $$;
 revoke execute on function "better_supabase"."delete_booking_exception"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_booking_exception"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."save_booking_service"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_service"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -268,8 +268,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_service.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_service.tenant;
+  v_item jsonb := coalesce(upsert_booking_service.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -292,8 +292,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_service"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_service"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) to authenticated, service_role;
 
 -- The open slots of a service in [range_start, range_end): for each resource
 -- of the service's kinds, its weekly hours in its own time zone, plus the
@@ -1261,7 +1261,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:94834a6d2e2e8c3d3541409a892d7bbd3f6d8c59e5f11f4066185602b1a42cd7
+-- @bsb-hash sha256:860b242c7622d529e83b03f30fd987713fde827081ab3d0af24319138c7fd959
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1386,7 +1386,7 @@ create policy bsb_bookings_read on "better_supabase"."bookings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid())) or (("tenant_id")::text, ('booking')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g));
 
-create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1394,8 +1394,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_resource.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_resource.tenant;
+  v_item jsonb := coalesce(upsert_booking_resource.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1421,8 +1421,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a resource's weekly hours with source.hours: { weekday (1 is
 -- Monday), start, end } in the resource's time zone.
@@ -1460,7 +1460,7 @@ grant execute on function "better_supabase"."set_booking_availability"(uuid, jso
 
 -- Closes a resource for a range (a holiday, a meeting), or opens it outside
 -- its weekly hours with available = true.
-create or replace function "better_supabase"."add_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function "better_supabase"."create_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language plpgsql
 security definer
@@ -1474,24 +1474,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = add_booking_exception.resource;
+  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = create_booking_exception.resource;
   if not found then
     raise exception 'resource not found' using errcode = 'P0002', hint = 'BOOKING_RESOURCE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.manage'), false)) then
     raise exception 'not allowed to manage bookings' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
-  if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
+  if create_booking_exception.ends_at is null or create_booking_exception.starts_at is null or create_booking_exception.ends_at <= create_booking_exception.starts_at then
     raise exception 'an exception needs a start before its end' using errcode = '22023', hint = 'BOOKING_RANGE_INVALID';
   end if;
   insert into "better_supabase"."booking_exceptions" ("tenant_id", "resource_id", "during", "available", "reason")
-  values (v_tenant, add_booking_exception.resource, tstzrange(add_booking_exception.starts_at, add_booking_exception.ends_at), coalesce(add_booking_exception.available, false), add_booking_exception.reason)
+  values (v_tenant, create_booking_exception.resource, tstzrange(create_booking_exception.starts_at, create_booking_exception.ends_at), coalesce(create_booking_exception.available, false), create_booking_exception.reason)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
-grant execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
+grant execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_booking_exception"(exception_id uuid)
 returns boolean
@@ -1520,7 +1520,7 @@ $$;
 revoke execute on function "better_supabase"."delete_booking_exception"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_booking_exception"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."save_booking_service"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_service"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1528,8 +1528,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_service.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_service.tenant;
+  v_item jsonb := coalesce(upsert_booking_service.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1552,8 +1552,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_service"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_service"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) to authenticated, service_role;
 
 -- The open slots of a service in [range_start, range_end): for each resource
 -- of the service's kinds, its weekly hours in its own time zone, plus the
@@ -2682,7 +2682,7 @@ declare
 begin
   select s."tenant_id" into v_tenant from "better_supabase"."booking_services" s where s."id" = book_with_reminder.service;
   v_booking := "better_supabase"."hold_booking"(book_with_reminder.service, book_with_reminder.resource, book_with_reminder.starts_at, book_with_reminder.customer, true);
-  v_reminder := "better_supabase"."save_reminder"(
+  v_reminder := "better_supabase"."upsert_reminder"(
     tenant => v_tenant,
     subject_type => 'booking',
     subject_id => v_booking ->> 'id',
@@ -2800,7 +2800,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:2edbe2ecd94dc6b1399e99b6aceae61dd41d2a95a1dfd6f4b5dad6075cb04377
+-- @bsb-hash sha256:753f801028ae8b40634bbd0cfb4a03844e4edac6fc91937a93030504fc6c22ea
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2930,7 +2930,7 @@ create policy bsb_bookings_read on "app_private"."bookings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid()));
 
-create or replace function "app_private"."save_booking_resource"(tenant uuid, item jsonb)
+create or replace function "app_private"."upsert_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2938,8 +2938,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_resource.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_resource.tenant;
+  v_item jsonb := coalesce(upsert_booking_resource.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -2965,8 +2965,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_booking_resource"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_booking_resource"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_booking_resource"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_booking_resource"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a resource's weekly hours with source.hours: { weekday (1 is
 -- Monday), start, end } in the resource's time zone.
@@ -3004,7 +3004,7 @@ grant execute on function "app_private"."set_booking_availability"(uuid, jsonb) 
 
 -- Closes a resource for a range (a holiday, a meeting), or opens it outside
 -- its weekly hours with available = true.
-create or replace function "app_private"."add_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function "app_private"."create_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language plpgsql
 security definer
@@ -3018,24 +3018,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "app_private"."booking_resources" where "id" = add_booking_exception.resource;
+  select "tenant_id" into v_tenant from "app_private"."booking_resources" where "id" = create_booking_exception.resource;
   if not found then
     raise exception 'resource not found' using errcode = 'P0002', hint = 'BOOKING_RESOURCE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.manage'), false)) then
     raise exception 'not allowed to manage bookings' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
-  if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
+  if create_booking_exception.ends_at is null or create_booking_exception.starts_at is null or create_booking_exception.ends_at <= create_booking_exception.starts_at then
     raise exception 'an exception needs a start before its end' using errcode = '22023', hint = 'BOOKING_RANGE_INVALID';
   end if;
   insert into "app_private"."booking_exceptions" ("tenant_id", "resource_id", "during", "available", "reason")
-  values (v_tenant, add_booking_exception.resource, tstzrange(add_booking_exception.starts_at, add_booking_exception.ends_at), coalesce(add_booking_exception.available, false), add_booking_exception.reason)
+  values (v_tenant, create_booking_exception.resource, tstzrange(create_booking_exception.starts_at, create_booking_exception.ends_at), coalesce(create_booking_exception.available, false), create_booking_exception.reason)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
-grant execute on function "app_private"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
+revoke execute on function "app_private"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
+grant execute on function "app_private"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
 
 create or replace function "app_private"."delete_booking_exception"(exception_id uuid)
 returns boolean
@@ -3064,7 +3064,7 @@ $$;
 revoke execute on function "app_private"."delete_booking_exception"(uuid) from public, anon;
 grant execute on function "app_private"."delete_booking_exception"(uuid) to authenticated, service_role;
 
-create or replace function "app_private"."save_booking_service"(tenant uuid, item jsonb)
+create or replace function "app_private"."upsert_booking_service"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3072,8 +3072,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_service.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_service.tenant;
+  v_item jsonb := coalesce(upsert_booking_service.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3096,8 +3096,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_booking_service"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_booking_service"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_booking_service"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_booking_service"(uuid, jsonb) to authenticated, service_role;
 
 -- The open slots of a service in [range_start, range_end): for each resource
 -- of the service's kinds, its weekly hours in its own time zone, plus the
@@ -4065,7 +4065,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:bfd118efd323c952bfded6871c20fd024aac08e5d6454a41a201d90184e1287d
+-- @bsb-hash sha256:56f3d0c798ecdc5cc609d0b4565144af854db72c4950aa9e66890c4ac23fddf8
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4190,7 +4190,7 @@ create policy bsb_bookings_read on "better_supabase"."bookings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid()));
 
-create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4198,8 +4198,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_resource.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_resource.tenant;
+  v_item jsonb := coalesce(upsert_booking_resource.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -4225,8 +4225,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a resource's weekly hours with source.hours: { weekday (1 is
 -- Monday), start, end } in the resource's time zone.
@@ -4264,7 +4264,7 @@ grant execute on function "better_supabase"."set_booking_availability"(uuid, jso
 
 -- Closes a resource for a range (a holiday, a meeting), or opens it outside
 -- its weekly hours with available = true.
-create or replace function "better_supabase"."add_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function "better_supabase"."create_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language plpgsql
 security definer
@@ -4278,24 +4278,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = add_booking_exception.resource;
+  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = create_booking_exception.resource;
   if not found then
     raise exception 'resource not found' using errcode = 'P0002', hint = 'BOOKING_RESOURCE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.manage'), false)) then
     raise exception 'not allowed to manage bookings' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
-  if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
+  if create_booking_exception.ends_at is null or create_booking_exception.starts_at is null or create_booking_exception.ends_at <= create_booking_exception.starts_at then
     raise exception 'an exception needs a start before its end' using errcode = '22023', hint = 'BOOKING_RANGE_INVALID';
   end if;
   insert into "better_supabase"."booking_exceptions" ("tenant_id", "resource_id", "during", "available", "reason")
-  values (v_tenant, add_booking_exception.resource, tstzrange(add_booking_exception.starts_at, add_booking_exception.ends_at), coalesce(add_booking_exception.available, false), add_booking_exception.reason)
+  values (v_tenant, create_booking_exception.resource, tstzrange(create_booking_exception.starts_at, create_booking_exception.ends_at), coalesce(create_booking_exception.available, false), create_booking_exception.reason)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
-grant execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
+grant execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_booking_exception"(exception_id uuid)
 returns boolean
@@ -4324,7 +4324,7 @@ $$;
 revoke execute on function "better_supabase"."delete_booking_exception"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_booking_exception"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."save_booking_service"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_service"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4332,8 +4332,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_service.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_service.tenant;
+  v_item jsonb := coalesce(upsert_booking_service.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -4356,8 +4356,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_service"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_service"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) to authenticated, service_role;
 
 -- The open slots of a service in [range_start, range_end): for each resource
 -- of the service's kinds, its weekly hours in its own time zone, plus the
@@ -5310,14 +5310,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restric
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_booking_resource"(tenant uuid, item jsonb)
+create or replace function "api"."upsert_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_booking_resource"($1, $2) $$;
-revoke execute on function "api"."save_booking_resource"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_booking_resource"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_booking_resource"($1, $2) $$;
+revoke execute on function "api"."upsert_booking_resource"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_booking_resource"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_booking_availability"(resource uuid, source jsonb)
 returns integer
@@ -5328,14 +5328,14 @@ as $$ select "better_supabase"."set_booking_availability"($1, $2) $$;
 revoke execute on function "api"."set_booking_availability"(uuid, jsonb) from public, anon;
 grant execute on function "api"."set_booking_availability"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."add_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function "api"."create_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_booking_exception"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
-grant execute on function "api"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_booking_exception"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
+grant execute on function "api"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
 
 create or replace function "api"."delete_booking_exception"(exception_id uuid)
 returns boolean
@@ -5346,14 +5346,14 @@ as $$ select "better_supabase"."delete_booking_exception"($1) $$;
 revoke execute on function "api"."delete_booking_exception"(uuid) from public, anon;
 grant execute on function "api"."delete_booking_exception"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_booking_service"(tenant uuid, item jsonb)
+create or replace function "api"."upsert_booking_service"(tenant uuid, item jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_booking_service"($1, $2) $$;
-revoke execute on function "api"."save_booking_service"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_booking_service"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_booking_service"($1, $2) $$;
+revoke execute on function "api"."upsert_booking_service"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_booking_service"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."booking_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text, only_resource uuid)
 returns table (resource_id uuid, starts_at timestamptz, ends_at timestamptz, local_start timestamp, seats integer)
@@ -5535,7 +5535,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:9ae94a852b3abef56d6ff9e09d5600e2eb49f93349b8cdb4c7d6a8aaef0dae53
+-- @bsb-hash sha256:eef1e511e2e4d6a0580e58fc57a85500398999c9ce39f8eaf102edc70bc33ddf
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5644,7 +5644,7 @@ create policy bsb_bookings_select on "better_supabase"."bookings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid()));
 
-create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5652,8 +5652,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_resource.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_resource.tenant;
+  v_item jsonb := coalesce(upsert_booking_resource.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -5679,8 +5679,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a resource's weekly hours with source.hours: { weekday (1 is
 -- Monday), start, end } in the resource's time zone.
@@ -5718,7 +5718,7 @@ grant execute on function "better_supabase"."set_booking_availability"(uuid, jso
 
 -- Closes a resource for a range (a holiday, a meeting), or opens it outside
 -- its weekly hours with available = true.
-create or replace function "better_supabase"."add_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function "better_supabase"."create_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language plpgsql
 security definer
@@ -5732,24 +5732,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = add_booking_exception.resource;
+  select "tenant_id" into v_tenant from "better_supabase"."booking_resources" where "id" = create_booking_exception.resource;
   if not found then
     raise exception 'resource not found' using errcode = 'P0002', hint = 'BOOKING_RESOURCE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.manage'), false)) then
     raise exception 'not allowed to manage bookings' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
-  if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
+  if create_booking_exception.ends_at is null or create_booking_exception.starts_at is null or create_booking_exception.ends_at <= create_booking_exception.starts_at then
     raise exception 'an exception needs a start before its end' using errcode = '22023', hint = 'BOOKING_RANGE_INVALID';
   end if;
   insert into "better_supabase"."booking_exceptions" ("tenant_id", "resource_id", "during", "available", "reason")
-  values (v_tenant, add_booking_exception.resource, tstzrange(add_booking_exception.starts_at, add_booking_exception.ends_at), coalesce(add_booking_exception.available, false), add_booking_exception.reason)
+  values (v_tenant, create_booking_exception.resource, tstzrange(create_booking_exception.starts_at, create_booking_exception.ends_at), coalesce(create_booking_exception.available, false), create_booking_exception.reason)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
-grant execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
+grant execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_booking_exception"(exception_id uuid)
 returns boolean
@@ -5778,7 +5778,7 @@ $$;
 revoke execute on function "better_supabase"."delete_booking_exception"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_booking_exception"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."save_booking_service"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_service"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5786,8 +5786,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_service.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_service.tenant;
+  v_item jsonb := coalesce(upsert_booking_service.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -5810,8 +5810,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_service"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_service"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) to authenticated, service_role;
 
 -- The open slots of a service in [range_start, range_end): for each resource
 -- of the service's kinds, its weekly hours in its own time zone, plus the
@@ -6779,7 +6779,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:0454fc9fa0d708c4d06d80864975e7f1b49477fc98a14d57f462fb2468ff161f
+-- @bsb-hash sha256:837bf7e006e078ad747ac68041365d79acb917f5d98b32b872b14183fb38d1c9
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6904,7 +6904,7 @@ create policy bsb_bookings_read on "better_supabase"."bookings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_id" = (select auth.uid()));
 
-create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6912,8 +6912,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_resource.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_resource.tenant;
+  v_item jsonb := coalesce(upsert_booking_resource.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_resource.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -6939,8 +6939,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_resource"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_resource"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a resource's weekly hours with source.hours: { weekday (1 is
 -- Monday), start, end } in the resource's time zone.
@@ -6978,7 +6978,7 @@ grant execute on function "better_supabase"."set_booking_availability"(uuid, jso
 
 -- Closes a resource for a range (a holiday, a meeting), or opens it outside
 -- its weekly hours with available = true.
-create or replace function "better_supabase"."add_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
+create or replace function "better_supabase"."create_booking_exception"(resource uuid, starts_at timestamptz, ends_at timestamptz, available boolean, reason text)
 returns jsonb
 language plpgsql
 security definer
@@ -6992,24 +6992,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "org_id" into v_tenant from "better_supabase"."booking_resources" where "id" = add_booking_exception.resource;
+  select "org_id" into v_tenant from "better_supabase"."booking_resources" where "id" = create_booking_exception.resource;
   if not found then
     raise exception 'resource not found' using errcode = 'P0002', hint = 'BOOKING_RESOURCE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.manage'), false)) then
     raise exception 'not allowed to manage bookings' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
   end if;
-  if add_booking_exception.ends_at is null or add_booking_exception.starts_at is null or add_booking_exception.ends_at <= add_booking_exception.starts_at then
+  if create_booking_exception.ends_at is null or create_booking_exception.starts_at is null or create_booking_exception.ends_at <= create_booking_exception.starts_at then
     raise exception 'an exception needs a start before its end' using errcode = '22023', hint = 'BOOKING_RANGE_INVALID';
   end if;
   insert into "better_supabase"."booking_exceptions" ("org_id", "resource_id", "during", "available", "reason")
-  values (v_tenant, add_booking_exception.resource, tstzrange(add_booking_exception.starts_at, add_booking_exception.ends_at), coalesce(add_booking_exception.available, false), add_booking_exception.reason)
+  values (v_tenant, create_booking_exception.resource, tstzrange(create_booking_exception.starts_at, create_booking_exception.ends_at), coalesce(create_booking_exception.available, false), create_booking_exception.reason)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
-grant execute on function "better_supabase"."add_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) from public, anon;
+grant execute on function "better_supabase"."create_booking_exception"(uuid, timestamptz, timestamptz, boolean, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_booking_exception"(exception_id uuid)
 returns boolean
@@ -7038,7 +7038,7 @@ $$;
 revoke execute on function "better_supabase"."delete_booking_exception"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_booking_exception"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."save_booking_service"(tenant uuid, item jsonb)
+create or replace function "better_supabase"."upsert_booking_service"(tenant uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7046,8 +7046,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_booking_service.item, '{}'::jsonb);
-  v_tenant uuid := save_booking_service.tenant;
+  v_item jsonb := coalesce(upsert_booking_service.item, '{}'::jsonb);
+  v_tenant uuid := upsert_booking_service.tenant;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -7070,8 +7070,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_booking_service"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_booking_service"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_booking_service"(uuid, jsonb) to authenticated, service_role;
 
 -- The open slots of a service in [range_start, range_end): for each resource
 -- of the service's kinds, its weekly hours in its own time zone, plus the

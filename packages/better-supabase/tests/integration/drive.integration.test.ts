@@ -764,7 +764,7 @@ describe.skipIf(!live)("drive", () => {
       const tenant = await s.organization(owner, { member });
 
       const read = (node: string): Promise<{ text: string }[]> =>
-        s.value("better_supabase.read_field_values($1, 'drive_node', $2)", [
+        s.value("better_supabase.get_field_values($1, 'drive_node', $2)", [
           tenant,
           node,
         ]);
@@ -777,7 +777,7 @@ describe.skipIf(!live)("drive", () => {
       );
 
       const definition = await s.value<string>(
-        "(better_supabase.save_field_definition($1, 'drive_node', 'status', 'Status', 'text', false) ->> 'id')",
+        "(better_supabase.upsert_field_definition($1, 'drive_node', 'status', 'Status', 'text', false) ->> 'id')",
         [tenant],
       );
 

@@ -61,7 +61,7 @@ describe("connectors module", () => {
 
   it("rejects a server credential_ref outside the server's tenant", () => {
     expect(body()).toContain(
-      "(save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text",
+      "(upsert_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (upsert_connector_server.tenant)::text",
     );
   });
 

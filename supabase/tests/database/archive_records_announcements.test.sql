@@ -11,7 +11,7 @@ $$;
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
-select set_config('test.announcement', (better_supabase.save_announcement(
+select set_config('test.announcement', (better_supabase.upsert_announcement(
   null, '{"title": "Maintenance tonight"}'::jsonb
 ) ->> 'id'), true);
 

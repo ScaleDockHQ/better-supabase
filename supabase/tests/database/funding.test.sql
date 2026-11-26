@@ -39,17 +39,17 @@ select set_config(
 );
 set local role authenticated;
 
-insert into ids values ('product', (better_supabase.save_funding_product(
+insert into ids values ('product', (better_supabase.upsert_funding_product(
   '00000000-0000-4000-8000-000000000001', 'H300', 'Individual support', 'hour', 6850, 'EUR') ->> 'id')::uuid);
 
 select throws_ok(
-  $$select better_supabase.save_funding_product('00000000-0000-4000-8000-000000000001', 'H300', 'Again', 'hour', 1, 'EUR')$$,
+  $$select better_supabase.upsert_funding_product('00000000-0000-4000-8000-000000000001', 'H300', 'Again', 'hour', 1, 'EUR')$$,
   '22023',
   null,
   'a product code is unique in an organization'
 );
 select throws_ok(
-  $$select better_supabase.save_funding_award('00000000-0000-4000-8000-000000000001', 'customer',
+  $$select better_supabase.upsert_funding_award('00000000-0000-4000-8000-000000000001', 'customer',
     '00000000-0000-4000-8000-00000000a001', jsonb_build_object('funderId', (select id from ids where name = 'other'),
     'productId', (select id from ids where name = 'product'), 'units', 2, 'period', 'week', 'startsOn', current_date - 14))$$,
   '22023',
@@ -57,7 +57,7 @@ select throws_ok(
   'a contact without the funder role cannot fund an award'
 );
 
-insert into ids values ('award', (better_supabase.save_funding_award('00000000-0000-4000-8000-000000000001', 'customer',
+insert into ids values ('award', (better_supabase.upsert_funding_award('00000000-0000-4000-8000-000000000001', 'customer',
   '00000000-0000-4000-8000-00000000a001', jsonb_build_object('funderId', (select id from ids where name = 'funder'),
   'productId', (select id from ids where name = 'product'), 'units', 2, 'period', 'week',
   'startsOn', current_date - 14, 'reference', 'WLZ-1')) ->> 'id')::uuid);

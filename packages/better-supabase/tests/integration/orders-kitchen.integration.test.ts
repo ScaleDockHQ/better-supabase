@@ -59,7 +59,7 @@ describe.skipIf(!live)("orders kitchen", () => {
       const product = async (title: string): Promise<string> =>
         (
           await s.value<{ id: string }>(
-            "better_supabase.save_product($1, null, $2, null, null, 'physical')",
+            "better_supabase.upsert_product($1, null, $2, null, null, 'physical')",
             [org, title],
           )
         ).id;

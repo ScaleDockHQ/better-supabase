@@ -12,15 +12,15 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.p1', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Washer 1', 'washer-po-tax-1', null, 'physical', null) ->> 'id', true);
-select set_config('t.p2', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Washer 2', 'washer-po-tax-2', null, 'physical', null) ->> 'id', true);
-select set_config('t.p3', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Washer 3', 'washer-po-tax-3', null, 'physical', null) ->> 'id', true);
-select set_config('t.v1', better_supabase.save_variant(current_setting('t.p1')::uuid, null, 'WASHER-1', null, 'Washer 1', null, null, true, false, null) ->> 'id', true);
-select set_config('t.v2', better_supabase.save_variant(current_setting('t.p2')::uuid, null, 'WASHER-2', null, 'Washer 2', null, null, true, false, null) ->> 'id', true);
-select set_config('t.v3', better_supabase.save_variant(current_setting('t.p3')::uuid, null, 'WASHER-3', null, 'Washer 3', null, null, true, false, null) ->> 'id', true);
-select set_config('t.location', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'POTAX', 'PO tax dock', null, null) ->> 'id', true);
+select set_config('t.p1', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Washer 1', 'washer-po-tax-1', null, 'physical', null) ->> 'id', true);
+select set_config('t.p2', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Washer 2', 'washer-po-tax-2', null, 'physical', null) ->> 'id', true);
+select set_config('t.p3', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Washer 3', 'washer-po-tax-3', null, 'physical', null) ->> 'id', true);
+select set_config('t.v1', better_supabase.upsert_variant(current_setting('t.p1')::uuid, null, 'WASHER-1', null, 'Washer 1', null, null, true, false, null) ->> 'id', true);
+select set_config('t.v2', better_supabase.upsert_variant(current_setting('t.p2')::uuid, null, 'WASHER-2', null, 'Washer 2', null, null, true, false, null) ->> 'id', true);
+select set_config('t.v3', better_supabase.upsert_variant(current_setting('t.p3')::uuid, null, 'WASHER-3', null, 'Washer 3', null, null, true, false, null) ->> 'id', true);
+select set_config('t.location', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'POTAX', 'PO tax dock', null, null) ->> 'id', true);
 
-select set_config('t.po', better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, null, null, 'EUR', null,
+select set_config('t.po', better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, null, null, 'EUR', null,
   jsonb_build_array(
     jsonb_build_object('variantId', current_setting('t.v1'), 'quantity', 3, 'unitCost', '1005', 'taxRateBps', 2100, 'taxCode', 'NL-21'),
     jsonb_build_object('variantId', current_setting('t.v2'), 'quantity', 1, 'unitCost', '2000', 'taxRateBps', 2100, 'taxCode', 'NL-21'),
@@ -38,7 +38,7 @@ select is(
   'the tax line is stored in purchase_order_tax_lines'
 );
 
-select better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', current_setting('t.po')::uuid, current_setting('t.location')::uuid, null, null, 'EUR', null,
+select better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', current_setting('t.po')::uuid, current_setting('t.location')::uuid, null, null, 'EUR', null,
   jsonb_build_array(
     jsonb_build_object('variantId', current_setting('t.v1'), 'quantity', 1, 'unitCost', '1000', 'taxRateBps', 900, 'taxCode', 'NL-9'),
     jsonb_build_object('variantId', current_setting('t.v2'), 'quantity', 1, 'unitCost', '1000', 'taxRateBps', 2100, 'taxCode', 'NL-21')),
@@ -55,7 +55,7 @@ select is(
 );
 
 select throws_ok(
-  format($$select better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', %L, %L, null, null, 'EUR', null,
+  format($$select better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', %L, %L, null, null, 'EUR', null,
     '[{"variantId": "%s", "quantity": 1, "unitCost": "100", "taxRateBps": 100001}]', null)$$,
     current_setting('t.po'), current_setting('t.location'), current_setting('t.v1')),
   '22023',

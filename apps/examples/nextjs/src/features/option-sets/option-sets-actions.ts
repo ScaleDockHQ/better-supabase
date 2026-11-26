@@ -104,7 +104,7 @@ export const editOptionItem = bsb.action(
       }
 
       await sql.queryRaw(
-        "select better_supabase.save_option_set_item($1, $2, $3, $4, $5, $6, $7, $8)",
+        "select better_supabase.upsert_option_set_item($1, $2, $3, $4, $5, $6, $7, $8)",
         [
           setId,
           itemId,

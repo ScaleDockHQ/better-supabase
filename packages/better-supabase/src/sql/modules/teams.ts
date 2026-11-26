@@ -537,7 +537,7 @@ ${userGrant(`${fn("purge_teams")}(${idType}[])`)}
 ${
   employees
     ? employeeMemberFunctions(ctx, idType, membersKey)
-    : `create or replace function ${fn("add_team_member")}(team ${idType}, member uuid)
+    : `create or replace function ${fn("create_team_member")}(team ${idType}, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -546,24 +546,24 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select ${tenant} into v_tenant from ${teams} where ${id} = add_team_member.team;
+  select ${tenant} into v_tenant from ${teams} where ${id} = create_team_member.team;
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
   if not (${service(ctx)} or ${ctx.scope.can("v_tenant", membersKey)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
-  ${membershipCheck(ctx, "v_tenant", "add_team_member.member")}
+  ${membershipCheck(ctx, "v_tenant", "create_team_member.member")}
   insert into ${members} (${memberTeam}, ${memberUser}, ${memberTenant})
-  values (add_team_member.team, add_team_member.member, v_tenant)
+  values (create_team_member.team, create_team_member.member, v_tenant)
   on conflict do nothing;
-  ${record(ctx, "team_member.added", "add_team_member.team", "v_tenant", undefined, "add_team_member.member")}
+  ${record(ctx, "team_member.added", "create_team_member.team", "v_tenant", undefined, "create_team_member.member")}
   return true;
 end;
 $$;
-${userGrant(`${fn("add_team_member")}(${idType}, uuid)`)}
+${userGrant(`${fn("create_team_member")}(${idType}, uuid)`)}
 
-create or replace function ${fn("remove_team_member")}(team ${idType}, member uuid)
+create or replace function ${fn("delete_team_member")}(team ${idType}, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -572,7 +572,7 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select ${tenant} into v_tenant from ${teams} where ${id} = remove_team_member.team;
+  select ${tenant} into v_tenant from ${teams} where ${id} = delete_team_member.team;
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
@@ -580,12 +580,12 @@ begin
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
   delete from ${members}
-  where ${memberTeam} = remove_team_member.team and ${memberUser} = remove_team_member.member;
-  ${record(ctx, "team_member.deleted", "remove_team_member.team", "v_tenant", undefined, "remove_team_member.member")}
+  where ${memberTeam} = delete_team_member.team and ${memberUser} = delete_team_member.member;
+  ${record(ctx, "team_member.deleted", "delete_team_member.team", "v_tenant", undefined, "delete_team_member.member")}
   return found;
 end;
 $$;
-${userGrant(`${fn("remove_team_member")}(${idType}, uuid)`)}
+${userGrant(`${fn("delete_team_member")}(${idType}, uuid)`)}
 
 `
 }${listTeams()}
@@ -654,8 +654,8 @@ create index if not exists ${ctx.naming.rename("team_members_employee_idx")} on 
 }
 
 /**
- * `add_team_member` and `remove_team_member` that take a user or an employee,
- * and the trigger that keeps an employee's row when its user goes.
+ * `create_team_member` and `delete_team_member` that take a user or an
+ * employee, and the trigger that keeps an employee's row when its user goes.
  */
 function employeeMemberFunctions(
   ctx: BlockSqlContext,
@@ -712,9 +712,9 @@ drop trigger if exists ${keep} on ${members};
 create trigger ${keep} before delete on ${members}
 for each row execute function better_supabase.${keep}();
 
-drop function if exists ${fn("add_team_member")}(${idType}, uuid);
+drop function if exists ${fn("create_team_member")}(${idType}, uuid);
 -- member: a user id; employee: an employee id. Pass one of them.
-create or replace function ${fn("add_team_member")}(team ${idType}, member uuid default null, employee uuid default null)
+create or replace function ${fn("create_team_member")}(team ${idType}, member uuid default null, employee uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -722,10 +722,10 @@ set search_path = ''
 as $$
 declare
   v_tenant ${ctx.idType};
-  v_user uuid := add_team_member.member;
-  v_employee uuid := add_team_member.employee;
+  v_user uuid := create_team_member.member;
+  v_employee uuid := create_team_member.employee;
 begin
-  ${guard("add_team_member")}
+  ${guard("create_team_member")}
   if v_employee is null then
     ${membershipCheck(ctx, "v_tenant", "v_user")}
     v_employee := (
@@ -744,29 +744,29 @@ begin
   end if;
   if v_employee is not null and v_user is not null then
     delete from ${members} x
-    where x.${m("team")} = add_team_member.team and x.${m("user")} = v_user and x.${m("employee")} is null
+    where x.${m("team")} = create_team_member.team and x.${m("user")} = v_user and x.${m("employee")} is null
       and exists (
         select 1 from ${members} y
-        where y.${m("team")} = add_team_member.team and y.${m("employee")} = v_employee
+        where y.${m("team")} = create_team_member.team and y.${m("employee")} = v_employee
       );
     update ${members} set ${m("user")} = v_user
-    where ${m("team")} = add_team_member.team and ${m("employee")} = v_employee and ${m("user")} is null;
+    where ${m("team")} = create_team_member.team and ${m("employee")} = v_employee and ${m("user")} is null;
     update ${members} set ${m("employee")} = v_employee
-    where ${m("team")} = add_team_member.team and ${m("user")} = v_user and ${m("employee")} is null;
+    where ${m("team")} = create_team_member.team and ${m("user")} = v_user and ${m("employee")} is null;
   end if;
   insert into ${members} (${m("team")}, ${m("user")}, ${m("employee")}, ${m("tenant")})
-  values (add_team_member.team, v_user, v_employee, v_tenant)
+  values (create_team_member.team, v_user, v_employee, v_tenant)
   on conflict do nothing;
-  ${record(ctx, "team_member.added", "add_team_member.team", "v_tenant", undefined, "v_user", "v_employee")}
+  ${record(ctx, "team_member.added", "create_team_member.team", "v_tenant", undefined, "v_user", "v_employee")}
   return true;
 end;
 $$;
-${userGrant(`${fn("add_team_member")}(${idType}, uuid, uuid)`)}
+${userGrant(`${fn("create_team_member")}(${idType}, uuid, uuid)`)}
 
-drop function if exists ${fn("remove_team_member")}(${idType}, uuid);
+drop function if exists ${fn("delete_team_member")}(${idType}, uuid);
 -- member: a user id; employee: an employee id. Pass one of them. Removing a
 -- user whose row has an employee removes the employee too.
-create or replace function ${fn("remove_team_member")}(team ${idType}, member uuid default null, employee uuid default null)
+create or replace function ${fn("delete_team_member")}(team ${idType}, member uuid default null, employee uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -777,19 +777,19 @@ declare
   v_user uuid;
   v_employee uuid;
 begin
-  ${guard("remove_team_member")}
+  ${guard("delete_team_member")}
   delete from ${members} x
-  where x.${m("team")} = remove_team_member.team
-    and (x.${m("employee")} = remove_team_member.employee or x.${m("user")} = remove_team_member.member)
+  where x.${m("team")} = delete_team_member.team
+    and (x.${m("employee")} = delete_team_member.employee or x.${m("user")} = delete_team_member.member)
   returning x.${m("user")}, x.${m("employee")} into v_user, v_employee;
   if not found then
     return false;
   end if;
-  ${record(ctx, "team_member.deleted", "remove_team_member.team", "v_tenant", undefined, "v_user", "v_employee")}
+  ${record(ctx, "team_member.deleted", "delete_team_member.team", "v_tenant", undefined, "v_user", "v_employee")}
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_team_member")}(${idType}, uuid, uuid)`)}
+${userGrant(`${fn("delete_team_member")}(${idType}, uuid, uuid)`)}
 
 `;
 }
@@ -1012,7 +1012,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       : []),
     { name: "purge_team", args: [id], returns: "boolean" },
     { name: "purge_teams", args: [`${id}[]`], returns: "integer" },
-    ...(["add_team_member", "remove_team_member"] as const).map((name) => ({
+    ...(["create_team_member", "delete_team_member"] as const).map((name) => ({
       name,
       args: employeeMembers(ctx) ? [id, "uuid", "uuid"] : [id, "uuid"],
       returns: "boolean",

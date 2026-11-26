@@ -260,7 +260,7 @@ describe("employees over the app's tables", () => {
       .join("\n");
 
     expect(unnamedChecks(sql)).not.toContain("update_employee_contract");
-    expect(unnamedChecks(sql)).toContain("add_employee_contract");
+    expect(unnamedChecks(sql)).toContain("create_employee_contract");
   });
 
   it(
@@ -292,19 +292,19 @@ begin
     or (select full_name from public.staff where id = v_id) <> 'Ada Byron' then
     raise exception 'update %', v_result;
   end if;
-  v_details := better_supabase.save_employee_private_details(v_id, '{"address": {"line1": "1 Main St", "city": "London", "country": "GB"}, "emergencyContacts": [{"name": "Charles", "phone": "+44 1"}]}'::jsonb);
+  v_details := better_supabase.upsert_employee_private_details(v_id, '{"address": {"line1": "1 Main St", "city": "London", "country": "GB"}, "emergencyContacts": [{"name": "Charles", "phone": "+44 1"}]}'::jsonb);
   if (select home_city from public.staff_private where employee_id = v_id) <> 'London'
     or (select emergency_name from public.staff_private where employee_id = v_id) <> 'Charles'
     or v_details -> 'address' ->> 'line1' <> '1 Main St'
     or v_details -> 'emergency_contacts' -> 0 ->> 'phone' <> '+44 1' then
     raise exception 'details %', v_details;
   end if;
-  v_details := better_supabase.save_employee_private_details(v_id, '{"postalCode": "NW1"}'::jsonb);
+  v_details := better_supabase.upsert_employee_private_details(v_id, '{"postalCode": "NW1"}'::jsonb);
   if (select home_postal_code from public.staff_private where employee_id = v_id) <> 'NW1'
     or (select home_city from public.staff_private where employee_id = v_id) <> 'London' then
     raise exception 'flat key %', v_details;
   end if;
-  v_contract := better_supabase.add_employee_contract(v_id, '{"startsOn": "2026-01-01", "salary": "500000", "currency": "eur", "salaryPeriod": "month"}'::jsonb);
+  v_contract := better_supabase.create_employee_contract(v_id, '{"startsOn": "2026-01-01", "salary": "500000", "currency": "eur", "salaryPeriod": "month"}'::jsonb);
   if (select pay_basis::text from public.staff_contracts) <> 'monthly' then
     raise exception 'contract %', v_contract;
   end if;
@@ -404,7 +404,7 @@ begin
     or (select timezone from public.staff where id = (v_employee ->> 'id')::uuid) <> 'Europe/Amsterdam' then
     raise exception 'create %', v_employee;
   end if;
-  v_contract := better_supabase.add_employee_contract((v_employee ->> 'id')::uuid, '{"startsOn": "2026-01-01", "salary": "500000", "currency": "EUR"}'::jsonb);
+  v_contract := better_supabase.create_employee_contract((v_employee ->> 'id')::uuid, '{"startsOn": "2026-01-01", "salary": "500000", "currency": "EUR"}'::jsonb);
   v_contract := better_supabase.update_employee_contract((v_contract ->> 'id')::uuid, '{"salary": null}'::jsonb);
   if (select salary from public.staff_contracts) is not null
     or (select currency from public.staff_contracts) <> 'EUR' then

@@ -846,7 +846,7 @@ export function createContacts<
       writeFields(fields, input.fields, (checked) =>
         company(
           call(
-            "save_company",
+            "upsert_company",
             {
               tenant: organizationId,
               company: input.id ?? null,
@@ -861,7 +861,7 @@ export function createContacts<
       ),
     savePerson: ({ organizationId, input }) =>
       call(
-        "save_person",
+        "upsert_person",
         {
           tenant: organizationId,
           person: input.id ?? null,
@@ -898,7 +898,7 @@ export function createContacts<
       ),
     unlinkPerson: ({ companyId, personId }) =>
       call(
-        "remove_company_person",
+        "delete_company_person",
         { company: companyId, person: personId },
         (value) => value === true,
       ),
@@ -921,7 +921,7 @@ export function createContacts<
       ),
     addIdentity: ({ personId, identity }) =>
       call(
-        "add_person_identity",
+        "create_person_identity",
         {
           person: personId,
           channel: identity.channel,
@@ -932,13 +932,13 @@ export function createContacts<
       ),
     removeIdentity: (identityId) =>
       call(
-        "remove_person_identity",
+        "delete_person_identity",
         { identity: identityId },
         (value) => value === true,
       ),
     savePaymentTerm: ({ organizationId, input }) =>
       call(
-        "save_payment_term",
+        "upsert_payment_term",
         { tenant: organizationId, attrs: input },
         paymentTermOf,
       ),

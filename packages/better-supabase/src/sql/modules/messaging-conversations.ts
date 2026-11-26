@@ -365,7 +365,7 @@ ${userGrant(`${fn("open_conversation")}(${id}, text, jsonb, uuid[])`)}
 -- Adds members. A member adds others to a members-only conversation, anyone
 -- who reads a tenant one joins it (users is the caller), and a moderator adds
 -- anyone. Direct messages keep their members. Returns how many joined.
-create or replace function ${fn("add_conversation_members")}(conversation uuid, users uuid[])
+create or replace function ${fn("create_conversation_members")}(conversation uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -376,7 +376,7 @@ declare
   v_user uuid;
   v_added integer := 0;
 begin
-  select * into v_conv from ${t("conversations")} c where c.${cv("id")} = add_conversation_members.conversation;
+  select * into v_conv from ${t("conversations")} c where c.${cv("id")} = create_conversation_members.conversation;
   if not found or not ${fn("can_conversation")}(v_conv.${cv("id")}, 'read') then
     ${fail("MESSAGING_NOT_FOUND", "no such conversation you can read", "P0002")}
   end if;
@@ -385,11 +385,11 @@ begin
   end if;
   if not (${q.service}
     or ${fn("can_conversation")}(v_conv.${cv("id")}, 'moderate')
-    or (${fn("can_conversation")}(v_conv.${cv("id")}, 'send') and (v_conv.${cv("access")} = 'members' or coalesce(add_conversation_members.users <@ array[auth.uid()], false)))
-    or (v_conv.${cv("access")} = 'tenant' and v_conv.${cv("archivedAt")} is null and coalesce(add_conversation_members.users <@ array[auth.uid()], false))) then
+    or (${fn("can_conversation")}(v_conv.${cv("id")}, 'send') and (v_conv.${cv("access")} = 'members' or coalesce(create_conversation_members.users <@ array[auth.uid()], false)))
+    or (v_conv.${cv("access")} = 'tenant' and v_conv.${cv("archivedAt")} is null and coalesce(create_conversation_members.users <@ array[auth.uid()], false))) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to add members here")}
   end if;
-  for v_user in select distinct x from unnest(add_conversation_members.users) x where x is not null loop
+  for v_user in select distinct x from unnest(create_conversation_members.users) x where x is not null loop
     if not ${ctx.scope.canUser("v_user", `v_conv.${cv("tenant")}`, q.key("read"))} then
       ${fail("MESSAGING_MEMBER_INVALID", "every member must be able to read messages in the organization", "22023")}
     end if;
@@ -404,11 +404,11 @@ begin
   return v_added;
 end;
 $$;
-${userGrant(`${fn("add_conversation_members")}(uuid, uuid[])`)}
+${userGrant(`${fn("create_conversation_members")}(uuid, uuid[])`)}
 
 -- Removes a member: the member leaves, or a moderator or the conversation's
 -- owner removes them.
-create or replace function ${fn("remove_conversation_member")}(conversation uuid, member uuid)
+create or replace function ${fn("delete_conversation_member")}(conversation uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -417,7 +417,7 @@ as $$
 declare
   v_conv ${t("conversations")};
 begin
-  select * into v_conv from ${t("conversations")} c where c.${cv("id")} = remove_conversation_member.conversation;
+  select * into v_conv from ${t("conversations")} c where c.${cv("id")} = delete_conversation_member.conversation;
   if not found or not ${fn("can_conversation")}(v_conv.${cv("id")}, 'read') then
     ${fail("MESSAGING_NOT_FOUND", "no such conversation you can read", "P0002")}
   end if;
@@ -425,20 +425,20 @@ begin
     ${fail("MESSAGING_MEMBERS_FIXED", "this conversation's members can't change", "22023")}
   end if;
   if not (${q.service}
-    or coalesce(remove_conversation_member.member = auth.uid(), false)
+    or coalesce(delete_conversation_member.member = auth.uid(), false)
     or ${fn("can_conversation")}(v_conv.${cv("id")}, 'moderate')
     or exists (select 1 from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = auth.uid() and k.${mb("role")} = 'owner')) then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to remove this member")}
   end if;
-  delete from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = remove_conversation_member.member;
+  delete from ${t("members")} k where k.${mb("conversation")} = v_conv.${cv("id")} and k.${mb("user")} = delete_conversation_member.member;
   if not found then
     return false;
   end if;
-  ${memberRecord("conversation.member_removed", "remove_conversation_member.member")}
+  ${memberRecord("conversation.member_removed", "delete_conversation_member.member")}
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_conversation_member")}(uuid, uuid)`)}
+${userGrant(`${fn("delete_conversation_member")}(uuid, uuid)`)}
 
 -- Archives a conversation (read-only from then on) or restores it: its owner
 -- or a moderator.

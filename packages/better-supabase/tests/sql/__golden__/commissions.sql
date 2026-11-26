@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:cc124aa36b4888208186ca0158486995e970e50d1b4286038d30b3addd065e2d
+-- @bsb-hash sha256:87744b7f0c287adf52e11fc403a8bd845e918183ead81846515a786c3b0e17df
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -200,7 +200,7 @@ grant execute on function "better_supabase"."commission_tiers_valid"(jsonb) to s
 -- Creates a plan, or changes the one with plan_id. A flat plan sets rate_bps, a
 -- tiered plan sets tiers. archived hides a plan from new assignments. Needs
 -- commissions.manage.
-create or replace function "better_supabase"."save_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function "better_supabase"."upsert_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -209,23 +209,23 @@ as $$
 #variable_conflict use_variable
 declare
   v_plan "better_supabase"."commission_plans";
-  v_created boolean := save_commission_plan.plan_id is null;
+  v_created boolean := upsert_commission_plan.plan_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', save_commission_plan.tenant, 'commissions.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', upsert_commission_plan.tenant, 'commissions.manage'), false))) then
     raise exception 'not allowed to manage commission plans' using errcode = '42501', hint = 'COMMISSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_commission_plan.name), '') is null or length(trim(save_commission_plan.name)) > 200 then
+  if nullif(trim(upsert_commission_plan.name), '') is null or length(trim(upsert_commission_plan.name)) > 200 then
     raise exception 'a plan needs a name of at most 200 characters' using errcode = '22023', hint = 'COMMISSION_INVALID';
   end if;
-  if save_commission_plan.kind = 'flat' then
-    if save_commission_plan.rate_bps is null or save_commission_plan.rate_bps not between 0 and 10000 or save_commission_plan.tiers is not null then
+  if upsert_commission_plan.kind = 'flat' then
+    if upsert_commission_plan.rate_bps is null or upsert_commission_plan.rate_bps not between 0 and 10000 or upsert_commission_plan.tiers is not null then
       raise exception 'a flat plan takes rate_bps from 0 to 10000 and no tiers' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
-  elsif save_commission_plan.kind = 'tiered' then
-    if save_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(save_commission_plan.tiers) then
+  elsif upsert_commission_plan.kind = 'tiered' then
+    if upsert_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(upsert_commission_plan.tiers) then
       raise exception 'a tiered plan takes rising { upTo, bps } tiers with a last tier that has no upTo' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
   else
@@ -233,16 +233,16 @@ begin
   end if;
   if v_created then
     insert into "better_supabase"."commission_plans" ("tenant_id", "name", "kind", "rate_bps", "tiers", "archived_at")
-    values (save_commission_plan.tenant, trim(save_commission_plan.name), save_commission_plan.kind, save_commission_plan.rate_bps, save_commission_plan.tiers,
-      case when save_commission_plan.archived then now() end)
+    values (upsert_commission_plan.tenant, trim(upsert_commission_plan.name), upsert_commission_plan.kind, upsert_commission_plan.rate_bps, upsert_commission_plan.tiers,
+      case when upsert_commission_plan.archived then now() end)
     returning * into v_plan;
     null;
   else
-    update "better_supabase"."commission_plans" x set "name" = trim(save_commission_plan.name), "kind" = save_commission_plan.kind,
-      "rate_bps" = save_commission_plan.rate_bps, "tiers" = save_commission_plan.tiers,
-      "archived_at" = case when save_commission_plan.archived then coalesce(x."archived_at", now()) end,
+    update "better_supabase"."commission_plans" x set "name" = trim(upsert_commission_plan.name), "kind" = upsert_commission_plan.kind,
+      "rate_bps" = upsert_commission_plan.rate_bps, "tiers" = upsert_commission_plan.tiers,
+      "archived_at" = case when upsert_commission_plan.archived then coalesce(x."archived_at", now()) end,
       "updated_at" = now()
-    where x."id" = save_commission_plan.plan_id and x."tenant_id" = save_commission_plan.tenant
+    where x."id" = upsert_commission_plan.plan_id and x."tenant_id" = upsert_commission_plan.tenant
     returning * into v_plan;
     if not found then
       raise exception 'no such commission plan' using errcode = 'P0002', hint = 'COMMISSION_PLAN_NOT_FOUND';
@@ -252,8 +252,8 @@ begin
   return jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."tenant_id", 'name', v_plan."name", 'kind', v_plan."kind", 'rateBps', v_plan."rate_bps", 'tiers', v_plan."tiers", 'archivedAt', v_plan."archived_at", 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
 
 -- Puts a seller on a plan from starts_on until ends_on. With a subject the
 -- plan applies to sales on that record only, and wins over the seller's own
@@ -1573,7 +1573,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:08963e155a54b8f6ab89d4d473028d62e19b7061d8ce5ea498e78ca282b2446d
+-- @bsb-hash sha256:d0787550b5f7db9667950539870b33acebaa99ad081eddd8816a1ab535f63bb5
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1772,7 +1772,7 @@ grant execute on function "better_supabase"."commission_tiers_valid"(jsonb) to s
 -- Creates a plan, or changes the one with plan_id. A flat plan sets rate_bps, a
 -- tiered plan sets tiers. archived hides a plan from new assignments. Needs
 -- commissions.manage.
-create or replace function "better_supabase"."save_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function "better_supabase"."upsert_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1781,23 +1781,23 @@ as $$
 #variable_conflict use_variable
 declare
   v_plan "better_supabase"."commission_plans";
-  v_created boolean := save_commission_plan.plan_id is null;
+  v_created boolean := upsert_commission_plan.plan_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', save_commission_plan.tenant, 'commissions.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', upsert_commission_plan.tenant, 'commissions.manage'), false))) then
     raise exception 'not allowed to manage commission plans' using errcode = '42501', hint = 'COMMISSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_commission_plan.name), '') is null or length(trim(save_commission_plan.name)) > 200 then
+  if nullif(trim(upsert_commission_plan.name), '') is null or length(trim(upsert_commission_plan.name)) > 200 then
     raise exception 'a plan needs a name of at most 200 characters' using errcode = '22023', hint = 'COMMISSION_INVALID';
   end if;
-  if save_commission_plan.kind = 'flat' then
-    if save_commission_plan.rate_bps is null or save_commission_plan.rate_bps not between 0 and 10000 or save_commission_plan.tiers is not null then
+  if upsert_commission_plan.kind = 'flat' then
+    if upsert_commission_plan.rate_bps is null or upsert_commission_plan.rate_bps not between 0 and 10000 or upsert_commission_plan.tiers is not null then
       raise exception 'a flat plan takes rate_bps from 0 to 10000 and no tiers' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
-  elsif save_commission_plan.kind = 'tiered' then
-    if save_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(save_commission_plan.tiers) then
+  elsif upsert_commission_plan.kind = 'tiered' then
+    if upsert_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(upsert_commission_plan.tiers) then
       raise exception 'a tiered plan takes rising { upTo, bps } tiers with a last tier that has no upTo' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
   else
@@ -1805,8 +1805,8 @@ begin
   end if;
   if v_created then
     insert into "better_supabase"."commission_plans" ("tenant_id", "name", "kind", "rate_bps", "tiers", "archived_at")
-    values (save_commission_plan.tenant, trim(save_commission_plan.name), save_commission_plan.kind, save_commission_plan.rate_bps, save_commission_plan.tiers,
-      case when save_commission_plan.archived then now() end)
+    values (upsert_commission_plan.tenant, trim(upsert_commission_plan.name), upsert_commission_plan.kind, upsert_commission_plan.rate_bps, upsert_commission_plan.tiers,
+      case when upsert_commission_plan.archived then now() end)
     returning * into v_plan;
     perform "better_supabase".emit_event('commission_plan.created', jsonb_build_object('organizationId', v_plan."tenant_id", 'id', v_plan."id", 'name', v_plan."name", 'kind', v_plan."kind"), 'commission-plans/' || v_plan."id"::text, (v_plan."tenant_id")::text, null, 'better-supabase/commissions');
   perform better_supabase.audit_event(
@@ -1820,11 +1820,11 @@ begin
     metadata => jsonb_build_object('organizationId', v_plan."tenant_id", 'id', v_plan."id", 'name', v_plan."name", 'kind', v_plan."kind")
   );
   else
-    update "better_supabase"."commission_plans" x set "name" = trim(save_commission_plan.name), "kind" = save_commission_plan.kind,
-      "rate_bps" = save_commission_plan.rate_bps, "tiers" = save_commission_plan.tiers,
-      "archived_at" = case when save_commission_plan.archived then coalesce(x."archived_at", now()) end,
+    update "better_supabase"."commission_plans" x set "name" = trim(upsert_commission_plan.name), "kind" = upsert_commission_plan.kind,
+      "rate_bps" = upsert_commission_plan.rate_bps, "tiers" = upsert_commission_plan.tiers,
+      "archived_at" = case when upsert_commission_plan.archived then coalesce(x."archived_at", now()) end,
       "updated_at" = now()
-    where x."id" = save_commission_plan.plan_id and x."tenant_id" = save_commission_plan.tenant
+    where x."id" = upsert_commission_plan.plan_id and x."tenant_id" = upsert_commission_plan.tenant
     returning * into v_plan;
     if not found then
       raise exception 'no such commission plan' using errcode = 'P0002', hint = 'COMMISSION_PLAN_NOT_FOUND';
@@ -1844,8 +1844,8 @@ begin
   return jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."tenant_id", 'name', v_plan."name", 'kind', v_plan."kind", 'rateBps', v_plan."rate_bps", 'tiers', v_plan."tiers", 'archivedAt', v_plan."archived_at", 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
 
 -- Puts a seller on a plan from starts_on until ends_on. With a subject the
 -- plan applies to sales on that record only, and wins over the seller's own
@@ -3207,7 +3207,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:680d45f545c710da4f36e857861de91e57da86562d69f445bef184b4dd60b893
+-- @bsb-hash sha256:ffafbae29dcae015577eff7b05b4d68ea28229a02c6f0d9fdd53a597942df529
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3410,7 +3410,7 @@ grant execute on function "app_private"."commission_tiers_valid"(jsonb) to servi
 -- Creates a plan, or changes the one with plan_id. A flat plan sets rate_bps, a
 -- tiered plan sets tiers. archived hides a plan from new assignments. Needs
 -- commissions.manage.
-create or replace function "app_private"."save_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function "app_private"."upsert_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -3419,23 +3419,23 @@ as $$
 #variable_conflict use_variable
 declare
   v_plan "app_private"."commission_plans";
-  v_created boolean := save_commission_plan.plan_id is null;
+  v_created boolean := upsert_commission_plan.plan_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', save_commission_plan.tenant, 'commissions.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', upsert_commission_plan.tenant, 'commissions.manage'), false))) then
     raise exception 'not allowed to manage commission plans' using errcode = '42501', hint = 'COMMISSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_commission_plan.name), '') is null or length(trim(save_commission_plan.name)) > 200 then
+  if nullif(trim(upsert_commission_plan.name), '') is null or length(trim(upsert_commission_plan.name)) > 200 then
     raise exception 'a plan needs a name of at most 200 characters' using errcode = '22023', hint = 'COMMISSION_INVALID';
   end if;
-  if save_commission_plan.kind = 'flat' then
-    if save_commission_plan.rate_bps is null or save_commission_plan.rate_bps not between 0 and 10000 or save_commission_plan.tiers is not null then
+  if upsert_commission_plan.kind = 'flat' then
+    if upsert_commission_plan.rate_bps is null or upsert_commission_plan.rate_bps not between 0 and 10000 or upsert_commission_plan.tiers is not null then
       raise exception 'a flat plan takes rate_bps from 0 to 10000 and no tiers' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
-  elsif save_commission_plan.kind = 'tiered' then
-    if save_commission_plan.rate_bps is not null or not "app_private"."commission_tiers_valid"(save_commission_plan.tiers) then
+  elsif upsert_commission_plan.kind = 'tiered' then
+    if upsert_commission_plan.rate_bps is not null or not "app_private"."commission_tiers_valid"(upsert_commission_plan.tiers) then
       raise exception 'a tiered plan takes rising { upTo, bps } tiers with a last tier that has no upTo' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
   else
@@ -3443,16 +3443,16 @@ begin
   end if;
   if v_created then
     insert into "app_private"."commission_plans" ("tenant_id", "name", "kind", "rate_bps", "tiers", "archived_at")
-    values (save_commission_plan.tenant, trim(save_commission_plan.name), save_commission_plan.kind, save_commission_plan.rate_bps, save_commission_plan.tiers,
-      case when save_commission_plan.archived then now() end)
+    values (upsert_commission_plan.tenant, trim(upsert_commission_plan.name), upsert_commission_plan.kind, upsert_commission_plan.rate_bps, upsert_commission_plan.tiers,
+      case when upsert_commission_plan.archived then now() end)
     returning * into v_plan;
     null;
   else
-    update "app_private"."commission_plans" x set "name" = trim(save_commission_plan.name), "kind" = save_commission_plan.kind,
-      "rate_bps" = save_commission_plan.rate_bps, "tiers" = save_commission_plan.tiers,
-      "archived_at" = case when save_commission_plan.archived then coalesce(x."archived_at", now()) end,
+    update "app_private"."commission_plans" x set "name" = trim(upsert_commission_plan.name), "kind" = upsert_commission_plan.kind,
+      "rate_bps" = upsert_commission_plan.rate_bps, "tiers" = upsert_commission_plan.tiers,
+      "archived_at" = case when upsert_commission_plan.archived then coalesce(x."archived_at", now()) end,
       "updated_at" = now()
-    where x."id" = save_commission_plan.plan_id and x."tenant_id" = save_commission_plan.tenant
+    where x."id" = upsert_commission_plan.plan_id and x."tenant_id" = upsert_commission_plan.tenant
     returning * into v_plan;
     if not found then
       raise exception 'no such commission plan' using errcode = 'P0002', hint = 'COMMISSION_PLAN_NOT_FOUND';
@@ -3462,8 +3462,8 @@ begin
   return jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."tenant_id", 'name', v_plan."name", 'kind', v_plan."kind", 'rateBps', v_plan."rate_bps", 'tiers', v_plan."tiers", 'archivedAt', v_plan."archived_at", 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
-grant execute on function "app_private"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
+grant execute on function "app_private"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
 
 -- Puts a seller on a plan from starts_on until ends_on. With a subject the
 -- plan applies to sales on that record only, and wins over the seller's own
@@ -4783,7 +4783,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:39bb99819f12a07c01412d600fc5214280938c5ebd6ea6d8cecd34c93676f7a5
+-- @bsb-hash sha256:8493eafa5bbe8c3f64cb72f1b6c85ead3df505a1bfa8216ef6767b1d0520996e
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4982,7 +4982,7 @@ grant execute on function "better_supabase"."commission_tiers_valid"(jsonb) to s
 -- Creates a plan, or changes the one with plan_id. A flat plan sets rate_bps, a
 -- tiered plan sets tiers. archived hides a plan from new assignments. Needs
 -- commissions.manage.
-create or replace function "better_supabase"."save_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function "better_supabase"."upsert_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -4991,23 +4991,23 @@ as $$
 #variable_conflict use_variable
 declare
   v_plan "better_supabase"."commission_plans";
-  v_created boolean := save_commission_plan.plan_id is null;
+  v_created boolean := upsert_commission_plan.plan_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', save_commission_plan.tenant, 'commissions.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', upsert_commission_plan.tenant, 'commissions.manage'), false))) then
     raise exception 'not allowed to manage commission plans' using errcode = '42501', hint = 'COMMISSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_commission_plan.name), '') is null or length(trim(save_commission_plan.name)) > 200 then
+  if nullif(trim(upsert_commission_plan.name), '') is null or length(trim(upsert_commission_plan.name)) > 200 then
     raise exception 'a plan needs a name of at most 200 characters' using errcode = '22023', hint = 'COMMISSION_INVALID';
   end if;
-  if save_commission_plan.kind = 'flat' then
-    if save_commission_plan.rate_bps is null or save_commission_plan.rate_bps not between 0 and 10000 or save_commission_plan.tiers is not null then
+  if upsert_commission_plan.kind = 'flat' then
+    if upsert_commission_plan.rate_bps is null or upsert_commission_plan.rate_bps not between 0 and 10000 or upsert_commission_plan.tiers is not null then
       raise exception 'a flat plan takes rate_bps from 0 to 10000 and no tiers' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
-  elsif save_commission_plan.kind = 'tiered' then
-    if save_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(save_commission_plan.tiers) then
+  elsif upsert_commission_plan.kind = 'tiered' then
+    if upsert_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(upsert_commission_plan.tiers) then
       raise exception 'a tiered plan takes rising { upTo, bps } tiers with a last tier that has no upTo' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
   else
@@ -5015,16 +5015,16 @@ begin
   end if;
   if v_created then
     insert into "better_supabase"."commission_plans" ("tenant_id", "name", "kind", "rate_bps", "tiers", "archived_at")
-    values (save_commission_plan.tenant, trim(save_commission_plan.name), save_commission_plan.kind, save_commission_plan.rate_bps, save_commission_plan.tiers,
-      case when save_commission_plan.archived then now() end)
+    values (upsert_commission_plan.tenant, trim(upsert_commission_plan.name), upsert_commission_plan.kind, upsert_commission_plan.rate_bps, upsert_commission_plan.tiers,
+      case when upsert_commission_plan.archived then now() end)
     returning * into v_plan;
     null;
   else
-    update "better_supabase"."commission_plans" x set "name" = trim(save_commission_plan.name), "kind" = save_commission_plan.kind,
-      "rate_bps" = save_commission_plan.rate_bps, "tiers" = save_commission_plan.tiers,
-      "archived_at" = case when save_commission_plan.archived then coalesce(x."archived_at", now()) end,
+    update "better_supabase"."commission_plans" x set "name" = trim(upsert_commission_plan.name), "kind" = upsert_commission_plan.kind,
+      "rate_bps" = upsert_commission_plan.rate_bps, "tiers" = upsert_commission_plan.tiers,
+      "archived_at" = case when upsert_commission_plan.archived then coalesce(x."archived_at", now()) end,
       "updated_at" = now()
-    where x."id" = save_commission_plan.plan_id and x."tenant_id" = save_commission_plan.tenant
+    where x."id" = upsert_commission_plan.plan_id and x."tenant_id" = upsert_commission_plan.tenant
     returning * into v_plan;
     if not found then
       raise exception 'no such commission plan' using errcode = 'P0002', hint = 'COMMISSION_PLAN_NOT_FOUND';
@@ -5034,8 +5034,8 @@ begin
   return jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."tenant_id", 'name', v_plan."name", 'kind', v_plan."kind", 'rateBps', v_plan."rate_bps", 'tiers', v_plan."tiers", 'archivedAt', v_plan."archived_at", 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
 
 -- Puts a seller on a plan from starts_on until ends_on. With a subject the
 -- plan applies to sales on that record only, and wins over the seller's own
@@ -6362,14 +6362,14 @@ as $$ select "better_supabase"."commission_tiers_valid"($1) $$;
 revoke execute on function "api"."commission_tiers_valid"(jsonb) from public, anon, authenticated;
 grant execute on function "api"."commission_tiers_valid"(jsonb) to service_role;
 
-create or replace function "api"."save_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function "api"."upsert_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_commission_plan"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
-grant execute on function "api"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_commission_plan"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
+grant execute on function "api"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
 
 create or replace function "api"."assign_commission_plan"(tenant uuid, plan_id uuid, seller_id uuid, subject_type text default null, subject_id text default null, starts_on date default null, ends_on date default null)
 returns jsonb
@@ -6547,7 +6547,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:2ce5aee980f38ffa978ff867f399309e2ecbf19caac3970aa44567ab3b759e6d
+-- @bsb-hash sha256:f20c556f0e031c4b4d92834f90029ad33c8a22826d72f660e91f3ce06640c823
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6720,7 +6720,7 @@ grant execute on function "better_supabase"."commission_tiers_valid"(jsonb) to s
 -- Creates a plan, or changes the one with plan_id. A flat plan sets rate_bps, a
 -- tiered plan sets tiers. archived hides a plan from new assignments. Needs
 -- commissions.manage.
-create or replace function "better_supabase"."save_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function "better_supabase"."upsert_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -6729,23 +6729,23 @@ as $$
 #variable_conflict use_variable
 declare
   v_plan "better_supabase"."commission_plans";
-  v_created boolean := save_commission_plan.plan_id is null;
+  v_created boolean := upsert_commission_plan.plan_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', save_commission_plan.tenant, 'commissions.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', upsert_commission_plan.tenant, 'commissions.manage'), false))) then
     raise exception 'not allowed to manage commission plans' using errcode = '42501', hint = 'COMMISSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_commission_plan.name), '') is null or length(trim(save_commission_plan.name)) > 200 then
+  if nullif(trim(upsert_commission_plan.name), '') is null or length(trim(upsert_commission_plan.name)) > 200 then
     raise exception 'a plan needs a name of at most 200 characters' using errcode = '22023', hint = 'COMMISSION_INVALID';
   end if;
-  if save_commission_plan.kind = 'flat' then
-    if save_commission_plan.rate_bps is null or save_commission_plan.rate_bps not between 0 and 10000 or save_commission_plan.tiers is not null then
+  if upsert_commission_plan.kind = 'flat' then
+    if upsert_commission_plan.rate_bps is null or upsert_commission_plan.rate_bps not between 0 and 10000 or upsert_commission_plan.tiers is not null then
       raise exception 'a flat plan takes rate_bps from 0 to 10000 and no tiers' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
-  elsif save_commission_plan.kind = 'tiered' then
-    if save_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(save_commission_plan.tiers) then
+  elsif upsert_commission_plan.kind = 'tiered' then
+    if upsert_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(upsert_commission_plan.tiers) then
       raise exception 'a tiered plan takes rising { upTo, bps } tiers with a last tier that has no upTo' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
   else
@@ -6753,16 +6753,16 @@ begin
   end if;
   if v_created then
     insert into "better_supabase"."commission_plans" ("tenant_id", "name", "kind", "rate_bps", "tiers", "archived_at")
-    values (save_commission_plan.tenant, trim(save_commission_plan.name), save_commission_plan.kind, save_commission_plan.rate_bps, save_commission_plan.tiers,
-      case when save_commission_plan.archived then now() end)
+    values (upsert_commission_plan.tenant, trim(upsert_commission_plan.name), upsert_commission_plan.kind, upsert_commission_plan.rate_bps, upsert_commission_plan.tiers,
+      case when upsert_commission_plan.archived then now() end)
     returning * into v_plan;
     null;
   else
-    update "better_supabase"."commission_plans" x set "name" = trim(save_commission_plan.name), "kind" = save_commission_plan.kind,
-      "rate_bps" = save_commission_plan.rate_bps, "tiers" = save_commission_plan.tiers,
-      "archived_at" = case when save_commission_plan.archived then coalesce(x."archived_at", now()) end,
+    update "better_supabase"."commission_plans" x set "name" = trim(upsert_commission_plan.name), "kind" = upsert_commission_plan.kind,
+      "rate_bps" = upsert_commission_plan.rate_bps, "tiers" = upsert_commission_plan.tiers,
+      "archived_at" = case when upsert_commission_plan.archived then coalesce(x."archived_at", now()) end,
       "updated_at" = now()
-    where x."id" = save_commission_plan.plan_id and x."tenant_id" = save_commission_plan.tenant
+    where x."id" = upsert_commission_plan.plan_id and x."tenant_id" = upsert_commission_plan.tenant
     returning * into v_plan;
     if not found then
       raise exception 'no such commission plan' using errcode = 'P0002', hint = 'COMMISSION_PLAN_NOT_FOUND';
@@ -6772,8 +6772,8 @@ begin
   return jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."tenant_id", 'name', v_plan."name", 'kind', v_plan."kind", 'rateBps', v_plan."rate_bps", 'tiers', v_plan."tiers", 'archivedAt', v_plan."archived_at", 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
 
 -- Puts a seller on a plan from starts_on until ends_on. With a subject the
 -- plan applies to sales on that record only, and wins over the seller's own
@@ -8093,7 +8093,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:15857ad1b8713740e5c76b8120d5a94f991836a23d601c841eb4c30d5b7d3019
+-- @bsb-hash sha256:194a9d7a7d61605bfee01b779b27ffe2d2d2ae3cb9b9452371eb7bddb1d54b8d
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8292,7 +8292,7 @@ grant execute on function "better_supabase"."commission_tiers_valid"(jsonb) to s
 -- Creates a plan, or changes the one with plan_id. A flat plan sets rate_bps, a
 -- tiered plan sets tiers. archived hides a plan from new assignments. Needs
 -- commissions.manage.
-create or replace function "better_supabase"."save_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
+create or replace function "better_supabase"."upsert_commission_plan"(tenant uuid, name text, kind text, rate_bps integer default null, tiers jsonb default null, plan_id uuid default null, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -8301,23 +8301,23 @@ as $$
 #variable_conflict use_variable
 declare
   v_plan "better_supabase"."commission_plans";
-  v_created boolean := save_commission_plan.plan_id is null;
+  v_created boolean := upsert_commission_plan.plan_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', save_commission_plan.tenant, 'commissions.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_commission_plan.tenant is not null and coalesce(better_supabase.can('tenant', upsert_commission_plan.tenant, 'commissions.manage'), false))) then
     raise exception 'not allowed to manage commission plans' using errcode = '42501', hint = 'COMMISSION_FORBIDDEN';
   end if;
-  if nullif(trim(save_commission_plan.name), '') is null or length(trim(save_commission_plan.name)) > 200 then
+  if nullif(trim(upsert_commission_plan.name), '') is null or length(trim(upsert_commission_plan.name)) > 200 then
     raise exception 'a plan needs a name of at most 200 characters' using errcode = '22023', hint = 'COMMISSION_INVALID';
   end if;
-  if save_commission_plan.kind = 'flat' then
-    if save_commission_plan.rate_bps is null or save_commission_plan.rate_bps not between 0 and 10000 or save_commission_plan.tiers is not null then
+  if upsert_commission_plan.kind = 'flat' then
+    if upsert_commission_plan.rate_bps is null or upsert_commission_plan.rate_bps not between 0 and 10000 or upsert_commission_plan.tiers is not null then
       raise exception 'a flat plan takes rate_bps from 0 to 10000 and no tiers' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
-  elsif save_commission_plan.kind = 'tiered' then
-    if save_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(save_commission_plan.tiers) then
+  elsif upsert_commission_plan.kind = 'tiered' then
+    if upsert_commission_plan.rate_bps is not null or not "better_supabase"."commission_tiers_valid"(upsert_commission_plan.tiers) then
       raise exception 'a tiered plan takes rising { upTo, bps } tiers with a last tier that has no upTo' using errcode = '22023', hint = 'COMMISSION_INVALID';
     end if;
   else
@@ -8325,16 +8325,16 @@ begin
   end if;
   if v_created then
     insert into "better_supabase"."commission_plans" ("org_id", "name", "kind", "rate_bps", "tiers", "archived_at")
-    values (save_commission_plan.tenant, trim(save_commission_plan.name), save_commission_plan.kind, save_commission_plan.rate_bps, save_commission_plan.tiers,
-      case when save_commission_plan.archived then now() end)
+    values (upsert_commission_plan.tenant, trim(upsert_commission_plan.name), upsert_commission_plan.kind, upsert_commission_plan.rate_bps, upsert_commission_plan.tiers,
+      case when upsert_commission_plan.archived then now() end)
     returning * into v_plan;
     null;
   else
-    update "better_supabase"."commission_plans" x set "name" = trim(save_commission_plan.name), "kind" = save_commission_plan.kind,
-      "rate_bps" = save_commission_plan.rate_bps, "tiers" = save_commission_plan.tiers,
-      "archived_at" = case when save_commission_plan.archived then coalesce(x."archived_at", now()) end,
+    update "better_supabase"."commission_plans" x set "name" = trim(upsert_commission_plan.name), "kind" = upsert_commission_plan.kind,
+      "rate_bps" = upsert_commission_plan.rate_bps, "tiers" = upsert_commission_plan.tiers,
+      "archived_at" = case when upsert_commission_plan.archived then coalesce(x."archived_at", now()) end,
       "updated_at" = now()
-    where x."id" = save_commission_plan.plan_id and x."org_id" = save_commission_plan.tenant
+    where x."id" = upsert_commission_plan.plan_id and x."org_id" = upsert_commission_plan.tenant
     returning * into v_plan;
     if not found then
       raise exception 'no such commission plan' using errcode = 'P0002', hint = 'COMMISSION_PLAN_NOT_FOUND';
@@ -8344,8 +8344,8 @@ begin
   return jsonb_build_object('id', v_plan."id", 'organizationId', v_plan."org_id", 'name', v_plan."name", 'kind', v_plan."kind", 'rateBps', v_plan."rate_bps", 'tiers', v_plan."tiers", 'archivedAt', v_plan."archived_at", 'createdAt', v_plan."created_at", 'updatedAt', v_plan."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_commission_plan"(uuid, text, text, integer, jsonb, uuid, boolean) to authenticated, service_role;
 
 -- Puts a seller on a plan from starts_on until ends_on. With a subject the
 -- plan applies to sales on that record only, and wins over the seller's own

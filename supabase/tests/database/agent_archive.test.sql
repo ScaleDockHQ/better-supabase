@@ -18,7 +18,7 @@ set local role authenticated;
 
 select set_config('test.base',
   jsonb_array_length(better_supabase.list_agents('00000000-0000-4000-8000-000000000001', 'mine'))::text, true);
-select set_config('test.agent', better_supabase.save_agent(
+select set_config('test.agent', better_supabase.upsert_agent(
   '00000000-0000-4000-8000-000000000001', null,
   '{"slug": "archive-me", "name": "Archive me"}') ->> 'id', true);
 
@@ -40,9 +40,9 @@ select isnt(
   'get_agent still reads it by id'
 );
 select throws_ok(
-  format('select better_supabase.save_agent(%L, %L, %L)', '00000000-0000-4000-8000-000000000001',
+  format('select better_supabase.upsert_agent(%L, %L, %L)', '00000000-0000-4000-8000-000000000001',
     current_setting('test.agent'), '{"name": "Renamed"}'),
-  '55000', null, 'save_agent refuses an archived agent'
+  '55000', null, 'upsert_agent refuses an archived agent'
 );
 select throws_ok(
   format('select better_supabase.rate_agent(%L, 4)', current_setting('test.agent')),

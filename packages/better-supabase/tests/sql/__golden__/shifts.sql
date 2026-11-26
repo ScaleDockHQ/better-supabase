@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:0b909f2300643fb7a05fc573902659ee49160e0340ede7c52eb5f7fe9cab2b1c
+-- @bsb-hash sha256:e4a2e9e8be2bca6d8f72c28c40c315e8a19f51ed953e21674e858168b2712033
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -164,7 +164,7 @@ create policy bsb_shift_availability_read on "better_supabase"."shift_availabili
 -- Creates a shift template, or changes one (template_id). An end at or before
 -- the start runs into the next day. weekdays are ISO weekdays (1 is Monday)
 -- generate_shifts creates shifts on.
-create or replace function "better_supabase"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function "better_supabase"."upsert_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -173,60 +173,60 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shift_templates"%rowtype;
-  v_name text := nullif(trim(save_shift_template.name), '');
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift_template.required_qualifications, '{}')) k where k is not null order by k);
-  v_weekdays integer[] := array(select distinct d from unnest(coalesce(save_shift_template.weekdays, '{}')) d where d is not null order by d);
+  v_name text := nullif(trim(upsert_shift_template.name), '');
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift_template.required_qualifications, '{}')) k where k is not null order by k);
+  v_weekdays integer[] := array(select distinct d from unnest(coalesce(upsert_shift_template.weekdays, '{}')) d where d is not null order by d);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift_template.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift_template.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
   if v_name is null or length(v_name) > 200 then
     raise exception 'a shift template needs a name of at most 200 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.starts_time is null or save_shift_template.ends_time is null then
+  if upsert_shift_template.starts_time is null or upsert_shift_template.ends_time is null then
     raise exception 'a shift template needs a start and an end time' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if not (v_weekdays <@ array[1, 2, 3, 4, 5, 6, 7]) then
     raise exception 'weekdays are 1 (Monday) to 7 (Sunday)' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift_template.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift_template.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift_template.team_id and o."tenant_id" = save_shift_template.tenant
+  if upsert_shift_template.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift_template.team_id and o."tenant_id" = upsert_shift_template.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.location_id is not null then
+  if upsert_shift_template.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
     raise exception 'required_qualifications needs the qualifications block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.template_id is null then
+  if upsert_shift_template.template_id is null then
     insert into "better_supabase"."shift_templates" ("tenant_id", "name", "team_id", "location_id", "starts_time", "ends_time", "break_minutes", "headcount", "required_qualifications", "weekdays")
-    values (save_shift_template.tenant, v_name, save_shift_template.team_id, save_shift_template.location_id, save_shift_template.starts_time, save_shift_template.ends_time, coalesce(save_shift_template.break_minutes, 0), coalesce(save_shift_template.headcount, 1), v_required, v_weekdays)
+    values (upsert_shift_template.tenant, v_name, upsert_shift_template.team_id, upsert_shift_template.location_id, upsert_shift_template.starts_time, upsert_shift_template.ends_time, coalesce(upsert_shift_template.break_minutes, 0), coalesce(upsert_shift_template.headcount, 1), v_required, v_weekdays)
     returning * into v_row;
   else
     update "better_supabase"."shift_templates" x set
       "name" = v_name,
-      "team_id" = save_shift_template.team_id,
-      "location_id" = save_shift_template.location_id,
-      "starts_time" = save_shift_template.starts_time,
-      "ends_time" = save_shift_template.ends_time,
-      "break_minutes" = coalesce(save_shift_template.break_minutes, 0),
-      "headcount" = coalesce(save_shift_template.headcount, 1),
+      "team_id" = upsert_shift_template.team_id,
+      "location_id" = upsert_shift_template.location_id,
+      "starts_time" = upsert_shift_template.starts_time,
+      "ends_time" = upsert_shift_template.ends_time,
+      "break_minutes" = coalesce(upsert_shift_template.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift_template.headcount, 1),
       "required_qualifications" = v_required,
       "weekdays" = v_weekdays,
       "updated_at" = now(),
       "archived_at" = null
-    where x."id" = save_shift_template.template_id and x."tenant_id" = save_shift_template.tenant
+    where x."id" = upsert_shift_template.template_id and x."tenant_id" = upsert_shift_template.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
@@ -235,8 +235,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
 
 -- Archives a template: generate_shifts no longer takes it; its shifts stay.
 create or replace function "better_supabase"."archive_shift_template"(template_id uuid)
@@ -373,7 +373,7 @@ grant execute on function "better_supabase"."generate_shifts"(uuid, uuid, date, 
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
 
-create or replace function "better_supabase"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
+create or replace function "better_supabase"."upsert_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -382,35 +382,35 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shifts"%rowtype;
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift.required_qualifications, '{}')) k where k is not null order by k);
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift.required_qualifications, '{}')) k where k is not null order by k);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
-  if save_shift.starts_at is null or save_shift.ends_at is null or save_shift.ends_at <= save_shift.starts_at then
+  if upsert_shift.starts_at is null or upsert_shift.ends_at is null or upsert_shift.ends_at <= upsert_shift.starts_at then
     raise exception 'a shift ends after it starts' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.ends_at - save_shift.starts_at > interval '24 hours' then
+  if upsert_shift.ends_at - upsert_shift.starts_at > interval '24 hours' then
     raise exception 'a shift lasts at most 24 hours' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.note is not null and length(save_shift.note) > 2000 then
+  if upsert_shift.note is not null and length(upsert_shift.note) > 2000 then
     raise exception 'a note is at most 2000 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift.team_id and o."tenant_id" = save_shift.tenant
+  if upsert_shift.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift.team_id and o."tenant_id" = upsert_shift.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.location_id is not null then
+  if upsert_shift.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
@@ -421,17 +421,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using save_shift.tenant, save_shift.shift_id;
+        using upsert_shift.tenant, upsert_shift.shift_id;
     end if;
   end;
-  if save_shift.shift_id is null then
+  if upsert_shift.shift_id is null then
     insert into "better_supabase"."shifts" ("tenant_id", "team_id", "location_id", "starts_at", "ends_at", "break_minutes", "headcount", "required_qualifications", "note", "created_by")
-    values (save_shift.tenant, save_shift.team_id, save_shift.location_id, save_shift.starts_at, save_shift.ends_at, coalesce(save_shift.break_minutes, 0), coalesce(save_shift.headcount, 1), v_required, nullif(trim(save_shift.note), ''), (select auth.uid()))
+    values (upsert_shift.tenant, upsert_shift.team_id, upsert_shift.location_id, upsert_shift.starts_at, upsert_shift.ends_at, coalesce(upsert_shift.break_minutes, 0), coalesce(upsert_shift.headcount, 1), v_required, nullif(trim(upsert_shift.note), ''), (select auth.uid()))
     returning * into v_row;
     null;
   else
     select * into v_row from "better_supabase"."shifts" x
-    where x."id" = save_shift.shift_id and x."tenant_id" = save_shift.tenant
+    where x."id" = upsert_shift.shift_id and x."tenant_id" = upsert_shift.tenant
     for update;
     if not found then
       raise exception 'shift not found' using errcode = 'P0002', hint = 'SHIFT_NOT_FOUND';
@@ -440,14 +440,14 @@ begin
       raise exception 'the shift is canceled' using errcode = '55000', hint = 'SHIFT_CANCELED';
     end if;
     update "better_supabase"."shifts" x set
-      "starts_at" = save_shift.starts_at,
-      "ends_at" = save_shift.ends_at,
-      "team_id" = save_shift.team_id,
-      "location_id" = save_shift.location_id,
-      "break_minutes" = coalesce(save_shift.break_minutes, 0),
-      "headcount" = coalesce(save_shift.headcount, 1),
+      "starts_at" = upsert_shift.starts_at,
+      "ends_at" = upsert_shift.ends_at,
+      "team_id" = upsert_shift.team_id,
+      "location_id" = upsert_shift.location_id,
+      "break_minutes" = coalesce(upsert_shift.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift.headcount, 1),
       "required_qualifications" = v_required,
-      "note" = nullif(trim(save_shift.note), ''),
+      "note" = nullif(trim(upsert_shift.note), ''),
       "updated_at" = now()
     where x."id" = v_row."id"
     returning x.* into v_row;
@@ -469,8 +469,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'templateId', v_row."template_id", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'status', v_row."status", 'note', v_row."note", 'publishedAt', v_row."published_at", 'canceledAt', v_row."canceled_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
 
 -- Cancels a shift and releases its assignments. Assigned members are
 -- notified. Canceling one already canceled changes nothing.
@@ -1246,7 +1246,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:c27c41838c287cd3e8ea3a5b052b88dfcac36db3ecaa6078ee69b48bd635aad7
+-- @bsb-hash sha256:9c6ce32dea940ad5981fad67cd21786b8292978698fd932eb1795df2008fabac
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1410,7 +1410,7 @@ create policy bsb_shift_availability_read on "better_supabase"."shift_availabili
 -- Creates a shift template, or changes one (template_id). An end at or before
 -- the start runs into the next day. weekdays are ISO weekdays (1 is Monday)
 -- generate_shifts creates shifts on.
-create or replace function "better_supabase"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function "better_supabase"."upsert_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1419,38 +1419,38 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shift_templates"%rowtype;
-  v_name text := nullif(trim(save_shift_template.name), '');
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift_template.required_qualifications, '{}')) k where k is not null order by k);
-  v_weekdays integer[] := array(select distinct d from unnest(coalesce(save_shift_template.weekdays, '{}')) d where d is not null order by d);
+  v_name text := nullif(trim(upsert_shift_template.name), '');
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift_template.required_qualifications, '{}')) k where k is not null order by k);
+  v_weekdays integer[] := array(select distinct d from unnest(coalesce(upsert_shift_template.weekdays, '{}')) d where d is not null order by d);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift_template.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift_template.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
   if v_name is null or length(v_name) > 200 then
     raise exception 'a shift template needs a name of at most 200 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.starts_time is null or save_shift_template.ends_time is null then
+  if upsert_shift_template.starts_time is null or upsert_shift_template.ends_time is null then
     raise exception 'a shift template needs a start and an end time' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if not (v_weekdays <@ array[1, 2, 3, 4, 5, 6, 7]) then
     raise exception 'weekdays are 1 (Monday) to 7 (Sunday)' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift_template.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift_template.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift_template.team_id and o."tenant_id" = save_shift_template.tenant
+  if upsert_shift_template.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift_template.team_id and o."tenant_id" = upsert_shift_template.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.location_id is not null and not exists (
-    select 1 from "better_supabase"."assets" o where o."id" = save_shift_template.location_id and o."tenant_id" = save_shift_template.tenant
+  if upsert_shift_template.location_id is not null and not exists (
+    select 1 from "better_supabase"."assets" o where o."id" = upsert_shift_template.location_id and o."tenant_id" = upsert_shift_template.tenant
   ) then
     raise exception 'the location isn''t an asset in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
@@ -1458,29 +1458,29 @@ begin
     select 1 from unnest(coalesce(v_required, '{}')) k
     where not exists (
       select 1 from "better_supabase"."qualification_types" o
-      where o."tenant_id" = save_shift_template.tenant and o."key" = k and o."archived_at" is null
+      where o."tenant_id" = upsert_shift_template.tenant and o."key" = k and o."archived_at" is null
     )
   ) then
     raise exception 'every required qualification is a qualification type key of this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.template_id is null then
+  if upsert_shift_template.template_id is null then
     insert into "better_supabase"."shift_templates" ("tenant_id", "name", "team_id", "location_id", "starts_time", "ends_time", "break_minutes", "headcount", "required_qualifications", "weekdays")
-    values (save_shift_template.tenant, v_name, save_shift_template.team_id, save_shift_template.location_id, save_shift_template.starts_time, save_shift_template.ends_time, coalesce(save_shift_template.break_minutes, 0), coalesce(save_shift_template.headcount, 1), v_required, v_weekdays)
+    values (upsert_shift_template.tenant, v_name, upsert_shift_template.team_id, upsert_shift_template.location_id, upsert_shift_template.starts_time, upsert_shift_template.ends_time, coalesce(upsert_shift_template.break_minutes, 0), coalesce(upsert_shift_template.headcount, 1), v_required, v_weekdays)
     returning * into v_row;
   else
     update "better_supabase"."shift_templates" x set
       "name" = v_name,
-      "team_id" = save_shift_template.team_id,
-      "location_id" = save_shift_template.location_id,
-      "starts_time" = save_shift_template.starts_time,
-      "ends_time" = save_shift_template.ends_time,
-      "break_minutes" = coalesce(save_shift_template.break_minutes, 0),
-      "headcount" = coalesce(save_shift_template.headcount, 1),
+      "team_id" = upsert_shift_template.team_id,
+      "location_id" = upsert_shift_template.location_id,
+      "starts_time" = upsert_shift_template.starts_time,
+      "ends_time" = upsert_shift_template.ends_time,
+      "break_minutes" = coalesce(upsert_shift_template.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift_template.headcount, 1),
       "required_qualifications" = v_required,
       "weekdays" = v_weekdays,
       "updated_at" = now(),
       "archived_at" = null
-    where x."id" = save_shift_template.template_id and x."tenant_id" = save_shift_template.tenant
+    where x."id" = upsert_shift_template.template_id and x."tenant_id" = upsert_shift_template.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
@@ -1489,8 +1489,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
 
 -- Archives a template: generate_shifts no longer takes it; its shifts stay.
 create or replace function "better_supabase"."archive_shift_template"(template_id uuid)
@@ -1636,7 +1636,7 @@ grant execute on function "better_supabase"."generate_shifts"(uuid, uuid, date, 
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
 
-create or replace function "better_supabase"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
+create or replace function "better_supabase"."upsert_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1645,36 +1645,36 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shifts"%rowtype;
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift.required_qualifications, '{}')) k where k is not null order by k);
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift.required_qualifications, '{}')) k where k is not null order by k);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
-  if save_shift.starts_at is null or save_shift.ends_at is null or save_shift.ends_at <= save_shift.starts_at then
+  if upsert_shift.starts_at is null or upsert_shift.ends_at is null or upsert_shift.ends_at <= upsert_shift.starts_at then
     raise exception 'a shift ends after it starts' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.ends_at - save_shift.starts_at > interval '24 hours' then
+  if upsert_shift.ends_at - upsert_shift.starts_at > interval '24 hours' then
     raise exception 'a shift lasts at most 24 hours' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.note is not null and length(save_shift.note) > 2000 then
+  if upsert_shift.note is not null and length(upsert_shift.note) > 2000 then
     raise exception 'a note is at most 2000 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift.team_id and o."tenant_id" = save_shift.tenant
+  if upsert_shift.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift.team_id and o."tenant_id" = upsert_shift.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.location_id is not null and not exists (
-    select 1 from "better_supabase"."assets" o where o."id" = save_shift.location_id and o."tenant_id" = save_shift.tenant
+  if upsert_shift.location_id is not null and not exists (
+    select 1 from "better_supabase"."assets" o where o."id" = upsert_shift.location_id and o."tenant_id" = upsert_shift.tenant
   ) then
     raise exception 'the location isn''t an asset in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
@@ -1682,7 +1682,7 @@ begin
     select 1 from unnest(coalesce(v_required, '{}')) k
     where not exists (
       select 1 from "better_supabase"."qualification_types" o
-      where o."tenant_id" = save_shift.tenant and o."key" = k and o."archived_at" is null
+      where o."tenant_id" = upsert_shift.tenant and o."key" = k and o."archived_at" is null
     )
   ) then
     raise exception 'every required qualification is a qualification type key of this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
@@ -1692,12 +1692,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using save_shift.tenant, save_shift.shift_id;
+        using upsert_shift.tenant, upsert_shift.shift_id;
     end if;
   end;
-  if save_shift.shift_id is null then
+  if upsert_shift.shift_id is null then
     insert into "better_supabase"."shifts" ("tenant_id", "team_id", "location_id", "starts_at", "ends_at", "break_minutes", "headcount", "required_qualifications", "note", "created_by")
-    values (save_shift.tenant, save_shift.team_id, save_shift.location_id, save_shift.starts_at, save_shift.ends_at, coalesce(save_shift.break_minutes, 0), coalesce(save_shift.headcount, 1), v_required, nullif(trim(save_shift.note), ''), (select auth.uid()))
+    values (upsert_shift.tenant, upsert_shift.team_id, upsert_shift.location_id, upsert_shift.starts_at, upsert_shift.ends_at, coalesce(upsert_shift.break_minutes, 0), coalesce(upsert_shift.headcount, 1), v_required, nullif(trim(upsert_shift.note), ''), (select auth.uid()))
     returning * into v_row;
     perform "better_supabase".emit_event('shift.created', jsonb_build_object('organizationId', v_row."tenant_id", 'shiftId', v_row."id", 'teamId', v_row."team_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'status', v_row."status"), 'shifts/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/shifts');
   perform better_supabase.audit_event(
@@ -1711,7 +1711,7 @@ begin
   );
   else
     select * into v_row from "better_supabase"."shifts" x
-    where x."id" = save_shift.shift_id and x."tenant_id" = save_shift.tenant
+    where x."id" = upsert_shift.shift_id and x."tenant_id" = upsert_shift.tenant
     for update;
     if not found then
       raise exception 'shift not found' using errcode = 'P0002', hint = 'SHIFT_NOT_FOUND';
@@ -1720,14 +1720,14 @@ begin
       raise exception 'the shift is canceled' using errcode = '55000', hint = 'SHIFT_CANCELED';
     end if;
     update "better_supabase"."shifts" x set
-      "starts_at" = save_shift.starts_at,
-      "ends_at" = save_shift.ends_at,
-      "team_id" = save_shift.team_id,
-      "location_id" = save_shift.location_id,
-      "break_minutes" = coalesce(save_shift.break_minutes, 0),
-      "headcount" = coalesce(save_shift.headcount, 1),
+      "starts_at" = upsert_shift.starts_at,
+      "ends_at" = upsert_shift.ends_at,
+      "team_id" = upsert_shift.team_id,
+      "location_id" = upsert_shift.location_id,
+      "break_minutes" = coalesce(upsert_shift.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift.headcount, 1),
       "required_qualifications" = v_required,
-      "note" = nullif(trim(save_shift.note), ''),
+      "note" = nullif(trim(upsert_shift.note), ''),
       "updated_at" = now()
     where x."id" = v_row."id"
     returning x.* into v_row;
@@ -1749,8 +1749,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'templateId', v_row."template_id", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'status', v_row."status", 'note', v_row."note", 'publishedAt', v_row."published_at", 'canceledAt', v_row."canceled_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
 
 -- Cancels a shift and releases its assignments. Assigned members are
 -- notified. Canceling one already canceled changes nothing.
@@ -2841,7 +2841,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:648f96d61d50d2b2ee3a2a41af3cbf4ae45fd3a73ee2bedc58e64703886978d8
+-- @bsb-hash sha256:534749acdb90599b597b28db71e3308c4d7d21d9c2764453206f55c253b40397
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3009,7 +3009,7 @@ create policy bsb_shift_availability_read on "app_private"."shift_availability"
 -- Creates a shift template, or changes one (template_id). An end at or before
 -- the start runs into the next day. weekdays are ISO weekdays (1 is Monday)
 -- generate_shifts creates shifts on.
-create or replace function "app_private"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function "app_private"."upsert_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3018,60 +3018,60 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."shift_templates"%rowtype;
-  v_name text := nullif(trim(save_shift_template.name), '');
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift_template.required_qualifications, '{}')) k where k is not null order by k);
-  v_weekdays integer[] := array(select distinct d from unnest(coalesce(save_shift_template.weekdays, '{}')) d where d is not null order by d);
+  v_name text := nullif(trim(upsert_shift_template.name), '');
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift_template.required_qualifications, '{}')) k where k is not null order by k);
+  v_weekdays integer[] := array(select distinct d from unnest(coalesce(upsert_shift_template.weekdays, '{}')) d where d is not null order by d);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift_template.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift_template.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
   if v_name is null or length(v_name) > 200 then
     raise exception 'a shift template needs a name of at most 200 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.starts_time is null or save_shift_template.ends_time is null then
+  if upsert_shift_template.starts_time is null or upsert_shift_template.ends_time is null then
     raise exception 'a shift template needs a start and an end time' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if not (v_weekdays <@ array[1, 2, 3, 4, 5, 6, 7]) then
     raise exception 'weekdays are 1 (Monday) to 7 (Sunday)' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift_template.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift_template.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift_template.team_id and o."tenant_id" = save_shift_template.tenant
+  if upsert_shift_template.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift_template.team_id and o."tenant_id" = upsert_shift_template.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.location_id is not null then
+  if upsert_shift_template.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
     raise exception 'required_qualifications needs the qualifications block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.template_id is null then
+  if upsert_shift_template.template_id is null then
     insert into "app_private"."shift_templates" ("tenant_id", "name", "team_id", "location_id", "starts_time", "ends_time", "break_minutes", "headcount", "required_qualifications", "weekdays")
-    values (save_shift_template.tenant, v_name, save_shift_template.team_id, save_shift_template.location_id, save_shift_template.starts_time, save_shift_template.ends_time, coalesce(save_shift_template.break_minutes, 0), coalesce(save_shift_template.headcount, 1), v_required, v_weekdays)
+    values (upsert_shift_template.tenant, v_name, upsert_shift_template.team_id, upsert_shift_template.location_id, upsert_shift_template.starts_time, upsert_shift_template.ends_time, coalesce(upsert_shift_template.break_minutes, 0), coalesce(upsert_shift_template.headcount, 1), v_required, v_weekdays)
     returning * into v_row;
   else
     update "app_private"."shift_templates" x set
       "name" = v_name,
-      "team_id" = save_shift_template.team_id,
-      "location_id" = save_shift_template.location_id,
-      "starts_time" = save_shift_template.starts_time,
-      "ends_time" = save_shift_template.ends_time,
-      "break_minutes" = coalesce(save_shift_template.break_minutes, 0),
-      "headcount" = coalesce(save_shift_template.headcount, 1),
+      "team_id" = upsert_shift_template.team_id,
+      "location_id" = upsert_shift_template.location_id,
+      "starts_time" = upsert_shift_template.starts_time,
+      "ends_time" = upsert_shift_template.ends_time,
+      "break_minutes" = coalesce(upsert_shift_template.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift_template.headcount, 1),
       "required_qualifications" = v_required,
       "weekdays" = v_weekdays,
       "updated_at" = now(),
       "archived_at" = null
-    where x."id" = save_shift_template.template_id and x."tenant_id" = save_shift_template.tenant
+    where x."id" = upsert_shift_template.template_id and x."tenant_id" = upsert_shift_template.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
@@ -3080,8 +3080,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
-grant execute on function "app_private"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
+grant execute on function "app_private"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
 
 -- Archives a template: generate_shifts no longer takes it; its shifts stay.
 create or replace function "app_private"."archive_shift_template"(template_id uuid)
@@ -3218,7 +3218,7 @@ grant execute on function "app_private"."generate_shifts"(uuid, uuid, date, date
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
 
-create or replace function "app_private"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
+create or replace function "app_private"."upsert_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3227,35 +3227,35 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."shifts"%rowtype;
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift.required_qualifications, '{}')) k where k is not null order by k);
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift.required_qualifications, '{}')) k where k is not null order by k);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
-  if save_shift.starts_at is null or save_shift.ends_at is null or save_shift.ends_at <= save_shift.starts_at then
+  if upsert_shift.starts_at is null or upsert_shift.ends_at is null or upsert_shift.ends_at <= upsert_shift.starts_at then
     raise exception 'a shift ends after it starts' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.ends_at - save_shift.starts_at > interval '24 hours' then
+  if upsert_shift.ends_at - upsert_shift.starts_at > interval '24 hours' then
     raise exception 'a shift lasts at most 24 hours' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.note is not null and length(save_shift.note) > 2000 then
+  if upsert_shift.note is not null and length(upsert_shift.note) > 2000 then
     raise exception 'a note is at most 2000 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift.team_id and o."tenant_id" = save_shift.tenant
+  if upsert_shift.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift.team_id and o."tenant_id" = upsert_shift.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.location_id is not null then
+  if upsert_shift.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
@@ -3266,17 +3266,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using save_shift.tenant, save_shift.shift_id;
+        using upsert_shift.tenant, upsert_shift.shift_id;
     end if;
   end;
-  if save_shift.shift_id is null then
+  if upsert_shift.shift_id is null then
     insert into "app_private"."shifts" ("tenant_id", "team_id", "location_id", "starts_at", "ends_at", "break_minutes", "headcount", "required_qualifications", "note", "created_by")
-    values (save_shift.tenant, save_shift.team_id, save_shift.location_id, save_shift.starts_at, save_shift.ends_at, coalesce(save_shift.break_minutes, 0), coalesce(save_shift.headcount, 1), v_required, nullif(trim(save_shift.note), ''), (select auth.uid()))
+    values (upsert_shift.tenant, upsert_shift.team_id, upsert_shift.location_id, upsert_shift.starts_at, upsert_shift.ends_at, coalesce(upsert_shift.break_minutes, 0), coalesce(upsert_shift.headcount, 1), v_required, nullif(trim(upsert_shift.note), ''), (select auth.uid()))
     returning * into v_row;
     null;
   else
     select * into v_row from "app_private"."shifts" x
-    where x."id" = save_shift.shift_id and x."tenant_id" = save_shift.tenant
+    where x."id" = upsert_shift.shift_id and x."tenant_id" = upsert_shift.tenant
     for update;
     if not found then
       raise exception 'shift not found' using errcode = 'P0002', hint = 'SHIFT_NOT_FOUND';
@@ -3285,14 +3285,14 @@ begin
       raise exception 'the shift is canceled' using errcode = '55000', hint = 'SHIFT_CANCELED';
     end if;
     update "app_private"."shifts" x set
-      "starts_at" = save_shift.starts_at,
-      "ends_at" = save_shift.ends_at,
-      "team_id" = save_shift.team_id,
-      "location_id" = save_shift.location_id,
-      "break_minutes" = coalesce(save_shift.break_minutes, 0),
-      "headcount" = coalesce(save_shift.headcount, 1),
+      "starts_at" = upsert_shift.starts_at,
+      "ends_at" = upsert_shift.ends_at,
+      "team_id" = upsert_shift.team_id,
+      "location_id" = upsert_shift.location_id,
+      "break_minutes" = coalesce(upsert_shift.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift.headcount, 1),
       "required_qualifications" = v_required,
-      "note" = nullif(trim(save_shift.note), ''),
+      "note" = nullif(trim(upsert_shift.note), ''),
       "updated_at" = now()
     where x."id" = v_row."id"
     returning x.* into v_row;
@@ -3314,8 +3314,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'templateId', v_row."template_id", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'status', v_row."status", 'note', v_row."note", 'publishedAt', v_row."published_at", 'canceledAt', v_row."canceled_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
-grant execute on function "app_private"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
+grant execute on function "app_private"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
 
 -- Cancels a shift and releases its assignments. Assigned members are
 -- notified. Canceling one already canceled changes nothing.
@@ -4091,7 +4091,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:1286e7a33d177bfcfb0d28e8c8e32bea3b31c7e52a3419d6dc35b7c15c5d90f9
+-- @bsb-hash sha256:daff17821e9136152aa1a136e445839941f6cf92cc0cf3934f7771dc36842a7b
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4254,7 +4254,7 @@ create policy bsb_shift_availability_read on "better_supabase"."shift_availabili
 -- Creates a shift template, or changes one (template_id). An end at or before
 -- the start runs into the next day. weekdays are ISO weekdays (1 is Monday)
 -- generate_shifts creates shifts on.
-create or replace function "better_supabase"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function "better_supabase"."upsert_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4263,60 +4263,60 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shift_templates"%rowtype;
-  v_name text := nullif(trim(save_shift_template.name), '');
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift_template.required_qualifications, '{}')) k where k is not null order by k);
-  v_weekdays integer[] := array(select distinct d from unnest(coalesce(save_shift_template.weekdays, '{}')) d where d is not null order by d);
+  v_name text := nullif(trim(upsert_shift_template.name), '');
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift_template.required_qualifications, '{}')) k where k is not null order by k);
+  v_weekdays integer[] := array(select distinct d from unnest(coalesce(upsert_shift_template.weekdays, '{}')) d where d is not null order by d);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift_template.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift_template.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
   if v_name is null or length(v_name) > 200 then
     raise exception 'a shift template needs a name of at most 200 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.starts_time is null or save_shift_template.ends_time is null then
+  if upsert_shift_template.starts_time is null or upsert_shift_template.ends_time is null then
     raise exception 'a shift template needs a start and an end time' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if not (v_weekdays <@ array[1, 2, 3, 4, 5, 6, 7]) then
     raise exception 'weekdays are 1 (Monday) to 7 (Sunday)' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift_template.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift_template.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift_template.team_id and o."tenant_id" = save_shift_template.tenant
+  if upsert_shift_template.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift_template.team_id and o."tenant_id" = upsert_shift_template.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.location_id is not null then
+  if upsert_shift_template.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
     raise exception 'required_qualifications needs the qualifications block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.template_id is null then
+  if upsert_shift_template.template_id is null then
     insert into "better_supabase"."shift_templates" ("tenant_id", "name", "team_id", "location_id", "starts_time", "ends_time", "break_minutes", "headcount", "required_qualifications", "weekdays")
-    values (save_shift_template.tenant, v_name, save_shift_template.team_id, save_shift_template.location_id, save_shift_template.starts_time, save_shift_template.ends_time, coalesce(save_shift_template.break_minutes, 0), coalesce(save_shift_template.headcount, 1), v_required, v_weekdays)
+    values (upsert_shift_template.tenant, v_name, upsert_shift_template.team_id, upsert_shift_template.location_id, upsert_shift_template.starts_time, upsert_shift_template.ends_time, coalesce(upsert_shift_template.break_minutes, 0), coalesce(upsert_shift_template.headcount, 1), v_required, v_weekdays)
     returning * into v_row;
   else
     update "better_supabase"."shift_templates" x set
       "name" = v_name,
-      "team_id" = save_shift_template.team_id,
-      "location_id" = save_shift_template.location_id,
-      "starts_time" = save_shift_template.starts_time,
-      "ends_time" = save_shift_template.ends_time,
-      "break_minutes" = coalesce(save_shift_template.break_minutes, 0),
-      "headcount" = coalesce(save_shift_template.headcount, 1),
+      "team_id" = upsert_shift_template.team_id,
+      "location_id" = upsert_shift_template.location_id,
+      "starts_time" = upsert_shift_template.starts_time,
+      "ends_time" = upsert_shift_template.ends_time,
+      "break_minutes" = coalesce(upsert_shift_template.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift_template.headcount, 1),
       "required_qualifications" = v_required,
       "weekdays" = v_weekdays,
       "updated_at" = now(),
       "archived_at" = null
-    where x."id" = save_shift_template.template_id and x."tenant_id" = save_shift_template.tenant
+    where x."id" = upsert_shift_template.template_id and x."tenant_id" = upsert_shift_template.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
@@ -4325,8 +4325,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
 
 -- Archives a template: generate_shifts no longer takes it; its shifts stay.
 create or replace function "better_supabase"."archive_shift_template"(template_id uuid)
@@ -4463,7 +4463,7 @@ grant execute on function "better_supabase"."generate_shifts"(uuid, uuid, date, 
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
 
-create or replace function "better_supabase"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
+create or replace function "better_supabase"."upsert_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4472,35 +4472,35 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shifts"%rowtype;
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift.required_qualifications, '{}')) k where k is not null order by k);
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift.required_qualifications, '{}')) k where k is not null order by k);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
-  if save_shift.starts_at is null or save_shift.ends_at is null or save_shift.ends_at <= save_shift.starts_at then
+  if upsert_shift.starts_at is null or upsert_shift.ends_at is null or upsert_shift.ends_at <= upsert_shift.starts_at then
     raise exception 'a shift ends after it starts' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.ends_at - save_shift.starts_at > interval '24 hours' then
+  if upsert_shift.ends_at - upsert_shift.starts_at > interval '24 hours' then
     raise exception 'a shift lasts at most 24 hours' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.note is not null and length(save_shift.note) > 2000 then
+  if upsert_shift.note is not null and length(upsert_shift.note) > 2000 then
     raise exception 'a note is at most 2000 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift.team_id and o."tenant_id" = save_shift.tenant
+  if upsert_shift.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift.team_id and o."tenant_id" = upsert_shift.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.location_id is not null then
+  if upsert_shift.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
@@ -4511,17 +4511,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using save_shift.tenant, save_shift.shift_id;
+        using upsert_shift.tenant, upsert_shift.shift_id;
     end if;
   end;
-  if save_shift.shift_id is null then
+  if upsert_shift.shift_id is null then
     insert into "better_supabase"."shifts" ("tenant_id", "team_id", "location_id", "starts_at", "ends_at", "break_minutes", "headcount", "required_qualifications", "note", "created_by")
-    values (save_shift.tenant, save_shift.team_id, save_shift.location_id, save_shift.starts_at, save_shift.ends_at, coalesce(save_shift.break_minutes, 0), coalesce(save_shift.headcount, 1), v_required, nullif(trim(save_shift.note), ''), (select auth.uid()))
+    values (upsert_shift.tenant, upsert_shift.team_id, upsert_shift.location_id, upsert_shift.starts_at, upsert_shift.ends_at, coalesce(upsert_shift.break_minutes, 0), coalesce(upsert_shift.headcount, 1), v_required, nullif(trim(upsert_shift.note), ''), (select auth.uid()))
     returning * into v_row;
     null;
   else
     select * into v_row from "better_supabase"."shifts" x
-    where x."id" = save_shift.shift_id and x."tenant_id" = save_shift.tenant
+    where x."id" = upsert_shift.shift_id and x."tenant_id" = upsert_shift.tenant
     for update;
     if not found then
       raise exception 'shift not found' using errcode = 'P0002', hint = 'SHIFT_NOT_FOUND';
@@ -4530,14 +4530,14 @@ begin
       raise exception 'the shift is canceled' using errcode = '55000', hint = 'SHIFT_CANCELED';
     end if;
     update "better_supabase"."shifts" x set
-      "starts_at" = save_shift.starts_at,
-      "ends_at" = save_shift.ends_at,
-      "team_id" = save_shift.team_id,
-      "location_id" = save_shift.location_id,
-      "break_minutes" = coalesce(save_shift.break_minutes, 0),
-      "headcount" = coalesce(save_shift.headcount, 1),
+      "starts_at" = upsert_shift.starts_at,
+      "ends_at" = upsert_shift.ends_at,
+      "team_id" = upsert_shift.team_id,
+      "location_id" = upsert_shift.location_id,
+      "break_minutes" = coalesce(upsert_shift.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift.headcount, 1),
       "required_qualifications" = v_required,
-      "note" = nullif(trim(save_shift.note), ''),
+      "note" = nullif(trim(upsert_shift.note), ''),
       "updated_at" = now()
     where x."id" = v_row."id"
     returning x.* into v_row;
@@ -4559,8 +4559,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'templateId', v_row."template_id", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'status', v_row."status", 'note', v_row."note", 'publishedAt', v_row."published_at", 'canceledAt', v_row."canceled_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
 
 -- Cancels a shift and releases its assignments. Assigned members are
 -- notified. Canceling one already canceled changes nothing.
@@ -5321,14 +5321,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."shift_availability" 
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function "api"."upsert_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_shift_template"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) $$;
-revoke execute on function "api"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
-grant execute on function "api"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_shift_template"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) $$;
+revoke execute on function "api"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
+grant execute on function "api"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
 
 create or replace function "api"."archive_shift_template"(template_id uuid)
 returns jsonb
@@ -5367,14 +5367,14 @@ as $$ select "better_supabase"."generate_shifts"($1, $2, $3, $4) $$;
 revoke execute on function "api"."generate_shifts"(uuid, uuid, date, date) from public, anon;
 grant execute on function "api"."generate_shifts"(uuid, uuid, date, date) to authenticated, service_role;
 
-create or replace function "api"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
+create or replace function "api"."upsert_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_shift"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
-revoke execute on function "api"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
-grant execute on function "api"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_shift"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
+grant execute on function "api"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
 
 create or replace function "api"."cancel_shift"(shift_id uuid, reason text default null)
 returns jsonb
@@ -5516,7 +5516,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:c87e8d529b08c44859f329bc968757d5eb08f35dcec316d70373c2a33c719d73
+-- @bsb-hash sha256:aabd7aff3b0a1bf9705afdca93b6582e4979ad2218c4980c072148ebeec73dee
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5649,7 +5649,7 @@ create policy bsb_shift_availability_read on "better_supabase"."shift_availabili
 -- Creates a shift template, or changes one (template_id). An end at or before
 -- the start runs into the next day. weekdays are ISO weekdays (1 is Monday)
 -- generate_shifts creates shifts on.
-create or replace function "better_supabase"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function "better_supabase"."upsert_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5658,60 +5658,60 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shift_templates"%rowtype;
-  v_name text := nullif(trim(save_shift_template.name), '');
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift_template.required_qualifications, '{}')) k where k is not null order by k);
-  v_weekdays integer[] := array(select distinct d from unnest(coalesce(save_shift_template.weekdays, '{}')) d where d is not null order by d);
+  v_name text := nullif(trim(upsert_shift_template.name), '');
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift_template.required_qualifications, '{}')) k where k is not null order by k);
+  v_weekdays integer[] := array(select distinct d from unnest(coalesce(upsert_shift_template.weekdays, '{}')) d where d is not null order by d);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift_template.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift_template.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
   if v_name is null or length(v_name) > 200 then
     raise exception 'a shift template needs a name of at most 200 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.starts_time is null or save_shift_template.ends_time is null then
+  if upsert_shift_template.starts_time is null or upsert_shift_template.ends_time is null then
     raise exception 'a shift template needs a start and an end time' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if not (v_weekdays <@ array[1, 2, 3, 4, 5, 6, 7]) then
     raise exception 'weekdays are 1 (Monday) to 7 (Sunday)' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift_template.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift_template.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift_template.team_id and o."tenant_id" = save_shift_template.tenant
+  if upsert_shift_template.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift_template.team_id and o."tenant_id" = upsert_shift_template.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.location_id is not null then
+  if upsert_shift_template.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
     raise exception 'required_qualifications needs the qualifications block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.template_id is null then
+  if upsert_shift_template.template_id is null then
     insert into "better_supabase"."shift_templates" ("tenant_id", "name", "team_id", "location_id", "starts_time", "ends_time", "break_minutes", "headcount", "required_qualifications", "weekdays")
-    values (save_shift_template.tenant, v_name, save_shift_template.team_id, save_shift_template.location_id, save_shift_template.starts_time, save_shift_template.ends_time, coalesce(save_shift_template.break_minutes, 0), coalesce(save_shift_template.headcount, 1), v_required, v_weekdays)
+    values (upsert_shift_template.tenant, v_name, upsert_shift_template.team_id, upsert_shift_template.location_id, upsert_shift_template.starts_time, upsert_shift_template.ends_time, coalesce(upsert_shift_template.break_minutes, 0), coalesce(upsert_shift_template.headcount, 1), v_required, v_weekdays)
     returning * into v_row;
   else
     update "better_supabase"."shift_templates" x set
       "name" = v_name,
-      "team_id" = save_shift_template.team_id,
-      "location_id" = save_shift_template.location_id,
-      "starts_time" = save_shift_template.starts_time,
-      "ends_time" = save_shift_template.ends_time,
-      "break_minutes" = coalesce(save_shift_template.break_minutes, 0),
-      "headcount" = coalesce(save_shift_template.headcount, 1),
+      "team_id" = upsert_shift_template.team_id,
+      "location_id" = upsert_shift_template.location_id,
+      "starts_time" = upsert_shift_template.starts_time,
+      "ends_time" = upsert_shift_template.ends_time,
+      "break_minutes" = coalesce(upsert_shift_template.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift_template.headcount, 1),
       "required_qualifications" = v_required,
       "weekdays" = v_weekdays,
       "updated_at" = now(),
       "archived_at" = null
-    where x."id" = save_shift_template.template_id and x."tenant_id" = save_shift_template.tenant
+    where x."id" = upsert_shift_template.template_id and x."tenant_id" = upsert_shift_template.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
@@ -5720,8 +5720,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
 
 -- Archives a template: generate_shifts no longer takes it; its shifts stay.
 create or replace function "better_supabase"."archive_shift_template"(template_id uuid)
@@ -5858,7 +5858,7 @@ grant execute on function "better_supabase"."generate_shifts"(uuid, uuid, date, 
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
 
-create or replace function "better_supabase"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
+create or replace function "better_supabase"."upsert_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5867,35 +5867,35 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shifts"%rowtype;
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift.required_qualifications, '{}')) k where k is not null order by k);
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift.required_qualifications, '{}')) k where k is not null order by k);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
-  if save_shift.starts_at is null or save_shift.ends_at is null or save_shift.ends_at <= save_shift.starts_at then
+  if upsert_shift.starts_at is null or upsert_shift.ends_at is null or upsert_shift.ends_at <= upsert_shift.starts_at then
     raise exception 'a shift ends after it starts' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.ends_at - save_shift.starts_at > interval '24 hours' then
+  if upsert_shift.ends_at - upsert_shift.starts_at > interval '24 hours' then
     raise exception 'a shift lasts at most 24 hours' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.note is not null and length(save_shift.note) > 2000 then
+  if upsert_shift.note is not null and length(upsert_shift.note) > 2000 then
     raise exception 'a note is at most 2000 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift.team_id and o."tenant_id" = save_shift.tenant
+  if upsert_shift.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift.team_id and o."tenant_id" = upsert_shift.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.location_id is not null then
+  if upsert_shift.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
@@ -5906,17 +5906,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using save_shift.tenant, save_shift.shift_id;
+        using upsert_shift.tenant, upsert_shift.shift_id;
     end if;
   end;
-  if save_shift.shift_id is null then
+  if upsert_shift.shift_id is null then
     insert into "better_supabase"."shifts" ("tenant_id", "team_id", "location_id", "starts_at", "ends_at", "break_minutes", "headcount", "required_qualifications", "note", "created_by")
-    values (save_shift.tenant, save_shift.team_id, save_shift.location_id, save_shift.starts_at, save_shift.ends_at, coalesce(save_shift.break_minutes, 0), coalesce(save_shift.headcount, 1), v_required, nullif(trim(save_shift.note), ''), (select auth.uid()))
+    values (upsert_shift.tenant, upsert_shift.team_id, upsert_shift.location_id, upsert_shift.starts_at, upsert_shift.ends_at, coalesce(upsert_shift.break_minutes, 0), coalesce(upsert_shift.headcount, 1), v_required, nullif(trim(upsert_shift.note), ''), (select auth.uid()))
     returning * into v_row;
     null;
   else
     select * into v_row from "better_supabase"."shifts" x
-    where x."id" = save_shift.shift_id and x."tenant_id" = save_shift.tenant
+    where x."id" = upsert_shift.shift_id and x."tenant_id" = upsert_shift.tenant
     for update;
     if not found then
       raise exception 'shift not found' using errcode = 'P0002', hint = 'SHIFT_NOT_FOUND';
@@ -5925,14 +5925,14 @@ begin
       raise exception 'the shift is canceled' using errcode = '55000', hint = 'SHIFT_CANCELED';
     end if;
     update "better_supabase"."shifts" x set
-      "starts_at" = save_shift.starts_at,
-      "ends_at" = save_shift.ends_at,
-      "team_id" = save_shift.team_id,
-      "location_id" = save_shift.location_id,
-      "break_minutes" = coalesce(save_shift.break_minutes, 0),
-      "headcount" = coalesce(save_shift.headcount, 1),
+      "starts_at" = upsert_shift.starts_at,
+      "ends_at" = upsert_shift.ends_at,
+      "team_id" = upsert_shift.team_id,
+      "location_id" = upsert_shift.location_id,
+      "break_minutes" = coalesce(upsert_shift.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift.headcount, 1),
       "required_qualifications" = v_required,
-      "note" = nullif(trim(save_shift.note), ''),
+      "note" = nullif(trim(upsert_shift.note), ''),
       "updated_at" = now()
     where x."id" = v_row."id"
     returning x.* into v_row;
@@ -5954,8 +5954,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'templateId', v_row."template_id", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'status', v_row."status", 'note', v_row."note", 'publishedAt', v_row."published_at", 'canceledAt', v_row."canceled_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
 
 -- Cancels a shift and releases its assignments. Assigned members are
 -- notified. Canceling one already canceled changes nothing.
@@ -6731,7 +6731,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:ec233e0d406ebc8487b1d38176181b5f6d8d62bbeefe85f4d7a75a9cc9a8c58c
+-- @bsb-hash sha256:dc4fabe40a2d804a788b7f48883ad280e68651aaa683ea00f71b2d31d2f615ce
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6894,7 +6894,7 @@ create policy bsb_shift_availability_read on "better_supabase"."shift_availabili
 -- Creates a shift template, or changes one (template_id). An end at or before
 -- the start runs into the next day. weekdays are ISO weekdays (1 is Monday)
 -- generate_shifts creates shifts on.
-create or replace function "better_supabase"."save_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function "better_supabase"."upsert_shift_template"(tenant uuid, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6903,60 +6903,60 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shift_templates"%rowtype;
-  v_name text := nullif(trim(save_shift_template.name), '');
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift_template.required_qualifications, '{}')) k where k is not null order by k);
-  v_weekdays integer[] := array(select distinct d from unnest(coalesce(save_shift_template.weekdays, '{}')) d where d is not null order by d);
+  v_name text := nullif(trim(upsert_shift_template.name), '');
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift_template.required_qualifications, '{}')) k where k is not null order by k);
+  v_weekdays integer[] := array(select distinct d from unnest(coalesce(upsert_shift_template.weekdays, '{}')) d where d is not null order by d);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift_template.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift_template.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
   if v_name is null or length(v_name) > 200 then
     raise exception 'a shift template needs a name of at most 200 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.starts_time is null or save_shift_template.ends_time is null then
+  if upsert_shift_template.starts_time is null or upsert_shift_template.ends_time is null then
     raise exception 'a shift template needs a start and an end time' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if not (v_weekdays <@ array[1, 2, 3, 4, 5, 6, 7]) then
     raise exception 'weekdays are 1 (Monday) to 7 (Sunday)' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift_template.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift_template.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift_template.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift_template.team_id and o."org_id" = save_shift_template.tenant
+  if upsert_shift_template.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift_template.team_id and o."org_id" = upsert_shift_template.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.location_id is not null then
+  if upsert_shift_template.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
     raise exception 'required_qualifications needs the qualifications block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift_template.template_id is null then
+  if upsert_shift_template.template_id is null then
     insert into "better_supabase"."shift_templates" ("org_id", "name", "team_id", "location_id", "starts_time", "ends_time", "break_minutes", "headcount", "required_qualifications", "weekdays")
-    values (save_shift_template.tenant, v_name, save_shift_template.team_id, save_shift_template.location_id, save_shift_template.starts_time, save_shift_template.ends_time, coalesce(save_shift_template.break_minutes, 0), coalesce(save_shift_template.headcount, 1), v_required, v_weekdays)
+    values (upsert_shift_template.tenant, v_name, upsert_shift_template.team_id, upsert_shift_template.location_id, upsert_shift_template.starts_time, upsert_shift_template.ends_time, coalesce(upsert_shift_template.break_minutes, 0), coalesce(upsert_shift_template.headcount, 1), v_required, v_weekdays)
     returning * into v_row;
   else
     update "better_supabase"."shift_templates" x set
       "name" = v_name,
-      "team_id" = save_shift_template.team_id,
-      "location_id" = save_shift_template.location_id,
-      "starts_time" = save_shift_template.starts_time,
-      "ends_time" = save_shift_template.ends_time,
-      "break_minutes" = coalesce(save_shift_template.break_minutes, 0),
-      "headcount" = coalesce(save_shift_template.headcount, 1),
+      "team_id" = upsert_shift_template.team_id,
+      "location_id" = upsert_shift_template.location_id,
+      "starts_time" = upsert_shift_template.starts_time,
+      "ends_time" = upsert_shift_template.ends_time,
+      "break_minutes" = coalesce(upsert_shift_template.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift_template.headcount, 1),
       "required_qualifications" = v_required,
       "weekdays" = v_weekdays,
       "updated_at" = now(),
       "archived_at" = null
-    where x."id" = save_shift_template.template_id and x."org_id" = save_shift_template.tenant
+    where x."id" = upsert_shift_template.template_id and x."org_id" = upsert_shift_template.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
@@ -6965,8 +6965,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift_template"(uuid, text, time, time, integer[], uuid, uuid, integer, integer, text[], uuid) to authenticated, service_role;
 
 -- Archives a template: generate_shifts no longer takes it; its shifts stay.
 create or replace function "better_supabase"."archive_shift_template"(template_id uuid)
@@ -7103,7 +7103,7 @@ grant execute on function "better_supabase"."generate_shifts"(uuid, uuid, date, 
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
 
-create or replace function "better_supabase"."save_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
+create or replace function "better_supabase"."upsert_shift"(tenant uuid, starts_at timestamptz, ends_at timestamptz, team_id uuid default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7112,35 +7112,35 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."shifts"%rowtype;
-  v_required text[] := array(select distinct k from unnest(coalesce(save_shift.required_qualifications, '{}')) k where k is not null order by k);
+  v_required text[] := array(select distinct k from unnest(coalesce(upsert_shift.required_qualifications, '{}')) k where k is not null order by k);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_shift.tenant, 'shifts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_shift.tenant, 'shifts.write'), false)) then
     raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
   end if;
-  if save_shift.starts_at is null or save_shift.ends_at is null or save_shift.ends_at <= save_shift.starts_at then
+  if upsert_shift.starts_at is null or upsert_shift.ends_at is null or upsert_shift.ends_at <= upsert_shift.starts_at then
     raise exception 'a shift ends after it starts' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.ends_at - save_shift.starts_at > interval '24 hours' then
+  if upsert_shift.ends_at - upsert_shift.starts_at > interval '24 hours' then
     raise exception 'a shift lasts at most 24 hours' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift.break_minutes, 0) not between 0 and 720 then
     raise exception 'break_minutes is between 0 and 720' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if coalesce(save_shift.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift.headcount, 1) not between 1 and 500 then
     raise exception 'headcount is between 1 and 500' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.note is not null and length(save_shift.note) > 2000 then
+  if upsert_shift.note is not null and length(upsert_shift.note) > 2000 then
     raise exception 'a note is at most 2000 characters' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.team_id is not null and not exists (
-    select 1 from "better_supabase"."teams" o where o."id" = save_shift.team_id and o."org_id" = save_shift.tenant
+  if upsert_shift.team_id is not null and not exists (
+    select 1 from "better_supabase"."teams" o where o."id" = upsert_shift.team_id and o."org_id" = upsert_shift.tenant
   ) then
     raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
-  if save_shift.location_id is not null then
+  if upsert_shift.location_id is not null then
     raise exception 'location_id needs the assets block' using errcode = '22023', hint = 'SHIFT_INVALID';
   end if;
   if cardinality(coalesce(v_required, '{}')) > 0 then
@@ -7151,17 +7151,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid)', v_hook::oid::regproc)
-        using save_shift.tenant, save_shift.shift_id;
+        using upsert_shift.tenant, upsert_shift.shift_id;
     end if;
   end;
-  if save_shift.shift_id is null then
+  if upsert_shift.shift_id is null then
     insert into "better_supabase"."shifts" ("org_id", "team_id", "location_id", "starts_at", "ends_at", "break_minutes", "headcount", "required_qualifications", "note", "created_by")
-    values (save_shift.tenant, save_shift.team_id, save_shift.location_id, save_shift.starts_at, save_shift.ends_at, coalesce(save_shift.break_minutes, 0), coalesce(save_shift.headcount, 1), v_required, nullif(trim(save_shift.note), ''), (select auth.uid()))
+    values (upsert_shift.tenant, upsert_shift.team_id, upsert_shift.location_id, upsert_shift.starts_at, upsert_shift.ends_at, coalesce(upsert_shift.break_minutes, 0), coalesce(upsert_shift.headcount, 1), v_required, nullif(trim(upsert_shift.note), ''), (select auth.uid()))
     returning * into v_row;
     null;
   else
     select * into v_row from "better_supabase"."shifts" x
-    where x."id" = save_shift.shift_id and x."org_id" = save_shift.tenant
+    where x."id" = upsert_shift.shift_id and x."org_id" = upsert_shift.tenant
     for update;
     if not found then
       raise exception 'shift not found' using errcode = 'P0002', hint = 'SHIFT_NOT_FOUND';
@@ -7170,14 +7170,14 @@ begin
       raise exception 'the shift is canceled' using errcode = '55000', hint = 'SHIFT_CANCELED';
     end if;
     update "better_supabase"."shifts" x set
-      "starts_at" = save_shift.starts_at,
-      "ends_at" = save_shift.ends_at,
-      "team_id" = save_shift.team_id,
-      "location_id" = save_shift.location_id,
-      "break_minutes" = coalesce(save_shift.break_minutes, 0),
-      "headcount" = coalesce(save_shift.headcount, 1),
+      "starts_at" = upsert_shift.starts_at,
+      "ends_at" = upsert_shift.ends_at,
+      "team_id" = upsert_shift.team_id,
+      "location_id" = upsert_shift.location_id,
+      "break_minutes" = coalesce(upsert_shift.break_minutes, 0),
+      "headcount" = coalesce(upsert_shift.headcount, 1),
       "required_qualifications" = v_required,
-      "note" = nullif(trim(save_shift.note), ''),
+      "note" = nullif(trim(upsert_shift.note), ''),
       "updated_at" = now()
     where x."id" = v_row."id"
     returning x.* into v_row;
@@ -7199,8 +7199,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'templateId', v_row."template_id", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsAt', v_row."starts_at", 'endsAt', v_row."ends_at", 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'status', v_row."status", 'note', v_row."note", 'publishedAt', v_row."published_at", 'canceledAt', v_row."canceled_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_shift"(uuid, timestamptz, timestamptz, uuid, uuid, integer, integer, text[], text, uuid) to authenticated, service_role;
 
 -- Cancels a shift and releases its assignments. Assigned members are
 -- notified. Canceling one already canceled changes nothing.

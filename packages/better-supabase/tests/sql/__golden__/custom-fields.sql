@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:45cb3422dc9c54f90d51004ed2a6cc2b94f69f7213d944039dff8be6fffd2bac
+-- @bsb-hash sha256:805d08d2562c4be3dbe0601df23c90cb8489010223d8e40e7780c841a201fe5e
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,7 +87,7 @@ grant all on "better_supabase"."field_values" to service_role;
 create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 alter table "better_supabase"."field_definitions" add column "archived_at" timestamptz;
 
-create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "better_supabase"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -103,23 +103,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   if exists (select 1 from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity
-      and d."key" = save_field_definition.key and d."archived_at" is not null) then
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity
+      and d."key" = upsert_field_definition.key and d."archived_at" is not null) then
     raise exception 'field is archived; restore it first' using errcode = '55000', hint = 'CUSTOM_FIELD_ARCHIVED';
   end if;
   insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
@@ -131,9 +131,9 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
+revoke execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "better_supabase"."get_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
 stable
@@ -147,17 +147,17 @@ begin
   into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
-  where v."tenant_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
+  where v."tenant_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
-revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_field_values"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."get_field_values"(uuid, text, text) to authenticated, service_role;
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -261,7 +261,7 @@ $$;
 revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
--- Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
+-- Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
 create or replace function "better_supabase"."archive_field_definition"(definition uuid)
 returns jsonb
 language plpgsql
@@ -1087,7 +1087,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:5dc2aa001f5ea4881bb98662525e9ce5bcab80c7ba900570164015a1362c5b1d
+-- @bsb-hash sha256:2c2a58031bdb765d157645c9e50ac7037a74300a4512047e3975d101c983fab5
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1173,7 +1173,7 @@ grant all on "better_supabase"."field_values" to service_role;
 create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 alter table "better_supabase"."field_definitions" add column "archived_at" timestamptz;
 
-create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "better_supabase"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -1189,37 +1189,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   if exists (select 1 from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity
-      and d."key" = save_field_definition.key and d."archived_at" is not null) then
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity
+      and d."key" = upsert_field_definition.key and d."archived_at" is not null) then
     raise exception 'field is archived; restore it first' using errcode = '55000', hint = 'CUSTOM_FIELD_ARCHIVED';
   end if;
   insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
   if v_inserted then
-    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', upsert_field_definition.tenant, 'id', v_id, 'entity', upsert_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, upsert_field_definition.key), (upsert_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
   else
-    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', upsert_field_definition.tenant, 'id', v_id, 'entity', upsert_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, upsert_field_definition.key), (upsert_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
   end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)
+revoke execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "better_supabase"."get_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)
 returns jsonb
 language plpgsql
 stable
@@ -1230,27 +1230,27 @@ declare
   v_values jsonb;
   v_key text;
 begin
-  v_key := "better_supabase"."field_key"('tenant:' || read_field_values.tenant::text, false);
+  v_key := "better_supabase"."field_key"('tenant:' || get_field_values.tenant::text, false);
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', case when coalesce(d."encrypted", false) then "better_supabase"."field_open"(v_key, v."value_text") else v."value_text" end)), '[]'::jsonb)
   into v_values
   from (select distinct on (x."definition_id") x.* from "better_supabase"."field_values" x
-    where x."tenant_id" = read_field_values.tenant
-      and x."subject_type" = read_field_values.subject_type
-      and x."subject_id" = read_field_values.subject_id
-      and (x.legal_entity_id is null or x.legal_entity_id = read_field_values.legal_entity)
+    where x."tenant_id" = get_field_values.tenant
+      and x."subject_type" = get_field_values.subject_type
+      and x."subject_id" = get_field_values.subject_id
+      and (x.legal_entity_id is null or x.legal_entity_id = get_field_values.legal_entity)
     order by x."definition_id", x.legal_entity_id nulls last) v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
-  where v."tenant_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
+  where v."tenant_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
-revoke execute on function "better_supabase"."read_field_values"(uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."read_field_values"(uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_field_values"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."get_field_values"(uuid, text, text, uuid) to authenticated, service_role;
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text, legal_entity uuid default null)
 returns jsonb
 language plpgsql
@@ -1354,7 +1354,7 @@ $$;
 revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
--- Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
+-- Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
 create or replace function "better_supabase"."archive_field_definition"(definition uuid)
 returns jsonb
 language plpgsql
@@ -2302,7 +2302,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:ed6ee5e1a9f8eb18990d9e9e28cd542971cd9ee891ef87cd02e4d10dec1bea9d
+-- @bsb-hash sha256:b83353c544cc0d81e5fc8b46839f3b93c262320e22b2e5fbee91b99f6b3875bc
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2393,7 +2393,7 @@ grant all on "app_private"."field_values" to service_role;
 create index field_values_definition_idx on "app_private"."field_values" ("definition_id");
 alter table "app_private"."field_definitions" add column "archived_at" timestamptz;
 
-create or replace function "app_private"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "app_private"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -2409,23 +2409,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   select max(d."rank" collate "C") into v_last from "app_private"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   if exists (select 1 from "app_private"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity
-      and d."key" = save_field_definition.key and d."archived_at" is not null) then
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity
+      and d."key" = upsert_field_definition.key and d."archived_at" is not null) then
     raise exception 'field is archived; restore it first' using errcode = '55000', hint = 'CUSTOM_FIELD_ARCHIVED';
   end if;
   insert into "app_private"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
@@ -2437,9 +2437,9 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "app_private"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "app_private"."read_field_values"(tenant uuid, subject_type text, subject_id text)
+revoke execute on function "app_private"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "app_private"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "app_private"."get_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
 stable
@@ -2453,17 +2453,17 @@ begin
   into v_values
   from "app_private"."field_values" v
   left join "app_private"."field_definitions" d on d."id" = v."definition_id"
-  where v."tenant_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
+  where v."tenant_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
-revoke execute on function "app_private"."read_field_values"(uuid, text, text) from public, anon;
-grant execute on function "app_private"."read_field_values"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."get_field_values"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."get_field_values"(uuid, text, text) to authenticated, service_role;
 create or replace function "app_private"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -2567,7 +2567,7 @@ $$;
 revoke execute on function "app_private"."delete_field_value"(uuid) from public, anon;
 grant execute on function "app_private"."delete_field_value"(uuid) to authenticated, service_role;
 
--- Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
+-- Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
 create or replace function "app_private"."archive_field_definition"(definition uuid)
 returns jsonb
 language plpgsql
@@ -3393,7 +3393,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:d65b6a5019cdeec5a47619b78a6afff78c84d4a09446f847ff6a76793ce0a85b
+-- @bsb-hash sha256:e283692d56043905fd28dd3b0c4630cd9d99d09f2bab995175ca8bbc955ed6f4
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3479,7 +3479,7 @@ grant all on "better_supabase"."field_values" to service_role;
 create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 alter table "better_supabase"."field_definitions" add column "archived_at" timestamptz;
 
-create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "better_supabase"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -3495,23 +3495,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   if exists (select 1 from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity
-      and d."key" = save_field_definition.key and d."archived_at" is not null) then
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity
+      and d."key" = upsert_field_definition.key and d."archived_at" is not null) then
     raise exception 'field is archived; restore it first' using errcode = '55000', hint = 'CUSTOM_FIELD_ARCHIVED';
   end if;
   insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
@@ -3523,9 +3523,9 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
+revoke execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "better_supabase"."get_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
 stable
@@ -3539,17 +3539,17 @@ begin
   into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
-  where v."tenant_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
+  where v."tenant_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
-revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_field_values"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."get_field_values"(uuid, text, text) to authenticated, service_role;
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -3653,7 +3653,7 @@ $$;
 revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
--- Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
+-- Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
 create or replace function "better_supabase"."archive_field_definition"(definition uuid)
 returns jsonb
 language plpgsql
@@ -4486,24 +4486,24 @@ as $$ select "better_supabase"."bsb_valid_iban"($1) $$;
 revoke execute on function "api"."bsb_valid_iban"(text) from public, anon;
 grant execute on function "api"."bsb_valid_iban"(text) to authenticated, service_role;
 
-create or replace function "api"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "api"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_field_definition"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "api"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_field_definition"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "api"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."read_field_values"(tenant uuid, subject_type text, subject_id text)
+create or replace function "api"."get_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."read_field_values"($1, $2, $3) $$;
-revoke execute on function "api"."read_field_values"(uuid, text, text) from public, anon;
-grant execute on function "api"."read_field_values"(uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."get_field_values"($1, $2, $3) $$;
+revoke execute on function "api"."get_field_values"(uuid, text, text) from public, anon;
+grant execute on function "api"."get_field_values"(uuid, text, text) to authenticated, service_role;
 
 create or replace function "api"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
@@ -4624,7 +4624,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:0ae5e79db0ef82899cf4acb62c09226b44ae3ffad3683e81de2d5e2499ecf612
+-- @bsb-hash sha256:4a632b5dd33d3df86037ac745d16f6c4f8e2a3a102a7b30c5e37312009000692
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4702,7 +4702,7 @@ grant all on "better_supabase"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 alter table "better_supabase"."field_definitions" add column if not exists "archived_at" timestamptz;
 
-create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "better_supabase"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -4718,23 +4718,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   if exists (select 1 from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity
-      and d."key" = save_field_definition.key and d."archived_at" is not null) then
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity
+      and d."key" = upsert_field_definition.key and d."archived_at" is not null) then
     raise exception 'field is archived; restore it first' using errcode = '55000', hint = 'CUSTOM_FIELD_ARCHIVED';
   end if;
   insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
@@ -4746,9 +4746,9 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
+revoke execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "better_supabase"."get_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
 stable
@@ -4762,17 +4762,17 @@ begin
   into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
-  where v."tenant_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
+  where v."tenant_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
-revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_field_values"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."get_field_values"(uuid, text, text) to authenticated, service_role;
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -4876,7 +4876,7 @@ $$;
 revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
--- Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
+-- Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
 create or replace function "better_supabase"."archive_field_definition"(definition uuid)
 returns jsonb
 language plpgsql
@@ -5702,7 +5702,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:e8d0b526f053b23a0c6b4d7aa8d624861240a109cdf9edfbc27d11d2915d55f4
+-- @bsb-hash sha256:8a0eeedf1ca54ebc562c7562c871c8e1b94f604c262bd1cf2a67d3d33e99faba
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5788,7 +5788,7 @@ grant all on "better_supabase"."field_values" to service_role;
 create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 alter table "better_supabase"."field_definitions" add column "archived_at" timestamptz;
 
-create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "better_supabase"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -5804,23 +5804,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
-    where d."org_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+    where d."org_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   if exists (select 1 from "better_supabase"."field_definitions" d
-    where d."org_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity
-      and d."key" = save_field_definition.key and d."archived_at" is not null) then
+    where d."org_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity
+      and d."key" = upsert_field_definition.key and d."archived_at" is not null) then
     raise exception 'field is archived; restore it first' using errcode = '55000', hint = 'CUSTOM_FIELD_ARCHIVED';
   end if;
   insert into "better_supabase"."field_definitions" ("org_id", "entity", "key", "label", "type", "sensitive", "rank")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false), v_rank)
   on conflict ("org_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
@@ -5832,9 +5832,9 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
+revoke execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "better_supabase"."get_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
 stable
@@ -5848,17 +5848,17 @@ begin
   into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
-  where v."org_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
+  where v."org_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."org_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
-revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_field_values"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."get_field_values"(uuid, text, text) to authenticated, service_role;
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql
@@ -5962,7 +5962,7 @@ $$;
 revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
--- Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
+-- Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
 create or replace function "better_supabase"."archive_field_definition"(definition uuid)
 returns jsonb
 language plpgsql

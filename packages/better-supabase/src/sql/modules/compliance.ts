@@ -378,7 +378,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_control_framework",
+      name: "upsert_control_framework",
       args: ["{id}", "text", "text", "text", "text", "text"],
       returns: "jsonb",
     },
@@ -392,7 +392,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "page_evidence_tasks", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_evidence_task", args: ["uuid"], returns: "jsonb" },
     {
-      name: "save_control",
+      name: "upsert_control",
       args: [
         "uuid",
         "text",
@@ -414,13 +414,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "add_control_evidence",
+      name: "create_control_evidence",
       args: ["uuid", "uuid", "text", "date", "uuid"],
       returns: "jsonb",
     },
-    { name: "remove_control_evidence", args: ["uuid"], returns: "jsonb" },
+    { name: "delete_control_evidence", args: ["uuid"], returns: "jsonb" },
     {
-      name: "save_evidence_task",
+      name: "upsert_evidence_task",
       args: ["uuid", "text", "integer", "date", "uuid", "boolean", "uuid"],
       returns: "jsonb",
     },
@@ -432,7 +432,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "control_posture", args: ["{id}", "uuid"], returns: "jsonb" },
     { name: "notify_overdue_evidence_tasks", args: [], returns: "integer" },
     {
-      name: "save_compliance_policy",
+      name: "upsert_compliance_policy",
       args: ["{id}", "text", "text", "uuid", "boolean", "uuid"],
       returns: "jsonb",
     },

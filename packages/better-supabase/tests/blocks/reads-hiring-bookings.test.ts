@@ -75,7 +75,7 @@ describe("hiring reads", () => {
   });
 
   it("close saves the job as closed", async () => {
-    const t = fieldsTransport({ save_job: () => job("j1", "closed") });
+    const t = fieldsTransport({ upsert_job: () => job("j1", "closed") });
 
     const closed = await createHiring({ transport: t })
       .close({ organizationId: "o", jobId: "j1" })

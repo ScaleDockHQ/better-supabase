@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:ddc0e641c7cd04e59a8e5a48c4fdc15648b7bb162b596f5ae13ea72b38c716ac
+-- @bsb-hash sha256:09fde0c6cc05c82fc1f4a6bd0d9a1fe5a08b836d1e06fca9b894a2e0d47a74d8
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,7 +51,7 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -63,17 +63,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0), upsert_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.
@@ -512,7 +512,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:8c8af22d6651e16e3d7bce1801282342a928fa0dbeecc520c1898797da5eca1f
+-- @bsb-hash sha256:faf79430f23de7ce524e37a45f4a67d107e7352a21041e4a3613381cd26659f7
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -562,7 +562,7 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -574,17 +574,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0), upsert_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.
@@ -1026,7 +1026,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:203e07623dd5438408229fab1fd991c277fe3cf11efa400eacabdd4b90bf4de0
+-- @bsb-hash sha256:1364e984772fd32f8c982a141bbfb228d4789a510eb8de9ad577745d7b4df8d9
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1081,7 +1081,7 @@ alter table "app_private"."reminder_deliveries" enable row level security;
 revoke all on "app_private"."reminder_deliveries" from public, anon, authenticated;
 grant select on "app_private"."reminder_deliveries" to authenticated;
 grant all on "app_private"."reminder_deliveries" to service_role;
-create or replace function "app_private"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "app_private"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1093,17 +1093,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   insert into "app_private"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0), upsert_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "app_private"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "app_private"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.
@@ -1542,7 +1542,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:fde835b22446901ff21c8bce82a4d5f2c8082d5bf221eac8f73385634199557a
+-- @bsb-hash sha256:e5fbb61cf58af7e2ec16c7e3a1c8c18f5c01f9943d2f5d162a30cc768666c320
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1592,7 +1592,7 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1604,17 +1604,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0), upsert_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.
@@ -2040,14 +2040,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restri
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "api"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_reminder"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "api"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_reminder"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "api"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."list_my_reminders"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
@@ -2134,7 +2134,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:a78fc1fc3aed8dbe5f34d9de94ac231ca9e0f965c19efdee2c646f10e9f40632
+-- @bsb-hash sha256:a10cdcadce236bc024a9095362a5ac39c1b6d0f5b0abda45a67ff34d688d2b73
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2174,7 +2174,7 @@ alter table "better_supabase"."reminder_deliveries" add column if not exists "se
 alter table "better_supabase"."reminder_deliveries" enable row level security;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2186,17 +2186,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0), upsert_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.
@@ -2635,7 +2635,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:253cca393e9f0ba01d2b0abb31f7467d46f5070e06982cc93564df9abfc89895
+-- @bsb-hash sha256:a311011fac2ea3c13436cb24f37f8183e28dcf98f297482c7fb8e2064823f011
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2685,7 +2685,7 @@ alter table "better_supabase"."reminder_deliveries" enable row level security;
 revoke all on "better_supabase"."reminder_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."reminder_deliveries" to authenticated;
 grant all on "better_supabase"."reminder_deliveries" to service_role;
-create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2697,17 +2697,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_reminder.tenant, 'reminders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_reminder.tenant, 'reminders.manage'), false)) then
     raise exception 'not allowed to manage reminders' using errcode = '42501', hint = 'REMINDER_FORBIDDEN';
   end if;
   insert into "better_supabase"."reminders" ("org_id", "subject_type", "subject_id", "user_id", "offset_minutes", "remind_at")
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0), save_reminder.remind_at)
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0), upsert_reminder.remind_at)
   returning "id" into v_id;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_reminder"(uuid, text, text, integer, timestamptz) to authenticated, service_role;
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.

@@ -71,7 +71,7 @@ select is(
 
 select set_config(
   'test.version',
-  api.save_document_version(current_setting('test.document')::uuid, 'AQI=') ->> 'id',
+  api.upsert_document_version(current_setting('test.document')::uuid, 'AQI=') ->> 'id',
   true
 );
 select ok(

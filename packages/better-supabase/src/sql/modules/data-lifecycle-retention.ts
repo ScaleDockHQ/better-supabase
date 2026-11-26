@@ -78,7 +78,7 @@ export const RETENTION_CONTRACT: readonly BlockSqlContractFunction[] = [
     returns: "jsonb",
   },
   {
-    name: "remove_retention_policy",
+    name: "delete_retention_policy",
     args: ["text", "{id}", "text"],
     returns: "boolean",
   },
@@ -337,7 +337,7 @@ begin
 end;
 $$;
 
-create or replace function ${fn("remove_retention_policy")}(kind text, tenant ${id} default null, plan text default null)
+create or replace function ${fn("delete_retention_policy")}(kind text, tenant ${id} default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -348,9 +348,9 @@ begin
     ${fail("RETENTION_FORBIDDEN", "Only the service role removes retention policies")}
   end if;
   delete from ${p} x
-  where ${pKind("x")} = remove_retention_policy.kind
-    and x.${cp("tenant")} is not distinct from remove_retention_policy.tenant
-    and ${planned ? `x.${cp("plan")}` : "null::text"} is not distinct from remove_retention_policy.plan;
+  where ${pKind("x")} = delete_retention_policy.kind
+    and x.${cp("tenant")} is not distinct from delete_retention_policy.tenant
+    and ${planned ? `x.${cp("plan")}` : "null::text"} is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -430,7 +430,7 @@ revoke execute on function ${fn("retention_for_memo")}(text, text) from public, 
 revoke execute on function ${fn("is_held_memo")}(text, text) from public, anon, authenticated;
 revoke execute on function ${fn("retention_cutoff")}(text, interval) from public, anon, authenticated;
 revoke execute on function ${fn("set_retention_policy")}(text, interval, ${id}, text) from public, anon, authenticated;
-revoke execute on function ${fn("remove_retention_policy")}(text, ${id}, text) from public, anon, authenticated;
+revoke execute on function ${fn("delete_retention_policy")}(text, ${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_retention_policies")}(text) from public, anon, authenticated;
 revoke execute on function ${fn("place_legal_hold")}(text, ${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("release_legal_hold")}(uuid) from public, anon, authenticated;
@@ -442,7 +442,7 @@ grant execute on function ${fn("retention_for_memo")}(text, text) to service_rol
 grant execute on function ${fn("is_held_memo")}(text, text) to service_role;
 grant execute on function ${fn("retention_cutoff")}(text, interval) to service_role;
 grant execute on function ${fn("set_retention_policy")}(text, interval, ${id}, text) to service_role;
-grant execute on function ${fn("remove_retention_policy")}(text, ${id}, text) to service_role;
+grant execute on function ${fn("delete_retention_policy")}(text, ${id}, text) to service_role;
 grant execute on function ${fn("list_retention_policies")}(text) to service_role;
 grant execute on function ${fn("place_legal_hold")}(text, ${id}, text) to service_role;
 grant execute on function ${fn("release_legal_hold")}(uuid) to service_role;

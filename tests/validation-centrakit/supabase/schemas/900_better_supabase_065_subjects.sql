@@ -1,7 +1,7 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@2 managed
--- @bsb-hash sha256:e58d498561ab835b043bff841154f36b1da5c8997113f19a0651d5c14ee2910a
--- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:fd2e9723832514844ebbb46740ecab0a18dca3c2c71a38618e728bf44fc3d499
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, create_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -506,7 +506,7 @@ create policy bsb_subject_members_read on "better_supabase"."subject_members"
 -- Puts a user or a team on a record's team, or reopens their membership in
 -- that role with the new dates. Needs subjects.manage in the record's tenant,
 -- or can_subject(..., 'manage') on a type that declares a manage action.
-create or replace function "better_supabase"."add_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)
+create or replace function "better_supabase"."create_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -520,20 +520,20 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (add_subject_member.subject_type = any (array[]::text[])) then
+  if not (create_subject_member.subject_type = any (array[]::text[])) then
     raise exception 'this subject type has no record team (subjects.<type>.team)' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if (add_subject_member.user_id is null) = (add_subject_member.team_id is null) then
+  if (create_subject_member.user_id is null) = (create_subject_member.team_id is null) then
     raise exception 'pass exactly one of user_id and team_id' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.role is null or not (add_subject_member.role = any ('{lead,member}'::text[])) then
+  if create_subject_member.role is null or not (create_subject_member.role = any ('{lead,member}'::text[])) then
     raise exception 'role must be one of lead, member' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.ends_on < add_subject_member.starts_on then
+  if create_subject_member.ends_on < create_subject_member.starts_on then
     raise exception 'ends_on is before starts_on' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
   begin
-    case add_subject_member.subject_type
+    case create_subject_member.subject_type
     when '' then null;
       else
         v_tenant := null;
@@ -547,32 +547,32 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or coalesce(better_supabase.can('tenant', v_tenant, 'people.manage'), false)
-      or (add_subject_member.subject_type = any (array[]::text[]) and coalesce("better_supabase"."can_subject"(add_subject_member.subject_type, add_subject_member.subject_id, 'manage'), false))) then
+      or (create_subject_member.subject_type = any (array[]::text[]) and coalesce("better_supabase"."can_subject"(create_subject_member.subject_type, create_subject_member.subject_id, 'manage'), false))) then
     raise exception 'not allowed to manage this record''s team' using errcode = '42501', hint = 'SUBJECT_MEMBER_FORBIDDEN';
   end if;
-  if add_subject_member.user_id is not null and not exists (
+  if create_subject_member.user_id is not null and not exists (
     select 1 from "centrakit"."organization_users" om
     where om."organization_id" = v_tenant
-      and om."user_id" = add_subject_member.user_id
+      and om."user_id" = create_subject_member.user_id
   ) then
     raise exception 'user is not a member of the record''s tenant' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.team_id is not null and not exists (
+  if create_subject_member.team_id is not null and not exists (
     select 1 from "centrakit"."teams" tt
-    where tt."id" = add_subject_member.team_id
+    where tt."id" = create_subject_member.team_id
       and tt."tenant_id" = v_tenant
   ) then
     raise exception 'team is not in the record''s tenant' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.user_id is not null then
+  if create_subject_member.user_id is not null then
     insert into "better_supabase"."subject_members" ("tenant_id", "subject_type", "subject_id", "user_id", "role", "starts_on", "ends_on", "created_by")
-    values (v_tenant, add_subject_member.subject_type, add_subject_member.subject_id, add_subject_member.user_id, add_subject_member.role, add_subject_member.starts_on, add_subject_member.ends_on, auth.uid())
+    values (v_tenant, create_subject_member.subject_type, create_subject_member.subject_id, create_subject_member.user_id, create_subject_member.role, create_subject_member.starts_on, create_subject_member.ends_on, auth.uid())
     on conflict ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null
     do update set "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on"
     returning * into v_row;
   else
     insert into "better_supabase"."subject_members" ("tenant_id", "subject_type", "subject_id", "team_id", "role", "starts_on", "ends_on", "created_by")
-    values (v_tenant, add_subject_member.subject_type, add_subject_member.subject_id, add_subject_member.team_id, add_subject_member.role, add_subject_member.starts_on, add_subject_member.ends_on, auth.uid())
+    values (v_tenant, create_subject_member.subject_type, create_subject_member.subject_id, create_subject_member.team_id, create_subject_member.role, create_subject_member.starts_on, create_subject_member.ends_on, auth.uid())
     on conflict ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null
     do update set "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on"
     returning * into v_row;
@@ -598,11 +598,11 @@ begin
       'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_subject_member"(text, text, uuid, uuid, text, date, date) from public, anon;
-grant execute on function "better_supabase"."add_subject_member"(text, text, uuid, uuid, text, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_subject_member"(text, text, uuid, uuid, text, date, date) from public, anon;
+grant execute on function "better_supabase"."create_subject_member"(text, text, uuid, uuid, text, date, date) to authenticated, service_role;
 
 -- Ends a membership: it counts through ends_on (today by default), so access
--- stops the next day. The same callers as add_subject_member.
+-- stops the next day. The same callers as create_subject_member.
 create or replace function "better_supabase"."end_subject_member"(member_id uuid, ends_on date default current_date)
 returns jsonb
 language plpgsql

@@ -237,7 +237,7 @@ function problemWrites(q: CarePlansSql): string {
 -- A problem on a draft plan: input is { codeSystem, code, title,
 -- description, rank }. codeSystem is one of options.codeSystems (the first
 -- when left out); new problems go last unless rank says where.
-create or replace function ${fn("add_care_plan_problem")}(plan_id uuid, input jsonb)
+create or replace function ${fn("create_care_plan_problem")}(plan_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -248,27 +248,27 @@ declare
   v_plan ${plans};
   v_row ${problems};
   v_system text;
-  v_title text := trim(add_care_plan_problem.input ->> 'title');
+  v_title text := trim(create_care_plan_problem.input ->> 'title');
   v_last text;
-begin${getPlan(q, "add_care_plan_problem.plan_id", q.write)}${draftOnly(q)}
-  if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
+begin${getPlan(q, "create_care_plan_problem.plan_id", q.write)}${draftOnly(q)}
+  if jsonb_typeof(create_care_plan_problem.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;
-  v_system := coalesce(nullif(add_care_plan_problem.input ->> 'codeSystem', ''), (${q.codeSystems})[1]);
-  ${systemCheck}${titleCheck(q, "v_title", "a problem")}${text("add_care_plan_problem.input")}
+  v_system := coalesce(nullif(create_care_plan_problem.input ->> 'codeSystem', ''), (${q.codeSystems})[1]);
+  ${systemCheck}${titleCheck(q, "v_title", "a problem")}${text("create_care_plan_problem.input")}
   select max(y.${pr("rank")}) into v_last from ${problems} y
   where y.${pr("tenant")} = v_plan.${p("tenant")} and y.${pr("plan")} = v_plan.${p("id")};
   insert into ${problems} (${pr("tenant")}, ${pr("plan")}, ${pr("codeSystem")}, ${pr("code")}, ${pr("title")}, ${pr("description")}, ${pr("rank")})
   values (v_plan.${p("tenant")}, v_plan.${p("id")}, v_system,
-    nullif(trim(add_care_plan_problem.input ->> 'code'), ''), v_title,
-    nullif(trim(add_care_plan_problem.input ->> 'description'), ''),
-    coalesce(add_care_plan_problem.input ->> 'rank', ${rankAfter("v_last")}))
+    nullif(trim(create_care_plan_problem.input ->> 'code'), ''), v_title,
+    nullif(trim(create_care_plan_problem.input ->> 'description'), ''),
+    coalesce(create_care_plan_problem.input ->> 'rank', ${rankAfter("v_last")}))
   returning * into v_row;
   update ${plans} x set ${p("updatedAt")} = now() where x.${p("id")} = v_plan.${p("id")};
   return ${q.problemJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_care_plan_problem")}(uuid, jsonb)`)}
+${userGrant(`${fn("create_care_plan_problem")}(uuid, jsonb)`)}
 
 -- Changes a problem. On a draft plan every key of { codeSystem, code, title,
 -- description, status, rank } changes; once the plan is active, only status
@@ -338,7 +338,7 @@ function goalWrites(q: CarePlansSql): string {
   return `
 -- A goal for a problem on a draft plan: input is { title, targetOn,
 -- measure, rank }. It starts planned.
-create or replace function ${fn("add_care_plan_goal")}(problem_id uuid, input jsonb)
+create or replace function ${fn("create_care_plan_goal")}(problem_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -349,29 +349,29 @@ declare
   v_plan ${plans};
   v_problem ${problems};
   v_row ${goals};
-  v_title text := trim(add_care_plan_goal.input ->> 'title');
+  v_title text := trim(create_care_plan_goal.input ->> 'title');
   v_last text;
 begin
-  select * into v_problem from ${problems} y where y.${pr("id")} = add_care_plan_goal.problem_id;
+  select * into v_problem from ${problems} y where y.${pr("id")} = create_care_plan_goal.problem_id;
   if not found then
     ${fail("CARE_PLAN_NOT_FOUND", "no such problem on a care plan", "P0002")}
   end if;${getPlan(q, `v_problem.${pr("plan")}`, q.write)}${draftOnly(q)}
-  if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_goal.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
-  end if;${titleCheck(q, "v_title", "a goal")}${objectCheck(q, "add_care_plan_goal.input", "measure")}${rankCheck(q, "add_care_plan_goal.input")}
+  end if;${titleCheck(q, "v_title", "a goal")}${objectCheck(q, "create_care_plan_goal.input", "measure")}${rankCheck(q, "create_care_plan_goal.input")}
   select max(z.${g("rank")}) into v_last from ${goals} z
   where z.${g("tenant")} = v_problem.${pr("tenant")} and z.${g("plan")} = v_problem.${pr("plan")} and z.${g("problem")} = v_problem.${pr("id")};
   insert into ${goals} (${g("tenant")}, ${g("plan")}, ${g("problem")}, ${g("title")}, ${g("targetOn")}, ${g("measure")}, ${g("rank")})
   values (v_problem.${pr("tenant")}, v_problem.${pr("plan")}, v_problem.${pr("id")}, v_title,
-    nullif(add_care_plan_goal.input ->> 'targetOn', '')::date,
-    nullif(add_care_plan_goal.input -> 'measure', 'null'::jsonb),
-    coalesce(add_care_plan_goal.input ->> 'rank', ${rankAfter("v_last")}))
+    nullif(create_care_plan_goal.input ->> 'targetOn', '')::date,
+    nullif(create_care_plan_goal.input -> 'measure', 'null'::jsonb),
+    coalesce(create_care_plan_goal.input ->> 'rank', ${rankAfter("v_last")}))
   returning * into v_row;
   update ${plans} x set ${p("updatedAt")} = now() where x.${p("id")} = v_plan.${p("id")};
   return ${q.goalJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_care_plan_goal")}(uuid, jsonb)`)}
+${userGrant(`${fn("create_care_plan_goal")}(uuid, jsonb)`)}
 
 -- Changes a goal. On a draft plan every key of { title, targetOn, measure,
 -- status, rank } changes; once the plan is active, only status, which needs
@@ -467,7 +467,7 @@ function actionWrites(q: CarePlansSql): string {
 -- instructions, frequency, teamRole, measureKind, bookingSeriesId,
 -- requiresApproval, reviewEvery, startsOn, endsOn, rank }. A measure always
 -- requires an approval before it starts.
-create or replace function ${fn("add_care_plan_action")}(goal_id uuid, input jsonb)
+create or replace function ${fn("create_care_plan_action")}(goal_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -478,34 +478,34 @@ declare
   v_plan ${plans};
   v_goal ${goals};
   v_row ${actions};
-  v_kind text := coalesce(nullif(add_care_plan_action.input ->> 'kind', ''), 'intervention');
-  v_title text := trim(add_care_plan_action.input ->> 'title');
-  v_measure_kind text := nullif(trim(add_care_plan_action.input ->> 'measureKind'), '');
-  v_starts_on date := nullif(add_care_plan_action.input ->> 'startsOn', '')::date;
-  v_ends_on date := nullif(add_care_plan_action.input ->> 'endsOn', '')::date;
+  v_kind text := coalesce(nullif(create_care_plan_action.input ->> 'kind', ''), 'intervention');
+  v_title text := trim(create_care_plan_action.input ->> 'title');
+  v_measure_kind text := nullif(trim(create_care_plan_action.input ->> 'measureKind'), '');
+  v_starts_on date := nullif(create_care_plan_action.input ->> 'startsOn', '')::date;
+  v_ends_on date := nullif(create_care_plan_action.input ->> 'endsOn', '')::date;
   v_last text;
 begin
-  select * into v_goal from ${goals} z where z.${g("id")} = add_care_plan_action.goal_id;
+  select * into v_goal from ${goals} z where z.${g("id")} = create_care_plan_action.goal_id;
   if not found then
     ${q.goalMissing}
   end if;${getPlan(q, `v_goal.${g("plan")}`, q.write)}${draftOnly(q)}
-  if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_action.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
-  end if;${titleCheck(q, "v_title", "an action")}${checks("add_care_plan_action.input")}
+  end if;${titleCheck(q, "v_title", "an action")}${checks("create_care_plan_action.input")}
   ${kindChecks}
   select max(w.${a("rank")}) into v_last from ${actions} w
   where w.${a("tenant")} = v_goal.${g("tenant")} and w.${a("plan")} = v_goal.${g("plan")} and w.${a("goal")} = v_goal.${g("id")};
   insert into ${actions} (${a("tenant")}, ${a("plan")}, ${a("goal")}, ${a("kind")}, ${a("title")}, ${a("instructions")}, ${a("frequency")}, ${a("teamRole")}, ${a("measureKind")}, ${a("bookingSeries")}, ${a("requiresApproval")}, ${a("reviewEvery")}, ${a("startsOn")}, ${a("endsOn")}, ${a("rank")})
   values (v_goal.${g("tenant")}, v_goal.${g("plan")}, v_goal.${g("id")}, v_kind, v_title,
-    nullif(trim(add_care_plan_action.input ->> 'instructions'), ''),
-    nullif(add_care_plan_action.input -> 'frequency', 'null'::jsonb),
-    nullif(trim(add_care_plan_action.input ->> 'teamRole'), ''),
+    nullif(trim(create_care_plan_action.input ->> 'instructions'), ''),
+    nullif(create_care_plan_action.input -> 'frequency', 'null'::jsonb),
+    nullif(trim(create_care_plan_action.input ->> 'teamRole'), ''),
     v_measure_kind,
-    nullif(add_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
-    v_kind = 'measure' or coalesce((add_care_plan_action.input ->> 'requiresApproval')::boolean, false),
-    nullif(add_care_plan_action.input ->> 'reviewEvery', '')::interval,
+    nullif(create_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
+    v_kind = 'measure' or coalesce((create_care_plan_action.input ->> 'requiresApproval')::boolean, false),
+    nullif(create_care_plan_action.input ->> 'reviewEvery', '')::interval,
     v_starts_on, v_ends_on,
-    coalesce(add_care_plan_action.input ->> 'rank', ${rankAfter("v_last")}))
+    coalesce(create_care_plan_action.input ->> 'rank', ${rankAfter("v_last")}))
   returning * into v_row;
   update ${plans} x set ${p("updatedAt")} = now() where x.${p("id")} = v_plan.${p("id")};
   return ${q.actionJson("v_row")};
@@ -513,9 +513,9 @@ exception when check_violation then
   ${q.invalid("reviewEvery must be a positive interval")}
 end;
 $$;
-${userGrant(`${fn("add_care_plan_action")}(uuid, jsonb)`)}
+${userGrant(`${fn("create_care_plan_action")}(uuid, jsonb)`)}
 
--- Changes an action. On a draft plan every input key of add_care_plan_action
+-- Changes an action. On a draft plan every input key of create_care_plan_action
 -- changes; once the plan is active, only how it runs: bookingSeriesId,
 -- endsOn, frequency, instructions, reviewEvery and teamRole.
 create or replace function ${fn("update_care_plan_action")}(action_id uuid, changes jsonb)

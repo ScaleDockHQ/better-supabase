@@ -182,7 +182,7 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
       .filter(({ column }) => has("postmortems", column))
       .map(
         ({ column, read }) =>
-          `${pm(column)} = case when save_incident_postmortem.attrs ? '${column}' then save_incident_postmortem.attrs ${read} '${column}' else x.${pm(column)} end`,
+          `${pm(column)} = case when upsert_incident_postmortem.attrs ? '${column}' then upsert_incident_postmortem.attrs ${read} '${column}' else x.${pm(column)} end`,
       ),
     ...(has("postmortems", "updatedAt") ? [`${pm("updatedAt")} = now()`] : []),
   ].join(",\n    ");
@@ -300,7 +300,7 @@ $$;
 ${serviceGrant(`${fn("incident_apply_impacts")}(uuid, jsonb)`)}
 
 -- Creates a component by name, or changes one (component_id).
-create or replace function ${fn("save_status_component")}(tenant ${idType}, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function ${fn("upsert_status_component")}(tenant ${idType}, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -309,28 +309,28 @@ as $$
 declare
   v_row ${components}%rowtype;
 begin
-  if not ${allowed("save_status_component.tenant", manage)} then
+  if not ${allowed("upsert_status_component.tenant", manage)} then
     ${forbidden("not allowed to manage status components")}
   end if;
-  if nullif(trim(save_status_component.name), '') is null then
+  if nullif(trim(upsert_status_component.name), '') is null then
     ${invalid("a component needs a name")}
   end if;
-  if save_status_component.component_id is null then
+  if upsert_status_component.component_id is null then
     insert into ${components} (${c("tenant")}, ${c("name")}${insertCol("components", "description")}${insertCol("components", "group")}, ${c("public")}${insertCol("components", "position")})
-    values (save_status_component.tenant, trim(save_status_component.name)${insertVal("components", "description", "save_status_component.description")},
-      ${has("components", "group") ? "nullif(trim(save_status_component.group_name), ''), " : ""}coalesce(save_status_component.is_public, true)${insertVal("components", "position", "coalesce(save_status_component.sort_position, 0)")})
+    values (upsert_status_component.tenant, trim(upsert_status_component.name)${insertVal("components", "description", "upsert_status_component.description")},
+      ${has("components", "group") ? "nullif(trim(upsert_status_component.group_name), ''), " : ""}coalesce(upsert_status_component.is_public, true)${insertVal("components", "position", "coalesce(upsert_status_component.sort_position, 0)")})
     returning * into v_row;
     insert into ${history} (${h("tenant")}, ${h("component")}, ${h("status")})
     values (v_row.${c("tenant")}, v_row.${c("id")}, ${ctx.cast("history", "status", asText(ctx, "components", `v_row.${c("status")}`))});
   else
-    update ${components} x set ${c("name")} = trim(save_status_component.name)${has("components", "description") ? `, ${c("description")} = save_status_component.description` : ""},
-      ${has("components", "group") ? `${c("group")} = nullif(trim(save_status_component.group_name), ''), ` : ""}${c("public")} = coalesce(save_status_component.is_public, true)${
+    update ${components} x set ${c("name")} = trim(upsert_status_component.name)${has("components", "description") ? `, ${c("description")} = upsert_status_component.description` : ""},
+      ${has("components", "group") ? `${c("group")} = nullif(trim(upsert_status_component.group_name), ''), ` : ""}${c("public")} = coalesce(upsert_status_component.is_public, true)${
         has("components", "position")
           ? `,
-      ${c("position")} = coalesce(save_status_component.sort_position, 0)`
+      ${c("position")} = coalesce(upsert_status_component.sort_position, 0)`
           : ""
       }${touch("components")}
-      where x.${c("id")} = save_status_component.component_id and x.${c("tenant")} = save_status_component.tenant
+      where x.${c("id")} = upsert_status_component.component_id and x.${c("tenant")} = upsert_status_component.tenant
       returning * into v_row;
     if not found then
       ${componentNotFound}
@@ -339,7 +339,7 @@ begin
   return ${componentJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_status_component")}(${idType}, text, text, text, boolean, integer, uuid)`)}
+${userGrant(`${fn("upsert_status_component")}(${idType}, text, text, text, boolean, integer, uuid)`)}
 
 create or replace function ${fn("delete_status_component")}(component_id uuid)
 returns jsonb
@@ -655,8 +655,8 @@ ${userGrant(`${fn("page_incidents")}(${idType}, jsonb)`)}
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:
--- add_incident_postmortem_action writes them.
-create or replace function ${fn("save_incident_postmortem")}(incident_id uuid, attrs jsonb)
+-- create_incident_postmortem_action writes them.
+create or replace function ${fn("upsert_incident_postmortem")}(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -667,18 +667,18 @@ declare
   v_row ${incidents}%rowtype;
   v_post ${postmortems}%rowtype;
 begin
-  select * into v_row from ${incidents} x where x.${i("id")} = save_incident_postmortem.incident_id;
+  select * into v_row from ${incidents} x where x.${i("id")} = upsert_incident_postmortem.incident_id;
   if not found then
     ${incidentNotFound}
   end if;
   if not ${allowed(`v_row.${i("tenant")}`, write)} then
     ${forbidden("not allowed to write postmortems")}
   end if;
-  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_incident_postmortem.attrs) is distinct from 'object' then
     ${invalid("attrs must be an object")}
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' then
-    ${invalid("actionItems was removed: add_incident_postmortem_action writes action items as tasks")}
+  if upsert_incident_postmortem.attrs ? 'actionItems' then
+    ${invalid("actionItems was removed: create_incident_postmortem_action writes action items as tasks")}
   end if;
   insert into ${postmortems} (${pm("tenant")}, ${pm("incident")}${insertCol("postmortems", "author")})
   values (v_row.${i("tenant")}, v_row.${i("id")}${insertVal("postmortems", "author", "auth.uid()")})
@@ -690,7 +690,7 @@ begin
   return ${postmortemJson("v_post")};
 end;
 $$;
-${userGrant(`${fn("save_incident_postmortem")}(uuid, jsonb)`)}
+${userGrant(`${fn("upsert_incident_postmortem")}(uuid, jsonb)`)}
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
@@ -757,7 +757,7 @@ function actionFunctions(
 -- Adds an action item to a postmortem: creates the task through the tasks
 -- block, as the caller, and links it. The caller needs to write the incident
 -- and to create tasks.
-create or replace function ${fn("add_incident_postmortem_action")}(postmortem_id uuid, title text, assignee_id uuid default null, due_at timestamptz default null)
+create or replace function ${fn("create_incident_postmortem_action")}(postmortem_id uuid, title text, assignee_id uuid default null, due_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -768,7 +768,7 @@ declare
   v_task uuid;
   v_id uuid;
 begin
-  select * into v_post from ${postmortems} x where x.${pm("id")} = add_incident_postmortem_action.postmortem_id;
+  select * into v_post from ${postmortems} x where x.${pm("id")} = create_incident_postmortem_action.postmortem_id;
   if not found then
     ${fail("INCIDENT_POSTMORTEM_NOT_FOUND", "the incident has no postmortem", "P0002")}
   end if;
@@ -777,8 +777,8 @@ begin
   end if;
   v_task := (${tasks.fn("create_task")}(
     v_post.${pm("tenant")},
-    jsonb_strip_nulls(jsonb_build_object('title', add_incident_postmortem_action.title, 'dueAt', add_incident_postmortem_action.due_at)),
-    case when add_incident_postmortem_action.assignee_id is null then '{}'::uuid[] else array[add_incident_postmortem_action.assignee_id] end
+    jsonb_strip_nulls(jsonb_build_object('title', create_incident_postmortem_action.title, 'dueAt', create_incident_postmortem_action.due_at)),
+    case when create_incident_postmortem_action.assignee_id is null then '{}'::uuid[] else array[create_incident_postmortem_action.assignee_id] end
   ) ->> 'id')::uuid;
   insert into ${actions} (${a("tenant")}, ${a("postmortem")}, ${a("task")})
   values (v_post.${pm("tenant")}, v_post.${pm("id")}, v_task)
@@ -786,11 +786,11 @@ begin
   return (select ${actionJson(ctx, "x", "k")} from ${actions} x join ${tasks.table("items")} k on k.${t("id")} = x.${a("task")} where x.${a("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("add_incident_postmortem_action")}(uuid, text, uuid, timestamptz)`)}
+${userGrant(`${fn("create_incident_postmortem_action")}(uuid, text, uuid, timestamptz)`)}
 
 -- Unlinks an action item from its postmortem and returns the postmortem.
 -- The task stays in the tasks block.
-create or replace function ${fn("remove_incident_postmortem_action")}(action_id uuid)
+create or replace function ${fn("delete_incident_postmortem_action")}(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -800,7 +800,7 @@ declare
   v_action ${actions}%rowtype;
   v_post ${postmortems}%rowtype;
 begin
-  select * into v_action from ${actions} x where x.${a("id")} = remove_incident_postmortem_action.action_id;
+  select * into v_action from ${actions} x where x.${a("id")} = delete_incident_postmortem_action.action_id;
   if not found then
     ${fail("INCIDENT_POSTMORTEM_ACTION_NOT_FOUND", "postmortem action not found", "P0002")}
   end if;
@@ -812,7 +812,7 @@ begin
   return ${postmortemJson("v_post")};
 end;
 $$;
-${userGrant(`${fn("remove_incident_postmortem_action")}(uuid)`)}
+${userGrant(`${fn("delete_incident_postmortem_action")}(uuid)`)}
 `;
 }
 

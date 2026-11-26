@@ -60,7 +60,7 @@ describe("promotions block", () => {
     ).toEqual({ id: "p1", fields: {} });
     expect(calls).toEqual([
       {
-        fn: "save_promotion",
+        fn: "upsert_promotion",
         args: {
           tenant: "org",
           promotion: null,

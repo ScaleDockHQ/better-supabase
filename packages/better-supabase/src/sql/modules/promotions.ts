@@ -270,7 +270,7 @@ ${tables(ctx, names)}${promotionFunctions(ctx, names)}${codeFunctions(ctx, names
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_promotion",
+      name: "upsert_promotion",
       args: [
         "{id}",
         "uuid",

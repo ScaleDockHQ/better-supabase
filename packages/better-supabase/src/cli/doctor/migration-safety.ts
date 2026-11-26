@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { SqlStatement } from "../schema-reader/index.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
+import { SQL_FUNCTION_RENAMES } from "../../sql/function-renames.ts";
 import { statementsOf } from "../schema-reader/index.ts";
 
 const NAME = String.raw`(?:"[^"]+"|[\w$]+)`;
@@ -536,11 +537,20 @@ function createdFunctions(parsed: Statements): ReadonlySet<string> {
   return created;
 }
 
+/** A function a release renamed: dropping it next to its new name is the rename. */
+const RENAMED_FUNCTIONS: ReadonlyMap<string, string> = new Map(
+  SQL_FUNCTION_RENAMES.map(([, from, to]) => [from, to]),
+);
+
 const droppedLibraryFunction: Check = (parsed, statement) => {
   const created = createdFunctions(parsed);
 
   const changed = droppedFunctions(statement.text).filter(
-    (each) => !created.has(`${each.name}/${String(each.arity)}`),
+    (each) =>
+      !created.has(`${each.name}/${String(each.arity)}`) &&
+      !created.has(
+        `${RENAMED_FUNCTIONS.get(each.name) ?? each.name}/${String(each.arity)}`,
+      ),
   );
 
   if (changed.length === 0) {

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:f420856ebc4331dd6cb0e2a05b7af25842be073fde8739fd70da9fe021c9f201
+-- @bsb-hash sha256:2d52e465a9cd0a2798245115772823ba2649500f73e26d69b0ece38118e1b8da
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,39 +474,39 @@ create index product_variants_discount_group_idx on "better_supabase"."product_v
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
 
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
+create or replace function "better_supabase"."upsert_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_product.product;
-  v_title text := save_product.title;
-  v_slug text := nullif(save_product.slug, '');
+  v_id uuid := upsert_product.product;
+  v_title text := upsert_product.title;
+  v_slug text := nullif(upsert_product.slug, '');
   v_status text;
-  v_created boolean := save_product.product is null;
+  v_created boolean := upsert_product.product is null;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_created then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
     raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if not v_created then
-    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(upsert_product.clear, '{}'::text[])) then x."slug" else v_slug end
     into v_title, v_slug
-    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    from "better_supabase"."products" x where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant;
     if not found then
       raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
     end if;
@@ -520,20 +520,20 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
+        using upsert_product.tenant, upsert_product.product, v_title, v_slug, upsert_product.kind;
     end if;
   end;
   begin
     if v_created then
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when upsert_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'))
+      values (upsert_product.tenant, v_title, v_slug, coalesce(upsert_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(upsert_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(upsert_product.clear, '{}'::text[])) then null else coalesce(upsert_product.description, x."description") end, "kind" = coalesce(upsert_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant
       returning x."status" into v_status;
       if not found then
         raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
@@ -572,8 +572,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -701,7 +701,7 @@ grant execute on function "better_supabase"."purge_product"(uuid) to authenticat
 -- On an update a null argument keeps the column and clear names the columns
 -- to empty. fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
+create or replace function "better_supabase"."upsert_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -709,18 +709,18 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_variant.variant;
-  v_created boolean := save_variant.variant is null;
+  v_id uuid := upsert_variant.variant;
+  v_created boolean := upsert_variant.variant is null;
   v_wanted uuid[];
   v_last text;
   v_rank text;
-  v_sku text := save_variant.sku;
+  v_sku text := upsert_variant.sku;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_variant.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
@@ -733,27 +733,27 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
     raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
-  if v_created or save_variant.option_values is not null then
-  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
-  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+  if v_created or upsert_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(upsert_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(upsert_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
       where not exists (
         select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
-        where ov."id" = x and o."product_id" = save_variant.product
+        where ov."id" = x and o."product_id" = upsert_variant.product
       )
     )
     or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
-    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = upsert_variant.product) <> cardinality(v_wanted) then
     raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
   end if;
   if exists (
     select 1 from "better_supabase"."product_variants" x
-    where x."product_id" = save_variant.product
-      and x."id" is distinct from save_variant.variant
+    where x."product_id" = upsert_variant.product
+      and x."id" is distinct from upsert_variant.variant
       and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
   ) then
     raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
@@ -764,12 +764,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
-        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+        using upsert_variant.product, upsert_variant.variant, upsert_variant.sku, v_wanted;
     end if;
   end;
   begin
     if v_created then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = upsert_variant.product;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -777,13 +777,13 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when save_variant.sku is null then 'sku' end, case when save_variant.title is null then 'title' end, case when save_variant.barcode is null then 'barcode' end, case when save_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when upsert_variant.sku is null then 'sku' end, case when upsert_variant.title is null then 'title' end, case when upsert_variant.barcode is null then 'barcode' end, case when upsert_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."product_variants" as x ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
-      values (v_tenant, save_variant.product, coalesce(save_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(save_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(save_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(save_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      values (v_tenant, upsert_variant.product, coalesce(upsert_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(upsert_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(upsert_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(upsert_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(upsert_variant.track_inventory, true), coalesce(upsert_variant.allow_backorder, false), v_rank)
       returning x."id", x."sku" into v_id, v_sku;
     else
-      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
-      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(upsert_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(upsert_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      where x."id" = upsert_variant.variant and x."product_id" = upsert_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
         raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
@@ -828,8 +828,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -1145,7 +1145,7 @@ grant execute on function "better_supabase"."restore_variant"(uuid) to authentic
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
-create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+create or replace function "better_supabase"."upsert_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
 security definer
@@ -1153,42 +1153,42 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_product_option.option;
+  v_id uuid := upsert_product_option.option;
   v_last text;
   v_rank text;
   v_value text;
   v_variant uuid;
-  v_new boolean := save_product_option.option is null;
+  v_new boolean := upsert_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_product_option.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+  if coalesce(cardinality(upsert_product_option.option_values), 0) = 0 then
     raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
   end if;
-  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+  if (select count(distinct x) from unnest(upsert_product_option.option_values) x) <> cardinality(upsert_product_option.option_values) then
     raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
   end if;
   begin
     if v_id is null then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = upsert_product_option.product;
       insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
-      values (v_tenant, save_product_option.product, save_product_option.name, case
+      values (v_tenant, upsert_product_option.product, upsert_product_option.name, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_options" x set "name" = save_product_option.name
-      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      update "better_supabase"."product_options" x set "name" = upsert_product_option.name
+      where x."id" = upsert_product_option.option and x."product_id" = upsert_product_option.product;
       if not found then
         raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
       end if;
@@ -1199,7 +1199,7 @@ begin
   for v_variant in
     select distinct x."variant_id" from "better_supabase"."product_variant_values" x
     join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
-    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+    where y."option_id" = v_id and not (y."value" = any (upsert_product_option.option_values))
   loop
     begin
       delete from "better_supabase"."product_variants" x where x."id" = v_variant;
@@ -1209,12 +1209,12 @@ begin
     end;
   end loop;
   begin
-    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (upsert_product_option.option_values));
   exception when foreign_key_violation then
     raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
   end;
   v_rank := null;
-  foreach v_value in array save_product_option.option_values loop
+  foreach v_value in array upsert_product_option.option_values loop
     v_rank := case
     when v_rank is null then 'V'
     when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
@@ -1228,8 +1228,8 @@ begin
   end loop;
   if v_new then
     insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
-    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = save_product_option.option_values[1])
-    from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product;
+    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = upsert_product_option.option_values[1])
+    from "better_supabase"."product_variants" x where x."product_id" = upsert_product_option.product;
   end if;
   return jsonb_build_object(
     'id', v_id,
@@ -1237,8 +1237,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
 
 -- Puts a product's options in the given order; the list names each once.
 create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
@@ -1384,7 +1384,7 @@ begin
   end loop;
   for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
     select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
-    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_option := ("better_supabase"."upsert_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
     v_ids := v_ids || v_option;
   end loop;
   if cardinality(v_ids) > 0 then
@@ -1412,7 +1412,7 @@ begin
       where x."product_id" = set_product_options.product
         and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
     ) then
-      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+      perform "better_supabase"."upsert_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
     end if;
   end loop;
   if set_product_options.title_separator is not null then
@@ -1448,29 +1448,29 @@ grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, t
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
-create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+create or replace function "better_supabase"."upsert_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_price_list.price_list;
+  v_id uuid := upsert_price_list.price_list;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_price_list.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_price_lists" ("tenant_id", "name", "customer_group")
-      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      values (upsert_price_list.tenant, upsert_price_list.name, upsert_price_list.customer_group)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
-      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      update "better_supabase"."catalog_price_lists" x set "name" = upsert_price_list.name, "customer_group" = upsert_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = upsert_price_list.tenant;
       if not found then
         raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
       end if;
@@ -1481,8 +1481,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Deletes a price list and its prices.
 create or replace function "better_supabase"."delete_price_list"(price_list uuid)
@@ -1656,15 +1656,15 @@ grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, ti
 -- for the top level). A new category goes after its siblings. fields: the
 -- extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+create or replace function "better_supabase"."upsert_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_category.category;
-  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_category.category;
+  v_slug text := coalesce(nullif(upsert_category.slug, ''), trim(both '-' from regexp_replace(lower(upsert_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
   v_defaults jsonb;
@@ -1673,23 +1673,23 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_id is null then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
-  if save_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+  if upsert_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = upsert_category.parent and x."tenant_id" = upsert_category.tenant) then
     raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
   end if;
-  if save_category.parent is not null and exists (
+  if upsert_category.parent is not null and exists (
     with recursive up (id) as (
-      select save_category.parent
+      select upsert_category.parent
       union
       select x."parent_id" from "better_supabase"."catalog_categories" x join up on x."id" = up.id where x."parent_id" is not null
     )
@@ -1700,7 +1700,7 @@ begin
   begin
     if v_id is null then
       select max(x."rank" collate "C") into v_last from "better_supabase"."catalog_categories" x
-      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      where x."tenant_id" = upsert_category.tenant and x."parent_id" is not distinct from upsert_category.parent;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -1708,14 +1708,14 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when save_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when upsert_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."catalog_categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, coalesce(save_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
+      values (upsert_category.tenant, upsert_category.parent, upsert_category.name, v_slug, coalesce(upsert_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
-        "description" = save_category.description, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      update "better_supabase"."catalog_categories" x set "parent_id" = upsert_category.parent, "name" = upsert_category.name, "slug" = v_slug,
+        "description" = upsert_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_category.tenant
       returning x."rank" into v_rank;
       if not found then
         raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
@@ -1741,8 +1741,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.
@@ -1861,21 +1861,21 @@ grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
 -- (a FilterQuery group) that picks them.
-create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function "better_supabase"."upsert_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_collection.collection;
-  v_kind text := coalesce(save_collection.kind, 'manual');
-  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_collection.collection;
+  v_kind text := coalesce(upsert_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(upsert_collection.slug, ''), trim(both '-' from regexp_replace(lower(upsert_collection.title), '[^a-z0-9]+', '-', 'g')));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_collection.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
@@ -1884,26 +1884,26 @@ begin
   if v_kind not in ('manual', 'rule') then
     raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
   end if;
-  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+  if (v_kind = 'rule') <> (upsert_collection.rule is not null) then
     raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   if v_kind = 'rule' and not (
-    jsonb_typeof(save_collection.rule) = 'object'
-    and save_collection.rule ->> 'type' = 'group'
-    and save_collection.rule ->> 'combinator' in ('and', 'or')
-    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+    jsonb_typeof(upsert_collection.rule) = 'object'
+    and upsert_collection.rule ->> 'type' = 'group'
+    and upsert_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(upsert_collection.rule -> 'rules') = 'array'
   ) then
     raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."product_collections" ("tenant_id", "title", "slug", "kind", "rule")
-      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      values (upsert_collection.tenant, upsert_collection.title, v_slug, v_kind, upsert_collection.rule)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
-        "rule" = save_collection.rule, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      update "better_supabase"."product_collections" x set "title" = upsert_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = upsert_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_collection.tenant;
       if not found then
         raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
       end if;
@@ -1917,8 +1917,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
 end;
 $$;
-revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Deletes a collection.
 create or replace function "better_supabase"."delete_collection"(collection uuid)
@@ -2086,7 +2086,7 @@ grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) 
 -- Creates a sales channel (channel null) or updates one. A channel has a
 -- key, unique per organization, and optionally a currency and a price list
 -- its prices come from.
-create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function "better_supabase"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -2094,32 +2094,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_catalog_channel.channel;
+  v_id uuid := upsert_catalog_channel.channel;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_catalog_channel.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+  if upsert_catalog_channel.key is null or upsert_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
   end if;
-  if save_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(save_catalog_channel.currency) is null then
+  if upsert_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(upsert_catalog_channel.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
-  if save_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = save_catalog_channel.price_list and x."tenant_id" = save_catalog_channel.tenant) then
+  if upsert_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = upsert_catalog_channel.price_list and x."tenant_id" = upsert_catalog_channel.tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_channels" as x ("tenant_id", "key", "name", "currency", "price_list_id", "active")
-      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      values (upsert_catalog_channel.tenant, upsert_catalog_channel.key, upsert_catalog_channel.name, upsert_catalog_channel.currency, upsert_catalog_channel.price_list, coalesce(upsert_catalog_channel.active, true))
       returning x."id", x."active" into v_id, v_active;
     else
-      update "better_supabase"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_catalog_channel.tenant
+      update "better_supabase"."catalog_channels" x set "key" = upsert_catalog_channel.key, "name" = upsert_catalog_channel.name, "currency" = upsert_catalog_channel.currency, "price_list_id" = upsert_catalog_channel.price_list, "active" = coalesce(upsert_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_catalog_channel.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
@@ -2128,11 +2128,11 @@ begin
   exception when unique_violation then
     raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'key', upsert_catalog_channel.key, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
 
 -- Deletes a channel and its listings.
 create or replace function "better_supabase"."delete_catalog_channel"(channel uuid)
@@ -2383,7 +2383,7 @@ grant execute on function "better_supabase"."product_text"(uuid, text) to anon, 
 -- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
 -- variant. A code is stored once per variant, type and party, so a second
 -- call returns the existing row with created false.
-create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+create or replace function "better_supabase"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2392,46 +2392,46 @@ as $$
 declare
   v_id uuid;
   v_created boolean := false;
-  v_value text := btrim(save_product_identifier.value);
+  v_value text := btrim(upsert_product_identifier.value);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_identifier.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_identifier.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_identifier.type is null or save_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
+  if upsert_product_identifier.type is null or upsert_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
     raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
   end if;
   if v_value is null or length(v_value) not between 1 and 100 then
     raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if save_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+  if upsert_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
     raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = save_product_identifier.variant and x."tenant_id" = save_product_identifier.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = upsert_product_identifier.variant and x."tenant_id" = upsert_product_identifier.tenant) then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
   select x."id" into v_id from "better_supabase"."product_identifiers" x
-  where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+  where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
   if v_id is null then
     begin
       insert into "better_supabase"."product_identifiers" as x ("tenant_id", "variant_id", "type", "value", "party_id")
-      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      values (upsert_product_identifier.tenant, upsert_product_identifier.variant, upsert_product_identifier.type, v_value, upsert_product_identifier.party)
       returning x."id" into v_id;
       v_created := true;
     exception when unique_violation then
       select x."id" into v_id from "better_supabase"."product_identifiers" x
-      where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+      where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
     end;
   end if;
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 -- Removes an identifier.
 create or replace function "better_supabase"."delete_product_identifier"(identifier uuid)
@@ -2495,7 +2495,7 @@ grant execute on function "better_supabase"."variant_identifiers"(uuid) to authe
 -- Links the variant "from" to the variant "to": "from" has "to" as an
 -- alternative or an accessory, or is superseded by it. A repeated call
 -- returns created false. A supersession can't point back along its own chain.
-create or replace function "better_supabase"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+create or replace function "better_supabase"."upsert_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language plpgsql
 security definer
@@ -2507,37 +2507,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_relation.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_relation.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_relation.kind is null or save_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
+  if upsert_product_relation.kind is null or upsert_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
     raise exception 'the kind must be one of alternative, superseded_by, accessory' using errcode = '22023', hint = 'CATALOG_RELATION_KIND_INVALID';
   end if;
-  if save_product_relation.from_variant = save_product_relation.to_variant then
+  if upsert_product_relation.from_variant = upsert_product_relation.to_variant then
     raise exception 'a variant can''t relate to itself' using errcode = '22023', hint = 'CATALOG_RELATION_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = save_product_relation.tenant and x."id" in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = upsert_product_relation.tenant and x."id" in (upsert_product_relation.from_variant, upsert_product_relation.to_variant)) <> 2 then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
-  if save_product_relation.kind = 'superseded_by' and exists (
+  if upsert_product_relation.kind = 'superseded_by' and exists (
     with recursive chain(id, depth) as (
-      select save_product_relation.to_variant, 0
+      select upsert_product_relation.to_variant, 0
       union all
       select y."to_variant_id", c.depth + 1 from "better_supabase"."product_relations" y join chain c on y."from_variant_id" = c.id and y."kind" = 'superseded_by' where c.depth < 50
     )
-    select 1 from chain where id = save_product_relation.from_variant
+    select 1 from chain where id = upsert_product_relation.from_variant
   ) then
     raise exception 'the replacement already points back at this variant' using errcode = '22023', hint = 'CATALOG_RELATION_CYCLE';
   end if;
   insert into "better_supabase"."product_relations" ("tenant_id", "from_variant_id", "to_variant_id", "kind")
-  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  values (upsert_product_relation.tenant, upsert_product_relation.from_variant, upsert_product_relation.to_variant, upsert_product_relation.kind)
   on conflict do nothing;
   v_created := found;
   return jsonb_build_object('created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
-grant execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
 
 -- Removes one relation.
 create or replace function "better_supabase"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
@@ -2765,42 +2765,42 @@ grant execute on function "better_supabase"."supplier_item_from_row"(uuid, uuid,
 
 -- Creates a supplier item (item null) or updates one; on an update a null
 -- argument keeps the column. price is in minor units.
-create or replace function "better_supabase"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function "better_supabase"."upsert_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_supplier_item.item;
-  v_code text := btrim(save_supplier_item.code);
+  v_id uuid := upsert_supplier_item.item;
+  v_code text := btrim(upsert_supplier_item.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_supplier_item.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_supplier_item.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) not between 1 and 100 then
     raise exception 'the code must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+  if upsert_supplier_item.price is not null and upsert_supplier_item.price < 0 then
     raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(save_supplier_item.currency) is null then
+  if upsert_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(upsert_supplier_item.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."supplier_items" as x ("tenant_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
-      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      values (upsert_supplier_item.tenant, upsert_supplier_item.supplier, v_code, upsert_supplier_item.description, upsert_supplier_item.price, upsert_supplier_item.currency, upsert_supplier_item.unit, upsert_supplier_item.keywords)
       returning x."id" into v_id;
     else
-      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(save_supplier_item.supplier, x."supplier_id"), "code" = v_code,
-        "description" = coalesce(save_supplier_item.description, x."description"), "price" = coalesce(save_supplier_item.price, x."price"),
-        "currency" = coalesce(save_supplier_item.currency, x."currency"), "unit" = coalesce(save_supplier_item.unit, x."unit"),
-        "keywords_text" = coalesce(save_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
-      where x."id" = save_supplier_item.item and x."tenant_id" = save_supplier_item.tenant;
+      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(upsert_supplier_item.supplier, x."supplier_id"), "code" = v_code,
+        "description" = coalesce(upsert_supplier_item.description, x."description"), "price" = coalesce(upsert_supplier_item.price, x."price"),
+        "currency" = coalesce(upsert_supplier_item.currency, x."currency"), "unit" = coalesce(upsert_supplier_item.unit, x."unit"),
+        "keywords_text" = coalesce(upsert_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
+      where x."id" = upsert_supplier_item.item and x."tenant_id" = upsert_supplier_item.tenant;
       if not found then
         raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
       end if;
@@ -2811,8 +2811,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', v_code);
 end;
 $$;
-revoke execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
 
 -- Deletes a supplier item. The variant it was promoted to stays.
 create or replace function "better_supabase"."delete_supplier_item"(item uuid)
@@ -3116,7 +3116,7 @@ grant execute on function "better_supabase"."product_identifier_updated_at"(text
 -- Creates a discount group (group null) or renames one. kind is customer or
 -- product and can't change; the code is unique per tenant and kind. Returns
 -- its id and whether it was created.
-create or replace function "better_supabase"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+create or replace function "better_supabase"."upsert_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -3124,29 +3124,29 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_created boolean := save_discount_group."group" is null;
-  v_code text := btrim(save_discount_group.code);
+  v_created boolean := upsert_discount_group."group" is null;
+  v_code text := btrim(upsert_discount_group.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_group.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_group.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_discount_group.kind is null or save_discount_group.kind not in ('customer', 'product') then
+  if upsert_discount_group.kind is null or upsert_discount_group.kind not in ('customer', 'product') then
     raise exception 'the kind is customer or product' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
-  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(upsert_discount_group.name, ''))) not between 1 and 200 then
     raise exception 'a group needs a code of up to 50 and a name of up to 200 characters' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
   begin
     if v_created then
       insert into "better_supabase"."discount_groups" as x ("tenant_id", "kind", "code", "name")
-      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      values (upsert_discount_group.tenant, upsert_discount_group.kind, v_code, btrim(upsert_discount_group.name))
       returning x."id" into v_id;
     else
-      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(save_discount_group.name), "updated_at" = now()
-      where x."id" = save_discount_group."group" and x."tenant_id" = save_discount_group.tenant and x."kind" = save_discount_group.kind
+      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(upsert_discount_group.name), "updated_at" = now()
+      where x."id" = upsert_discount_group."group" and x."tenant_id" = upsert_discount_group.tenant and x."kind" = upsert_discount_group.kind
       returning x."id" into v_id;
       if v_id is null then
         raise exception 'discount group not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
@@ -3158,8 +3158,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Deletes a group no rule uses. Its customers leave it and its variants lose
 -- the group.
@@ -3308,31 +3308,31 @@ revoke execute on function "better_supabase"."discount_rule_check"(uuid, jsonb) 
 -- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
 -- same groups, start date and minimum quantity is one rule: the call updates
 -- it. Returns its id and whether it was created.
-create or replace function "better_supabase"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_discount_rule.attrs, '{}'::jsonb);
   v_id uuid;
   v_created boolean := true;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_rule.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_rule.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  perform "better_supabase"."discount_rule_check"(save_discount_rule.tenant, v_attrs);
-  if save_discount_rule.rule is not null then
+  perform "better_supabase"."discount_rule_check"(upsert_discount_rule.tenant, v_attrs);
+  if upsert_discount_rule.rule is not null then
     update "better_supabase"."discount_rules" x set
       "customer_group_id" = nullif(v_attrs ->> 'customerGroupId', '')::uuid, "product_group_id" = nullif(v_attrs ->> 'productGroupId', '')::uuid,
       "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
       "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
       "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
-    where x."id" = save_discount_rule.rule and x."tenant_id" = save_discount_rule.tenant
+    where x."id" = upsert_discount_rule.rule and x."tenant_id" = upsert_discount_rule.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'discount rule not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_RULE_NOT_FOUND';
@@ -3340,7 +3340,7 @@ begin
     return jsonb_build_object('id', v_id, 'created', false);
   end if;
   insert into "better_supabase"."discount_rules" as x ("tenant_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
-  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+  values (upsert_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
     (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
     coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
   on conflict ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
@@ -3350,8 +3350,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a rule of the matrix.
 create or replace function "better_supabase"."delete_discount_rule"(rule uuid)
@@ -4001,7 +4001,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:37d6e5a9adcd11df077a045739da2ab7c82a999a0706a45f89733ad650b1b7b7
+-- @bsb-hash sha256:410703fa389b44320aa1e5989e4427ae1cdfb50bcc5bccf431e93bac8ea0707d
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4496,39 +4496,39 @@ create index product_variants_discount_group_idx on "better_supabase"."product_v
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
 
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
+create or replace function "better_supabase"."upsert_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_product.product;
-  v_title text := save_product.title;
-  v_slug text := nullif(save_product.slug, '');
+  v_id uuid := upsert_product.product;
+  v_title text := upsert_product.title;
+  v_slug text := nullif(upsert_product.slug, '');
   v_status text;
-  v_created boolean := save_product.product is null;
+  v_created boolean := upsert_product.product is null;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_created then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
     raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if not v_created then
-    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(upsert_product.clear, '{}'::text[])) then x."slug" else v_slug end
     into v_title, v_slug
-    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    from "better_supabase"."products" x where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant;
     if not found then
       raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
     end if;
@@ -4542,20 +4542,20 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
+        using upsert_product.tenant, upsert_product.product, v_title, v_slug, upsert_product.kind;
     end if;
   end;
   begin
     if v_created then
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when upsert_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'))
+      values (upsert_product.tenant, v_title, v_slug, coalesce(upsert_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(upsert_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(upsert_product.clear, '{}'::text[])) then null else coalesce(upsert_product.description, x."description") end, "kind" = coalesce(upsert_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant
       returning x."status" into v_status;
       if not found then
         raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
@@ -4579,9 +4579,9 @@ begin
     end;
   end;
   if v_created then
-    perform "better_supabase".emit_event('product.created', jsonb_build_object('organizationId', save_product.tenant, 'id', v_id, 'slug', v_slug, 'kind', coalesce(save_product.kind, 'physical')), 'products/' || v_id::text, (save_product.tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('product.created', jsonb_build_object('organizationId', upsert_product.tenant, 'id', v_id, 'slug', v_slug, 'kind', coalesce(upsert_product.kind, 'physical')), 'products/' || v_id::text, (upsert_product.tenant)::text, null, 'better-supabase/catalog');
   else
-    perform "better_supabase".emit_event('product.updated', jsonb_build_object('organizationId', save_product.tenant, 'id', v_id, 'slug', v_slug), 'products/' || v_id::text, (save_product.tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('product.updated', jsonb_build_object('organizationId', upsert_product.tenant, 'id', v_id, 'slug', v_slug), 'products/' || v_id::text, (upsert_product.tenant)::text, null, 'better-supabase/catalog');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_product_save"(uuid, boolean)');
@@ -4594,8 +4594,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -4726,7 +4726,7 @@ grant execute on function "better_supabase"."purge_product"(uuid) to authenticat
 -- On an update a null argument keeps the column and clear names the columns
 -- to empty. fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
+create or replace function "better_supabase"."upsert_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4734,18 +4734,18 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_variant.variant;
-  v_created boolean := save_variant.variant is null;
+  v_id uuid := upsert_variant.variant;
+  v_created boolean := upsert_variant.variant is null;
   v_wanted uuid[];
   v_last text;
   v_rank text;
-  v_sku text := save_variant.sku;
+  v_sku text := upsert_variant.sku;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_variant.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
@@ -4758,27 +4758,27 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
     raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
-  if v_created or save_variant.option_values is not null then
-  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
-  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+  if v_created or upsert_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(upsert_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(upsert_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
       where not exists (
         select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
-        where ov."id" = x and o."product_id" = save_variant.product
+        where ov."id" = x and o."product_id" = upsert_variant.product
       )
     )
     or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
-    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = upsert_variant.product) <> cardinality(v_wanted) then
     raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
   end if;
   if exists (
     select 1 from "better_supabase"."product_variants" x
-    where x."product_id" = save_variant.product
-      and x."id" is distinct from save_variant.variant
+    where x."product_id" = upsert_variant.product
+      and x."id" is distinct from upsert_variant.variant
       and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
   ) then
     raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
@@ -4789,12 +4789,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
-        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+        using upsert_variant.product, upsert_variant.variant, upsert_variant.sku, v_wanted;
     end if;
   end;
   begin
     if v_created then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = upsert_variant.product;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -4802,13 +4802,13 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when save_variant.sku is null then 'sku' end, case when save_variant.title is null then 'title' end, case when save_variant.barcode is null then 'barcode' end, case when save_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when upsert_variant.sku is null then 'sku' end, case when upsert_variant.title is null then 'title' end, case when upsert_variant.barcode is null then 'barcode' end, case when upsert_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."product_variants" as x ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
-      values (v_tenant, save_variant.product, coalesce(save_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(save_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(save_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(save_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      values (v_tenant, upsert_variant.product, coalesce(upsert_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(upsert_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(upsert_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(upsert_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(upsert_variant.track_inventory, true), coalesce(upsert_variant.allow_backorder, false), v_rank)
       returning x."id", x."sku" into v_id, v_sku;
     else
-      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
-      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(upsert_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(upsert_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      where x."id" = upsert_variant.variant and x."product_id" = upsert_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
         raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
@@ -4838,9 +4838,9 @@ begin
   on conflict do nothing;
   end if;
   if v_created then
-    perform "better_supabase".emit_event('product_variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('product_variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', upsert_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   else
-    perform "better_supabase".emit_event('product_variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('product_variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', upsert_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
@@ -4853,8 +4853,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -5173,7 +5173,7 @@ grant execute on function "better_supabase"."restore_variant"(uuid) to authentic
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
-create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+create or replace function "better_supabase"."upsert_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
 security definer
@@ -5181,42 +5181,42 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_product_option.option;
+  v_id uuid := upsert_product_option.option;
   v_last text;
   v_rank text;
   v_value text;
   v_variant uuid;
-  v_new boolean := save_product_option.option is null;
+  v_new boolean := upsert_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_product_option.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+  if coalesce(cardinality(upsert_product_option.option_values), 0) = 0 then
     raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
   end if;
-  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+  if (select count(distinct x) from unnest(upsert_product_option.option_values) x) <> cardinality(upsert_product_option.option_values) then
     raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
   end if;
   begin
     if v_id is null then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = upsert_product_option.product;
       insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
-      values (v_tenant, save_product_option.product, save_product_option.name, case
+      values (v_tenant, upsert_product_option.product, upsert_product_option.name, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_options" x set "name" = save_product_option.name
-      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      update "better_supabase"."product_options" x set "name" = upsert_product_option.name
+      where x."id" = upsert_product_option.option and x."product_id" = upsert_product_option.product;
       if not found then
         raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
       end if;
@@ -5227,7 +5227,7 @@ begin
   for v_variant in
     select distinct x."variant_id" from "better_supabase"."product_variant_values" x
     join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
-    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+    where y."option_id" = v_id and not (y."value" = any (upsert_product_option.option_values))
   loop
     if exists (select 1 from "better_supabase"."ledger_accounts" sa where sa."managed_by" = 'inventory' and sa."kind" = 'stock' and (case when sa."kind" = 'stock' then (sa."metadata" ->> 'variantId')::uuid end) = v_variant) then
       raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
@@ -5235,18 +5235,18 @@ begin
     end if;
     begin
       delete from "better_supabase"."product_variants" x where x."id" = v_variant;
-      perform "better_supabase".emit_event('product_variant.purged', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', save_product_option.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
+      perform "better_supabase".emit_event('product_variant.purged', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', upsert_product_option.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
     exception when foreign_key_violation then
       raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
     end;
   end loop;
   begin
-    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (upsert_product_option.option_values));
   exception when foreign_key_violation then
     raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
   end;
   v_rank := null;
-  foreach v_value in array save_product_option.option_values loop
+  foreach v_value in array upsert_product_option.option_values loop
     v_rank := case
     when v_rank is null then 'V'
     when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
@@ -5260,8 +5260,8 @@ begin
   end loop;
   if v_new then
     insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
-    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = save_product_option.option_values[1])
-    from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product;
+    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = upsert_product_option.option_values[1])
+    from "better_supabase"."product_variants" x where x."product_id" = upsert_product_option.product;
   end if;
   return jsonb_build_object(
     'id', v_id,
@@ -5269,8 +5269,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
 
 -- Puts a product's options in the given order; the list names each once.
 create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
@@ -5420,7 +5420,7 @@ begin
   end loop;
   for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
     select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
-    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_option := ("better_supabase"."upsert_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
     v_ids := v_ids || v_option;
   end loop;
   if cardinality(v_ids) > 0 then
@@ -5448,7 +5448,7 @@ begin
       where x."product_id" = set_product_options.product
         and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
     ) then
-      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+      perform "better_supabase"."upsert_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
     end if;
   end loop;
   if set_product_options.title_separator is not null then
@@ -5484,29 +5484,29 @@ grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, t
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
-create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+create or replace function "better_supabase"."upsert_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_price_list.price_list;
+  v_id uuid := upsert_price_list.price_list;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_price_list.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_price_lists" ("tenant_id", "name", "customer_group")
-      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      values (upsert_price_list.tenant, upsert_price_list.name, upsert_price_list.customer_group)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
-      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      update "better_supabase"."catalog_price_lists" x set "name" = upsert_price_list.name, "customer_group" = upsert_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = upsert_price_list.tenant;
       if not found then
         raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
       end if;
@@ -5517,8 +5517,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Deletes a price list and its prices.
 create or replace function "better_supabase"."delete_price_list"(price_list uuid)
@@ -5692,15 +5692,15 @@ grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, ti
 -- for the top level). A new category goes after its siblings. fields: the
 -- extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+create or replace function "better_supabase"."upsert_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_category.category;
-  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_category.category;
+  v_slug text := coalesce(nullif(upsert_category.slug, ''), trim(both '-' from regexp_replace(lower(upsert_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
   v_defaults jsonb;
@@ -5709,23 +5709,23 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_id is null then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
-  if save_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+  if upsert_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = upsert_category.parent and x."tenant_id" = upsert_category.tenant) then
     raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
   end if;
-  if save_category.parent is not null and exists (
+  if upsert_category.parent is not null and exists (
     with recursive up (id) as (
-      select save_category.parent
+      select upsert_category.parent
       union
       select x."parent_id" from "better_supabase"."catalog_categories" x join up on x."id" = up.id where x."parent_id" is not null
     )
@@ -5736,7 +5736,7 @@ begin
   begin
     if v_id is null then
       select max(x."rank" collate "C") into v_last from "better_supabase"."catalog_categories" x
-      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      where x."tenant_id" = upsert_category.tenant and x."parent_id" is not distinct from upsert_category.parent;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -5744,14 +5744,14 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when save_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when upsert_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."catalog_categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, coalesce(save_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
+      values (upsert_category.tenant, upsert_category.parent, upsert_category.name, v_slug, coalesce(upsert_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
-        "description" = save_category.description, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      update "better_supabase"."catalog_categories" x set "parent_id" = upsert_category.parent, "name" = upsert_category.name, "slug" = v_slug,
+        "description" = upsert_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_category.tenant
       returning x."rank" into v_rank;
       if not found then
         raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
@@ -5777,8 +5777,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.
@@ -5897,21 +5897,21 @@ grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
 -- (a FilterQuery group) that picks them.
-create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function "better_supabase"."upsert_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_collection.collection;
-  v_kind text := coalesce(save_collection.kind, 'manual');
-  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_collection.collection;
+  v_kind text := coalesce(upsert_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(upsert_collection.slug, ''), trim(both '-' from regexp_replace(lower(upsert_collection.title), '[^a-z0-9]+', '-', 'g')));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_collection.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
@@ -5920,26 +5920,26 @@ begin
   if v_kind not in ('manual', 'rule') then
     raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
   end if;
-  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+  if (v_kind = 'rule') <> (upsert_collection.rule is not null) then
     raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   if v_kind = 'rule' and not (
-    jsonb_typeof(save_collection.rule) = 'object'
-    and save_collection.rule ->> 'type' = 'group'
-    and save_collection.rule ->> 'combinator' in ('and', 'or')
-    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+    jsonb_typeof(upsert_collection.rule) = 'object'
+    and upsert_collection.rule ->> 'type' = 'group'
+    and upsert_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(upsert_collection.rule -> 'rules') = 'array'
   ) then
     raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."product_collections" ("tenant_id", "title", "slug", "kind", "rule")
-      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      values (upsert_collection.tenant, upsert_collection.title, v_slug, v_kind, upsert_collection.rule)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
-        "rule" = save_collection.rule, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      update "better_supabase"."product_collections" x set "title" = upsert_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = upsert_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_collection.tenant;
       if not found then
         raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
       end if;
@@ -5953,8 +5953,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
 end;
 $$;
-revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Deletes a collection.
 create or replace function "better_supabase"."delete_collection"(collection uuid)
@@ -6122,7 +6122,7 @@ grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) 
 -- Creates a sales channel (channel null) or updates one. A channel has a
 -- key, unique per organization, and optionally a currency and a price list
 -- its prices come from.
-create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function "better_supabase"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -6130,32 +6130,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_catalog_channel.channel;
+  v_id uuid := upsert_catalog_channel.channel;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_catalog_channel.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+  if upsert_catalog_channel.key is null or upsert_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
   end if;
-  if save_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(save_catalog_channel.currency) is null then
+  if upsert_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(upsert_catalog_channel.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
-  if save_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = save_catalog_channel.price_list and x."tenant_id" = save_catalog_channel.tenant) then
+  if upsert_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = upsert_catalog_channel.price_list and x."tenant_id" = upsert_catalog_channel.tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_channels" as x ("tenant_id", "key", "name", "currency", "price_list_id", "active")
-      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      values (upsert_catalog_channel.tenant, upsert_catalog_channel.key, upsert_catalog_channel.name, upsert_catalog_channel.currency, upsert_catalog_channel.price_list, coalesce(upsert_catalog_channel.active, true))
       returning x."id", x."active" into v_id, v_active;
     else
-      update "better_supabase"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_catalog_channel.tenant
+      update "better_supabase"."catalog_channels" x set "key" = upsert_catalog_channel.key, "name" = upsert_catalog_channel.name, "currency" = upsert_catalog_channel.currency, "price_list_id" = upsert_catalog_channel.price_list, "active" = coalesce(upsert_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_catalog_channel.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
@@ -6164,11 +6164,11 @@ begin
   exception when unique_violation then
     raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'key', upsert_catalog_channel.key, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
 
 -- Deletes a channel and its listings.
 create or replace function "better_supabase"."delete_catalog_channel"(channel uuid)
@@ -6419,7 +6419,7 @@ grant execute on function "better_supabase"."product_text"(uuid, text) to anon, 
 -- Adds a file to a product's media, last. The attachment must belong to the
 -- product or one of its variants. variant shows it for one variant; alt
 -- maps configured locales to alt text.
-create or replace function "better_supabase"."add_product_media"(product uuid, attachment uuid, variant uuid, alt jsonb)
+create or replace function "better_supabase"."create_product_media"(product uuid, attachment uuid, variant uuid, alt jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6433,37 +6433,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = add_product_media.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = create_product_media.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if add_product_media.variant is not null and not exists (select 1 from "better_supabase"."product_variants" x where x."id" = add_product_media.variant and x."product_id" = add_product_media.product) then
+  if create_product_media.variant is not null and not exists (select 1 from "better_supabase"."product_variants" x where x."id" = create_product_media.variant and x."product_id" = create_product_media.product) then
     raise exception 'variant not found on this product' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
   if not exists (
     select 1 from "better_supabase"."attachments" f
-    where f."id" = add_product_media.attachment
+    where f."id" = create_product_media.attachment
       and f."tenant_id" = v_tenant
       and (
-        (f."subject_type" = 'product' and f."subject_id" = add_product_media.product::text)
-        or (f."subject_type" = 'product_variant' and f."subject_id" in (select w."id"::text from "better_supabase"."product_variants" w where w."product_id" = add_product_media.product))
+        (f."subject_type" = 'product' and f."subject_id" = create_product_media.product::text)
+        or (f."subject_type" = 'product_variant' and f."subject_id" in (select w."id"::text from "better_supabase"."product_variants" w where w."product_id" = create_product_media.product))
       )
   ) then
     raise exception 'attach the file to the product or one of its variants first' using errcode = 'P0002', hint = 'CATALOG_MEDIA_ATTACHMENT_NOT_FOUND';
   end if;
-  if add_product_media.alt is not null and (jsonb_typeof(add_product_media.alt) <> 'object' or exists (
-    select 1 from jsonb_each(add_product_media.alt) e (key, value)
+  if create_product_media.alt is not null and (jsonb_typeof(create_product_media.alt) <> 'object' or exists (
+    select 1 from jsonb_each(create_product_media.alt) e (key, value)
     where not (e.key = any ('{en}'::text[])) or jsonb_typeof(e.value) <> 'string' or length(e.value #>> '{}') not between 1 and 1000
   )) then
     raise exception 'alt maps configured locales to text of 1 to 1000 characters' using errcode = '22023', hint = 'CATALOG_MEDIA_ALT_INVALID';
   end if;
-  select coalesce(max(x."position") + 1, 0) into v_position from "better_supabase"."product_media" x where x."product_id" = add_product_media.product;
+  select coalesce(max(x."position") + 1, 0) into v_position from "better_supabase"."product_media" x where x."product_id" = create_product_media.product;
   begin
     insert into "better_supabase"."product_media" ("tenant_id", "product_id", "variant_id", "attachment_id", "position", "alt")
-    values (v_tenant, add_product_media.product, add_product_media.variant, add_product_media.attachment, v_position, coalesce(add_product_media.alt, '{}'::jsonb))
+    values (v_tenant, create_product_media.product, create_product_media.variant, create_product_media.attachment, v_position, coalesce(create_product_media.alt, '{}'::jsonb))
     returning "id" into v_id;
   exception when unique_violation then
     raise exception 'the file is already in the product''s media' using errcode = '23505', hint = 'CATALOG_MEDIA_TAKEN';
@@ -6471,8 +6471,8 @@ begin
   return jsonb_build_object('id', v_id, 'position', v_position);
 end;
 $$;
-revoke execute on function "better_supabase"."add_product_media"(uuid, uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_product_media"(uuid, uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_product_media"(uuid, uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_product_media"(uuid, uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a media item's variant and alt text.
 create or replace function "better_supabase"."update_product_media"(media uuid, variant uuid, alt jsonb)
@@ -6549,7 +6549,7 @@ revoke execute on function "better_supabase"."reorder_product_media"(uuid, uuid[
 grant execute on function "better_supabase"."reorder_product_media"(uuid, uuid[]) to authenticated, service_role;
 
 -- Removes a media item (the attachment stays) and closes the gap.
-create or replace function "better_supabase"."remove_product_media"(media uuid)
+create or replace function "better_supabase"."delete_product_media"(media uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6562,22 +6562,22 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_media" x where x."id" = remove_product_media.media;
+  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_media" x where x."id" = delete_product_media.media;
   if v_tenant is null then
     return false;
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  delete from "better_supabase"."product_media" x where x."id" = remove_product_media.media;
+  delete from "better_supabase"."product_media" x where x."id" = delete_product_media.media;
   update "better_supabase"."product_media" x set "position" = s.n - 1
   from (select y."id" as id, row_number() over (order by y."position", y."created_at", y."id") as n from "better_supabase"."product_media" y where y."product_id" = v_product) s
   where x."id" = s.id and x."position" <> s.n - 1;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_product_media"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_product_media"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_product_media"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_product_media"(uuid) to authenticated, service_role;
 
 -- A product's media in order, with alt text in locale (the default
 -- locale's where it has none). Runs as the caller.
@@ -6605,7 +6605,7 @@ grant execute on function "better_supabase"."product_media"(uuid, text) to anon,
 -- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
 -- variant. A code is stored once per variant, type and party, so a second
 -- call returns the existing row with created false.
-create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+create or replace function "better_supabase"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6614,46 +6614,46 @@ as $$
 declare
   v_id uuid;
   v_created boolean := false;
-  v_value text := btrim(save_product_identifier.value);
+  v_value text := btrim(upsert_product_identifier.value);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_identifier.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_identifier.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_identifier.type is null or save_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
+  if upsert_product_identifier.type is null or upsert_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
     raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
   end if;
   if v_value is null or length(v_value) not between 1 and 100 then
     raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if save_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+  if upsert_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
     raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = save_product_identifier.variant and x."tenant_id" = save_product_identifier.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = upsert_product_identifier.variant and x."tenant_id" = upsert_product_identifier.tenant) then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
   select x."id" into v_id from "better_supabase"."product_identifiers" x
-  where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+  where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
   if v_id is null then
     begin
       insert into "better_supabase"."product_identifiers" as x ("tenant_id", "variant_id", "type", "value", "party_id")
-      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      values (upsert_product_identifier.tenant, upsert_product_identifier.variant, upsert_product_identifier.type, v_value, upsert_product_identifier.party)
       returning x."id" into v_id;
       v_created := true;
     exception when unique_violation then
       select x."id" into v_id from "better_supabase"."product_identifiers" x
-      where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+      where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
     end;
   end if;
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 -- Removes an identifier.
 create or replace function "better_supabase"."delete_product_identifier"(identifier uuid)
@@ -6717,7 +6717,7 @@ grant execute on function "better_supabase"."variant_identifiers"(uuid) to authe
 -- Links the variant "from" to the variant "to": "from" has "to" as an
 -- alternative or an accessory, or is superseded by it. A repeated call
 -- returns created false. A supersession can't point back along its own chain.
-create or replace function "better_supabase"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+create or replace function "better_supabase"."upsert_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language plpgsql
 security definer
@@ -6729,37 +6729,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_relation.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_relation.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_relation.kind is null or save_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
+  if upsert_product_relation.kind is null or upsert_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
     raise exception 'the kind must be one of alternative, superseded_by, accessory' using errcode = '22023', hint = 'CATALOG_RELATION_KIND_INVALID';
   end if;
-  if save_product_relation.from_variant = save_product_relation.to_variant then
+  if upsert_product_relation.from_variant = upsert_product_relation.to_variant then
     raise exception 'a variant can''t relate to itself' using errcode = '22023', hint = 'CATALOG_RELATION_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = save_product_relation.tenant and x."id" in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = upsert_product_relation.tenant and x."id" in (upsert_product_relation.from_variant, upsert_product_relation.to_variant)) <> 2 then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
-  if save_product_relation.kind = 'superseded_by' and exists (
+  if upsert_product_relation.kind = 'superseded_by' and exists (
     with recursive chain(id, depth) as (
-      select save_product_relation.to_variant, 0
+      select upsert_product_relation.to_variant, 0
       union all
       select y."to_variant_id", c.depth + 1 from "better_supabase"."product_relations" y join chain c on y."from_variant_id" = c.id and y."kind" = 'superseded_by' where c.depth < 50
     )
-    select 1 from chain where id = save_product_relation.from_variant
+    select 1 from chain where id = upsert_product_relation.from_variant
   ) then
     raise exception 'the replacement already points back at this variant' using errcode = '22023', hint = 'CATALOG_RELATION_CYCLE';
   end if;
   insert into "better_supabase"."product_relations" ("tenant_id", "from_variant_id", "to_variant_id", "kind")
-  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  values (upsert_product_relation.tenant, upsert_product_relation.from_variant, upsert_product_relation.to_variant, upsert_product_relation.kind)
   on conflict do nothing;
   v_created := found;
   return jsonb_build_object('created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
-grant execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
 
 -- Removes one relation.
 create or replace function "better_supabase"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
@@ -6987,42 +6987,42 @@ grant execute on function "better_supabase"."supplier_item_from_row"(uuid, uuid,
 
 -- Creates a supplier item (item null) or updates one; on an update a null
 -- argument keeps the column. price is in minor units.
-create or replace function "better_supabase"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function "better_supabase"."upsert_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_supplier_item.item;
-  v_code text := btrim(save_supplier_item.code);
+  v_id uuid := upsert_supplier_item.item;
+  v_code text := btrim(upsert_supplier_item.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_supplier_item.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_supplier_item.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) not between 1 and 100 then
     raise exception 'the code must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+  if upsert_supplier_item.price is not null and upsert_supplier_item.price < 0 then
     raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(save_supplier_item.currency) is null then
+  if upsert_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(upsert_supplier_item.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."supplier_items" as x ("tenant_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
-      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      values (upsert_supplier_item.tenant, upsert_supplier_item.supplier, v_code, upsert_supplier_item.description, upsert_supplier_item.price, upsert_supplier_item.currency, upsert_supplier_item.unit, upsert_supplier_item.keywords)
       returning x."id" into v_id;
     else
-      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(save_supplier_item.supplier, x."supplier_id"), "code" = v_code,
-        "description" = coalesce(save_supplier_item.description, x."description"), "price" = coalesce(save_supplier_item.price, x."price"),
-        "currency" = coalesce(save_supplier_item.currency, x."currency"), "unit" = coalesce(save_supplier_item.unit, x."unit"),
-        "keywords_text" = coalesce(save_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
-      where x."id" = save_supplier_item.item and x."tenant_id" = save_supplier_item.tenant;
+      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(upsert_supplier_item.supplier, x."supplier_id"), "code" = v_code,
+        "description" = coalesce(upsert_supplier_item.description, x."description"), "price" = coalesce(upsert_supplier_item.price, x."price"),
+        "currency" = coalesce(upsert_supplier_item.currency, x."currency"), "unit" = coalesce(upsert_supplier_item.unit, x."unit"),
+        "keywords_text" = coalesce(upsert_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
+      where x."id" = upsert_supplier_item.item and x."tenant_id" = upsert_supplier_item.tenant;
       if not found then
         raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
       end if;
@@ -7033,8 +7033,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', v_code);
 end;
 $$;
-revoke execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
 
 -- Deletes a supplier item. The variant it was promoted to stays.
 create or replace function "better_supabase"."delete_supplier_item"(item uuid)
@@ -7338,7 +7338,7 @@ grant execute on function "better_supabase"."product_identifier_updated_at"(text
 -- Creates a discount group (group null) or renames one. kind is customer or
 -- product and can't change; the code is unique per tenant and kind. Returns
 -- its id and whether it was created.
-create or replace function "better_supabase"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+create or replace function "better_supabase"."upsert_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -7346,29 +7346,29 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_created boolean := save_discount_group."group" is null;
-  v_code text := btrim(save_discount_group.code);
+  v_created boolean := upsert_discount_group."group" is null;
+  v_code text := btrim(upsert_discount_group.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_group.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_group.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_discount_group.kind is null or save_discount_group.kind not in ('customer', 'product') then
+  if upsert_discount_group.kind is null or upsert_discount_group.kind not in ('customer', 'product') then
     raise exception 'the kind is customer or product' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
-  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(upsert_discount_group.name, ''))) not between 1 and 200 then
     raise exception 'a group needs a code of up to 50 and a name of up to 200 characters' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
   begin
     if v_created then
       insert into "better_supabase"."discount_groups" as x ("tenant_id", "kind", "code", "name")
-      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      values (upsert_discount_group.tenant, upsert_discount_group.kind, v_code, btrim(upsert_discount_group.name))
       returning x."id" into v_id;
     else
-      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(save_discount_group.name), "updated_at" = now()
-      where x."id" = save_discount_group."group" and x."tenant_id" = save_discount_group.tenant and x."kind" = save_discount_group.kind
+      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(upsert_discount_group.name), "updated_at" = now()
+      where x."id" = upsert_discount_group."group" and x."tenant_id" = upsert_discount_group.tenant and x."kind" = upsert_discount_group.kind
       returning x."id" into v_id;
       if v_id is null then
         raise exception 'discount group not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
@@ -7380,8 +7380,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Deletes a group no rule uses. Its customers leave it and its variants lose
 -- the group.
@@ -7530,31 +7530,31 @@ revoke execute on function "better_supabase"."discount_rule_check"(uuid, jsonb) 
 -- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
 -- same groups, start date and minimum quantity is one rule: the call updates
 -- it. Returns its id and whether it was created.
-create or replace function "better_supabase"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_discount_rule.attrs, '{}'::jsonb);
   v_id uuid;
   v_created boolean := true;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_rule.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_rule.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  perform "better_supabase"."discount_rule_check"(save_discount_rule.tenant, v_attrs);
-  if save_discount_rule.rule is not null then
+  perform "better_supabase"."discount_rule_check"(upsert_discount_rule.tenant, v_attrs);
+  if upsert_discount_rule.rule is not null then
     update "better_supabase"."discount_rules" x set
       "customer_group_id" = nullif(v_attrs ->> 'customerGroupId', '')::uuid, "product_group_id" = nullif(v_attrs ->> 'productGroupId', '')::uuid,
       "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
       "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
       "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
-    where x."id" = save_discount_rule.rule and x."tenant_id" = save_discount_rule.tenant
+    where x."id" = upsert_discount_rule.rule and x."tenant_id" = upsert_discount_rule.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'discount rule not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_RULE_NOT_FOUND';
@@ -7562,7 +7562,7 @@ begin
     return jsonb_build_object('id', v_id, 'created', false);
   end if;
   insert into "better_supabase"."discount_rules" as x ("tenant_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
-  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+  values (upsert_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
     (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
     coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
   on conflict ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
@@ -7572,8 +7572,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a rule of the matrix.
 create or replace function "better_supabase"."delete_discount_rule"(rule uuid)
@@ -8243,7 +8243,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:1e78948646c84199551e6db844e4f0bef8190063dcf4746c924e3ab982df16c0
+-- @bsb-hash sha256:de01b2de3f4248cab7852d71e5b263ec338a9e863c4865f98657c12dc6ef7b89
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8721,39 +8721,39 @@ create index product_variants_discount_group_idx on "app_private"."product_varia
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
 
-create or replace function "app_private"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
+create or replace function "app_private"."upsert_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_product.product;
-  v_title text := save_product.title;
-  v_slug text := nullif(save_product.slug, '');
+  v_id uuid := upsert_product.product;
+  v_title text := upsert_product.title;
+  v_slug text := nullif(upsert_product.slug, '');
   v_status text;
-  v_created boolean := save_product.product is null;
+  v_created boolean := upsert_product.product is null;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_created then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
     raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if not v_created then
-    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(upsert_product.clear, '{}'::text[])) then x."slug" else v_slug end
     into v_title, v_slug
-    from "app_private"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    from "app_private"."products" x where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant;
     if not found then
       raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
     end if;
@@ -8767,20 +8767,20 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
+        using upsert_product.tenant, upsert_product.product, v_title, v_slug, upsert_product.kind;
     end if;
   end;
   begin
     if v_created then
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"app_private"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"app_private"."products"'::regclass and a.attname = any (array[case when upsert_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "app_private"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"app_private"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'))
+      values (upsert_product.tenant, v_title, v_slug, coalesce(upsert_product.description, (jsonb_populate_record(null::"app_private"."products", v_defaults))."description"), coalesce(upsert_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "app_private"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      update "app_private"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(upsert_product.clear, '{}'::text[])) then null else coalesce(upsert_product.description, x."description") end, "kind" = coalesce(upsert_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant
       returning x."status" into v_status;
       if not found then
         raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
@@ -8819,8 +8819,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
-grant execute on function "app_private"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "app_private"."upsert_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "app_private"."set_product_status"(product uuid, status text)
@@ -8948,7 +8948,7 @@ grant execute on function "app_private"."purge_product"(uuid) to authenticated, 
 -- On an update a null argument keeps the column and clear names the columns
 -- to empty. fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "app_private"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
+create or replace function "app_private"."upsert_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8956,18 +8956,18 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_variant.variant;
-  v_created boolean := save_variant.variant is null;
+  v_id uuid := upsert_variant.variant;
+  v_created boolean := upsert_variant.variant is null;
   v_wanted uuid[];
   v_last text;
   v_rank text;
-  v_sku text := save_variant.sku;
+  v_sku text := upsert_variant.sku;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = save_variant.product for update;
+  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = upsert_variant.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
@@ -8980,27 +8980,27 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
     raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
-  if v_created or save_variant.option_values is not null then
-  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
-  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+  if v_created or upsert_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(upsert_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(upsert_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
       where not exists (
         select 1 from "app_private"."product_option_values" ov join "app_private"."product_options" o on o."id" = ov."option_id"
-        where ov."id" = x and o."product_id" = save_variant.product
+        where ov."id" = x and o."product_id" = upsert_variant.product
       )
     )
     or (select count(distinct ov."option_id") from "app_private"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
-    or (select count(*) from "app_private"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    or (select count(*) from "app_private"."product_options" o where o."product_id" = upsert_variant.product) <> cardinality(v_wanted) then
     raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
   end if;
   if exists (
     select 1 from "app_private"."product_variants" x
-    where x."product_id" = save_variant.product
-      and x."id" is distinct from save_variant.variant
+    where x."product_id" = upsert_variant.product
+      and x."id" is distinct from upsert_variant.variant
       and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "app_private"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
   ) then
     raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
@@ -9011,12 +9011,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
-        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+        using upsert_variant.product, upsert_variant.variant, upsert_variant.sku, v_wanted;
     end if;
   end;
   begin
     if v_created then
-      select max(x."rank" collate "C") into v_last from "app_private"."product_variants" x where x."product_id" = save_variant.product;
+      select max(x."rank" collate "C") into v_last from "app_private"."product_variants" x where x."product_id" = upsert_variant.product;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -9024,13 +9024,13 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"app_private"."product_variants"'::regclass and a.attname = any (array[case when save_variant.sku is null then 'sku' end, case when save_variant.title is null then 'title' end, case when save_variant.barcode is null then 'barcode' end, case when save_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"app_private"."product_variants"'::regclass and a.attname = any (array[case when upsert_variant.sku is null then 'sku' end, case when upsert_variant.title is null then 'title' end, case when upsert_variant.barcode is null then 'barcode' end, case when upsert_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "app_private"."product_variants" as x ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
-      values (v_tenant, save_variant.product, coalesce(save_variant.sku, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."sku"), coalesce(save_variant.title, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."title"), coalesce(save_variant.barcode, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."barcode"), coalesce(save_variant.weight_grams, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."weight_grams"), coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      values (v_tenant, upsert_variant.product, coalesce(upsert_variant.sku, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."sku"), coalesce(upsert_variant.title, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."title"), coalesce(upsert_variant.barcode, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."barcode"), coalesce(upsert_variant.weight_grams, (jsonb_populate_record(null::"app_private"."product_variants", v_defaults))."weight_grams"), coalesce(upsert_variant.track_inventory, true), coalesce(upsert_variant.allow_backorder, false), v_rank)
       returning x."id", x."sku" into v_id, v_sku;
     else
-      update "app_private"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
-      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      update "app_private"."product_variants" x set "sku" = case when 'sku' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(upsert_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(upsert_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      where x."id" = upsert_variant.variant and x."product_id" = upsert_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
         raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
@@ -9075,8 +9075,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
-grant execute on function "app_private"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "app_private"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "app_private"."rank_variant"(variant uuid, rank text)
@@ -9392,7 +9392,7 @@ grant execute on function "app_private"."restore_variant"(uuid) to authenticated
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
-create or replace function "app_private"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+create or replace function "app_private"."upsert_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
 security definer
@@ -9400,42 +9400,42 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_product_option.option;
+  v_id uuid := upsert_product_option.option;
   v_last text;
   v_rank text;
   v_value text;
   v_variant uuid;
-  v_new boolean := save_product_option.option is null;
+  v_new boolean := upsert_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = save_product_option.product for update;
+  select x."tenant_id" into v_tenant from "app_private"."products" x where x."id" = upsert_product_option.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+  if coalesce(cardinality(upsert_product_option.option_values), 0) = 0 then
     raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
   end if;
-  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+  if (select count(distinct x) from unnest(upsert_product_option.option_values) x) <> cardinality(upsert_product_option.option_values) then
     raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
   end if;
   begin
     if v_id is null then
-      select max(x."rank" collate "C") into v_last from "app_private"."product_options" x where x."product_id" = save_product_option.product;
+      select max(x."rank" collate "C") into v_last from "app_private"."product_options" x where x."product_id" = upsert_product_option.product;
       insert into "app_private"."product_options" ("tenant_id", "product_id", "name", "rank")
-      values (v_tenant, save_product_option.product, save_product_option.name, case
+      values (v_tenant, upsert_product_option.product, upsert_product_option.name, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_id;
     else
-      update "app_private"."product_options" x set "name" = save_product_option.name
-      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      update "app_private"."product_options" x set "name" = upsert_product_option.name
+      where x."id" = upsert_product_option.option and x."product_id" = upsert_product_option.product;
       if not found then
         raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
       end if;
@@ -9446,7 +9446,7 @@ begin
   for v_variant in
     select distinct x."variant_id" from "app_private"."product_variant_values" x
     join "app_private"."product_option_values" y on y."id" = x."option_value_id"
-    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+    where y."option_id" = v_id and not (y."value" = any (upsert_product_option.option_values))
   loop
     begin
       delete from "app_private"."product_variants" x where x."id" = v_variant;
@@ -9456,12 +9456,12 @@ begin
     end;
   end loop;
   begin
-    delete from "app_private"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+    delete from "app_private"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (upsert_product_option.option_values));
   exception when foreign_key_violation then
     raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
   end;
   v_rank := null;
-  foreach v_value in array save_product_option.option_values loop
+  foreach v_value in array upsert_product_option.option_values loop
     v_rank := case
     when v_rank is null then 'V'
     when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
@@ -9475,8 +9475,8 @@ begin
   end loop;
   if v_new then
     insert into "app_private"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
-    select v_tenant, x."id", (select y."id" from "app_private"."product_option_values" y where y."option_id" = v_id and y."value" = save_product_option.option_values[1])
-    from "app_private"."product_variants" x where x."product_id" = save_product_option.product;
+    select v_tenant, x."id", (select y."id" from "app_private"."product_option_values" y where y."option_id" = v_id and y."value" = upsert_product_option.option_values[1])
+    from "app_private"."product_variants" x where x."product_id" = upsert_product_option.product;
   end if;
   return jsonb_build_object(
     'id', v_id,
@@ -9484,8 +9484,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
-grant execute on function "app_private"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "app_private"."upsert_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
 
 -- Puts a product's options in the given order; the list names each once.
 create or replace function "app_private"."reorder_product_options"(product uuid, options uuid[])
@@ -9631,7 +9631,7 @@ begin
   end loop;
   for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
     select x."id" into v_option from "app_private"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
-    v_option := ("app_private"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_option := ("app_private"."upsert_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
     v_ids := v_ids || v_option;
   end loop;
   if cardinality(v_ids) > 0 then
@@ -9659,7 +9659,7 @@ begin
       where x."product_id" = set_product_options.product
         and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "app_private"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
     ) then
-      perform "app_private"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+      perform "app_private"."upsert_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
     end if;
   end loop;
   if set_product_options.title_separator is not null then
@@ -9695,29 +9695,29 @@ grant execute on function "app_private"."set_product_options"(uuid, jsonb, text)
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
-create or replace function "app_private"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+create or replace function "app_private"."upsert_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_price_list.price_list;
+  v_id uuid := upsert_price_list.price_list;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_price_list.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "app_private"."catalog_price_lists" ("tenant_id", "name", "customer_group")
-      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      values (upsert_price_list.tenant, upsert_price_list.name, upsert_price_list.customer_group)
       returning "id" into v_id;
     else
-      update "app_private"."catalog_price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
-      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      update "app_private"."catalog_price_lists" x set "name" = upsert_price_list.name, "customer_group" = upsert_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = upsert_price_list.tenant;
       if not found then
         raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
       end if;
@@ -9728,8 +9728,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_price_list"(uuid, uuid, text, text) from public, anon;
-grant execute on function "app_private"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "app_private"."upsert_price_list"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Deletes a price list and its prices.
 create or replace function "app_private"."delete_price_list"(price_list uuid)
@@ -9903,15 +9903,15 @@ grant execute on function "app_private"."variant_price"(uuid, text, uuid, timest
 -- for the top level). A new category goes after its siblings. fields: the
 -- extra columns (columns your schema files add) to set.
 
-create or replace function "app_private"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+create or replace function "app_private"."upsert_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_category.category;
-  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_category.category;
+  v_slug text := coalesce(nullif(upsert_category.slug, ''), trim(both '-' from regexp_replace(lower(upsert_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
   v_defaults jsonb;
@@ -9920,23 +9920,23 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_id is null then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
-  if save_category.parent is not null and not exists (select 1 from "app_private"."catalog_categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+  if upsert_category.parent is not null and not exists (select 1 from "app_private"."catalog_categories" x where x."id" = upsert_category.parent and x."tenant_id" = upsert_category.tenant) then
     raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
   end if;
-  if save_category.parent is not null and exists (
+  if upsert_category.parent is not null and exists (
     with recursive up (id) as (
-      select save_category.parent
+      select upsert_category.parent
       union
       select x."parent_id" from "app_private"."catalog_categories" x join up on x."id" = up.id where x."parent_id" is not null
     )
@@ -9947,7 +9947,7 @@ begin
   begin
     if v_id is null then
       select max(x."rank" collate "C") into v_last from "app_private"."catalog_categories" x
-      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      where x."tenant_id" = upsert_category.tenant and x."parent_id" is not distinct from upsert_category.parent;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -9955,14 +9955,14 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"app_private"."catalog_categories"'::regclass and a.attname = any (array[case when save_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"app_private"."catalog_categories"'::regclass and a.attname = any (array[case when upsert_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "app_private"."catalog_categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, coalesce(save_category.description, (jsonb_populate_record(null::"app_private"."catalog_categories", v_defaults))."description"), v_rank)
+      values (upsert_category.tenant, upsert_category.parent, upsert_category.name, v_slug, coalesce(upsert_category.description, (jsonb_populate_record(null::"app_private"."catalog_categories", v_defaults))."description"), v_rank)
       returning "id" into v_id;
     else
-      update "app_private"."catalog_categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
-        "description" = save_category.description, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      update "app_private"."catalog_categories" x set "parent_id" = upsert_category.parent, "name" = upsert_category.name, "slug" = v_slug,
+        "description" = upsert_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_category.tenant
       returning x."rank" into v_rank;
       if not found then
         raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
@@ -9988,8 +9988,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "app_private"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
-grant execute on function "app_private"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "app_private"."upsert_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.
@@ -10108,21 +10108,21 @@ grant execute on function "app_private"."set_product_categories"(uuid, uuid[]) t
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
 -- (a FilterQuery group) that picks them.
-create or replace function "app_private"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function "app_private"."upsert_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_collection.collection;
-  v_kind text := coalesce(save_collection.kind, 'manual');
-  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_collection.collection;
+  v_kind text := coalesce(upsert_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(upsert_collection.slug, ''), trim(both '-' from regexp_replace(lower(upsert_collection.title), '[^a-z0-9]+', '-', 'g')));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_collection.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
@@ -10131,26 +10131,26 @@ begin
   if v_kind not in ('manual', 'rule') then
     raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
   end if;
-  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+  if (v_kind = 'rule') <> (upsert_collection.rule is not null) then
     raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   if v_kind = 'rule' and not (
-    jsonb_typeof(save_collection.rule) = 'object'
-    and save_collection.rule ->> 'type' = 'group'
-    and save_collection.rule ->> 'combinator' in ('and', 'or')
-    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+    jsonb_typeof(upsert_collection.rule) = 'object'
+    and upsert_collection.rule ->> 'type' = 'group'
+    and upsert_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(upsert_collection.rule -> 'rules') = 'array'
   ) then
     raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   begin
     if v_id is null then
       insert into "app_private"."product_collections" ("tenant_id", "title", "slug", "kind", "rule")
-      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      values (upsert_collection.tenant, upsert_collection.title, v_slug, v_kind, upsert_collection.rule)
       returning "id" into v_id;
     else
-      update "app_private"."product_collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
-        "rule" = save_collection.rule, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      update "app_private"."product_collections" x set "title" = upsert_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = upsert_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_collection.tenant;
       if not found then
         raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
       end if;
@@ -10164,8 +10164,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
 end;
 $$;
-revoke execute on function "app_private"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "app_private"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Deletes a collection.
 create or replace function "app_private"."delete_collection"(collection uuid)
@@ -10333,7 +10333,7 @@ grant execute on function "app_private"."publish_storefront"(uuid, boolean) to a
 -- Creates a sales channel (channel null) or updates one. A channel has a
 -- key, unique per organization, and optionally a currency and a price list
 -- its prices come from.
-create or replace function "app_private"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function "app_private"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -10341,32 +10341,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_catalog_channel.channel;
+  v_id uuid := upsert_catalog_channel.channel;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_catalog_channel.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+  if upsert_catalog_channel.key is null or upsert_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
   end if;
-  if save_catalog_channel.currency is not null and "app_private"."currency_minor_units"(save_catalog_channel.currency) is null then
+  if upsert_catalog_channel.currency is not null and "app_private"."currency_minor_units"(upsert_catalog_channel.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
-  if save_catalog_channel.price_list is not null and not exists (select 1 from "app_private"."catalog_price_lists" x where x."id" = save_catalog_channel.price_list and x."tenant_id" = save_catalog_channel.tenant) then
+  if upsert_catalog_channel.price_list is not null and not exists (select 1 from "app_private"."catalog_price_lists" x where x."id" = upsert_catalog_channel.price_list and x."tenant_id" = upsert_catalog_channel.tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
   end if;
   begin
     if v_id is null then
       insert into "app_private"."catalog_channels" as x ("tenant_id", "key", "name", "currency", "price_list_id", "active")
-      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      values (upsert_catalog_channel.tenant, upsert_catalog_channel.key, upsert_catalog_channel.name, upsert_catalog_channel.currency, upsert_catalog_channel.price_list, coalesce(upsert_catalog_channel.active, true))
       returning x."id", x."active" into v_id, v_active;
     else
-      update "app_private"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_catalog_channel.tenant
+      update "app_private"."catalog_channels" x set "key" = upsert_catalog_channel.key, "name" = upsert_catalog_channel.name, "currency" = upsert_catalog_channel.currency, "price_list_id" = upsert_catalog_channel.price_list, "active" = coalesce(upsert_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_catalog_channel.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
@@ -10375,11 +10375,11 @@ begin
   exception when unique_violation then
     raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'key', upsert_catalog_channel.key, 'active', v_active);
 end;
 $$;
-revoke execute on function "app_private"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "app_private"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "app_private"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
 
 -- Deletes a channel and its listings.
 create or replace function "app_private"."delete_catalog_channel"(channel uuid)
@@ -10630,7 +10630,7 @@ grant execute on function "app_private"."product_text"(uuid, text) to anon, auth
 -- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
 -- variant. A code is stored once per variant, type and party, so a second
 -- call returns the existing row with created false.
-create or replace function "app_private"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+create or replace function "app_private"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10639,46 +10639,46 @@ as $$
 declare
   v_id uuid;
   v_created boolean := false;
-  v_value text := btrim(save_product_identifier.value);
+  v_value text := btrim(upsert_product_identifier.value);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_identifier.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_identifier.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_identifier.type is null or save_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
+  if upsert_product_identifier.type is null or upsert_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
     raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
   end if;
   if v_value is null or length(v_value) not between 1 and 100 then
     raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if save_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+  if upsert_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
     raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if not exists (select 1 from "app_private"."product_variants" x where x."id" = save_product_identifier.variant and x."tenant_id" = save_product_identifier.tenant) then
+  if not exists (select 1 from "app_private"."product_variants" x where x."id" = upsert_product_identifier.variant and x."tenant_id" = upsert_product_identifier.tenant) then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
   select x."id" into v_id from "app_private"."product_identifiers" x
-  where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+  where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
   if v_id is null then
     begin
       insert into "app_private"."product_identifiers" as x ("tenant_id", "variant_id", "type", "value", "party_id")
-      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      values (upsert_product_identifier.tenant, upsert_product_identifier.variant, upsert_product_identifier.type, v_value, upsert_product_identifier.party)
       returning x."id" into v_id;
       v_created := true;
     exception when unique_violation then
       select x."id" into v_id from "app_private"."product_identifiers" x
-      where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+      where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
     end;
   end if;
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "app_private"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
-grant execute on function "app_private"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "app_private"."upsert_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 -- Removes an identifier.
 create or replace function "app_private"."delete_product_identifier"(identifier uuid)
@@ -10742,7 +10742,7 @@ grant execute on function "app_private"."variant_identifiers"(uuid) to authentic
 -- Links the variant "from" to the variant "to": "from" has "to" as an
 -- alternative or an accessory, or is superseded by it. A repeated call
 -- returns created false. A supersession can't point back along its own chain.
-create or replace function "app_private"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+create or replace function "app_private"."upsert_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language plpgsql
 security definer
@@ -10754,37 +10754,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_relation.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_relation.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_relation.kind is null or save_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
+  if upsert_product_relation.kind is null or upsert_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
     raise exception 'the kind must be one of alternative, superseded_by, accessory' using errcode = '22023', hint = 'CATALOG_RELATION_KIND_INVALID';
   end if;
-  if save_product_relation.from_variant = save_product_relation.to_variant then
+  if upsert_product_relation.from_variant = upsert_product_relation.to_variant then
     raise exception 'a variant can''t relate to itself' using errcode = '22023', hint = 'CATALOG_RELATION_INVALID';
   end if;
-  if (select count(*) from "app_private"."product_variants" x where x."tenant_id" = save_product_relation.tenant and x."id" in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+  if (select count(*) from "app_private"."product_variants" x where x."tenant_id" = upsert_product_relation.tenant and x."id" in (upsert_product_relation.from_variant, upsert_product_relation.to_variant)) <> 2 then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
-  if save_product_relation.kind = 'superseded_by' and exists (
+  if upsert_product_relation.kind = 'superseded_by' and exists (
     with recursive chain(id, depth) as (
-      select save_product_relation.to_variant, 0
+      select upsert_product_relation.to_variant, 0
       union all
       select y."to_variant_id", c.depth + 1 from "app_private"."product_relations" y join chain c on y."from_variant_id" = c.id and y."kind" = 'superseded_by' where c.depth < 50
     )
-    select 1 from chain where id = save_product_relation.from_variant
+    select 1 from chain where id = upsert_product_relation.from_variant
   ) then
     raise exception 'the replacement already points back at this variant' using errcode = '22023', hint = 'CATALOG_RELATION_CYCLE';
   end if;
   insert into "app_private"."product_relations" ("tenant_id", "from_variant_id", "to_variant_id", "kind")
-  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  values (upsert_product_relation.tenant, upsert_product_relation.from_variant, upsert_product_relation.to_variant, upsert_product_relation.kind)
   on conflict do nothing;
   v_created := found;
   return jsonb_build_object('created', v_created);
 end;
 $$;
-revoke execute on function "app_private"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
-grant execute on function "app_private"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "app_private"."upsert_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
 
 -- Removes one relation.
 create or replace function "app_private"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
@@ -11012,42 +11012,42 @@ grant execute on function "app_private"."supplier_item_from_row"(uuid, uuid, jso
 
 -- Creates a supplier item (item null) or updates one; on an update a null
 -- argument keeps the column. price is in minor units.
-create or replace function "app_private"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function "app_private"."upsert_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_supplier_item.item;
-  v_code text := btrim(save_supplier_item.code);
+  v_id uuid := upsert_supplier_item.item;
+  v_code text := btrim(upsert_supplier_item.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_supplier_item.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_supplier_item.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) not between 1 and 100 then
     raise exception 'the code must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+  if upsert_supplier_item.price is not null and upsert_supplier_item.price < 0 then
     raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.currency is not null and "app_private"."currency_minor_units"(save_supplier_item.currency) is null then
+  if upsert_supplier_item.currency is not null and "app_private"."currency_minor_units"(upsert_supplier_item.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "app_private"."supplier_items" as x ("tenant_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
-      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      values (upsert_supplier_item.tenant, upsert_supplier_item.supplier, v_code, upsert_supplier_item.description, upsert_supplier_item.price, upsert_supplier_item.currency, upsert_supplier_item.unit, upsert_supplier_item.keywords)
       returning x."id" into v_id;
     else
-      update "app_private"."supplier_items" x set "supplier_id" = coalesce(save_supplier_item.supplier, x."supplier_id"), "code" = v_code,
-        "description" = coalesce(save_supplier_item.description, x."description"), "price" = coalesce(save_supplier_item.price, x."price"),
-        "currency" = coalesce(save_supplier_item.currency, x."currency"), "unit" = coalesce(save_supplier_item.unit, x."unit"),
-        "keywords_text" = coalesce(save_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
-      where x."id" = save_supplier_item.item and x."tenant_id" = save_supplier_item.tenant;
+      update "app_private"."supplier_items" x set "supplier_id" = coalesce(upsert_supplier_item.supplier, x."supplier_id"), "code" = v_code,
+        "description" = coalesce(upsert_supplier_item.description, x."description"), "price" = coalesce(upsert_supplier_item.price, x."price"),
+        "currency" = coalesce(upsert_supplier_item.currency, x."currency"), "unit" = coalesce(upsert_supplier_item.unit, x."unit"),
+        "keywords_text" = coalesce(upsert_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
+      where x."id" = upsert_supplier_item.item and x."tenant_id" = upsert_supplier_item.tenant;
       if not found then
         raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
       end if;
@@ -11058,8 +11058,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', v_code);
 end;
 $$;
-revoke execute on function "app_private"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
-grant execute on function "app_private"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "app_private"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
 
 -- Deletes a supplier item. The variant it was promoted to stays.
 create or replace function "app_private"."delete_supplier_item"(item uuid)
@@ -11363,7 +11363,7 @@ grant execute on function "app_private"."product_identifier_updated_at"(text) to
 -- Creates a discount group (group null) or renames one. kind is customer or
 -- product and can't change; the code is unique per tenant and kind. Returns
 -- its id and whether it was created.
-create or replace function "app_private"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+create or replace function "app_private"."upsert_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -11371,29 +11371,29 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_created boolean := save_discount_group."group" is null;
-  v_code text := btrim(save_discount_group.code);
+  v_created boolean := upsert_discount_group."group" is null;
+  v_code text := btrim(upsert_discount_group.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_group.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_group.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_discount_group.kind is null or save_discount_group.kind not in ('customer', 'product') then
+  if upsert_discount_group.kind is null or upsert_discount_group.kind not in ('customer', 'product') then
     raise exception 'the kind is customer or product' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
-  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(upsert_discount_group.name, ''))) not between 1 and 200 then
     raise exception 'a group needs a code of up to 50 and a name of up to 200 characters' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
   begin
     if v_created then
       insert into "app_private"."discount_groups" as x ("tenant_id", "kind", "code", "name")
-      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      values (upsert_discount_group.tenant, upsert_discount_group.kind, v_code, btrim(upsert_discount_group.name))
       returning x."id" into v_id;
     else
-      update "app_private"."discount_groups" x set "code" = v_code, "name" = btrim(save_discount_group.name), "updated_at" = now()
-      where x."id" = save_discount_group."group" and x."tenant_id" = save_discount_group.tenant and x."kind" = save_discount_group.kind
+      update "app_private"."discount_groups" x set "code" = v_code, "name" = btrim(upsert_discount_group.name), "updated_at" = now()
+      where x."id" = upsert_discount_group."group" and x."tenant_id" = upsert_discount_group.tenant and x."kind" = upsert_discount_group.kind
       returning x."id" into v_id;
       if v_id is null then
         raise exception 'discount group not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
@@ -11405,8 +11405,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "app_private"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "app_private"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "app_private"."upsert_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Deletes a group no rule uses. Its customers leave it and its variants lose
 -- the group.
@@ -11555,31 +11555,31 @@ revoke execute on function "app_private"."discount_rule_check"(uuid, jsonb) from
 -- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
 -- same groups, start date and minimum quantity is one rule: the call updates
 -- it. Returns its id and whether it was created.
-create or replace function "app_private"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+create or replace function "app_private"."upsert_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_discount_rule.attrs, '{}'::jsonb);
   v_id uuid;
   v_created boolean := true;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_rule.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_rule.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  perform "app_private"."discount_rule_check"(save_discount_rule.tenant, v_attrs);
-  if save_discount_rule.rule is not null then
+  perform "app_private"."discount_rule_check"(upsert_discount_rule.tenant, v_attrs);
+  if upsert_discount_rule.rule is not null then
     update "app_private"."discount_rules" x set
       "customer_group_id" = nullif(v_attrs ->> 'customerGroupId', '')::uuid, "product_group_id" = nullif(v_attrs ->> 'productGroupId', '')::uuid,
       "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
       "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
       "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
-    where x."id" = save_discount_rule.rule and x."tenant_id" = save_discount_rule.tenant
+    where x."id" = upsert_discount_rule.rule and x."tenant_id" = upsert_discount_rule.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'discount rule not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_RULE_NOT_FOUND';
@@ -11587,7 +11587,7 @@ begin
     return jsonb_build_object('id', v_id, 'created', false);
   end if;
   insert into "app_private"."discount_rules" as x ("tenant_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
-  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+  values (upsert_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
     (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
     coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
   on conflict ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
@@ -11597,8 +11597,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "app_private"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a rule of the matrix.
 create or replace function "app_private"."delete_discount_rule"(rule uuid)
@@ -12248,7 +12248,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:04b918ff1a6cfa32d29ae9c8ba6c5ad476aa42766b261153e00be55f24fa0785
+-- @bsb-hash sha256:8611ec1172fa28f74c4a56045ce7a8c9a319bb08a56a6a1c2d894e17a7244944
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12721,39 +12721,39 @@ create index product_variants_discount_group_idx on "better_supabase"."product_v
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
 
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
+create or replace function "better_supabase"."upsert_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_product.product;
-  v_title text := save_product.title;
-  v_slug text := nullif(save_product.slug, '');
+  v_id uuid := upsert_product.product;
+  v_title text := upsert_product.title;
+  v_slug text := nullif(upsert_product.slug, '');
   v_status text;
-  v_created boolean := save_product.product is null;
+  v_created boolean := upsert_product.product is null;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_created then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
     raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if not v_created then
-    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(upsert_product.clear, '{}'::text[])) then x."slug" else v_slug end
     into v_title, v_slug
-    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    from "better_supabase"."products" x where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant;
     if not found then
       raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
     end if;
@@ -12767,20 +12767,20 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
+        using upsert_product.tenant, upsert_product.product, v_title, v_slug, upsert_product.kind;
     end if;
   end;
   begin
     if v_created then
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when upsert_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'))
+      values (upsert_product.tenant, v_title, v_slug, coalesce(upsert_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(upsert_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(upsert_product.clear, '{}'::text[])) then null else coalesce(upsert_product.description, x."description") end, "kind" = coalesce(upsert_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant
       returning x."status" into v_status;
       if not found then
         raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
@@ -12819,8 +12819,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -12948,7 +12948,7 @@ grant execute on function "better_supabase"."purge_product"(uuid) to authenticat
 -- On an update a null argument keeps the column and clear names the columns
 -- to empty. fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
+create or replace function "better_supabase"."upsert_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -12956,18 +12956,18 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_variant.variant;
-  v_created boolean := save_variant.variant is null;
+  v_id uuid := upsert_variant.variant;
+  v_created boolean := upsert_variant.variant is null;
   v_wanted uuid[];
   v_last text;
   v_rank text;
-  v_sku text := save_variant.sku;
+  v_sku text := upsert_variant.sku;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_variant.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
@@ -12980,27 +12980,27 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
     raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
-  if v_created or save_variant.option_values is not null then
-  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
-  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+  if v_created or upsert_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(upsert_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(upsert_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
       where not exists (
         select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
-        where ov."id" = x and o."product_id" = save_variant.product
+        where ov."id" = x and o."product_id" = upsert_variant.product
       )
     )
     or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
-    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = upsert_variant.product) <> cardinality(v_wanted) then
     raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
   end if;
   if exists (
     select 1 from "better_supabase"."product_variants" x
-    where x."product_id" = save_variant.product
-      and x."id" is distinct from save_variant.variant
+    where x."product_id" = upsert_variant.product
+      and x."id" is distinct from upsert_variant.variant
       and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
   ) then
     raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
@@ -13011,12 +13011,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
-        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+        using upsert_variant.product, upsert_variant.variant, upsert_variant.sku, v_wanted;
     end if;
   end;
   begin
     if v_created then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = upsert_variant.product;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -13024,13 +13024,13 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when save_variant.sku is null then 'sku' end, case when save_variant.title is null then 'title' end, case when save_variant.barcode is null then 'barcode' end, case when save_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when upsert_variant.sku is null then 'sku' end, case when upsert_variant.title is null then 'title' end, case when upsert_variant.barcode is null then 'barcode' end, case when upsert_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."product_variants" as x ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
-      values (v_tenant, save_variant.product, coalesce(save_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(save_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(save_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(save_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      values (v_tenant, upsert_variant.product, coalesce(upsert_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(upsert_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(upsert_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(upsert_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(upsert_variant.track_inventory, true), coalesce(upsert_variant.allow_backorder, false), v_rank)
       returning x."id", x."sku" into v_id, v_sku;
     else
-      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
-      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(upsert_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(upsert_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      where x."id" = upsert_variant.variant and x."product_id" = upsert_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
         raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
@@ -13075,8 +13075,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -13392,7 +13392,7 @@ grant execute on function "better_supabase"."restore_variant"(uuid) to authentic
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
-create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+create or replace function "better_supabase"."upsert_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
 security definer
@@ -13400,42 +13400,42 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_product_option.option;
+  v_id uuid := upsert_product_option.option;
   v_last text;
   v_rank text;
   v_value text;
   v_variant uuid;
-  v_new boolean := save_product_option.option is null;
+  v_new boolean := upsert_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_product_option.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+  if coalesce(cardinality(upsert_product_option.option_values), 0) = 0 then
     raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
   end if;
-  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+  if (select count(distinct x) from unnest(upsert_product_option.option_values) x) <> cardinality(upsert_product_option.option_values) then
     raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
   end if;
   begin
     if v_id is null then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = upsert_product_option.product;
       insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
-      values (v_tenant, save_product_option.product, save_product_option.name, case
+      values (v_tenant, upsert_product_option.product, upsert_product_option.name, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_options" x set "name" = save_product_option.name
-      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      update "better_supabase"."product_options" x set "name" = upsert_product_option.name
+      where x."id" = upsert_product_option.option and x."product_id" = upsert_product_option.product;
       if not found then
         raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
       end if;
@@ -13446,7 +13446,7 @@ begin
   for v_variant in
     select distinct x."variant_id" from "better_supabase"."product_variant_values" x
     join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
-    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+    where y."option_id" = v_id and not (y."value" = any (upsert_product_option.option_values))
   loop
     begin
       delete from "better_supabase"."product_variants" x where x."id" = v_variant;
@@ -13456,12 +13456,12 @@ begin
     end;
   end loop;
   begin
-    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (upsert_product_option.option_values));
   exception when foreign_key_violation then
     raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
   end;
   v_rank := null;
-  foreach v_value in array save_product_option.option_values loop
+  foreach v_value in array upsert_product_option.option_values loop
     v_rank := case
     when v_rank is null then 'V'
     when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
@@ -13475,8 +13475,8 @@ begin
   end loop;
   if v_new then
     insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
-    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = save_product_option.option_values[1])
-    from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product;
+    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = upsert_product_option.option_values[1])
+    from "better_supabase"."product_variants" x where x."product_id" = upsert_product_option.product;
   end if;
   return jsonb_build_object(
     'id', v_id,
@@ -13484,8 +13484,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
 
 -- Puts a product's options in the given order; the list names each once.
 create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
@@ -13631,7 +13631,7 @@ begin
   end loop;
   for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
     select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
-    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_option := ("better_supabase"."upsert_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
     v_ids := v_ids || v_option;
   end loop;
   if cardinality(v_ids) > 0 then
@@ -13659,7 +13659,7 @@ begin
       where x."product_id" = set_product_options.product
         and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
     ) then
-      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+      perform "better_supabase"."upsert_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
     end if;
   end loop;
   if set_product_options.title_separator is not null then
@@ -13695,29 +13695,29 @@ grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, t
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
-create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+create or replace function "better_supabase"."upsert_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_price_list.price_list;
+  v_id uuid := upsert_price_list.price_list;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_price_list.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_price_lists" ("tenant_id", "name", "customer_group")
-      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      values (upsert_price_list.tenant, upsert_price_list.name, upsert_price_list.customer_group)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
-      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      update "better_supabase"."catalog_price_lists" x set "name" = upsert_price_list.name, "customer_group" = upsert_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = upsert_price_list.tenant;
       if not found then
         raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
       end if;
@@ -13728,8 +13728,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Deletes a price list and its prices.
 create or replace function "better_supabase"."delete_price_list"(price_list uuid)
@@ -13903,15 +13903,15 @@ grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, ti
 -- for the top level). A new category goes after its siblings. fields: the
 -- extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+create or replace function "better_supabase"."upsert_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_category.category;
-  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_category.category;
+  v_slug text := coalesce(nullif(upsert_category.slug, ''), trim(both '-' from regexp_replace(lower(upsert_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
   v_defaults jsonb;
@@ -13920,23 +13920,23 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_id is null then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
-  if save_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+  if upsert_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = upsert_category.parent and x."tenant_id" = upsert_category.tenant) then
     raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
   end if;
-  if save_category.parent is not null and exists (
+  if upsert_category.parent is not null and exists (
     with recursive up (id) as (
-      select save_category.parent
+      select upsert_category.parent
       union
       select x."parent_id" from "better_supabase"."catalog_categories" x join up on x."id" = up.id where x."parent_id" is not null
     )
@@ -13947,7 +13947,7 @@ begin
   begin
     if v_id is null then
       select max(x."rank" collate "C") into v_last from "better_supabase"."catalog_categories" x
-      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      where x."tenant_id" = upsert_category.tenant and x."parent_id" is not distinct from upsert_category.parent;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -13955,14 +13955,14 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when save_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when upsert_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."catalog_categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, coalesce(save_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
+      values (upsert_category.tenant, upsert_category.parent, upsert_category.name, v_slug, coalesce(upsert_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
-        "description" = save_category.description, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      update "better_supabase"."catalog_categories" x set "parent_id" = upsert_category.parent, "name" = upsert_category.name, "slug" = v_slug,
+        "description" = upsert_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_category.tenant
       returning x."rank" into v_rank;
       if not found then
         raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
@@ -13988,8 +13988,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.
@@ -14108,21 +14108,21 @@ grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
 -- (a FilterQuery group) that picks them.
-create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function "better_supabase"."upsert_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_collection.collection;
-  v_kind text := coalesce(save_collection.kind, 'manual');
-  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_collection.collection;
+  v_kind text := coalesce(upsert_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(upsert_collection.slug, ''), trim(both '-' from regexp_replace(lower(upsert_collection.title), '[^a-z0-9]+', '-', 'g')));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_collection.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
@@ -14131,26 +14131,26 @@ begin
   if v_kind not in ('manual', 'rule') then
     raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
   end if;
-  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+  if (v_kind = 'rule') <> (upsert_collection.rule is not null) then
     raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   if v_kind = 'rule' and not (
-    jsonb_typeof(save_collection.rule) = 'object'
-    and save_collection.rule ->> 'type' = 'group'
-    and save_collection.rule ->> 'combinator' in ('and', 'or')
-    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+    jsonb_typeof(upsert_collection.rule) = 'object'
+    and upsert_collection.rule ->> 'type' = 'group'
+    and upsert_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(upsert_collection.rule -> 'rules') = 'array'
   ) then
     raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."product_collections" ("tenant_id", "title", "slug", "kind", "rule")
-      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      values (upsert_collection.tenant, upsert_collection.title, v_slug, v_kind, upsert_collection.rule)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
-        "rule" = save_collection.rule, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      update "better_supabase"."product_collections" x set "title" = upsert_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = upsert_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_collection.tenant;
       if not found then
         raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
       end if;
@@ -14164,8 +14164,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
 end;
 $$;
-revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Deletes a collection.
 create or replace function "better_supabase"."delete_collection"(collection uuid)
@@ -14333,7 +14333,7 @@ grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) 
 -- Creates a sales channel (channel null) or updates one. A channel has a
 -- key, unique per organization, and optionally a currency and a price list
 -- its prices come from.
-create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function "better_supabase"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -14341,32 +14341,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_catalog_channel.channel;
+  v_id uuid := upsert_catalog_channel.channel;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_catalog_channel.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+  if upsert_catalog_channel.key is null or upsert_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
   end if;
-  if save_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(save_catalog_channel.currency) is null then
+  if upsert_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(upsert_catalog_channel.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
-  if save_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = save_catalog_channel.price_list and x."tenant_id" = save_catalog_channel.tenant) then
+  if upsert_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = upsert_catalog_channel.price_list and x."tenant_id" = upsert_catalog_channel.tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_channels" as x ("tenant_id", "key", "name", "currency", "price_list_id", "active")
-      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      values (upsert_catalog_channel.tenant, upsert_catalog_channel.key, upsert_catalog_channel.name, upsert_catalog_channel.currency, upsert_catalog_channel.price_list, coalesce(upsert_catalog_channel.active, true))
       returning x."id", x."active" into v_id, v_active;
     else
-      update "better_supabase"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_catalog_channel.tenant
+      update "better_supabase"."catalog_channels" x set "key" = upsert_catalog_channel.key, "name" = upsert_catalog_channel.name, "currency" = upsert_catalog_channel.currency, "price_list_id" = upsert_catalog_channel.price_list, "active" = coalesce(upsert_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_catalog_channel.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
@@ -14375,11 +14375,11 @@ begin
   exception when unique_violation then
     raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'key', upsert_catalog_channel.key, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
 
 -- Deletes a channel and its listings.
 create or replace function "better_supabase"."delete_catalog_channel"(channel uuid)
@@ -14630,7 +14630,7 @@ grant execute on function "better_supabase"."product_text"(uuid, text) to anon, 
 -- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
 -- variant. A code is stored once per variant, type and party, so a second
 -- call returns the existing row with created false.
-create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+create or replace function "better_supabase"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -14639,46 +14639,46 @@ as $$
 declare
   v_id uuid;
   v_created boolean := false;
-  v_value text := btrim(save_product_identifier.value);
+  v_value text := btrim(upsert_product_identifier.value);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_identifier.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_identifier.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_identifier.type is null or save_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
+  if upsert_product_identifier.type is null or upsert_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
     raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
   end if;
   if v_value is null or length(v_value) not between 1 and 100 then
     raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if save_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+  if upsert_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
     raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = save_product_identifier.variant and x."tenant_id" = save_product_identifier.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = upsert_product_identifier.variant and x."tenant_id" = upsert_product_identifier.tenant) then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
   select x."id" into v_id from "better_supabase"."product_identifiers" x
-  where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+  where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
   if v_id is null then
     begin
       insert into "better_supabase"."product_identifiers" as x ("tenant_id", "variant_id", "type", "value", "party_id")
-      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      values (upsert_product_identifier.tenant, upsert_product_identifier.variant, upsert_product_identifier.type, v_value, upsert_product_identifier.party)
       returning x."id" into v_id;
       v_created := true;
     exception when unique_violation then
       select x."id" into v_id from "better_supabase"."product_identifiers" x
-      where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+      where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
     end;
   end if;
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 -- Removes an identifier.
 create or replace function "better_supabase"."delete_product_identifier"(identifier uuid)
@@ -14742,7 +14742,7 @@ grant execute on function "better_supabase"."variant_identifiers"(uuid) to authe
 -- Links the variant "from" to the variant "to": "from" has "to" as an
 -- alternative or an accessory, or is superseded by it. A repeated call
 -- returns created false. A supersession can't point back along its own chain.
-create or replace function "better_supabase"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+create or replace function "better_supabase"."upsert_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language plpgsql
 security definer
@@ -14754,37 +14754,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_relation.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_relation.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_relation.kind is null or save_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
+  if upsert_product_relation.kind is null or upsert_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
     raise exception 'the kind must be one of alternative, superseded_by, accessory' using errcode = '22023', hint = 'CATALOG_RELATION_KIND_INVALID';
   end if;
-  if save_product_relation.from_variant = save_product_relation.to_variant then
+  if upsert_product_relation.from_variant = upsert_product_relation.to_variant then
     raise exception 'a variant can''t relate to itself' using errcode = '22023', hint = 'CATALOG_RELATION_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = save_product_relation.tenant and x."id" in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = upsert_product_relation.tenant and x."id" in (upsert_product_relation.from_variant, upsert_product_relation.to_variant)) <> 2 then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
-  if save_product_relation.kind = 'superseded_by' and exists (
+  if upsert_product_relation.kind = 'superseded_by' and exists (
     with recursive chain(id, depth) as (
-      select save_product_relation.to_variant, 0
+      select upsert_product_relation.to_variant, 0
       union all
       select y."to_variant_id", c.depth + 1 from "better_supabase"."product_relations" y join chain c on y."from_variant_id" = c.id and y."kind" = 'superseded_by' where c.depth < 50
     )
-    select 1 from chain where id = save_product_relation.from_variant
+    select 1 from chain where id = upsert_product_relation.from_variant
   ) then
     raise exception 'the replacement already points back at this variant' using errcode = '22023', hint = 'CATALOG_RELATION_CYCLE';
   end if;
   insert into "better_supabase"."product_relations" ("tenant_id", "from_variant_id", "to_variant_id", "kind")
-  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  values (upsert_product_relation.tenant, upsert_product_relation.from_variant, upsert_product_relation.to_variant, upsert_product_relation.kind)
   on conflict do nothing;
   v_created := found;
   return jsonb_build_object('created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
-grant execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
 
 -- Removes one relation.
 create or replace function "better_supabase"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
@@ -15012,42 +15012,42 @@ grant execute on function "better_supabase"."supplier_item_from_row"(uuid, uuid,
 
 -- Creates a supplier item (item null) or updates one; on an update a null
 -- argument keeps the column. price is in minor units.
-create or replace function "better_supabase"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function "better_supabase"."upsert_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_supplier_item.item;
-  v_code text := btrim(save_supplier_item.code);
+  v_id uuid := upsert_supplier_item.item;
+  v_code text := btrim(upsert_supplier_item.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_supplier_item.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_supplier_item.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) not between 1 and 100 then
     raise exception 'the code must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+  if upsert_supplier_item.price is not null and upsert_supplier_item.price < 0 then
     raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(save_supplier_item.currency) is null then
+  if upsert_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(upsert_supplier_item.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."supplier_items" as x ("tenant_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
-      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      values (upsert_supplier_item.tenant, upsert_supplier_item.supplier, v_code, upsert_supplier_item.description, upsert_supplier_item.price, upsert_supplier_item.currency, upsert_supplier_item.unit, upsert_supplier_item.keywords)
       returning x."id" into v_id;
     else
-      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(save_supplier_item.supplier, x."supplier_id"), "code" = v_code,
-        "description" = coalesce(save_supplier_item.description, x."description"), "price" = coalesce(save_supplier_item.price, x."price"),
-        "currency" = coalesce(save_supplier_item.currency, x."currency"), "unit" = coalesce(save_supplier_item.unit, x."unit"),
-        "keywords_text" = coalesce(save_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
-      where x."id" = save_supplier_item.item and x."tenant_id" = save_supplier_item.tenant;
+      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(upsert_supplier_item.supplier, x."supplier_id"), "code" = v_code,
+        "description" = coalesce(upsert_supplier_item.description, x."description"), "price" = coalesce(upsert_supplier_item.price, x."price"),
+        "currency" = coalesce(upsert_supplier_item.currency, x."currency"), "unit" = coalesce(upsert_supplier_item.unit, x."unit"),
+        "keywords_text" = coalesce(upsert_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
+      where x."id" = upsert_supplier_item.item and x."tenant_id" = upsert_supplier_item.tenant;
       if not found then
         raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
       end if;
@@ -15058,8 +15058,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', v_code);
 end;
 $$;
-revoke execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
 
 -- Deletes a supplier item. The variant it was promoted to stays.
 create or replace function "better_supabase"."delete_supplier_item"(item uuid)
@@ -15363,7 +15363,7 @@ grant execute on function "better_supabase"."product_identifier_updated_at"(text
 -- Creates a discount group (group null) or renames one. kind is customer or
 -- product and can't change; the code is unique per tenant and kind. Returns
 -- its id and whether it was created.
-create or replace function "better_supabase"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+create or replace function "better_supabase"."upsert_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -15371,29 +15371,29 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_created boolean := save_discount_group."group" is null;
-  v_code text := btrim(save_discount_group.code);
+  v_created boolean := upsert_discount_group."group" is null;
+  v_code text := btrim(upsert_discount_group.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_group.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_group.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_discount_group.kind is null or save_discount_group.kind not in ('customer', 'product') then
+  if upsert_discount_group.kind is null or upsert_discount_group.kind not in ('customer', 'product') then
     raise exception 'the kind is customer or product' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
-  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(upsert_discount_group.name, ''))) not between 1 and 200 then
     raise exception 'a group needs a code of up to 50 and a name of up to 200 characters' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
   begin
     if v_created then
       insert into "better_supabase"."discount_groups" as x ("tenant_id", "kind", "code", "name")
-      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      values (upsert_discount_group.tenant, upsert_discount_group.kind, v_code, btrim(upsert_discount_group.name))
       returning x."id" into v_id;
     else
-      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(save_discount_group.name), "updated_at" = now()
-      where x."id" = save_discount_group."group" and x."tenant_id" = save_discount_group.tenant and x."kind" = save_discount_group.kind
+      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(upsert_discount_group.name), "updated_at" = now()
+      where x."id" = upsert_discount_group."group" and x."tenant_id" = upsert_discount_group.tenant and x."kind" = upsert_discount_group.kind
       returning x."id" into v_id;
       if v_id is null then
         raise exception 'discount group not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
@@ -15405,8 +15405,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Deletes a group no rule uses. Its customers leave it and its variants lose
 -- the group.
@@ -15555,31 +15555,31 @@ revoke execute on function "better_supabase"."discount_rule_check"(uuid, jsonb) 
 -- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
 -- same groups, start date and minimum quantity is one rule: the call updates
 -- it. Returns its id and whether it was created.
-create or replace function "better_supabase"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_discount_rule.attrs, '{}'::jsonb);
   v_id uuid;
   v_created boolean := true;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_rule.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_rule.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  perform "better_supabase"."discount_rule_check"(save_discount_rule.tenant, v_attrs);
-  if save_discount_rule.rule is not null then
+  perform "better_supabase"."discount_rule_check"(upsert_discount_rule.tenant, v_attrs);
+  if upsert_discount_rule.rule is not null then
     update "better_supabase"."discount_rules" x set
       "customer_group_id" = nullif(v_attrs ->> 'customerGroupId', '')::uuid, "product_group_id" = nullif(v_attrs ->> 'productGroupId', '')::uuid,
       "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
       "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
       "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
-    where x."id" = save_discount_rule.rule and x."tenant_id" = save_discount_rule.tenant
+    where x."id" = upsert_discount_rule.rule and x."tenant_id" = upsert_discount_rule.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'discount rule not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_RULE_NOT_FOUND';
@@ -15587,7 +15587,7 @@ begin
     return jsonb_build_object('id', v_id, 'created', false);
   end if;
   insert into "better_supabase"."discount_rules" as x ("tenant_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
-  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+  values (upsert_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
     (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
     coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
   on conflict ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
@@ -15597,8 +15597,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a rule of the matrix.
 create or replace function "better_supabase"."delete_discount_rule"(rule uuid)
@@ -16245,14 +16245,14 @@ as $$ select "better_supabase"."currency_minor_units"($1) $$;
 revoke execute on function "api"."currency_minor_units"(text) from public;
 grant execute on function "api"."currency_minor_units"(text) to anon, authenticated, service_role;
 
-create or replace function "api"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
+create or replace function "api"."upsert_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_product"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
-grant execute on function "api"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_product"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "api"."upsert_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."set_product_status"(product uuid, status text)
 returns jsonb
@@ -16290,14 +16290,14 @@ as $$ select "better_supabase"."purge_product"($1) $$;
 revoke execute on function "api"."purge_product"(uuid) from public, anon;
 grant execute on function "api"."purge_product"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
+create or replace function "api"."upsert_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_variant"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
-revoke execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
-grant execute on function "api"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_variant"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "api"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 create or replace function "api"."rank_variant"(variant uuid, rank text)
 returns boolean
@@ -16391,14 +16391,14 @@ as $$ select "better_supabase"."restore_variant"($1) $$;
 revoke execute on function "api"."restore_variant"(uuid) from public, anon;
 grant execute on function "api"."restore_variant"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+create or replace function "api"."upsert_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_product_option"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
-grant execute on function "api"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_product_option"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "api"."upsert_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."reorder_product_options"(product uuid, options uuid[])
 returns boolean
@@ -16427,14 +16427,14 @@ as $$ select "better_supabase"."set_product_options"($1, $2, $3) $$;
 revoke execute on function "api"."set_product_options"(uuid, jsonb, text) from public, anon;
 grant execute on function "api"."set_product_options"(uuid, jsonb, text) to authenticated, service_role;
 
-create or replace function "api"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+create or replace function "api"."upsert_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_price_list"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_price_list"(uuid, uuid, text, text) from public, anon;
-grant execute on function "api"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_price_list"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "api"."upsert_price_list"(uuid, uuid, text, text) to authenticated, service_role;
 
 create or replace function "api"."delete_price_list"(price_list uuid)
 returns boolean
@@ -16473,14 +16473,14 @@ as $$ select "better_supabase"."variant_price"($1, $2, $3, $4) $$;
 revoke execute on function "api"."variant_price"(uuid, text, uuid, timestamptz) from public;
 grant execute on function "api"."variant_price"(uuid, text, uuid, timestamptz) to anon, authenticated, service_role;
 
-create or replace function "api"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+create or replace function "api"."upsert_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_category"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
-grant execute on function "api"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_category"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "api"."upsert_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."move_category"(category uuid, parent uuid, rank text)
 returns boolean
@@ -16509,14 +16509,14 @@ as $$ select "better_supabase"."set_product_categories"($1, $2) $$;
 revoke execute on function "api"."set_product_categories"(uuid, uuid[]) from public, anon;
 grant execute on function "api"."set_product_categories"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "api"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function "api"."upsert_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_collection"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "api"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_collection"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."upsert_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_collection"(collection uuid)
 returns boolean
@@ -16574,14 +16574,14 @@ as $$ select "better_supabase"."publish_storefront"($1, $2) $$;
 revoke execute on function "api"."publish_storefront"(uuid, boolean) from public, anon;
 grant execute on function "api"."publish_storefront"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function "api"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_catalog_channel"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "api"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_catalog_channel"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "api"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
 
 create or replace function "api"."delete_catalog_channel"(channel uuid)
 returns boolean
@@ -16649,14 +16649,14 @@ as $$ select "better_supabase"."product_text"($1, $2) $$;
 revoke execute on function "api"."product_text"(uuid, text) from public;
 grant execute on function "api"."product_text"(uuid, text) to anon, authenticated, service_role;
 
-create or replace function "api"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+create or replace function "api"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_product_identifier"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
-grant execute on function "api"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_product_identifier"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "api"."upsert_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."delete_product_identifier"(identifier uuid)
 returns boolean
@@ -16687,14 +16687,14 @@ as $$ select "better_supabase"."variant_identifiers"($1) $$;
 revoke execute on function "api"."variant_identifiers"(uuid) from public, anon;
 grant execute on function "api"."variant_identifiers"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+create or replace function "api"."upsert_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_product_relation"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
-grant execute on function "api"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_product_relation"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "api"."upsert_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
 
 create or replace function "api"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
 returns boolean
@@ -16763,14 +16763,14 @@ as $$ select "better_supabase"."supplier_item_from_row"($1, $2, $3) $$;
 revoke execute on function "api"."supplier_item_from_row"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "api"."supplier_item_from_row"(uuid, uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function "api"."upsert_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_supplier_item"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
-grant execute on function "api"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_supplier_item"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "api"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."delete_supplier_item"(item uuid)
 returns boolean
@@ -16847,14 +16847,14 @@ as $$ select "better_supabase"."product_identifier_updated_at"($1) $$;
 revoke execute on function "api"."product_identifier_updated_at"(text) from public, anon, authenticated;
 grant execute on function "api"."product_identifier_updated_at"(text) to service_role;
 
-create or replace function "api"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+create or replace function "api"."upsert_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_discount_group"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "api"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_discount_group"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "api"."upsert_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."delete_discount_group"("group" uuid)
 returns boolean
@@ -16883,14 +16883,14 @@ as $$ select "better_supabase"."set_variant_discount_group"($1, $2) $$;
 revoke execute on function "api"."set_variant_discount_group"(uuid, uuid) from public, anon;
 grant execute on function "api"."set_variant_discount_group"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+create or replace function "api"."upsert_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_discount_rule"($1, $2, $3) $$;
-revoke execute on function "api"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_discount_rule"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_discount_rule"(rule uuid)
 returns boolean
@@ -16975,7 +16975,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:95d520f978fc1dd512b1d525915f5c1a0fd4068db22c18b8c9cb2be88fb2cea6
+-- @bsb-hash sha256:b266db952025c8c668b6257e5bfe3e6fc1ddb6f2b5aa12cdc7fb673126725adb
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17412,39 +17412,39 @@ create index if not exists product_variants_discount_group_idx on "better_supaba
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
 
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
+create or replace function "better_supabase"."upsert_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_product.product;
-  v_title text := save_product.title;
-  v_slug text := nullif(save_product.slug, '');
+  v_id uuid := upsert_product.product;
+  v_title text := upsert_product.title;
+  v_slug text := nullif(upsert_product.slug, '');
   v_status text;
-  v_created boolean := save_product.product is null;
+  v_created boolean := upsert_product.product is null;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_created then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
     raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if not v_created then
-    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(upsert_product.clear, '{}'::text[])) then x."slug" else v_slug end
     into v_title, v_slug
-    from "better_supabase"."products" x where x."id" = save_product.product and x."tenant_id" = save_product.tenant;
+    from "better_supabase"."products" x where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant;
     if not found then
       raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
     end if;
@@ -17458,20 +17458,20 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
+        using upsert_product.tenant, upsert_product.product, v_title, v_slug, upsert_product.kind;
     end if;
   end;
   begin
     if v_created then
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when upsert_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), better_supabase.as_column_type(coalesce(save_product.kind, 'physical'), (null::"better_supabase"."products")."kind"))
+      values (upsert_product.tenant, v_title, v_slug, coalesce(upsert_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), better_supabase.as_column_type(coalesce(upsert_product.kind, 'physical'), (null::"better_supabase"."products")."kind"))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(better_supabase.as_column_type(save_product.kind, (null::"better_supabase"."products")."kind"), x."kind"), "updated_at" = now()
-      where x."id" = save_product.product and x."tenant_id" = save_product.tenant
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(upsert_product.clear, '{}'::text[])) then null else coalesce(upsert_product.description, x."description") end, "kind" = coalesce(better_supabase.as_column_type(upsert_product.kind, (null::"better_supabase"."products")."kind"), x."kind"), "updated_at" = now()
+      where x."id" = upsert_product.product and x."tenant_id" = upsert_product.tenant
       returning x."status" into v_status;
       if not found then
         raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
@@ -17510,8 +17510,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -17639,7 +17639,7 @@ grant execute on function "better_supabase"."purge_product"(uuid) to authenticat
 -- On an update a null argument keeps the column and clear names the columns
 -- to empty. fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
+create or replace function "better_supabase"."upsert_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -17647,18 +17647,18 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_variant.variant;
-  v_created boolean := save_variant.variant is null;
+  v_id uuid := upsert_variant.variant;
+  v_created boolean := upsert_variant.variant is null;
   v_wanted uuid[];
   v_last text;
   v_rank text;
-  v_sku text := save_variant.sku;
+  v_sku text := upsert_variant.sku;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_variant.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
@@ -17671,27 +17671,27 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
     raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
-  if v_created or save_variant.option_values is not null then
-  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
-  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+  if v_created or upsert_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(upsert_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(upsert_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
       where not exists (
         select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
-        where ov."id" = x and o."product_id" = save_variant.product
+        where ov."id" = x and o."product_id" = upsert_variant.product
       )
     )
     or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
-    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = upsert_variant.product) <> cardinality(v_wanted) then
     raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
   end if;
   if exists (
     select 1 from "better_supabase"."product_variants" x
-    where x."product_id" = save_variant.product
-      and x."id" is distinct from save_variant.variant
+    where x."product_id" = upsert_variant.product
+      and x."id" is distinct from upsert_variant.variant
       and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
   ) then
     raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
@@ -17702,12 +17702,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
-        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+        using upsert_variant.product, upsert_variant.variant, upsert_variant.sku, v_wanted;
     end if;
   end;
   begin
     if v_created then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = upsert_variant.product;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -17715,13 +17715,13 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when save_variant.sku is null then 'sku' end, case when save_variant.title is null then 'title' end, case when save_variant.barcode is null then 'barcode' end, case when save_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when upsert_variant.sku is null then 'sku' end, case when upsert_variant.title is null then 'title' end, case when upsert_variant.barcode is null then 'barcode' end, case when upsert_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."product_variants" as x ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
-      values (v_tenant, save_variant.product, coalesce(save_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(save_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(save_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(save_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      values (v_tenant, upsert_variant.product, coalesce(upsert_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(upsert_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(upsert_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(upsert_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(upsert_variant.track_inventory, true), coalesce(upsert_variant.allow_backorder, false), v_rank)
       returning x."id", x."sku" into v_id, v_sku;
     else
-      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
-      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(upsert_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(upsert_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      where x."id" = upsert_variant.variant and x."product_id" = upsert_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
         raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
@@ -17766,8 +17766,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -18083,7 +18083,7 @@ grant execute on function "better_supabase"."restore_variant"(uuid) to authentic
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
-create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+create or replace function "better_supabase"."upsert_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
 security definer
@@ -18091,42 +18091,42 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_product_option.option;
+  v_id uuid := upsert_product_option.option;
   v_last text;
   v_rank text;
   v_value text;
   v_variant uuid;
-  v_new boolean := save_product_option.option is null;
+  v_new boolean := upsert_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_product_option.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+  if coalesce(cardinality(upsert_product_option.option_values), 0) = 0 then
     raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
   end if;
-  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+  if (select count(distinct x) from unnest(upsert_product_option.option_values) x) <> cardinality(upsert_product_option.option_values) then
     raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
   end if;
   begin
     if v_id is null then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = upsert_product_option.product;
       insert into "better_supabase"."product_options" ("tenant_id", "product_id", "name", "rank")
-      values (v_tenant, save_product_option.product, save_product_option.name, case
+      values (v_tenant, upsert_product_option.product, upsert_product_option.name, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_options" x set "name" = save_product_option.name
-      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      update "better_supabase"."product_options" x set "name" = upsert_product_option.name
+      where x."id" = upsert_product_option.option and x."product_id" = upsert_product_option.product;
       if not found then
         raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
       end if;
@@ -18137,7 +18137,7 @@ begin
   for v_variant in
     select distinct x."variant_id" from "better_supabase"."product_variant_values" x
     join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
-    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+    where y."option_id" = v_id and not (y."value" = any (upsert_product_option.option_values))
   loop
     begin
       delete from "better_supabase"."product_variants" x where x."id" = v_variant;
@@ -18147,12 +18147,12 @@ begin
     end;
   end loop;
   begin
-    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (upsert_product_option.option_values));
   exception when foreign_key_violation then
     raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
   end;
   v_rank := null;
-  foreach v_value in array save_product_option.option_values loop
+  foreach v_value in array upsert_product_option.option_values loop
     v_rank := case
     when v_rank is null then 'V'
     when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
@@ -18166,8 +18166,8 @@ begin
   end loop;
   if v_new then
     insert into "better_supabase"."product_variant_values" ("tenant_id", "variant_id", "option_value_id")
-    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = save_product_option.option_values[1])
-    from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product;
+    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = upsert_product_option.option_values[1])
+    from "better_supabase"."product_variants" x where x."product_id" = upsert_product_option.product;
   end if;
   return jsonb_build_object(
     'id', v_id,
@@ -18175,8 +18175,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
 
 -- Puts a product's options in the given order; the list names each once.
 create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
@@ -18322,7 +18322,7 @@ begin
   end loop;
   for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
     select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
-    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_option := ("better_supabase"."upsert_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
     v_ids := v_ids || v_option;
   end loop;
   if cardinality(v_ids) > 0 then
@@ -18350,7 +18350,7 @@ begin
       where x."product_id" = set_product_options.product
         and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
     ) then
-      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+      perform "better_supabase"."upsert_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
     end if;
   end loop;
   if set_product_options.title_separator is not null then
@@ -18386,29 +18386,29 @@ grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, t
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
-create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+create or replace function "better_supabase"."upsert_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_price_list.price_list;
+  v_id uuid := upsert_price_list.price_list;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_price_list.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_price_lists" ("tenant_id", "name", "customer_group")
-      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      values (upsert_price_list.tenant, upsert_price_list.name, upsert_price_list.customer_group)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
-      where x."id" = v_id and x."tenant_id" = save_price_list.tenant;
+      update "better_supabase"."catalog_price_lists" x set "name" = upsert_price_list.name, "customer_group" = upsert_price_list.customer_group
+      where x."id" = v_id and x."tenant_id" = upsert_price_list.tenant;
       if not found then
         raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
       end if;
@@ -18419,8 +18419,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Deletes a price list and its prices.
 create or replace function "better_supabase"."delete_price_list"(price_list uuid)
@@ -18594,15 +18594,15 @@ grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, ti
 -- for the top level). A new category goes after its siblings. fields: the
 -- extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+create or replace function "better_supabase"."upsert_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_category.category;
-  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_category.category;
+  v_slug text := coalesce(nullif(upsert_category.slug, ''), trim(both '-' from regexp_replace(lower(upsert_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
   v_defaults jsonb;
@@ -18611,23 +18611,23 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_id is null then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
-  if save_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = save_category.parent and x."tenant_id" = save_category.tenant) then
+  if upsert_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = upsert_category.parent and x."tenant_id" = upsert_category.tenant) then
     raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
   end if;
-  if save_category.parent is not null and exists (
+  if upsert_category.parent is not null and exists (
     with recursive up (id) as (
-      select save_category.parent
+      select upsert_category.parent
       union
       select x."parent_id" from "better_supabase"."catalog_categories" x join up on x."id" = up.id where x."parent_id" is not null
     )
@@ -18638,7 +18638,7 @@ begin
   begin
     if v_id is null then
       select max(x."rank" collate "C") into v_last from "better_supabase"."catalog_categories" x
-      where x."tenant_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      where x."tenant_id" = upsert_category.tenant and x."parent_id" is not distinct from upsert_category.parent;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -18646,14 +18646,14 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when save_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when upsert_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."catalog_categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, coalesce(save_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
+      values (upsert_category.tenant, upsert_category.parent, upsert_category.name, v_slug, coalesce(upsert_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
-        "description" = save_category.description, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_category.tenant
+      update "better_supabase"."catalog_categories" x set "parent_id" = upsert_category.parent, "name" = upsert_category.name, "slug" = v_slug,
+        "description" = upsert_category.description, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_category.tenant
       returning x."rank" into v_rank;
       if not found then
         raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
@@ -18679,8 +18679,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.
@@ -18799,21 +18799,21 @@ grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
 -- (a FilterQuery group) that picks them.
-create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function "better_supabase"."upsert_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_collection.collection;
-  v_kind text := coalesce(save_collection.kind, 'manual');
-  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_collection.collection;
+  v_kind text := coalesce(upsert_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(upsert_collection.slug, ''), trim(both '-' from regexp_replace(lower(upsert_collection.title), '[^a-z0-9]+', '-', 'g')));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_collection.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
@@ -18822,26 +18822,26 @@ begin
   if v_kind not in ('manual', 'rule') then
     raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
   end if;
-  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+  if (v_kind = 'rule') <> (upsert_collection.rule is not null) then
     raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   if v_kind = 'rule' and not (
-    jsonb_typeof(save_collection.rule) = 'object'
-    and save_collection.rule ->> 'type' = 'group'
-    and save_collection.rule ->> 'combinator' in ('and', 'or')
-    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+    jsonb_typeof(upsert_collection.rule) = 'object'
+    and upsert_collection.rule ->> 'type' = 'group'
+    and upsert_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(upsert_collection.rule -> 'rules') = 'array'
   ) then
     raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."product_collections" ("tenant_id", "title", "slug", "kind", "rule")
-      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      values (upsert_collection.tenant, upsert_collection.title, v_slug, v_kind, upsert_collection.rule)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
-        "rule" = save_collection.rule, "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_collection.tenant;
+      update "better_supabase"."product_collections" x set "title" = upsert_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = upsert_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_collection.tenant;
       if not found then
         raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
       end if;
@@ -18855,8 +18855,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
 end;
 $$;
-revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Deletes a collection.
 create or replace function "better_supabase"."delete_collection"(collection uuid)
@@ -19024,7 +19024,7 @@ grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) 
 -- Creates a sales channel (channel null) or updates one. A channel has a
 -- key, unique per organization, and optionally a currency and a price list
 -- its prices come from.
-create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function "better_supabase"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -19032,32 +19032,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_catalog_channel.channel;
+  v_id uuid := upsert_catalog_channel.channel;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_catalog_channel.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+  if upsert_catalog_channel.key is null or upsert_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
   end if;
-  if save_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(save_catalog_channel.currency) is null then
+  if upsert_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(upsert_catalog_channel.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
-  if save_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = save_catalog_channel.price_list and x."tenant_id" = save_catalog_channel.tenant) then
+  if upsert_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = upsert_catalog_channel.price_list and x."tenant_id" = upsert_catalog_channel.tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_channels" as x ("tenant_id", "key", "name", "currency", "price_list_id", "active")
-      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      values (upsert_catalog_channel.tenant, upsert_catalog_channel.key, upsert_catalog_channel.name, upsert_catalog_channel.currency, upsert_catalog_channel.price_list, coalesce(upsert_catalog_channel.active, true))
       returning x."id", x."active" into v_id, v_active;
     else
-      update "better_supabase"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_catalog_channel.tenant
+      update "better_supabase"."catalog_channels" x set "key" = upsert_catalog_channel.key, "name" = upsert_catalog_channel.name, "currency" = upsert_catalog_channel.currency, "price_list_id" = upsert_catalog_channel.price_list, "active" = coalesce(upsert_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = upsert_catalog_channel.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
@@ -19066,11 +19066,11 @@ begin
   exception when unique_violation then
     raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'key', upsert_catalog_channel.key, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
 
 -- Deletes a channel and its listings.
 create or replace function "better_supabase"."delete_catalog_channel"(channel uuid)
@@ -19321,7 +19321,7 @@ grant execute on function "better_supabase"."product_text"(uuid, text) to anon, 
 -- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
 -- variant. A code is stored once per variant, type and party, so a second
 -- call returns the existing row with created false.
-create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+create or replace function "better_supabase"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -19330,46 +19330,46 @@ as $$
 declare
   v_id uuid;
   v_created boolean := false;
-  v_value text := btrim(save_product_identifier.value);
+  v_value text := btrim(upsert_product_identifier.value);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_identifier.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_identifier.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_identifier.type is null or save_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
+  if upsert_product_identifier.type is null or upsert_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
     raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
   end if;
   if v_value is null or length(v_value) not between 1 and 100 then
     raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if save_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+  if upsert_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
     raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = save_product_identifier.variant and x."tenant_id" = save_product_identifier.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = upsert_product_identifier.variant and x."tenant_id" = upsert_product_identifier.tenant) then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
   select x."id" into v_id from "better_supabase"."product_identifiers" x
-  where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+  where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
   if v_id is null then
     begin
       insert into "better_supabase"."product_identifiers" as x ("tenant_id", "variant_id", "type", "value", "party_id")
-      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      values (upsert_product_identifier.tenant, upsert_product_identifier.variant, upsert_product_identifier.type, v_value, upsert_product_identifier.party)
       returning x."id" into v_id;
       v_created := true;
     exception when unique_violation then
       select x."id" into v_id from "better_supabase"."product_identifiers" x
-      where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+      where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
     end;
   end if;
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 -- Removes an identifier.
 create or replace function "better_supabase"."delete_product_identifier"(identifier uuid)
@@ -19433,7 +19433,7 @@ grant execute on function "better_supabase"."variant_identifiers"(uuid) to authe
 -- Links the variant "from" to the variant "to": "from" has "to" as an
 -- alternative or an accessory, or is superseded by it. A repeated call
 -- returns created false. A supersession can't point back along its own chain.
-create or replace function "better_supabase"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+create or replace function "better_supabase"."upsert_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language plpgsql
 security definer
@@ -19445,37 +19445,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_relation.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_relation.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_relation.kind is null or save_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
+  if upsert_product_relation.kind is null or upsert_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
     raise exception 'the kind must be one of alternative, superseded_by, accessory' using errcode = '22023', hint = 'CATALOG_RELATION_KIND_INVALID';
   end if;
-  if save_product_relation.from_variant = save_product_relation.to_variant then
+  if upsert_product_relation.from_variant = upsert_product_relation.to_variant then
     raise exception 'a variant can''t relate to itself' using errcode = '22023', hint = 'CATALOG_RELATION_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = save_product_relation.tenant and x."id" in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+  if (select count(*) from "better_supabase"."product_variants" x where x."tenant_id" = upsert_product_relation.tenant and x."id" in (upsert_product_relation.from_variant, upsert_product_relation.to_variant)) <> 2 then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
-  if save_product_relation.kind = 'superseded_by' and exists (
+  if upsert_product_relation.kind = 'superseded_by' and exists (
     with recursive chain(id, depth) as (
-      select save_product_relation.to_variant, 0
+      select upsert_product_relation.to_variant, 0
       union all
       select y."to_variant_id", c.depth + 1 from "better_supabase"."product_relations" y join chain c on y."from_variant_id" = c.id and y."kind" = 'superseded_by' where c.depth < 50
     )
-    select 1 from chain where id = save_product_relation.from_variant
+    select 1 from chain where id = upsert_product_relation.from_variant
   ) then
     raise exception 'the replacement already points back at this variant' using errcode = '22023', hint = 'CATALOG_RELATION_CYCLE';
   end if;
   insert into "better_supabase"."product_relations" ("tenant_id", "from_variant_id", "to_variant_id", "kind")
-  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  values (upsert_product_relation.tenant, upsert_product_relation.from_variant, upsert_product_relation.to_variant, upsert_product_relation.kind)
   on conflict do nothing;
   v_created := found;
   return jsonb_build_object('created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
-grant execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
 
 -- Removes one relation.
 create or replace function "better_supabase"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
@@ -19703,42 +19703,42 @@ grant execute on function "better_supabase"."supplier_item_from_row"(uuid, uuid,
 
 -- Creates a supplier item (item null) or updates one; on an update a null
 -- argument keeps the column. price is in minor units.
-create or replace function "better_supabase"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function "better_supabase"."upsert_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_supplier_item.item;
-  v_code text := btrim(save_supplier_item.code);
+  v_id uuid := upsert_supplier_item.item;
+  v_code text := btrim(upsert_supplier_item.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_supplier_item.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_supplier_item.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) not between 1 and 100 then
     raise exception 'the code must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+  if upsert_supplier_item.price is not null and upsert_supplier_item.price < 0 then
     raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(save_supplier_item.currency) is null then
+  if upsert_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(upsert_supplier_item.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."supplier_items" as x ("tenant_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
-      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      values (upsert_supplier_item.tenant, upsert_supplier_item.supplier, v_code, upsert_supplier_item.description, upsert_supplier_item.price, upsert_supplier_item.currency, upsert_supplier_item.unit, upsert_supplier_item.keywords)
       returning x."id" into v_id;
     else
-      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(save_supplier_item.supplier, x."supplier_id"), "code" = v_code,
-        "description" = coalesce(save_supplier_item.description, x."description"), "price" = coalesce(save_supplier_item.price, x."price"),
-        "currency" = coalesce(save_supplier_item.currency, x."currency"), "unit" = coalesce(save_supplier_item.unit, x."unit"),
-        "keywords_text" = coalesce(save_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
-      where x."id" = save_supplier_item.item and x."tenant_id" = save_supplier_item.tenant;
+      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(upsert_supplier_item.supplier, x."supplier_id"), "code" = v_code,
+        "description" = coalesce(upsert_supplier_item.description, x."description"), "price" = coalesce(upsert_supplier_item.price, x."price"),
+        "currency" = coalesce(upsert_supplier_item.currency, x."currency"), "unit" = coalesce(upsert_supplier_item.unit, x."unit"),
+        "keywords_text" = coalesce(upsert_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
+      where x."id" = upsert_supplier_item.item and x."tenant_id" = upsert_supplier_item.tenant;
       if not found then
         raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
       end if;
@@ -19749,8 +19749,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', v_code);
 end;
 $$;
-revoke execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
 
 -- Deletes a supplier item. The variant it was promoted to stays.
 create or replace function "better_supabase"."delete_supplier_item"(item uuid)
@@ -20054,7 +20054,7 @@ grant execute on function "better_supabase"."product_identifier_updated_at"(text
 -- Creates a discount group (group null) or renames one. kind is customer or
 -- product and can't change; the code is unique per tenant and kind. Returns
 -- its id and whether it was created.
-create or replace function "better_supabase"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+create or replace function "better_supabase"."upsert_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -20062,29 +20062,29 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_created boolean := save_discount_group."group" is null;
-  v_code text := btrim(save_discount_group.code);
+  v_created boolean := upsert_discount_group."group" is null;
+  v_code text := btrim(upsert_discount_group.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_group.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_group.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_discount_group.kind is null or save_discount_group.kind not in ('customer', 'product') then
+  if upsert_discount_group.kind is null or upsert_discount_group.kind not in ('customer', 'product') then
     raise exception 'the kind is customer or product' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
-  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(upsert_discount_group.name, ''))) not between 1 and 200 then
     raise exception 'a group needs a code of up to 50 and a name of up to 200 characters' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
   begin
     if v_created then
       insert into "better_supabase"."discount_groups" as x ("tenant_id", "kind", "code", "name")
-      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      values (upsert_discount_group.tenant, upsert_discount_group.kind, v_code, btrim(upsert_discount_group.name))
       returning x."id" into v_id;
     else
-      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(save_discount_group.name), "updated_at" = now()
-      where x."id" = save_discount_group."group" and x."tenant_id" = save_discount_group.tenant and x."kind" = save_discount_group.kind
+      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(upsert_discount_group.name), "updated_at" = now()
+      where x."id" = upsert_discount_group."group" and x."tenant_id" = upsert_discount_group.tenant and x."kind" = upsert_discount_group.kind
       returning x."id" into v_id;
       if v_id is null then
         raise exception 'discount group not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
@@ -20096,8 +20096,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Deletes a group no rule uses. Its customers leave it and its variants lose
 -- the group.
@@ -20246,31 +20246,31 @@ revoke execute on function "better_supabase"."discount_rule_check"(uuid, jsonb) 
 -- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
 -- same groups, start date and minimum quantity is one rule: the call updates
 -- it. Returns its id and whether it was created.
-create or replace function "better_supabase"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_discount_rule.attrs, '{}'::jsonb);
   v_id uuid;
   v_created boolean := true;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_rule.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_rule.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  perform "better_supabase"."discount_rule_check"(save_discount_rule.tenant, v_attrs);
-  if save_discount_rule.rule is not null then
+  perform "better_supabase"."discount_rule_check"(upsert_discount_rule.tenant, v_attrs);
+  if upsert_discount_rule.rule is not null then
     update "better_supabase"."discount_rules" x set
       "customer_group_id" = nullif(v_attrs ->> 'customerGroupId', '')::uuid, "product_group_id" = nullif(v_attrs ->> 'productGroupId', '')::uuid,
       "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
       "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
       "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
-    where x."id" = save_discount_rule.rule and x."tenant_id" = save_discount_rule.tenant
+    where x."id" = upsert_discount_rule.rule and x."tenant_id" = upsert_discount_rule.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'discount rule not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_RULE_NOT_FOUND';
@@ -20278,7 +20278,7 @@ begin
     return jsonb_build_object('id', v_id, 'created', false);
   end if;
   insert into "better_supabase"."discount_rules" as x ("tenant_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
-  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+  values (upsert_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
     (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
     coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
   on conflict ("tenant_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
@@ -20288,8 +20288,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a rule of the matrix.
 create or replace function "better_supabase"."delete_discount_rule"(rule uuid)
@@ -20939,7 +20939,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:0ff69b3987607fb0f11c32d1d04143a2de5e8f20366a0ddfae020d40050f54c0
+-- @bsb-hash sha256:0757367bfc66950a273967b8877d1595e323998bde7ee4784a7f1a9be29b4033
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21412,39 +21412,39 @@ create index product_variants_discount_group_idx on "better_supabase"."product_v
 -- status. On an update a null argument keeps the column and clear names the
 -- columns to empty; a cleared slug is derived from the title again.
 
-create or replace function "better_supabase"."save_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
+create or replace function "better_supabase"."upsert_product"(tenant uuid, product uuid, title text, slug text, description text, kind text, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_product.product;
-  v_title text := save_product.title;
-  v_slug text := nullif(save_product.slug, '');
+  v_id uuid := upsert_product.product;
+  v_title text := upsert_product.title;
+  v_slug text := nullif(upsert_product.slug, '');
   v_status text;
-  v_created boolean := save_product.product is null;
+  v_created boolean := upsert_product.product is null;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_created then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_product.clear, '{}'::text[])) c where c <> all ('{slug,description}'::text[])) then
     raise exception 'clear names only slug, description' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
   if not v_created then
-    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(save_product.clear, '{}'::text[])) then x."slug" else v_slug end
+    select coalesce(v_title, x."title"), case when v_slug is null and not 'slug' = any (coalesce(upsert_product.clear, '{}'::text[])) then x."slug" else v_slug end
     into v_title, v_slug
-    from "better_supabase"."products" x where x."id" = save_product.product and x."org_id" = save_product.tenant;
+    from "better_supabase"."products" x where x."id" = upsert_product.product and x."org_id" = upsert_product.tenant;
     if not found then
       raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
     end if;
@@ -21458,20 +21458,20 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text, $5::text)', v_hook::oid::regproc)
-        using save_product.tenant, save_product.product, v_title, v_slug, save_product.kind;
+        using upsert_product.tenant, upsert_product.product, v_title, v_slug, upsert_product.kind;
     end if;
   end;
   begin
     if v_created then
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when upsert_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."products" ("org_id", "title", "slug", "description", "kind")
-      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'))
+      values (upsert_product.tenant, v_title, v_slug, coalesce(upsert_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(upsert_product.kind, 'physical'))
       returning "id", "status" into v_id, v_status;
     else
-      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now()
-      where x."id" = save_product.product and x."org_id" = save_product.tenant
+      update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(upsert_product.clear, '{}'::text[])) then null else coalesce(upsert_product.description, x."description") end, "kind" = coalesce(upsert_product.kind, x."kind"), "updated_at" = now()
+      where x."id" = upsert_product.product and x."org_id" = upsert_product.tenant
       returning x."status" into v_status;
       if not found then
         raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
@@ -21510,8 +21510,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'status', v_status);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product"(uuid, uuid, text, text, text, text, text[]) to authenticated, service_role;
 
 -- Moves a product to another status: draft, active or archived.
 create or replace function "better_supabase"."set_product_status"(product uuid, status text)
@@ -21639,7 +21639,7 @@ grant execute on function "better_supabase"."purge_product"(uuid) to authenticat
 -- On an update a null argument keeps the column and clear names the columns
 -- to empty. fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
+create or replace function "better_supabase"."upsert_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -21647,18 +21647,18 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_variant.variant;
-  v_created boolean := save_variant.variant is null;
+  v_id uuid := upsert_variant.variant;
+  v_created boolean := upsert_variant.variant is null;
   v_wanted uuid[];
   v_last text;
   v_rank text;
-  v_sku text := save_variant.sku;
+  v_sku text := upsert_variant.sku;
   v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id" into v_tenant from "better_supabase"."products" x where x."id" = save_variant.product for update;
+  select x."org_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_variant.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
@@ -21671,27 +21671,27 @@ begin
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
-  if exists (select 1 from unnest(coalesce(save_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
+  if exists (select 1 from unnest(coalesce(upsert_variant.clear, '{}'::text[])) c where c <> all ('{sku,title,barcode,weight}'::text[])) then
     raise exception 'clear names only sku, title, barcode, weight' using errcode = '22023', hint = 'CATALOG_CLEAR_INVALID';
   end if;
-  if v_created or save_variant.option_values is not null then
-  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
-  if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
+  if v_created or upsert_variant.option_values is not null then
+  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(upsert_variant.option_values) x), '{}'::uuid[]);
+  if cardinality(v_wanted) <> coalesce(cardinality(upsert_variant.option_values), 0)
     or exists (
       select 1 from unnest(v_wanted) x
       where not exists (
         select 1 from "better_supabase"."product_option_values" ov join "better_supabase"."product_options" o on o."id" = ov."option_id"
-        where ov."id" = x and o."product_id" = save_variant.product
+        where ov."id" = x and o."product_id" = upsert_variant.product
       )
     )
     or (select count(distinct ov."option_id") from "better_supabase"."product_option_values" ov where ov."id" = any (v_wanted)) <> cardinality(v_wanted)
-    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = save_variant.product) <> cardinality(v_wanted) then
+    or (select count(*) from "better_supabase"."product_options" o where o."product_id" = upsert_variant.product) <> cardinality(v_wanted) then
     raise exception 'a variant needs exactly one value of each product option' using errcode = '22023', hint = 'CATALOG_VARIANT_OPTIONS';
   end if;
   if exists (
     select 1 from "better_supabase"."product_variants" x
-    where x."product_id" = save_variant.product
-      and x."id" is distinct from save_variant.variant
+    where x."product_id" = upsert_variant.product
+      and x."id" is distinct from upsert_variant.variant
       and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = v_wanted
   ) then
     raise exception 'another variant has these option values' using errcode = '23505', hint = 'CATALOG_VARIANT_DUPLICATE';
@@ -21702,12 +21702,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::uuid[])', v_hook::oid::regproc)
-        using save_variant.product, save_variant.variant, save_variant.sku, v_wanted;
+        using upsert_variant.product, upsert_variant.variant, upsert_variant.sku, v_wanted;
     end if;
   end;
   begin
     if v_created then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = save_variant.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_variants" x where x."product_id" = upsert_variant.product;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -21715,13 +21715,13 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when save_variant.sku is null then 'sku' end, case when save_variant.title is null then 'title' end, case when save_variant.barcode is null then 'barcode' end, case when save_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when upsert_variant.sku is null then 'sku' end, case when upsert_variant.title is null then 'title' end, case when upsert_variant.barcode is null then 'barcode' end, case when upsert_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."product_variants" as x ("org_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
-      values (v_tenant, save_variant.product, coalesce(save_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(save_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(save_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(save_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      values (v_tenant, upsert_variant.product, coalesce(upsert_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(upsert_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(upsert_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(upsert_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(upsert_variant.track_inventory, true), coalesce(upsert_variant.allow_backorder, false), v_rank)
       returning x."id", x."sku" into v_id, v_sku;
     else
-      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
-      where x."id" = save_variant.variant and x."product_id" = save_variant.product
+      update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(upsert_variant.clear, '{}'::text[])) then null else coalesce(upsert_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(upsert_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(upsert_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
+      where x."id" = upsert_variant.variant and x."product_id" = upsert_variant.product
       returning x."rank", x."sku" into v_rank, v_sku;
       if not found then
         raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
@@ -21766,8 +21766,8 @@ begin
   return jsonb_build_object('id', v_id, 'sku', v_sku, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
-grant execute on function "better_supabase"."save_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_variant"(uuid, uuid, text, uuid[], text, text, integer, boolean, boolean, text[]) to authenticated, service_role;
 
 -- Sets a variant's rank key among the product's variants.
 create or replace function "better_supabase"."rank_variant"(variant uuid, rank text)
@@ -22083,7 +22083,7 @@ grant execute on function "better_supabase"."restore_variant"(uuid) to authentic
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
 -- a variant something still references is archived instead.
-create or replace function "better_supabase"."save_product_option"(product uuid, option uuid, name text, option_values text[])
+create or replace function "better_supabase"."upsert_product_option"(product uuid, option uuid, name text, option_values text[])
 returns jsonb
 language plpgsql
 security definer
@@ -22091,42 +22091,42 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_id uuid := save_product_option.option;
+  v_id uuid := upsert_product_option.option;
   v_last text;
   v_rank text;
   v_value text;
   v_variant uuid;
-  v_new boolean := save_product_option.option is null;
+  v_new boolean := upsert_product_option.option is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id" into v_tenant from "better_supabase"."products" x where x."id" = save_product_option.product for update;
+  select x."org_id" into v_tenant from "better_supabase"."products" x where x."id" = upsert_product_option.product for update;
   if v_tenant is null then
     raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if coalesce(cardinality(save_product_option.option_values), 0) = 0 then
+  if coalesce(cardinality(upsert_product_option.option_values), 0) = 0 then
     raise exception 'an option needs at least one value' using errcode = '22023', hint = 'CATALOG_OPTION_EMPTY';
   end if;
-  if (select count(distinct x) from unnest(save_product_option.option_values) x) <> cardinality(save_product_option.option_values) then
+  if (select count(distinct x) from unnest(upsert_product_option.option_values) x) <> cardinality(upsert_product_option.option_values) then
     raise exception 'an option lists the same value twice' using errcode = '22023', hint = 'CATALOG_OPTION_DUPLICATE';
   end if;
   begin
     if v_id is null then
-      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = save_product_option.product;
+      select max(x."rank" collate "C") into v_last from "better_supabase"."product_options" x where x."product_id" = upsert_product_option.product;
       insert into "better_supabase"."product_options" ("org_id", "product_id", "name", "rank")
-      values (v_tenant, save_product_option.product, save_product_option.name, case
+      values (v_tenant, upsert_product_option.product, upsert_product_option.name, case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_options" x set "name" = save_product_option.name
-      where x."id" = save_product_option.option and x."product_id" = save_product_option.product;
+      update "better_supabase"."product_options" x set "name" = upsert_product_option.name
+      where x."id" = upsert_product_option.option and x."product_id" = upsert_product_option.product;
       if not found then
         raise exception 'option not found' using errcode = 'P0002', hint = 'CATALOG_OPTION_NOT_FOUND';
       end if;
@@ -22137,7 +22137,7 @@ begin
   for v_variant in
     select distinct x."variant_id" from "better_supabase"."product_variant_values" x
     join "better_supabase"."product_option_values" y on y."id" = x."option_value_id"
-    where y."option_id" = v_id and not (y."value" = any (save_product_option.option_values))
+    where y."option_id" = v_id and not (y."value" = any (upsert_product_option.option_values))
   loop
     begin
       delete from "better_supabase"."product_variants" x where x."id" = v_variant;
@@ -22147,12 +22147,12 @@ begin
     end;
   end loop;
   begin
-    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (save_product_option.option_values));
+    delete from "better_supabase"."product_option_values" x where x."option_id" = v_id and not (x."value" = any (upsert_product_option.option_values));
   exception when foreign_key_violation then
     raise exception 'a variant uses a value this list removes' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
   end;
   v_rank := null;
-  foreach v_value in array save_product_option.option_values loop
+  foreach v_value in array upsert_product_option.option_values loop
     v_rank := case
     when v_rank is null then 'V'
     when length(substring(v_rank from '^z*')) = length(v_rank) then v_rank || 'V'
@@ -22166,8 +22166,8 @@ begin
   end loop;
   if v_new then
     insert into "better_supabase"."product_variant_values" ("org_id", "variant_id", "option_value_id")
-    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = save_product_option.option_values[1])
-    from "better_supabase"."product_variants" x where x."product_id" = save_product_option.product;
+    select v_tenant, x."id", (select y."id" from "better_supabase"."product_option_values" y where y."option_id" = v_id and y."value" = upsert_product_option.option_values[1])
+    from "better_supabase"."product_variants" x where x."product_id" = upsert_product_option.product;
   end if;
   return jsonb_build_object(
     'id', v_id,
@@ -22175,8 +22175,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) from public, anon;
-grant execute on function "better_supabase"."save_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_product_option"(uuid, uuid, text, text[]) to authenticated, service_role;
 
 -- Puts a product's options in the given order; the list names each once.
 create or replace function "better_supabase"."reorder_product_options"(product uuid, options uuid[])
@@ -22322,7 +22322,7 @@ begin
   end loop;
   for v_item in select e from jsonb_array_elements(set_product_options.options) with ordinality as a(e, n) order by a.n loop
     select x."id" into v_option from "better_supabase"."product_options" x where x."product_id" = set_product_options.product and x."name" = v_item ->> 'name';
-    v_option := ("better_supabase"."save_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
+    v_option := ("better_supabase"."upsert_product_option"(set_product_options.product, v_option, v_item ->> 'name', array(select y from jsonb_array_elements_text(v_item -> 'values') with ordinality as b(y, n) order by b.n)) ->> 'id')::uuid;
     v_ids := v_ids || v_option;
   end loop;
   if cardinality(v_ids) > 0 then
@@ -22350,7 +22350,7 @@ begin
       where x."product_id" = set_product_options.product
         and coalesce((select array_agg(y."option_value_id" order by y."option_value_id") from "better_supabase"."product_variant_values" y where y."variant_id" = x."id"), '{}'::uuid[]) = (select coalesce(array_agg(u order by u), '{}'::uuid[]) from unnest(v_combo) u)
     ) then
-      perform "better_supabase"."save_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
+      perform "better_supabase"."upsert_variant"(set_product_options.product, null, case when v_sku_required then upper(trim(both '-' from regexp_replace(concat_ws('-', v_slug, nullif(v_label, '')), '[^A-Za-z0-9]+', '-', 'g'))) end, v_combo, null, null, null, null, null);
     end if;
   end loop;
   if set_product_options.title_separator is not null then
@@ -22386,29 +22386,29 @@ grant execute on function "better_supabase"."set_product_options"(uuid, jsonb, t
 
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
-create or replace function "better_supabase"."save_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
+create or replace function "better_supabase"."upsert_price_list"(tenant uuid, price_list uuid, name text, customer_group text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_price_list.price_list;
+  v_id uuid := upsert_price_list.price_list;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_price_list.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_price_list.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_price_lists" ("org_id", "name", "customer_group")
-      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      values (upsert_price_list.tenant, upsert_price_list.name, upsert_price_list.customer_group)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_price_lists" x set "name" = save_price_list.name, "customer_group" = save_price_list.customer_group
-      where x."id" = v_id and x."org_id" = save_price_list.tenant;
+      update "better_supabase"."catalog_price_lists" x set "name" = upsert_price_list.name, "customer_group" = upsert_price_list.customer_group
+      where x."id" = v_id and x."org_id" = upsert_price_list.tenant;
       if not found then
         raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
       end if;
@@ -22419,8 +22419,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_price_list"(uuid, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_price_list"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Deletes a price list and its prices.
 create or replace function "better_supabase"."delete_price_list"(price_list uuid)
@@ -22594,15 +22594,15 @@ grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, ti
 -- for the top level). A new category goes after its siblings. fields: the
 -- extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
+create or replace function "better_supabase"."upsert_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_category.category;
-  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_category.category;
+  v_slug text := coalesce(nullif(upsert_category.slug, ''), trim(both '-' from regexp_replace(lower(upsert_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
   v_defaults jsonb;
@@ -22611,23 +22611,23 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if v_id is null then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   else
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_category.tenant, 'catalog.manage'), false)) then
+    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_category.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the slug must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_SLUG_INVALID';
   end if;
-  if save_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = save_category.parent and x."org_id" = save_category.tenant) then
+  if upsert_category.parent is not null and not exists (select 1 from "better_supabase"."catalog_categories" x where x."id" = upsert_category.parent and x."org_id" = upsert_category.tenant) then
     raise exception 'parent category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
   end if;
-  if save_category.parent is not null and exists (
+  if upsert_category.parent is not null and exists (
     with recursive up (id) as (
-      select save_category.parent
+      select upsert_category.parent
       union
       select x."parent_id" from "better_supabase"."catalog_categories" x join up on x."id" = up.id where x."parent_id" is not null
     )
@@ -22638,7 +22638,7 @@ begin
   begin
     if v_id is null then
       select max(x."rank" collate "C") into v_last from "better_supabase"."catalog_categories" x
-      where x."org_id" = save_category.tenant and x."parent_id" is not distinct from save_category.parent;
+      where x."org_id" = upsert_category.tenant and x."parent_id" is not distinct from upsert_category.parent;
       v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
@@ -22646,14 +22646,14 @@ begin
   end;
       execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
-    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when save_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+    where d.adrelid = '"better_supabase"."catalog_categories"'::regclass and a.attname = any (array[case when upsert_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."catalog_categories" ("org_id", "parent_id", "name", "slug", "description", "rank")
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, coalesce(save_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
+      values (upsert_category.tenant, upsert_category.parent, upsert_category.name, v_slug, coalesce(upsert_category.description, (jsonb_populate_record(null::"better_supabase"."catalog_categories", v_defaults))."description"), v_rank)
       returning "id" into v_id;
     else
-      update "better_supabase"."catalog_categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
-        "description" = save_category.description, "updated_at" = now()
-      where x."id" = v_id and x."org_id" = save_category.tenant
+      update "better_supabase"."catalog_categories" x set "parent_id" = upsert_category.parent, "name" = upsert_category.name, "slug" = v_slug,
+        "description" = upsert_category.description, "updated_at" = now()
+      where x."id" = v_id and x."org_id" = upsert_category.tenant
       returning x."rank" into v_rank;
       if not found then
         raise exception 'category not found' using errcode = 'P0002', hint = 'CATALOG_CATEGORY_NOT_FOUND';
@@ -22679,8 +22679,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_category"(uuid, uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.
@@ -22799,21 +22799,21 @@ grant execute on function "better_supabase"."set_product_categories"(uuid, uuid[
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
 -- (a FilterQuery group) that picks them.
-create or replace function "better_supabase"."save_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function "better_supabase"."upsert_collection"(tenant uuid, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_collection.collection;
-  v_kind text := coalesce(save_collection.kind, 'manual');
-  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_collection.collection;
+  v_kind text := coalesce(upsert_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(upsert_collection.slug, ''), trim(both '-' from regexp_replace(lower(upsert_collection.title), '[^a-z0-9]+', '-', 'g')));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_collection.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_collection.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_slug is null or v_slug !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
@@ -22822,26 +22822,26 @@ begin
   if v_kind not in ('manual', 'rule') then
     raise exception 'the kind must be manual or rule' using errcode = '22023', hint = 'CATALOG_COLLECTION_KIND';
   end if;
-  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+  if (v_kind = 'rule') <> (upsert_collection.rule is not null) then
     raise exception 'a rule collection needs a rule and a manual one none' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   if v_kind = 'rule' and not (
-    jsonb_typeof(save_collection.rule) = 'object'
-    and save_collection.rule ->> 'type' = 'group'
-    and save_collection.rule ->> 'combinator' in ('and', 'or')
-    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+    jsonb_typeof(upsert_collection.rule) = 'object'
+    and upsert_collection.rule ->> 'type' = 'group'
+    and upsert_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(upsert_collection.rule -> 'rules') = 'array'
   ) then
     raise exception 'the rule must be a filter group with a combinator and rules' using errcode = '22023', hint = 'CATALOG_COLLECTION_RULE';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."product_collections" ("org_id", "title", "slug", "kind", "rule")
-      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      values (upsert_collection.tenant, upsert_collection.title, v_slug, v_kind, upsert_collection.rule)
       returning "id" into v_id;
     else
-      update "better_supabase"."product_collections" x set "title" = save_collection.title, "slug" = v_slug, "kind" = v_kind,
-        "rule" = save_collection.rule, "updated_at" = now()
-      where x."id" = v_id and x."org_id" = save_collection.tenant;
+      update "better_supabase"."product_collections" x set "title" = upsert_collection.title, "slug" = v_slug, "kind" = v_kind,
+        "rule" = upsert_collection.rule, "updated_at" = now()
+      where x."id" = v_id and x."org_id" = upsert_collection.tenant;
       if not found then
         raise exception 'collection not found' using errcode = 'P0002', hint = 'CATALOG_COLLECTION_NOT_FOUND';
       end if;
@@ -22855,8 +22855,8 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
 end;
 $$;
-revoke execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_collection"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- Deletes a collection.
 create or replace function "better_supabase"."delete_collection"(collection uuid)
@@ -23024,7 +23024,7 @@ grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) 
 -- Creates a sales channel (channel null) or updates one. A channel has a
 -- key, unique per organization, and optionally a currency and a price list
 -- its prices come from.
-create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function "better_supabase"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -23032,32 +23032,32 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_catalog_channel.channel;
+  v_id uuid := upsert_catalog_channel.channel;
   v_active boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_catalog_channel.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+  if upsert_catalog_channel.key is null or upsert_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
     raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
   end if;
-  if save_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(save_catalog_channel.currency) is null then
+  if upsert_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(upsert_catalog_channel.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
-  if save_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = save_catalog_channel.price_list and x."org_id" = save_catalog_channel.tenant) then
+  if upsert_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = upsert_catalog_channel.price_list and x."org_id" = upsert_catalog_channel.tenant) then
     raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."catalog_channels" as x ("org_id", "key", "name", "currency", "price_list_id", "active")
-      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      values (upsert_catalog_channel.tenant, upsert_catalog_channel.key, upsert_catalog_channel.name, upsert_catalog_channel.currency, upsert_catalog_channel.price_list, coalesce(upsert_catalog_channel.active, true))
       returning x."id", x."active" into v_id, v_active;
     else
-      update "better_supabase"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
-      where x."id" = v_id and x."org_id" = save_catalog_channel.tenant
+      update "better_supabase"."catalog_channels" x set "key" = upsert_catalog_channel.key, "name" = upsert_catalog_channel.name, "currency" = upsert_catalog_channel.currency, "price_list_id" = upsert_catalog_channel.price_list, "active" = coalesce(upsert_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."org_id" = upsert_catalog_channel.tenant
       returning x."active" into v_active;
       if not found then
         raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
@@ -23066,11 +23066,11 @@ begin
   exception when unique_violation then
     raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
   end;
-  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'key', upsert_catalog_channel.key, 'active', v_active);
 end;
 $$;
-revoke execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
 
 -- Deletes a channel and its listings.
 create or replace function "better_supabase"."delete_catalog_channel"(channel uuid)
@@ -23321,7 +23321,7 @@ grant execute on function "better_supabase"."product_text"(uuid, text) to anon, 
 -- Adds an identifier (an EAN, a supplier's or manufacturer's code) to a
 -- variant. A code is stored once per variant, type and party, so a second
 -- call returns the existing row with created false.
-create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
+create or replace function "better_supabase"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -23330,46 +23330,46 @@ as $$
 declare
   v_id uuid;
   v_created boolean := false;
-  v_value text := btrim(save_product_identifier.value);
+  v_value text := btrim(upsert_product_identifier.value);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_identifier.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_identifier.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_identifier.type is null or save_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
+  if upsert_product_identifier.type is null or upsert_product_identifier.type not in ('ean', 'supplier', 'manufacturer', 'other') then
     raise exception 'the type must be one of ean, supplier, manufacturer, other' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_TYPE_INVALID';
   end if;
   if v_value is null or length(v_value) not between 1 and 100 then
     raise exception 'the value must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if save_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
+  if upsert_product_identifier.type = 'ean' and v_value !~ '^([0-9]{8}|[0-9]{12,14})$' then
     raise exception 'an EAN has 8, 12, 13 or 14 digits' using errcode = '22023', hint = 'CATALOG_IDENTIFIER_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = save_product_identifier.variant and x."org_id" = save_product_identifier.tenant) then
+  if not exists (select 1 from "better_supabase"."product_variants" x where x."id" = upsert_product_identifier.variant and x."org_id" = upsert_product_identifier.tenant) then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
   select x."id" into v_id from "better_supabase"."product_identifiers" x
-  where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+  where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+    and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
   if v_id is null then
     begin
       insert into "better_supabase"."product_identifiers" as x ("org_id", "variant_id", "type", "value", "party_id")
-      values (save_product_identifier.tenant, save_product_identifier.variant, save_product_identifier.type, v_value, save_product_identifier.party)
+      values (upsert_product_identifier.tenant, upsert_product_identifier.variant, upsert_product_identifier.type, v_value, upsert_product_identifier.party)
       returning x."id" into v_id;
       v_created := true;
     exception when unique_violation then
       select x."id" into v_id from "better_supabase"."product_identifiers" x
-      where x."variant_id" = save_product_identifier.variant and x."type" = save_product_identifier.type and x."value" = v_value
-        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(save_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
+      where x."variant_id" = upsert_product_identifier.variant and x."type" = upsert_product_identifier.type and x."value" = v_value
+        and coalesce(x."party_id", '00000000-0000-0000-0000-000000000000'::uuid) = coalesce(upsert_product_identifier.party, '00000000-0000-0000-0000-000000000000'::uuid);
     end;
   end if;
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_product_identifier"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
 -- Removes an identifier.
 create or replace function "better_supabase"."delete_product_identifier"(identifier uuid)
@@ -23433,7 +23433,7 @@ grant execute on function "better_supabase"."variant_identifiers"(uuid) to authe
 -- Links the variant "from" to the variant "to": "from" has "to" as an
 -- alternative or an accessory, or is superseded by it. A repeated call
 -- returns created false. A supersession can't point back along its own chain.
-create or replace function "better_supabase"."save_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
+create or replace function "better_supabase"."upsert_product_relation"(tenant uuid, from_variant uuid, to_variant uuid, kind text)
 returns jsonb
 language plpgsql
 security definer
@@ -23445,37 +23445,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_product_relation.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_product_relation.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_product_relation.kind is null or save_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
+  if upsert_product_relation.kind is null or upsert_product_relation.kind not in ('alternative', 'superseded_by', 'accessory') then
     raise exception 'the kind must be one of alternative, superseded_by, accessory' using errcode = '22023', hint = 'CATALOG_RELATION_KIND_INVALID';
   end if;
-  if save_product_relation.from_variant = save_product_relation.to_variant then
+  if upsert_product_relation.from_variant = upsert_product_relation.to_variant then
     raise exception 'a variant can''t relate to itself' using errcode = '22023', hint = 'CATALOG_RELATION_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."product_variants" x where x."org_id" = save_product_relation.tenant and x."id" in (save_product_relation.from_variant, save_product_relation.to_variant)) <> 2 then
+  if (select count(*) from "better_supabase"."product_variants" x where x."org_id" = upsert_product_relation.tenant and x."id" in (upsert_product_relation.from_variant, upsert_product_relation.to_variant)) <> 2 then
     raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
   end if;
-  if save_product_relation.kind = 'superseded_by' and exists (
+  if upsert_product_relation.kind = 'superseded_by' and exists (
     with recursive chain(id, depth) as (
-      select save_product_relation.to_variant, 0
+      select upsert_product_relation.to_variant, 0
       union all
       select y."to_variant_id", c.depth + 1 from "better_supabase"."product_relations" y join chain c on y."from_variant_id" = c.id and y."kind" = 'superseded_by' where c.depth < 50
     )
-    select 1 from chain where id = save_product_relation.from_variant
+    select 1 from chain where id = upsert_product_relation.from_variant
   ) then
     raise exception 'the replacement already points back at this variant' using errcode = '22023', hint = 'CATALOG_RELATION_CYCLE';
   end if;
   insert into "better_supabase"."product_relations" ("org_id", "from_variant_id", "to_variant_id", "kind")
-  values (save_product_relation.tenant, save_product_relation.from_variant, save_product_relation.to_variant, save_product_relation.kind)
+  values (upsert_product_relation.tenant, upsert_product_relation.from_variant, upsert_product_relation.to_variant, upsert_product_relation.kind)
   on conflict do nothing;
   v_created := found;
   return jsonb_build_object('created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) from public, anon;
-grant execute on function "better_supabase"."save_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."upsert_product_relation"(uuid, uuid, uuid, text) to authenticated, service_role;
 
 -- Removes one relation.
 create or replace function "better_supabase"."delete_product_relation"(from_variant uuid, to_variant uuid, kind text)
@@ -23703,42 +23703,42 @@ grant execute on function "better_supabase"."supplier_item_from_row"(uuid, uuid,
 
 -- Creates a supplier item (item null) or updates one; on an update a null
 -- argument keeps the column. price is in minor units.
-create or replace function "better_supabase"."save_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
+create or replace function "better_supabase"."upsert_supplier_item"(tenant uuid, item uuid, supplier uuid, code text, description text, price bigint, currency text, unit text, keywords text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_supplier_item.item;
-  v_code text := btrim(save_supplier_item.code);
+  v_id uuid := upsert_supplier_item.item;
+  v_code text := btrim(upsert_supplier_item.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_supplier_item.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_supplier_item.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) not between 1 and 100 then
     raise exception 'the code must be 1 to 100 characters' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.price is not null and save_supplier_item.price < 0 then
+  if upsert_supplier_item.price is not null and upsert_supplier_item.price < 0 then
     raise exception 'the price can''t be negative' using errcode = '22023', hint = 'CATALOG_SUPPLIER_ITEM_INVALID';
   end if;
-  if save_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(save_supplier_item.currency) is null then
+  if upsert_supplier_item.currency is not null and "better_supabase"."currency_minor_units"(upsert_supplier_item.currency) is null then
     raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."supplier_items" as x ("org_id", "supplier_id", "code", "description", "price", "currency", "unit", "keywords_text")
-      values (save_supplier_item.tenant, save_supplier_item.supplier, v_code, save_supplier_item.description, save_supplier_item.price, save_supplier_item.currency, save_supplier_item.unit, save_supplier_item.keywords)
+      values (upsert_supplier_item.tenant, upsert_supplier_item.supplier, v_code, upsert_supplier_item.description, upsert_supplier_item.price, upsert_supplier_item.currency, upsert_supplier_item.unit, upsert_supplier_item.keywords)
       returning x."id" into v_id;
     else
-      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(save_supplier_item.supplier, x."supplier_id"), "code" = v_code,
-        "description" = coalesce(save_supplier_item.description, x."description"), "price" = coalesce(save_supplier_item.price, x."price"),
-        "currency" = coalesce(save_supplier_item.currency, x."currency"), "unit" = coalesce(save_supplier_item.unit, x."unit"),
-        "keywords_text" = coalesce(save_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
-      where x."id" = save_supplier_item.item and x."org_id" = save_supplier_item.tenant;
+      update "better_supabase"."supplier_items" x set "supplier_id" = coalesce(upsert_supplier_item.supplier, x."supplier_id"), "code" = v_code,
+        "description" = coalesce(upsert_supplier_item.description, x."description"), "price" = coalesce(upsert_supplier_item.price, x."price"),
+        "currency" = coalesce(upsert_supplier_item.currency, x."currency"), "unit" = coalesce(upsert_supplier_item.unit, x."unit"),
+        "keywords_text" = coalesce(upsert_supplier_item.keywords, x."keywords_text"), "updated_at" = now()
+      where x."id" = upsert_supplier_item.item and x."org_id" = upsert_supplier_item.tenant;
       if not found then
         raise exception 'supplier item not found' using errcode = 'P0002', hint = 'CATALOG_SUPPLIER_ITEM_NOT_FOUND';
       end if;
@@ -23749,8 +23749,8 @@ begin
   return jsonb_build_object('id', v_id, 'code', v_code);
 end;
 $$;
-revoke execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_supplier_item"(uuid, uuid, uuid, text, text, bigint, text, text, text) to authenticated, service_role;
 
 -- Deletes a supplier item. The variant it was promoted to stays.
 create or replace function "better_supabase"."delete_supplier_item"(item uuid)
@@ -24054,7 +24054,7 @@ grant execute on function "better_supabase"."product_identifier_updated_at"(text
 -- Creates a discount group (group null) or renames one. kind is customer or
 -- product and can't change; the code is unique per tenant and kind. Returns
 -- its id and whether it was created.
-create or replace function "better_supabase"."save_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
+create or replace function "better_supabase"."upsert_discount_group"(tenant uuid, "group" uuid, kind text, code text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -24062,29 +24062,29 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_created boolean := save_discount_group."group" is null;
-  v_code text := btrim(save_discount_group.code);
+  v_created boolean := upsert_discount_group."group" is null;
+  v_code text := btrim(upsert_discount_group.code);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_group.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_group.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if save_discount_group.kind is null or save_discount_group.kind not in ('customer', 'product') then
+  if upsert_discount_group.kind is null or upsert_discount_group.kind not in ('customer', 'product') then
     raise exception 'the kind is customer or product' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
-  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(upsert_discount_group.name, ''))) not between 1 and 200 then
     raise exception 'a group needs a code of up to 50 and a name of up to 200 characters' using errcode = '22023', hint = 'CATALOG_DISCOUNT_GROUP_INVALID';
   end if;
   begin
     if v_created then
       insert into "better_supabase"."discount_groups" as x ("org_id", "kind", "code", "name")
-      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      values (upsert_discount_group.tenant, upsert_discount_group.kind, v_code, btrim(upsert_discount_group.name))
       returning x."id" into v_id;
     else
-      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(save_discount_group.name), "updated_at" = now()
-      where x."id" = save_discount_group."group" and x."org_id" = save_discount_group.tenant and x."kind" = save_discount_group.kind
+      update "better_supabase"."discount_groups" x set "code" = v_code, "name" = btrim(upsert_discount_group.name), "updated_at" = now()
+      where x."id" = upsert_discount_group."group" and x."org_id" = upsert_discount_group.tenant and x."kind" = upsert_discount_group.kind
       returning x."id" into v_id;
       if v_id is null then
         raise exception 'discount group not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_GROUP_NOT_FOUND';
@@ -24096,8 +24096,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_group"(uuid, uuid, text, text, text) to authenticated, service_role;
 
 -- Deletes a group no rule uses. Its customers leave it and its variants lose
 -- the group.
@@ -24246,31 +24246,31 @@ revoke execute on function "better_supabase"."discount_rule_check"(uuid, jsonb) 
 -- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
 -- same groups, start date and minimum quantity is one rule: the call updates
 -- it. Returns its id and whether it was created.
-create or replace function "better_supabase"."save_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_discount_rule"(tenant uuid, rule uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_discount_rule.attrs, '{}'::jsonb);
   v_id uuid;
   v_created boolean := true;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_discount_rule.tenant, 'catalog.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_discount_rule.tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  perform "better_supabase"."discount_rule_check"(save_discount_rule.tenant, v_attrs);
-  if save_discount_rule.rule is not null then
+  perform "better_supabase"."discount_rule_check"(upsert_discount_rule.tenant, v_attrs);
+  if upsert_discount_rule.rule is not null then
     update "better_supabase"."discount_rules" x set
       "customer_group_id" = nullif(v_attrs ->> 'customerGroupId', '')::uuid, "product_group_id" = nullif(v_attrs ->> 'productGroupId', '')::uuid,
       "valid_from" = (v_attrs ->> 'validFrom')::date, "valid_to" = (v_attrs ->> 'validTo')::date,
       "min_quantity" = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), "discount_bps" = coalesce((v_attrs ->> 'discountBps')::integer, 0),
       "fixed_price" = (v_attrs ->> 'fixedPrice')::bigint, "currency" = v_attrs ->> 'currency', "updated_at" = now()
-    where x."id" = save_discount_rule.rule and x."org_id" = save_discount_rule.tenant
+    where x."id" = upsert_discount_rule.rule and x."org_id" = upsert_discount_rule.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'discount rule not found' using errcode = 'P0002', hint = 'CATALOG_DISCOUNT_RULE_NOT_FOUND';
@@ -24278,7 +24278,7 @@ begin
     return jsonb_build_object('id', v_id, 'created', false);
   end if;
   insert into "better_supabase"."discount_rules" as x ("org_id", "customer_group_id", "product_group_id", "valid_from", "valid_to", "min_quantity", "discount_bps", "fixed_price", "currency")
-  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+  values (upsert_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
     (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
     coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
   on conflict ("org_id", coalesce("customer_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("product_group_id", '00000000-0000-4000-8000-000000000000'::uuid), coalesce("valid_from", date '0001-01-01'), "min_quantity") do update set
@@ -24288,8 +24288,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_discount_rule"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a rule of the matrix.
 create or replace function "better_supabase"."delete_discount_rule"(rule uuid)

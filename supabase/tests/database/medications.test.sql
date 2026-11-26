@@ -37,12 +37,12 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('warfarin', (better_supabase.save_medication(
+insert into ids values ('warfarin', (better_supabase.upsert_medication(
   '00000000-0000-4000-8000-000000000001', 'Warfarin', 'mg', 'atc', 'B01AA03',
   high_risk => true) ->> 'id')::uuid);
 
 select throws_ok(
-  $$select better_supabase.save_medication('00000000-0000-4000-8000-000000000001', 'Again', 'mg', 'atc', 'B01AA03')$$,
+  $$select better_supabase.upsert_medication('00000000-0000-4000-8000-000000000001', 'Again', 'mg', 'atc', 'B01AA03')$$,
   '22023',
   null,
   'a code is unique per code system in an organization'

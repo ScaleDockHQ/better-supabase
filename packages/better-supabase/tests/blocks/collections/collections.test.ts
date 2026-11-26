@@ -204,8 +204,8 @@ describe("collections block", () => {
 
   it("adds, removes, reorders and pages entries", async () => {
     const t = transport({
-      add_collection_entries: () => ({ added: ["a"] }),
-      remove_collection_entries: () => 2,
+      create_collection_entries: () => ({ added: ["a"] }),
+      delete_collection_entries: () => 2,
       rank_collection_entry: () => true,
       collection_entries: (args) =>
         args["after_rank"] === null
@@ -274,7 +274,7 @@ describe("collections block", () => {
   });
 
   it("reads an empty add result as nothing added", async () => {
-    const t = transport({ add_collection_entries: () => null });
+    const t = transport({ create_collection_entries: () => null });
     expect(
       await createCollections({ transport: t })
         .add({ id: "c1", subjectIds: [] })
@@ -349,7 +349,7 @@ describe("collections block", () => {
 
     it("saves a record with a note and reminder, then lists and completes it", async () => {
       const t = transport({
-        save_for_later: () => SAVED,
+        upsert_for_later: () => SAVED,
         list_saved_items: () => [
           SAVED,
           {
@@ -361,7 +361,7 @@ describe("collections block", () => {
           },
         ],
         complete_saved_item: () => true,
-        remove_saved_item: () => false,
+        delete_saved_item: () => false,
       });
 
       const collections = createCollections({ transport: t });
@@ -379,7 +379,7 @@ describe("collections block", () => {
         .orThrow();
 
       expect(t.calls[0]).toEqual([
-        "save_for_later",
+        "upsert_for_later",
         {
           tenant: "o",
           subject_type: "message",
@@ -452,7 +452,7 @@ describe("collections block", () => {
       await collections.completeSaved({ id: "s1", completed: false });
       expect(t.calls[5]?.[1]).toEqual({ item: "s1", completed: false });
       expect(await collections.removeSaved("s1").orThrow()).toBe(false);
-      expect(t.calls[6]).toEqual(["remove_saved_item", { item: "s1" }]);
+      expect(t.calls[6]).toEqual(["delete_saved_item", { item: "s1" }]);
     });
 
     it("claims due reminders and notifies the member who saved each", async () => {

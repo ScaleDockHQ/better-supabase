@@ -422,7 +422,7 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       );
       expect(
         await s.hint(
-          "select better_supabase.save_ai_task($1, null, $2, now() - interval '1 day')",
+          "select better_supabase.upsert_ai_task($1, null, $2, now() - interval '1 day')",
           [
             tenant,
             {
@@ -436,7 +436,7 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       ).toBe("AI_TASK_INVALID");
 
       const early = await s.value<string | null>(
-        "better_supabase.save_ai_task($1, null, $2, now() - interval '1 day') ->> 'next_run_at'",
+        "better_supabase.upsert_ai_task($1, null, $2, now() - interval '1 day') ->> 'next_run_at'",
         [tenant, { title: "x", prompt: "y", cron: "0 9 * * *" }],
       );
 

@@ -122,7 +122,7 @@ describe("messaging summaries", () => {
     });
 
     const service = fakeTransport({
-      save_thread_summary: { ...summaryRow(false), summary: "New summary." },
+      upsert_thread_summary: { ...summaryRow(false), summary: "New summary." },
     });
 
     const { inputs, summarizer } = recorder();
@@ -153,7 +153,7 @@ describe("messaging summaries", () => {
       ["m1", "Ada", "body m1"],
       ["m6", undefined, "body m6"],
     ]);
-    expect(service.call.mock.calls[0]?.[1]).toBe("save_thread_summary");
+    expect(service.call.mock.calls[0]?.[1]).toBe("upsert_thread_summary");
     expect(service.call.mock.calls[0]?.[2]).toEqual({
       conversation: "c1",
       thread: null,
@@ -178,7 +178,7 @@ describe("messaging summaries", () => {
           ? first
           : [message("r500", "2026-01-01T00:09:00Z", { thread_id: "m1" })],
       get_message: message("m1", AT),
-      save_thread_summary: summaryRow(false, "m1"),
+      upsert_thread_summary: summaryRow(false, "m1"),
     });
 
     const { inputs, summarizer } = recorder();
@@ -210,7 +210,7 @@ describe("messaging summaries", () => {
     const t = fakeTransport({
       thread_summary: summaryRow(false),
       list_messages: [message("m1", AT)],
-      save_thread_summary: summaryRow(false),
+      upsert_thread_summary: summaryRow(false),
     });
 
     const summarize = vi.fn(async () => ({ summary: "Again." }));

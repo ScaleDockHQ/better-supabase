@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:98c7c25d93b4acbdf4ba7aeea020b698a546252101b4e944fcb1a22fd24e9305
+-- @bsb-hash sha256:13ddde56251edb5f5ca9503a531a64c993dc3541b7de02543b26247acdf67066
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -262,15 +262,15 @@ create policy bsb_person_identities_read on "better_supabase"."person_identities
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_company"(tenant uuid, company uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_company.company;
-  v_created boolean := save_company.company is null;
+  v_id uuid := upsert_company.company;
+  v_created boolean := upsert_company.company is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -278,37 +278,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_company.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
+  if upsert_company.attrs ? 'lifecycle' and not (upsert_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'customerTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditBlock' is not null and lower(trim(save_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_company.attrs ->> 'creditBlock' is not null and lower(trim(upsert_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'language' is not null and nullif(trim(save_company.attrs ->> 'language'), '') is not null and trim(save_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_company.attrs ->> 'language' is not null and nullif(trim(upsert_company.attrs ->> 'language'), '') is not null and trim(upsert_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_company.attrs ->> 'creditLimit' is not null and upsert_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_company.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
+  if upsert_company.attrs ? 'creditLimit' <> upsert_company.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_company.attrs ? 'creditLimit' and (upsert_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -316,38 +316,38 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_company.tenant, save_company.company, save_company.attrs;
+        using upsert_company.tenant, upsert_company.company, upsert_company.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_company.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      values (upsert_company.tenant, nullif(trim(upsert_company.attrs ->> 'name'), ''), lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')), nullif(trim(upsert_company.attrs ->> 'website'), ''), nullif(trim(upsert_company.attrs ->> 'vatId'), ''), nullif(trim(upsert_company.attrs ->> 'legalName'), ''), nullif(trim(upsert_company.attrs ->> 'registrationId'), ''), nullif(trim(upsert_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(upsert_company.attrs ->> 'ownerId', '')::uuid, nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_company.attrs ->> 'language'), ''), upsert_company.attrs -> 'address', auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
-      update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
-        "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
-        "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
-        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
-        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
-        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
-        "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_company.attrs ? 'creditBlock' then lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_company.attrs ? 'language' then nullif(trim(save_company.attrs ->> 'language'), '') else x."language" end,
-        "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant;
+      update "better_supabase"."companies" x set "name" = case when upsert_company.attrs ? 'name' then coalesce(nullif(trim(upsert_company.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "domain" = case when upsert_company.attrs ? 'domain' then lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')) else x."domain" end,
+        "website" = case when upsert_company.attrs ? 'website' then nullif(trim(upsert_company.attrs ->> 'website'), '') else x."website" end,
+        "vat_id" = case when upsert_company.attrs ? 'vatId' then nullif(trim(upsert_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when upsert_company.attrs ? 'legalName' then nullif(trim(upsert_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when upsert_company.attrs ? 'registrationId' then nullif(trim(upsert_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when upsert_company.attrs ? 'phone' then nullif(trim(upsert_company.attrs ->> 'phone'), '') else x."phone" end,
+        "lifecycle" = case when upsert_company.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_company.attrs ? 'ownerId' then nullif(upsert_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "customer_terms_id" = case when upsert_company.attrs ? 'customerTermsId' then nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_company.attrs ? 'supplierTermsId' then nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_company.attrs ? 'creditLimit' then nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_company.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_company.attrs ? 'creditBlock' then lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_company.attrs ? 'language' then nullif(trim(upsert_company.attrs ->> 'language'), '') else x."language" end,
+        "address" = case when upsert_company.attrs ? 'address' then upsert_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -373,20 +373,20 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Creates a person (person null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_person"(tenant uuid, person uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_person"(tenant uuid, person uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_person.person;
-  v_created boolean := save_person.person is null;
+  v_id uuid := upsert_person.person;
+  v_created boolean := upsert_person.person is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -394,43 +394,43 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_person.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
+  if upsert_person.attrs ? 'lifecycle' and not (upsert_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+  if upsert_person.attrs ? 'mode' and coalesce(lower(trim(upsert_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
     raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+  if v_created and lower(trim(upsert_person.attrs ->> 'mode')) = 'tenant' and nullif(upsert_person.attrs ->> 'userId', '') is null then
     raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditBlock' is not null and lower(trim(save_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_person.attrs ->> 'creditBlock' is not null and lower(trim(upsert_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'language' is not null and nullif(trim(save_person.attrs ->> 'language'), '') is not null and trim(save_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_person.attrs ->> 'language' is not null and nullif(trim(upsert_person.attrs ->> 'language'), '') is not null and trim(upsert_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_person.attrs ->> 'creditLimit' is not null and upsert_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_person.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
+  if upsert_person.attrs ? 'creditLimit' <> upsert_person.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_person.attrs ? 'creditLimit' and (upsert_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -438,36 +438,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_person.tenant, save_person.person, save_person.attrs;
+        using upsert_person.tenant, upsert_person.person, upsert_person.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_person.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      values (upsert_person.tenant, nullif(trim(upsert_person.attrs ->> 'name'), ''), lower(nullif(trim(upsert_person.attrs ->> 'email'), '')), nullif(trim(upsert_person.attrs ->> 'phone'), ''), nullif(trim(upsert_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(upsert_person.attrs ->> 'ownerId', '')::uuid, nullif(upsert_person.attrs ->> 'userId', '')::uuid, nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_person.attrs ->> 'language'), ''), auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."people" x
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
-      update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
-        "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
-        "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
-        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
-        "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
-        "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_person.attrs ? 'creditBlock' then lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant;
+      update "better_supabase"."people" x set "name" = case when upsert_person.attrs ? 'name' then coalesce(nullif(trim(upsert_person.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "email" = case when upsert_person.attrs ? 'email' then lower(nullif(trim(upsert_person.attrs ->> 'email'), '')) else x."email" end,
+        "phone" = case when upsert_person.attrs ? 'phone' then nullif(trim(upsert_person.attrs ->> 'phone'), '') else x."phone" end,
+        "title" = case when upsert_person.attrs ? 'title' then nullif(trim(upsert_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when upsert_person.attrs ? 'mode' then coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
+        "lifecycle" = case when upsert_person.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_person.attrs ? 'ownerId' then nullif(upsert_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "user_id" = case when upsert_person.attrs ? 'userId' then nullif(upsert_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "customer_terms_id" = case when upsert_person.attrs ? 'customerTermsId' then nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_person.attrs ? 'supplierTermsId' then nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_person.attrs ? 'creditLimit' then nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_person.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_person.attrs ? 'creditBlock' then lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_person.attrs ? 'language' then nullif(trim(upsert_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -493,8 +493,8 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- Archives a company (archived true) or restores it.
@@ -615,7 +615,7 @@ $$;
 revoke execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_company_person"(company uuid, person uuid)
+create or replace function "better_supabase"."delete_company_person"(company uuid, person uuid)
 returns boolean
 language plpgsql
 security definer
@@ -629,20 +629,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select l."tenant_id", l."role" into v_tenant, v_role from "better_supabase"."company_people" l
-  where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  delete from "better_supabase"."company_people" l where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_company_person"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_company_person"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_company_person"(uuid, uuid) to authenticated, service_role;
 
 -- Merges drop into keep: keep's empty fields take drop's values, every
 -- installed module moves its rows from drop to keep, and drop is archived
@@ -1450,7 +1450,7 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 -- name, days (due days), discountBps and discountDays (an early-payment
 -- discount the buyer may deduct), creditRestrictionBps (the part of the
 -- document the tax does not apply to). A key that is not in data keeps its
--- value. Internal: save_payment_term and the import target call it.
+-- value. Internal: upsert_payment_term and the import target call it.
 create or replace function "better_supabase"."payment_term_write"(tenant uuid, data jsonb, id uuid)
 returns jsonb
 language plpgsql
@@ -1509,21 +1509,21 @@ revoke execute on function "better_supabase"."payment_term_write"(uuid, jsonb, u
 
 -- Creates payment terms, or changes the ones with the same code. Needs
 -- contacts.manage. Returns the row.
-create or replace function "better_supabase"."save_payment_term"(tenant uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_payment_term"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
+  return "better_supabase"."payment_term_write"(upsert_payment_term.tenant, upsert_payment_term.attrs, null);
 end;
 $$;
-revoke execute on function "better_supabase"."save_payment_term"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_payment_terms"(tenant uuid)
 returns jsonb
@@ -1967,7 +1967,7 @@ grant execute on function "better_supabase"."list_person_identities"(uuid) to au
 
 -- Adds an address on a channel to a person, or marks it verified. An address
 -- another person of the organization holds is refused.
-create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+create or replace function "better_supabase"."create_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1975,8 +1975,8 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_channel text := nullif(trim(add_person_identity.channel), '');
-  v_address text := nullif(trim(add_person_identity.address), '');
+  v_channel text := nullif(trim(create_person_identity.channel), '');
+  v_address text := nullif(trim(create_person_identity.address), '');
   v_holder uuid;
   v_row jsonb;
 begin
@@ -1984,7 +1984,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select p."tenant_id" into v_tenant from "better_supabase"."people" p
-  where p."id" = add_person_identity.person and p."merged_into" is null;
+  where p."id" = create_person_identity.person and p."merged_into" is null;
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
@@ -1996,13 +1996,13 @@ begin
   end if;
   select i."person_id" into v_holder from "better_supabase"."person_identities" i
   where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
-  if v_holder is not null and v_holder <> add_person_identity.person then
+  if v_holder is not null and v_holder <> create_person_identity.person then
     raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
   end if;
   insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
-  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  values (v_tenant, create_person_identity.person, v_channel, v_address, case when create_person_identity.verified then now() end)
   on conflict do nothing;
-  if add_person_identity.verified then
+  if create_person_identity.verified then
     update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
     where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
   end if;
@@ -2011,10 +2011,10 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+create or replace function "better_supabase"."delete_person_identity"(identity uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2026,19 +2026,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  delete from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_person_identity"(uuid) to authenticated, service_role;
 
 -- The person an address on a channel belongs to, or null.
 create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
@@ -2626,7 +2626,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:15f6092f26fdea4501888a622ec8e58d72aea336ccfc7cd57d610bb32373dc00
+-- @bsb-hash sha256:3af588b7a6fa42f54bf4fd8ba0094a2e0f4eb75a3e4667f76ca401afa3a2ce3f
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2887,15 +2887,15 @@ create policy bsb_person_identities_read on "better_supabase"."person_identities
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_company"(tenant uuid, company uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_company.company;
-  v_created boolean := save_company.company is null;
+  v_id uuid := upsert_company.company;
+  v_created boolean := upsert_company.company is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -2903,37 +2903,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_company.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
+  if upsert_company.attrs ? 'lifecycle' and not (upsert_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'customerTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditBlock' is not null and lower(trim(save_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_company.attrs ->> 'creditBlock' is not null and lower(trim(upsert_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'language' is not null and nullif(trim(save_company.attrs ->> 'language'), '') is not null and trim(save_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_company.attrs ->> 'language' is not null and nullif(trim(upsert_company.attrs ->> 'language'), '') is not null and trim(upsert_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_company.attrs ->> 'creditLimit' is not null and upsert_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_company.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
+  if upsert_company.attrs ? 'creditLimit' <> upsert_company.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_company.attrs ? 'creditLimit' and (upsert_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -2941,38 +2941,38 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_company.tenant, save_company.company, save_company.attrs;
+        using upsert_company.tenant, upsert_company.company, upsert_company.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_company.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      values (upsert_company.tenant, nullif(trim(upsert_company.attrs ->> 'name'), ''), lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')), nullif(trim(upsert_company.attrs ->> 'website'), ''), nullif(trim(upsert_company.attrs ->> 'vatId'), ''), nullif(trim(upsert_company.attrs ->> 'legalName'), ''), nullif(trim(upsert_company.attrs ->> 'registrationId'), ''), nullif(trim(upsert_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(upsert_company.attrs ->> 'ownerId', '')::uuid, nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_company.attrs ->> 'language'), ''), upsert_company.attrs -> 'address', auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
-      update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
-        "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
-        "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
-        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
-        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
-        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
-        "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_company.attrs ? 'creditBlock' then lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_company.attrs ? 'language' then nullif(trim(save_company.attrs ->> 'language'), '') else x."language" end,
-        "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant;
+      update "better_supabase"."companies" x set "name" = case when upsert_company.attrs ? 'name' then coalesce(nullif(trim(upsert_company.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "domain" = case when upsert_company.attrs ? 'domain' then lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')) else x."domain" end,
+        "website" = case when upsert_company.attrs ? 'website' then nullif(trim(upsert_company.attrs ->> 'website'), '') else x."website" end,
+        "vat_id" = case when upsert_company.attrs ? 'vatId' then nullif(trim(upsert_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when upsert_company.attrs ? 'legalName' then nullif(trim(upsert_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when upsert_company.attrs ? 'registrationId' then nullif(trim(upsert_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when upsert_company.attrs ? 'phone' then nullif(trim(upsert_company.attrs ->> 'phone'), '') else x."phone" end,
+        "lifecycle" = case when upsert_company.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_company.attrs ? 'ownerId' then nullif(upsert_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "customer_terms_id" = case when upsert_company.attrs ? 'customerTermsId' then nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_company.attrs ? 'supplierTermsId' then nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_company.attrs ? 'creditLimit' then nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_company.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_company.attrs ? 'creditBlock' then lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_company.attrs ? 'language' then nullif(trim(upsert_company.attrs ->> 'language'), '') else x."language" end,
+        "address" = case when upsert_company.attrs ? 'address' then upsert_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -2983,13 +2983,13 @@ begin
   end;
   select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") into v_row from "better_supabase"."companies" x where x."id" = v_id;
   if v_created then
-    perform "better_supabase".emit_event('company.created', jsonb_build_object('organizationId', save_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (save_company.tenant::text)::text, null, 'better-supabase/contacts');
+    perform "better_supabase".emit_event('company.created', jsonb_build_object('organizationId', upsert_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (upsert_company.tenant::text)::text, null, 'better-supabase/contacts');
   else
-    perform "better_supabase".emit_event('company.updated', jsonb_build_object('organizationId', save_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (save_company.tenant::text)::text, null, 'better-supabase/contacts');
+    perform "better_supabase".emit_event('company.updated', jsonb_build_object('organizationId', upsert_company.tenant, 'companyId', v_id, 'name', v_row ->> 'name'), 'companies/' || v_id::text, (upsert_company.tenant::text)::text, null, 'better-supabase/contacts');
   end if;
   if v_owner is not null and v_owner is distinct from v_previous_owner then
     insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
-    values (save_company.tenant, v_owner, 'company', v_id::text, 'participating')
+    values (upsert_company.tenant, v_owner, 'company', v_id::text, 'participating')
     on conflict do nothing;
   end if;
   declare
@@ -3003,20 +3003,20 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Creates a person (person null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_person"(tenant uuid, person uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_person"(tenant uuid, person uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_person.person;
-  v_created boolean := save_person.person is null;
+  v_id uuid := upsert_person.person;
+  v_created boolean := upsert_person.person is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -3024,43 +3024,43 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_person.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
+  if upsert_person.attrs ? 'lifecycle' and not (upsert_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+  if upsert_person.attrs ? 'mode' and coalesce(lower(trim(upsert_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
     raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+  if v_created and lower(trim(upsert_person.attrs ->> 'mode')) = 'tenant' and nullif(upsert_person.attrs ->> 'userId', '') is null then
     raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditBlock' is not null and lower(trim(save_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_person.attrs ->> 'creditBlock' is not null and lower(trim(upsert_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'language' is not null and nullif(trim(save_person.attrs ->> 'language'), '') is not null and trim(save_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_person.attrs ->> 'language' is not null and nullif(trim(upsert_person.attrs ->> 'language'), '') is not null and trim(upsert_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_person.attrs ->> 'creditLimit' is not null and upsert_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_person.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
+  if upsert_person.attrs ? 'creditLimit' <> upsert_person.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_person.attrs ? 'creditLimit' and (upsert_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -3068,36 +3068,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_person.tenant, save_person.person, save_person.attrs;
+        using upsert_person.tenant, upsert_person.person, upsert_person.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_person.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      values (upsert_person.tenant, nullif(trim(upsert_person.attrs ->> 'name'), ''), lower(nullif(trim(upsert_person.attrs ->> 'email'), '')), nullif(trim(upsert_person.attrs ->> 'phone'), ''), nullif(trim(upsert_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(upsert_person.attrs ->> 'ownerId', '')::uuid, nullif(upsert_person.attrs ->> 'userId', '')::uuid, nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_person.attrs ->> 'language'), ''), auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."people" x
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
-      update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
-        "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
-        "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
-        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
-        "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
-        "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_person.attrs ? 'creditBlock' then lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant;
+      update "better_supabase"."people" x set "name" = case when upsert_person.attrs ? 'name' then coalesce(nullif(trim(upsert_person.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "email" = case when upsert_person.attrs ? 'email' then lower(nullif(trim(upsert_person.attrs ->> 'email'), '')) else x."email" end,
+        "phone" = case when upsert_person.attrs ? 'phone' then nullif(trim(upsert_person.attrs ->> 'phone'), '') else x."phone" end,
+        "title" = case when upsert_person.attrs ? 'title' then nullif(trim(upsert_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when upsert_person.attrs ? 'mode' then coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
+        "lifecycle" = case when upsert_person.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_person.attrs ? 'ownerId' then nullif(upsert_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "user_id" = case when upsert_person.attrs ? 'userId' then nullif(upsert_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "customer_terms_id" = case when upsert_person.attrs ? 'customerTermsId' then nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_person.attrs ? 'supplierTermsId' then nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_person.attrs ? 'creditLimit' then nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_person.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_person.attrs ? 'creditBlock' then lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_person.attrs ? 'language' then nullif(trim(upsert_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -3108,13 +3108,13 @@ begin
   end;
   select to_jsonb(x) || jsonb_build_object('roles', x."roles", 'customer_terms_id', x."customer_terms_id", 'supplier_terms_id', x."supplier_terms_id", 'credit_currency', x."credit_currency", 'credit_limit', x."credit_limit"::text, 'credit_block', x."credit_block", 'supplier_status', x."supplier_status", 'language', x."language") into v_row from "better_supabase"."people" x where x."id" = v_id;
   if v_created then
-    perform "better_supabase".emit_event('person.created', jsonb_build_object('organizationId', save_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (save_person.tenant::text)::text, null, 'better-supabase/contacts');
+    perform "better_supabase".emit_event('person.created', jsonb_build_object('organizationId', upsert_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (upsert_person.tenant::text)::text, null, 'better-supabase/contacts');
   else
-    perform "better_supabase".emit_event('person.updated', jsonb_build_object('organizationId', save_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (save_person.tenant::text)::text, null, 'better-supabase/contacts');
+    perform "better_supabase".emit_event('person.updated', jsonb_build_object('organizationId', upsert_person.tenant, 'personId', v_id, 'name', v_row ->> 'name'), 'persons/' || v_id::text, (upsert_person.tenant::text)::text, null, 'better-supabase/contacts');
   end if;
   if v_owner is not null and v_owner is distinct from v_previous_owner then
     insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
-    values (save_person.tenant, v_owner, 'person', v_id::text, 'participating')
+    values (upsert_person.tenant, v_owner, 'person', v_id::text, 'participating')
     on conflict do nothing;
   end if;
   declare
@@ -3128,8 +3128,8 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- Archives a company (archived true) or restores it.
@@ -3250,7 +3250,7 @@ $$;
 revoke execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_company_person"(company uuid, person uuid)
+create or replace function "better_supabase"."delete_company_person"(company uuid, person uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3264,20 +3264,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select l."tenant_id", l."role" into v_tenant, v_role from "better_supabase"."company_people" l
-  where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
-  perform "better_supabase".emit_event('company.person_unlinked', jsonb_build_object('organizationId', v_tenant, 'companyId', remove_company_person.company, 'personId', remove_company_person.person, 'role', v_role), 'companies/' || remove_company_person.company::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
+  delete from "better_supabase"."company_people" l where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
+  perform "better_supabase".emit_event('company.person_unlinked', jsonb_build_object('organizationId', v_tenant, 'companyId', delete_company_person.company, 'personId', delete_company_person.person, 'role', v_role), 'companies/' || delete_company_person.company::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_company_person"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_company_person"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_company_person"(uuid, uuid) to authenticated, service_role;
 
 -- Merges drop into keep: keep's empty fields take drop's values, every
 -- installed module moves its rows from drop to keep, and drop is archived
@@ -4107,7 +4107,7 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 -- name, days (due days), discountBps and discountDays (an early-payment
 -- discount the buyer may deduct), creditRestrictionBps (the part of the
 -- document the tax does not apply to). A key that is not in data keeps its
--- value. Internal: save_payment_term and the import target call it.
+-- value. Internal: upsert_payment_term and the import target call it.
 create or replace function "better_supabase"."payment_term_write"(tenant uuid, data jsonb, id uuid)
 returns jsonb
 language plpgsql
@@ -4166,21 +4166,21 @@ revoke execute on function "better_supabase"."payment_term_write"(uuid, jsonb, u
 
 -- Creates payment terms, or changes the ones with the same code. Needs
 -- contacts.manage. Returns the row.
-create or replace function "better_supabase"."save_payment_term"(tenant uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_payment_term"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
+  return "better_supabase"."payment_term_write"(upsert_payment_term.tenant, upsert_payment_term.attrs, null);
 end;
 $$;
-revoke execute on function "better_supabase"."save_payment_term"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_payment_terms"(tenant uuid)
 returns jsonb
@@ -4675,7 +4675,7 @@ grant execute on function "better_supabase"."list_person_identities"(uuid) to au
 
 -- Adds an address on a channel to a person, or marks it verified. An address
 -- another person of the organization holds is refused.
-create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+create or replace function "better_supabase"."create_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -4683,8 +4683,8 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_channel text := nullif(trim(add_person_identity.channel), '');
-  v_address text := nullif(trim(add_person_identity.address), '');
+  v_channel text := nullif(trim(create_person_identity.channel), '');
+  v_address text := nullif(trim(create_person_identity.address), '');
   v_holder uuid;
   v_row jsonb;
 begin
@@ -4692,7 +4692,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select p."tenant_id" into v_tenant from "better_supabase"."people" p
-  where p."id" = add_person_identity.person and p."merged_into" is null;
+  where p."id" = create_person_identity.person and p."merged_into" is null;
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
@@ -4704,13 +4704,13 @@ begin
   end if;
   select i."person_id" into v_holder from "better_supabase"."person_identities" i
   where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
-  if v_holder is not null and v_holder <> add_person_identity.person then
+  if v_holder is not null and v_holder <> create_person_identity.person then
     raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
   end if;
   insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
-  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  values (v_tenant, create_person_identity.person, v_channel, v_address, case when create_person_identity.verified then now() end)
   on conflict do nothing;
-  if add_person_identity.verified then
+  if create_person_identity.verified then
     update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
     where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
   end if;
@@ -4719,10 +4719,10 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+create or replace function "better_supabase"."delete_person_identity"(identity uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4734,19 +4734,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  delete from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_person_identity"(uuid) to authenticated, service_role;
 
 -- The person an address on a channel belongs to, or null.
 create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
@@ -5411,7 +5411,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:c0434868f9f211d918897fa1ddb5031736b298d0035e1627be2a7a80f12b8c18
+-- @bsb-hash sha256:80a8ac5af1f85f9cb3f9b7a70d696555895d1be8abec9a983b9382dc8473181a
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5677,15 +5677,15 @@ create policy bsb_person_identities_read on "app_private"."person_identities"
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "app_private"."save_company"(tenant uuid, company uuid, attrs jsonb)
+create or replace function "app_private"."upsert_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_company.company;
-  v_created boolean := save_company.company is null;
+  v_id uuid := upsert_company.company;
+  v_created boolean := upsert_company.company is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -5693,37 +5693,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_company.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
+  if upsert_company.attrs ? 'lifecycle' and not (upsert_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'customerTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditBlock' is not null and lower(trim(save_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_company.attrs ->> 'creditBlock' is not null and lower(trim(upsert_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'language' is not null and nullif(trim(save_company.attrs ->> 'language'), '') is not null and trim(save_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_company.attrs ->> 'language' is not null and nullif(trim(upsert_company.attrs ->> 'language'), '') is not null and trim(upsert_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_company.attrs ->> 'creditLimit' is not null and upsert_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_company.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
+  if upsert_company.attrs ? 'creditLimit' <> upsert_company.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_company.attrs ? 'creditLimit' and (upsert_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -5731,38 +5731,38 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_company.tenant, save_company.company, save_company.attrs;
+        using upsert_company.tenant, upsert_company.company, upsert_company.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_company.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "app_private"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      values (upsert_company.tenant, nullif(trim(upsert_company.attrs ->> 'name'), ''), lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')), nullif(trim(upsert_company.attrs ->> 'website'), ''), nullif(trim(upsert_company.attrs ->> 'vatId'), ''), nullif(trim(upsert_company.attrs ->> 'legalName'), ''), nullif(trim(upsert_company.attrs ->> 'registrationId'), ''), nullif(trim(upsert_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(upsert_company.attrs ->> 'ownerId', '')::uuid, nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_company.attrs ->> 'language'), ''), upsert_company.attrs -> 'address', auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "app_private"."companies" x
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
-      update "app_private"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
-        "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
-        "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
-        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
-        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
-        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
-        "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_company.attrs ? 'creditBlock' then lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_company.attrs ? 'language' then nullif(trim(save_company.attrs ->> 'language'), '') else x."language" end,
-        "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant;
+      update "app_private"."companies" x set "name" = case when upsert_company.attrs ? 'name' then coalesce(nullif(trim(upsert_company.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "domain" = case when upsert_company.attrs ? 'domain' then lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')) else x."domain" end,
+        "website" = case when upsert_company.attrs ? 'website' then nullif(trim(upsert_company.attrs ->> 'website'), '') else x."website" end,
+        "vat_id" = case when upsert_company.attrs ? 'vatId' then nullif(trim(upsert_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when upsert_company.attrs ? 'legalName' then nullif(trim(upsert_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when upsert_company.attrs ? 'registrationId' then nullif(trim(upsert_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when upsert_company.attrs ? 'phone' then nullif(trim(upsert_company.attrs ->> 'phone'), '') else x."phone" end,
+        "lifecycle" = case when upsert_company.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_company.attrs ? 'ownerId' then nullif(upsert_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "customer_terms_id" = case when upsert_company.attrs ? 'customerTermsId' then nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_company.attrs ? 'supplierTermsId' then nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_company.attrs ? 'creditLimit' then nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_company.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_company.attrs ? 'creditBlock' then lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_company.attrs ? 'language' then nullif(trim(upsert_company.attrs ->> 'language'), '') else x."language" end,
+        "address" = case when upsert_company.attrs ? 'address' then upsert_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -5788,20 +5788,20 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "app_private"."save_company"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_company"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Creates a person (person null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "app_private"."save_person"(tenant uuid, person uuid, attrs jsonb)
+create or replace function "app_private"."upsert_person"(tenant uuid, person uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_person.person;
-  v_created boolean := save_person.person is null;
+  v_id uuid := upsert_person.person;
+  v_created boolean := upsert_person.person is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -5809,43 +5809,43 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_person.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
+  if upsert_person.attrs ? 'lifecycle' and not (upsert_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+  if upsert_person.attrs ? 'mode' and coalesce(lower(trim(upsert_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
     raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+  if v_created and lower(trim(upsert_person.attrs ->> 'mode')) = 'tenant' and nullif(upsert_person.attrs ->> 'userId', '') is null then
     raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "app_private"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditBlock' is not null and lower(trim(save_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_person.attrs ->> 'creditBlock' is not null and lower(trim(upsert_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'language' is not null and nullif(trim(save_person.attrs ->> 'language'), '') is not null and trim(save_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_person.attrs ->> 'language' is not null and nullif(trim(upsert_person.attrs ->> 'language'), '') is not null and trim(upsert_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_person.attrs ->> 'creditLimit' is not null and upsert_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_person.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
+  if upsert_person.attrs ? 'creditLimit' <> upsert_person.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_person.attrs ? 'creditLimit' and (upsert_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -5853,36 +5853,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_person.tenant, save_person.person, save_person.attrs;
+        using upsert_person.tenant, upsert_person.person, upsert_person.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_person.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "app_private"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      values (upsert_person.tenant, nullif(trim(upsert_person.attrs ->> 'name'), ''), lower(nullif(trim(upsert_person.attrs ->> 'email'), '')), nullif(trim(upsert_person.attrs ->> 'phone'), ''), nullif(trim(upsert_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(upsert_person.attrs ->> 'ownerId', '')::uuid, nullif(upsert_person.attrs ->> 'userId', '')::uuid, nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_person.attrs ->> 'language'), ''), auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "app_private"."people" x
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
-      update "app_private"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
-        "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
-        "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
-        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
-        "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
-        "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_person.attrs ? 'creditBlock' then lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant;
+      update "app_private"."people" x set "name" = case when upsert_person.attrs ? 'name' then coalesce(nullif(trim(upsert_person.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "email" = case when upsert_person.attrs ? 'email' then lower(nullif(trim(upsert_person.attrs ->> 'email'), '')) else x."email" end,
+        "phone" = case when upsert_person.attrs ? 'phone' then nullif(trim(upsert_person.attrs ->> 'phone'), '') else x."phone" end,
+        "title" = case when upsert_person.attrs ? 'title' then nullif(trim(upsert_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when upsert_person.attrs ? 'mode' then coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
+        "lifecycle" = case when upsert_person.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_person.attrs ? 'ownerId' then nullif(upsert_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "user_id" = case when upsert_person.attrs ? 'userId' then nullif(upsert_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "customer_terms_id" = case when upsert_person.attrs ? 'customerTermsId' then nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_person.attrs ? 'supplierTermsId' then nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_person.attrs ? 'creditLimit' then nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_person.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_person.attrs ? 'creditBlock' then lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_person.attrs ? 'language' then nullif(trim(upsert_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -5908,8 +5908,8 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "app_private"."save_person"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_person"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- Archives a company (archived true) or restores it.
@@ -6030,7 +6030,7 @@ $$;
 revoke execute on function "app_private"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "app_private"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "app_private"."remove_company_person"(company uuid, person uuid)
+create or replace function "app_private"."delete_company_person"(company uuid, person uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6044,20 +6044,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select l."tenant_id", l."role" into v_tenant, v_role from "app_private"."company_people" l
-  where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "app_private"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  delete from "app_private"."company_people" l where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   null;
   return true;
 end;
 $$;
-revoke execute on function "app_private"."remove_company_person"(uuid, uuid) from public, anon;
-grant execute on function "app_private"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_company_person"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."delete_company_person"(uuid, uuid) to authenticated, service_role;
 
 -- Merges drop into keep: keep's empty fields take drop's values, every
 -- installed module moves its rows from drop to keep, and drop is archived
@@ -6865,7 +6865,7 @@ grant execute on function "app_private"."company_people_of"(uuid) to authenticat
 -- name, days (due days), discountBps and discountDays (an early-payment
 -- discount the buyer may deduct), creditRestrictionBps (the part of the
 -- document the tax does not apply to). A key that is not in data keeps its
--- value. Internal: save_payment_term and the import target call it.
+-- value. Internal: upsert_payment_term and the import target call it.
 create or replace function "app_private"."payment_term_write"(tenant uuid, data jsonb, id uuid)
 returns jsonb
 language plpgsql
@@ -6924,21 +6924,21 @@ revoke execute on function "app_private"."payment_term_write"(uuid, jsonb, uuid)
 
 -- Creates payment terms, or changes the ones with the same code. Needs
 -- contacts.manage. Returns the row.
-create or replace function "app_private"."save_payment_term"(tenant uuid, attrs jsonb)
+create or replace function "app_private"."upsert_payment_term"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  return "app_private"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
+  return "app_private"."payment_term_write"(upsert_payment_term.tenant, upsert_payment_term.attrs, null);
 end;
 $$;
-revoke execute on function "app_private"."save_payment_term"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_payment_term"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "app_private"."list_payment_terms"(tenant uuid)
 returns jsonb
@@ -7382,7 +7382,7 @@ grant execute on function "app_private"."list_person_identities"(uuid) to authen
 
 -- Adds an address on a channel to a person, or marks it verified. An address
 -- another person of the organization holds is refused.
-create or replace function "app_private"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+create or replace function "app_private"."create_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -7390,8 +7390,8 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_channel text := nullif(trim(add_person_identity.channel), '');
-  v_address text := nullif(trim(add_person_identity.address), '');
+  v_channel text := nullif(trim(create_person_identity.channel), '');
+  v_address text := nullif(trim(create_person_identity.address), '');
   v_holder uuid;
   v_row jsonb;
 begin
@@ -7399,7 +7399,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select p."tenant_id" into v_tenant from "app_private"."people" p
-  where p."id" = add_person_identity.person and p."merged_into" is null;
+  where p."id" = create_person_identity.person and p."merged_into" is null;
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
@@ -7411,13 +7411,13 @@ begin
   end if;
   select i."person_id" into v_holder from "app_private"."person_identities" i
   where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
-  if v_holder is not null and v_holder <> add_person_identity.person then
+  if v_holder is not null and v_holder <> create_person_identity.person then
     raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
   end if;
   insert into "app_private"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
-  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  values (v_tenant, create_person_identity.person, v_channel, v_address, case when create_person_identity.verified then now() end)
   on conflict do nothing;
-  if add_person_identity.verified then
+  if create_person_identity.verified then
     update "app_private"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
     where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
   end if;
@@ -7426,10 +7426,10 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "app_private"."add_person_identity"(uuid, text, text, boolean) from public, anon;
-grant execute on function "app_private"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."create_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "app_private"."create_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
 
-create or replace function "app_private"."remove_person_identity"(identity uuid)
+create or replace function "app_private"."delete_person_identity"(identity uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7441,19 +7441,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select i."tenant_id" into v_tenant from "app_private"."person_identities" i where i."id" = remove_person_identity.identity;
+  select i."tenant_id" into v_tenant from "app_private"."person_identities" i where i."id" = delete_person_identity.identity;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "app_private"."person_identities" i where i."id" = remove_person_identity.identity;
+  delete from "app_private"."person_identities" i where i."id" = delete_person_identity.identity;
   return true;
 end;
 $$;
-revoke execute on function "app_private"."remove_person_identity"(uuid) from public, anon;
-grant execute on function "app_private"."remove_person_identity"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_person_identity"(uuid) from public, anon;
+grant execute on function "app_private"."delete_person_identity"(uuid) to authenticated, service_role;
 
 -- The person an address on a channel belongs to, or null.
 create or replace function "app_private"."find_person_by_identity"(tenant uuid, channel text, address text)
@@ -8041,7 +8041,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:a1244ea3d6d89befb5d67f57b5eaa4675a397953140424e536a572bb6ba5128e
+-- @bsb-hash sha256:1d27b3761148b0b27d91670e82d550943b102d40ec02cfdec8ebdcec5aaa29dc
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8302,15 +8302,15 @@ create policy bsb_person_identities_read on "better_supabase"."person_identities
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_company"(tenant uuid, company uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_company.company;
-  v_created boolean := save_company.company is null;
+  v_id uuid := upsert_company.company;
+  v_created boolean := upsert_company.company is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -8318,37 +8318,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_company.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
+  if upsert_company.attrs ? 'lifecycle' and not (upsert_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'customerTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditBlock' is not null and lower(trim(save_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_company.attrs ->> 'creditBlock' is not null and lower(trim(upsert_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'language' is not null and nullif(trim(save_company.attrs ->> 'language'), '') is not null and trim(save_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_company.attrs ->> 'language' is not null and nullif(trim(upsert_company.attrs ->> 'language'), '') is not null and trim(upsert_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_company.attrs ->> 'creditLimit' is not null and upsert_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_company.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
+  if upsert_company.attrs ? 'creditLimit' <> upsert_company.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_company.attrs ? 'creditLimit' and (upsert_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -8356,38 +8356,38 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_company.tenant, save_company.company, save_company.attrs;
+        using upsert_company.tenant, upsert_company.company, upsert_company.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_company.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      values (upsert_company.tenant, nullif(trim(upsert_company.attrs ->> 'name'), ''), lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')), nullif(trim(upsert_company.attrs ->> 'website'), ''), nullif(trim(upsert_company.attrs ->> 'vatId'), ''), nullif(trim(upsert_company.attrs ->> 'legalName'), ''), nullif(trim(upsert_company.attrs ->> 'registrationId'), ''), nullif(trim(upsert_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(upsert_company.attrs ->> 'ownerId', '')::uuid, nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_company.attrs ->> 'language'), ''), upsert_company.attrs -> 'address', auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
-      update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
-        "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
-        "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
-        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
-        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
-        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
-        "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_company.attrs ? 'creditBlock' then lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_company.attrs ? 'language' then nullif(trim(save_company.attrs ->> 'language'), '') else x."language" end,
-        "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant;
+      update "better_supabase"."companies" x set "name" = case when upsert_company.attrs ? 'name' then coalesce(nullif(trim(upsert_company.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "domain" = case when upsert_company.attrs ? 'domain' then lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')) else x."domain" end,
+        "website" = case when upsert_company.attrs ? 'website' then nullif(trim(upsert_company.attrs ->> 'website'), '') else x."website" end,
+        "vat_id" = case when upsert_company.attrs ? 'vatId' then nullif(trim(upsert_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when upsert_company.attrs ? 'legalName' then nullif(trim(upsert_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when upsert_company.attrs ? 'registrationId' then nullif(trim(upsert_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when upsert_company.attrs ? 'phone' then nullif(trim(upsert_company.attrs ->> 'phone'), '') else x."phone" end,
+        "lifecycle" = case when upsert_company.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_company.attrs ? 'ownerId' then nullif(upsert_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "customer_terms_id" = case when upsert_company.attrs ? 'customerTermsId' then nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_company.attrs ? 'supplierTermsId' then nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_company.attrs ? 'creditLimit' then nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_company.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_company.attrs ? 'creditBlock' then lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_company.attrs ? 'language' then nullif(trim(upsert_company.attrs ->> 'language'), '') else x."language" end,
+        "address" = case when upsert_company.attrs ? 'address' then upsert_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -8413,20 +8413,20 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Creates a person (person null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_person"(tenant uuid, person uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_person"(tenant uuid, person uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_person.person;
-  v_created boolean := save_person.person is null;
+  v_id uuid := upsert_person.person;
+  v_created boolean := upsert_person.person is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -8434,43 +8434,43 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_person.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
+  if upsert_person.attrs ? 'lifecycle' and not (upsert_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+  if upsert_person.attrs ? 'mode' and coalesce(lower(trim(upsert_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
     raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+  if v_created and lower(trim(upsert_person.attrs ->> 'mode')) = 'tenant' and nullif(upsert_person.attrs ->> 'userId', '') is null then
     raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditBlock' is not null and lower(trim(save_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_person.attrs ->> 'creditBlock' is not null and lower(trim(upsert_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'language' is not null and nullif(trim(save_person.attrs ->> 'language'), '') is not null and trim(save_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_person.attrs ->> 'language' is not null and nullif(trim(upsert_person.attrs ->> 'language'), '') is not null and trim(upsert_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_person.attrs ->> 'creditLimit' is not null and upsert_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_person.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
+  if upsert_person.attrs ? 'creditLimit' <> upsert_person.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_person.attrs ? 'creditLimit' and (upsert_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -8478,36 +8478,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_person.tenant, save_person.person, save_person.attrs;
+        using upsert_person.tenant, upsert_person.person, upsert_person.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_person.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      values (upsert_person.tenant, nullif(trim(upsert_person.attrs ->> 'name'), ''), lower(nullif(trim(upsert_person.attrs ->> 'email'), '')), nullif(trim(upsert_person.attrs ->> 'phone'), ''), nullif(trim(upsert_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(upsert_person.attrs ->> 'ownerId', '')::uuid, nullif(upsert_person.attrs ->> 'userId', '')::uuid, nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_person.attrs ->> 'language'), ''), auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."people" x
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
-      update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
-        "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
-        "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
-        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
-        "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
-        "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_person.attrs ? 'creditBlock' then lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant;
+      update "better_supabase"."people" x set "name" = case when upsert_person.attrs ? 'name' then coalesce(nullif(trim(upsert_person.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "email" = case when upsert_person.attrs ? 'email' then lower(nullif(trim(upsert_person.attrs ->> 'email'), '')) else x."email" end,
+        "phone" = case when upsert_person.attrs ? 'phone' then nullif(trim(upsert_person.attrs ->> 'phone'), '') else x."phone" end,
+        "title" = case when upsert_person.attrs ? 'title' then nullif(trim(upsert_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when upsert_person.attrs ? 'mode' then coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
+        "lifecycle" = case when upsert_person.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_person.attrs ? 'ownerId' then nullif(upsert_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "user_id" = case when upsert_person.attrs ? 'userId' then nullif(upsert_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "customer_terms_id" = case when upsert_person.attrs ? 'customerTermsId' then nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_person.attrs ? 'supplierTermsId' then nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_person.attrs ? 'creditLimit' then nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_person.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_person.attrs ? 'creditBlock' then lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_person.attrs ? 'language' then nullif(trim(upsert_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -8533,8 +8533,8 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- Archives a company (archived true) or restores it.
@@ -8655,7 +8655,7 @@ $$;
 revoke execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_company_person"(company uuid, person uuid)
+create or replace function "better_supabase"."delete_company_person"(company uuid, person uuid)
 returns boolean
 language plpgsql
 security definer
@@ -8669,20 +8669,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select l."tenant_id", l."role" into v_tenant, v_role from "better_supabase"."company_people" l
-  where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  delete from "better_supabase"."company_people" l where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_company_person"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_company_person"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_company_person"(uuid, uuid) to authenticated, service_role;
 
 -- Merges drop into keep: keep's empty fields take drop's values, every
 -- installed module moves its rows from drop to keep, and drop is archived
@@ -9490,7 +9490,7 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 -- name, days (due days), discountBps and discountDays (an early-payment
 -- discount the buyer may deduct), creditRestrictionBps (the part of the
 -- document the tax does not apply to). A key that is not in data keeps its
--- value. Internal: save_payment_term and the import target call it.
+-- value. Internal: upsert_payment_term and the import target call it.
 create or replace function "better_supabase"."payment_term_write"(tenant uuid, data jsonb, id uuid)
 returns jsonb
 language plpgsql
@@ -9549,21 +9549,21 @@ revoke execute on function "better_supabase"."payment_term_write"(uuid, jsonb, u
 
 -- Creates payment terms, or changes the ones with the same code. Needs
 -- contacts.manage. Returns the row.
-create or replace function "better_supabase"."save_payment_term"(tenant uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_payment_term"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
+  return "better_supabase"."payment_term_write"(upsert_payment_term.tenant, upsert_payment_term.attrs, null);
 end;
 $$;
-revoke execute on function "better_supabase"."save_payment_term"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_payment_terms"(tenant uuid)
 returns jsonb
@@ -10007,7 +10007,7 @@ grant execute on function "better_supabase"."list_person_identities"(uuid) to au
 
 -- Adds an address on a channel to a person, or marks it verified. An address
 -- another person of the organization holds is refused.
-create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+create or replace function "better_supabase"."create_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -10015,8 +10015,8 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_channel text := nullif(trim(add_person_identity.channel), '');
-  v_address text := nullif(trim(add_person_identity.address), '');
+  v_channel text := nullif(trim(create_person_identity.channel), '');
+  v_address text := nullif(trim(create_person_identity.address), '');
   v_holder uuid;
   v_row jsonb;
 begin
@@ -10024,7 +10024,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select p."tenant_id" into v_tenant from "better_supabase"."people" p
-  where p."id" = add_person_identity.person and p."merged_into" is null;
+  where p."id" = create_person_identity.person and p."merged_into" is null;
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
@@ -10036,13 +10036,13 @@ begin
   end if;
   select i."person_id" into v_holder from "better_supabase"."person_identities" i
   where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
-  if v_holder is not null and v_holder <> add_person_identity.person then
+  if v_holder is not null and v_holder <> create_person_identity.person then
     raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
   end if;
   insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
-  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  values (v_tenant, create_person_identity.person, v_channel, v_address, case when create_person_identity.verified then now() end)
   on conflict do nothing;
-  if add_person_identity.verified then
+  if create_person_identity.verified then
     update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
     where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
   end if;
@@ -10051,10 +10051,10 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+create or replace function "better_supabase"."delete_person_identity"(identity uuid)
 returns boolean
 language plpgsql
 security definer
@@ -10066,19 +10066,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  delete from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_person_identity"(uuid) to authenticated, service_role;
 
 -- The person an address on a channel belongs to, or null.
 create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
@@ -10656,23 +10656,23 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 
 
-create or replace function "api"."save_company"(tenant uuid, company uuid, attrs jsonb)
+create or replace function "api"."upsert_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_company"($1, $2, $3) $$;
-revoke execute on function "api"."save_company"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_company"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_company"(uuid, uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_person"(tenant uuid, person uuid, attrs jsonb)
+create or replace function "api"."upsert_person"(tenant uuid, person uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_person"($1, $2, $3) $$;
-revoke execute on function "api"."save_person"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_person"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_person"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."archive_company"(id uuid, archived boolean)
 returns boolean
@@ -10701,14 +10701,14 @@ as $$ select "better_supabase"."set_company_person"($1, $2, $3, $4) $$;
 revoke execute on function "api"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "api"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_company_person"(company uuid, person uuid)
+create or replace function "api"."delete_company_person"(company uuid, person uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_company_person"($1, $2) $$;
-revoke execute on function "api"."remove_company_person"(uuid, uuid) from public, anon;
-grant execute on function "api"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_company_person"($1, $2) $$;
+revoke execute on function "api"."delete_company_person"(uuid, uuid) from public, anon;
+grant execute on function "api"."delete_company_person"(uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."merge_companies"(keep uuid, drop uuid)
 returns jsonb
@@ -10798,14 +10798,14 @@ as $$ select "better_supabase"."company_people_of"($1) $$;
 revoke execute on function "api"."company_people_of"(uuid) from public, anon;
 grant execute on function "api"."company_people_of"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_payment_term"(tenant uuid, attrs jsonb)
+create or replace function "api"."upsert_payment_term"(tenant uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_payment_term"($1, $2) $$;
-revoke execute on function "api"."save_payment_term"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_payment_term"($1, $2) $$;
+revoke execute on function "api"."upsert_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_payment_term"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_payment_terms"(tenant uuid)
 returns jsonb
@@ -10911,23 +10911,23 @@ as $$ select "better_supabase"."list_person_identities"($1) $$;
 revoke execute on function "api"."list_person_identities"(uuid) from public, anon;
 grant execute on function "api"."list_person_identities"(uuid) to authenticated, service_role;
 
-create or replace function "api"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+create or replace function "api"."create_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_person_identity"($1, $2, $3, $4) $$;
-revoke execute on function "api"."add_person_identity"(uuid, text, text, boolean) from public, anon;
-grant execute on function "api"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."create_person_identity"($1, $2, $3, $4) $$;
+revoke execute on function "api"."create_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "api"."create_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_person_identity"(identity uuid)
+create or replace function "api"."delete_person_identity"(identity uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_person_identity"($1) $$;
-revoke execute on function "api"."remove_person_identity"(uuid) from public, anon;
-grant execute on function "api"."remove_person_identity"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_person_identity"($1) $$;
+revoke execute on function "api"."delete_person_identity"(uuid) from public, anon;
+grant execute on function "api"."delete_person_identity"(uuid) to authenticated, service_role;
 
 create or replace function "api"."find_person_by_identity"(tenant uuid, channel text, address text)
 returns jsonb
@@ -11070,7 +11070,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:b52bf63be63503d4411bb6ba00f5ee5873a367eae92d3a2de17216cc43469c12
+-- @bsb-hash sha256:5e6af941bf5f495288f324dd4de7ce93ff94cdffe1064ea7bbd452aa9b53f00b
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11309,15 +11309,15 @@ create policy bsb_person_identities_select on "better_supabase"."person_identiti
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_company"(tenant uuid, company uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_company.company;
-  v_created boolean := save_company.company is null;
+  v_id uuid := upsert_company.company;
+  v_created boolean := upsert_company.company is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -11325,37 +11325,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_company.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
+  if upsert_company.attrs ? 'lifecycle' and not (upsert_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'customerTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditBlock' is not null and lower(trim(save_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_company.attrs ->> 'creditBlock' is not null and lower(trim(upsert_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'language' is not null and nullif(trim(save_company.attrs ->> 'language'), '') is not null and trim(save_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_company.attrs ->> 'language' is not null and nullif(trim(upsert_company.attrs ->> 'language'), '') is not null and trim(upsert_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_company.attrs ->> 'creditLimit' is not null and upsert_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_company.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
+  if upsert_company.attrs ? 'creditLimit' <> upsert_company.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_company.attrs ? 'creditLimit' and (upsert_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -11363,38 +11363,38 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_company.tenant, save_company.company, save_company.attrs;
+        using upsert_company.tenant, upsert_company.company, upsert_company.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_company.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), better_supabase.as_column_type(coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), (null::"better_supabase"."companies")."lifecycle"), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      values (upsert_company.tenant, nullif(trim(upsert_company.attrs ->> 'name'), ''), lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')), nullif(trim(upsert_company.attrs ->> 'website'), ''), nullif(trim(upsert_company.attrs ->> 'vatId'), ''), nullif(trim(upsert_company.attrs ->> 'legalName'), ''), nullif(trim(upsert_company.attrs ->> 'registrationId'), ''), nullif(trim(upsert_company.attrs ->> 'phone'), ''), better_supabase.as_column_type(coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), (null::"better_supabase"."companies")."lifecycle"), nullif(upsert_company.attrs ->> 'ownerId', '')::uuid, nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_company.attrs ->> 'language'), ''), upsert_company.attrs -> 'address', auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
-      update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
-        "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
-        "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
-        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
-        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
-        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
-        "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."companies")."lifecycle"), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_company.attrs ? 'creditBlock' then lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_company.attrs ? 'language' then nullif(trim(save_company.attrs ->> 'language'), '') else x."language" end,
-        "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant;
+      update "better_supabase"."companies" x set "name" = case when upsert_company.attrs ? 'name' then coalesce(nullif(trim(upsert_company.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "domain" = case when upsert_company.attrs ? 'domain' then lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')) else x."domain" end,
+        "website" = case when upsert_company.attrs ? 'website' then nullif(trim(upsert_company.attrs ->> 'website'), '') else x."website" end,
+        "vat_id" = case when upsert_company.attrs ? 'vatId' then nullif(trim(upsert_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when upsert_company.attrs ? 'legalName' then nullif(trim(upsert_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when upsert_company.attrs ? 'registrationId' then nullif(trim(upsert_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when upsert_company.attrs ? 'phone' then nullif(trim(upsert_company.attrs ->> 'phone'), '') else x."phone" end,
+        "lifecycle" = case when upsert_company.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."companies")."lifecycle"), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_company.attrs ? 'ownerId' then nullif(upsert_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "customer_terms_id" = case when upsert_company.attrs ? 'customerTermsId' then nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_company.attrs ? 'supplierTermsId' then nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_company.attrs ? 'creditLimit' then nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_company.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_company.attrs ? 'creditBlock' then lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_company.attrs ? 'language' then nullif(trim(upsert_company.attrs ->> 'language'), '') else x."language" end,
+        "address" = case when upsert_company.attrs ? 'address' then upsert_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
-      where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
+      where x."id" = upsert_company.company and x."tenant_id" = upsert_company.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -11420,20 +11420,20 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Creates a person (person null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_person"(tenant uuid, person uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_person"(tenant uuid, person uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_person.person;
-  v_created boolean := save_person.person is null;
+  v_id uuid := upsert_person.person;
+  v_created boolean := upsert_person.person is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -11441,43 +11441,43 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_person.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
+  if upsert_person.attrs ? 'lifecycle' and not (upsert_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+  if upsert_person.attrs ? 'mode' and coalesce(lower(trim(upsert_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
     raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+  if v_created and lower(trim(upsert_person.attrs ->> 'mode')) = 'tenant' and nullif(upsert_person.attrs ->> 'userId', '') is null then
     raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'customerTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'supplierTermsId' and pt."tenant_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditBlock' is not null and lower(trim(save_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_person.attrs ->> 'creditBlock' is not null and lower(trim(upsert_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'language' is not null and nullif(trim(save_person.attrs ->> 'language'), '') is not null and trim(save_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_person.attrs ->> 'language' is not null and nullif(trim(upsert_person.attrs ->> 'language'), '') is not null and trim(upsert_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_person.attrs ->> 'creditLimit' is not null and upsert_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_person.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
+  if upsert_person.attrs ? 'creditLimit' <> upsert_person.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_person.attrs ? 'creditLimit' and (upsert_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -11485,36 +11485,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_person.tenant, save_person.person, save_person.attrs;
+        using upsert_person.tenant, upsert_person.person, upsert_person.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_person.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), better_supabase.as_column_type(coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), (null::"better_supabase"."people")."lifecycle"), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      values (upsert_person.tenant, nullif(trim(upsert_person.attrs ->> 'name'), ''), lower(nullif(trim(upsert_person.attrs ->> 'email'), '')), nullif(trim(upsert_person.attrs ->> 'phone'), ''), nullif(trim(upsert_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), 'external'), better_supabase.as_column_type(coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), (null::"better_supabase"."people")."lifecycle"), nullif(upsert_person.attrs ->> 'ownerId', '')::uuid, nullif(upsert_person.attrs ->> 'userId', '')::uuid, nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_person.attrs ->> 'language'), ''), auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."people" x
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
-      update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
-        "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
-        "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
-        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
-        "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."people")."lifecycle"), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
-        "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_person.attrs ? 'creditBlock' then lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant;
+      update "better_supabase"."people" x set "name" = case when upsert_person.attrs ? 'name' then coalesce(nullif(trim(upsert_person.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "email" = case when upsert_person.attrs ? 'email' then lower(nullif(trim(upsert_person.attrs ->> 'email'), '')) else x."email" end,
+        "phone" = case when upsert_person.attrs ? 'phone' then nullif(trim(upsert_person.attrs ->> 'phone'), '') else x."phone" end,
+        "title" = case when upsert_person.attrs ? 'title' then nullif(trim(upsert_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when upsert_person.attrs ? 'mode' then coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
+        "lifecycle" = case when upsert_person.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."people")."lifecycle"), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_person.attrs ? 'ownerId' then nullif(upsert_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "user_id" = case when upsert_person.attrs ? 'userId' then nullif(upsert_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "customer_terms_id" = case when upsert_person.attrs ? 'customerTermsId' then nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_person.attrs ? 'supplierTermsId' then nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_person.attrs ? 'creditLimit' then nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_person.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_person.attrs ? 'creditBlock' then lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_person.attrs ? 'language' then nullif(trim(upsert_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
-      where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
+      where x."id" = upsert_person.person and x."tenant_id" = upsert_person.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -11540,8 +11540,8 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- Archives a company (archived true) or restores it.
@@ -11662,7 +11662,7 @@ $$;
 revoke execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_company_person"(company uuid, person uuid)
+create or replace function "better_supabase"."delete_company_person"(company uuid, person uuid)
 returns boolean
 language plpgsql
 security definer
@@ -11676,20 +11676,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select l."tenant_id", l."role" into v_tenant, v_role from "better_supabase"."company_people" l
-  where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  delete from "better_supabase"."company_people" l where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_company_person"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_company_person"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_company_person"(uuid, uuid) to authenticated, service_role;
 
 -- Merges drop into keep: keep's empty fields take drop's values, every
 -- installed module moves its rows from drop to keep, and drop is archived
@@ -12497,7 +12497,7 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 -- name, days (due days), discountBps and discountDays (an early-payment
 -- discount the buyer may deduct), creditRestrictionBps (the part of the
 -- document the tax does not apply to). A key that is not in data keeps its
--- value. Internal: save_payment_term and the import target call it.
+-- value. Internal: upsert_payment_term and the import target call it.
 create or replace function "better_supabase"."payment_term_write"(tenant uuid, data jsonb, id uuid)
 returns jsonb
 language plpgsql
@@ -12556,21 +12556,21 @@ revoke execute on function "better_supabase"."payment_term_write"(uuid, jsonb, u
 
 -- Creates payment terms, or changes the ones with the same code. Needs
 -- contacts.manage. Returns the row.
-create or replace function "better_supabase"."save_payment_term"(tenant uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_payment_term"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
+  return "better_supabase"."payment_term_write"(upsert_payment_term.tenant, upsert_payment_term.attrs, null);
 end;
 $$;
-revoke execute on function "better_supabase"."save_payment_term"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_payment_terms"(tenant uuid)
 returns jsonb
@@ -13014,7 +13014,7 @@ grant execute on function "better_supabase"."list_person_identities"(uuid) to au
 
 -- Adds an address on a channel to a person, or marks it verified. An address
 -- another person of the organization holds is refused.
-create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+create or replace function "better_supabase"."create_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -13022,8 +13022,8 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_channel text := nullif(trim(add_person_identity.channel), '');
-  v_address text := nullif(trim(add_person_identity.address), '');
+  v_channel text := nullif(trim(create_person_identity.channel), '');
+  v_address text := nullif(trim(create_person_identity.address), '');
   v_holder uuid;
   v_row jsonb;
 begin
@@ -13031,7 +13031,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select p."tenant_id" into v_tenant from "better_supabase"."people" p
-  where p."id" = add_person_identity.person and p."merged_into" is null;
+  where p."id" = create_person_identity.person and p."merged_into" is null;
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
@@ -13043,13 +13043,13 @@ begin
   end if;
   select i."person_id" into v_holder from "better_supabase"."person_identities" i
   where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
-  if v_holder is not null and v_holder <> add_person_identity.person then
+  if v_holder is not null and v_holder <> create_person_identity.person then
     raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
   end if;
   insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
-  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  values (v_tenant, create_person_identity.person, v_channel, v_address, case when create_person_identity.verified then now() end)
   on conflict do nothing;
-  if add_person_identity.verified then
+  if create_person_identity.verified then
     update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
     where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
   end if;
@@ -13058,10 +13058,10 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+create or replace function "better_supabase"."delete_person_identity"(identity uuid)
 returns boolean
 language plpgsql
 security definer
@@ -13073,19 +13073,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  delete from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_person_identity"(uuid) to authenticated, service_role;
 
 -- The person an address on a channel belongs to, or null.
 create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
@@ -13673,7 +13673,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:30732751ff5789edb83b86de5d8b82875dfa020c26fc41dad147bb3b5233c696
+-- @bsb-hash sha256:2bf6ae1b08bcbf7d0522ec2fc1b5a8b9420186a77c7b0e196a49dcc3b33764d9
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13934,15 +13934,15 @@ create policy bsb_person_identities_read on "better_supabase"."person_identities
 
 -- Creates a company (company null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_company"(tenant uuid, company uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_company"(tenant uuid, company uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_company.company;
-  v_created boolean := save_company.company is null;
+  v_id uuid := upsert_company.company;
+  v_created boolean := upsert_company.company is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -13950,37 +13950,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_company.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_company.attrs ? 'lifecycle' and not (save_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
+  if upsert_company.attrs ? 'lifecycle' and not (upsert_company.attrs ->> 'lifecycle' = any ('{lead,prospect,customer,churned}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'customerTermsId' and pt."org_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'customerTermsId' and pt."org_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_company.attrs ->> 'supplierTermsId' and pt."org_id" = save_company.tenant) then
+  if upsert_company.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_company.attrs ->> 'supplierTermsId' and pt."org_id" = upsert_company.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditBlock' is not null and lower(trim(save_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_company.attrs ->> 'creditBlock' is not null and lower(trim(upsert_company.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'language' is not null and nullif(trim(save_company.attrs ->> 'language'), '') is not null and trim(save_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_company.attrs ->> 'language' is not null and nullif(trim(upsert_company.attrs ->> 'language'), '') is not null and trim(upsert_company.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditLimit' is not null and save_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_company.attrs ->> 'creditLimit' is not null and upsert_company.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ->> 'creditCurrency' is not null and upper(trim(save_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_company.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_company.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' <> save_company.attrs ? 'creditCurrency' then
+  if upsert_company.attrs ? 'creditLimit' <> upsert_company.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_company.attrs ? 'creditLimit' and (save_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_company.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_company.attrs ? 'creditLimit' and (upsert_company.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -13988,38 +13988,38 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_company.tenant, save_company.company, save_company.attrs;
+        using upsert_company.tenant, upsert_company.company, upsert_company.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_company.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."companies" ("org_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
-      values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
+      values (upsert_company.tenant, nullif(trim(upsert_company.attrs ->> 'name'), ''), lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')), nullif(trim(upsert_company.attrs ->> 'website'), ''), nullif(trim(upsert_company.attrs ->> 'vatId'), ''), nullif(trim(upsert_company.attrs ->> 'legalName'), ''), nullif(trim(upsert_company.attrs ->> 'registrationId'), ''), nullif(trim(upsert_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(upsert_company.attrs ->> 'ownerId', '')::uuid, nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_company.attrs ->> 'language'), ''), upsert_company.attrs -> 'address', auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
-      where x."id" = save_company.company and x."org_id" = save_company.tenant;
-      update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
-        "website" = case when save_company.attrs ? 'website' then nullif(trim(save_company.attrs ->> 'website'), '') else x."website" end,
-        "vat_id" = case when save_company.attrs ? 'vatId' then nullif(trim(save_company.attrs ->> 'vatId'), '') else x."vat_id" end,
-        "legal_name" = case when save_company.attrs ? 'legalName' then nullif(trim(save_company.attrs ->> 'legalName'), '') else x."legal_name" end,
-        "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
-        "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
-        "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_company.attrs ? 'creditCurrency' then upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_company.attrs ? 'creditBlock' then lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_company.attrs ? 'language' then nullif(trim(save_company.attrs ->> 'language'), '') else x."language" end,
-        "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
+      where x."id" = upsert_company.company and x."org_id" = upsert_company.tenant;
+      update "better_supabase"."companies" x set "name" = case when upsert_company.attrs ? 'name' then coalesce(nullif(trim(upsert_company.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "domain" = case when upsert_company.attrs ? 'domain' then lower(nullif(trim(upsert_company.attrs ->> 'domain'), '')) else x."domain" end,
+        "website" = case when upsert_company.attrs ? 'website' then nullif(trim(upsert_company.attrs ->> 'website'), '') else x."website" end,
+        "vat_id" = case when upsert_company.attrs ? 'vatId' then nullif(trim(upsert_company.attrs ->> 'vatId'), '') else x."vat_id" end,
+        "legal_name" = case when upsert_company.attrs ? 'legalName' then nullif(trim(upsert_company.attrs ->> 'legalName'), '') else x."legal_name" end,
+        "registration_id" = case when upsert_company.attrs ? 'registrationId' then nullif(trim(upsert_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
+        "phone" = case when upsert_company.attrs ? 'phone' then nullif(trim(upsert_company.attrs ->> 'phone'), '') else x."phone" end,
+        "lifecycle" = case when upsert_company.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_company.attrs ? 'ownerId' then nullif(upsert_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "customer_terms_id" = case when upsert_company.attrs ? 'customerTermsId' then nullif(upsert_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_company.attrs ? 'supplierTermsId' then nullif(upsert_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_company.attrs ? 'creditLimit' then nullif(trim(upsert_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_company.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_company.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_company.attrs ? 'creditBlock' then lower(nullif(trim(upsert_company.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_company.attrs ? 'language' then nullif(trim(upsert_company.attrs ->> 'language'), '') else x."language" end,
+        "address" = case when upsert_company.attrs ? 'address' then upsert_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
-      where x."id" = save_company.company and x."org_id" = save_company.tenant and x."merged_into" is null
+      where x."id" = upsert_company.company and x."org_id" = upsert_company.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -14045,20 +14045,20 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_company"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_company"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Creates a person (person null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
-create or replace function "better_supabase"."save_person"(tenant uuid, person uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_person"(tenant uuid, person uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_person.person;
-  v_created boolean := save_person.person is null;
+  v_id uuid := upsert_person.person;
+  v_created boolean := upsert_person.person is null;
   v_row jsonb;
   v_owner uuid;
   v_previous_owner uuid;
@@ -14066,43 +14066,43 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_person.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'PARTY_ATTRS_INVALID';
   end if;
-  if save_person.attrs ? 'lifecycle' and not (save_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
+  if upsert_person.attrs ? 'lifecycle' and not (upsert_person.attrs ->> 'lifecycle' = any ('{lead,mql,sql,opportunity,customer}'::text[])) then
     raise exception 'unknown lifecycle stage' using errcode = '22023', hint = 'PARTY_LIFECYCLE_INVALID';
   end if;
-  if save_person.attrs ? 'mode' and coalesce(lower(trim(save_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
+  if upsert_person.attrs ? 'mode' and coalesce(lower(trim(upsert_person.attrs ->> 'mode')), '') not in ('external', 'tenant') then
     raise exception 'a person is external or tenant' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if v_created and lower(trim(save_person.attrs ->> 'mode')) = 'tenant' and nullif(save_person.attrs ->> 'userId', '') is null then
+  if v_created and lower(trim(upsert_person.attrs ->> 'mode')) = 'tenant' and nullif(upsert_person.attrs ->> 'userId', '') is null then
     raise exception 'a tenant person needs a userId' using errcode = '22023', hint = 'PARTY_MODE_INVALID';
   end if;
-  if save_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'customerTermsId' and pt."org_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'customerTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'customerTermsId' and pt."org_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = save_person.attrs ->> 'supplierTermsId' and pt."org_id" = save_person.tenant) then
+  if upsert_person.attrs ->> 'supplierTermsId' is not null and not exists (select 1 from "better_supabase"."payment_terms" pt where pt."id"::text = upsert_person.attrs ->> 'supplierTermsId' and pt."org_id" = upsert_person.tenant) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditBlock' is not null and lower(trim(save_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
+  if upsert_person.attrs ->> 'creditBlock' is not null and lower(trim(upsert_person.attrs ->> 'creditBlock')) not in ('none', 'soft', 'hard') then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'language' is not null and nullif(trim(save_person.attrs ->> 'language'), '') is not null and trim(save_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
+  if upsert_person.attrs ->> 'language' is not null and nullif(trim(upsert_person.attrs ->> 'language'), '') is not null and trim(upsert_person.attrs ->> 'language') !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditLimit' is not null and save_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
+  if upsert_person.attrs ->> 'creditLimit' is not null and upsert_person.attrs ->> 'creditLimit' !~ '^[0-9]{1,18}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ->> 'creditCurrency' is not null and upper(trim(save_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
+  if upsert_person.attrs ->> 'creditCurrency' is not null and upper(trim(upsert_person.attrs ->> 'creditCurrency')) !~ '^[A-Z]{3}$' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' <> save_person.attrs ? 'creditCurrency' then
+  if upsert_person.attrs ? 'creditLimit' <> upsert_person.attrs ? 'creditCurrency' then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
-  if save_person.attrs ? 'creditLimit' and (save_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(save_person.attrs ->> 'creditCurrency'), '') is null) then
+  if upsert_person.attrs ? 'creditLimit' and (upsert_person.attrs ->> 'creditLimit' is null) <> (nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '') is null) then
     raise exception 'a terms id names a payment terms row of this organization; a credit limit is minor units with a currency; a credit block is none, soft or hard; a language is a tag such as nl or pt-BR' using errcode = '22023', hint = 'PARTY_TERMS_INVALID';
   end if;
   declare
@@ -14110,36 +14110,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using save_person.tenant, save_person.person, save_person.attrs;
+        using upsert_person.tenant, upsert_person.person, upsert_person.attrs;
     end if;
   end;
   begin
     if v_created then
-      if nullif(trim(save_person.attrs ->> 'name'), '') is null then
+      if nullif(trim(upsert_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
       insert into "better_supabase"."people" ("org_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
-      values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
+      values (upsert_person.tenant, nullif(trim(upsert_person.attrs ->> 'name'), ''), lower(nullif(trim(upsert_person.attrs ->> 'email'), '')), nullif(trim(upsert_person.attrs ->> 'phone'), ''), nullif(trim(upsert_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(upsert_person.attrs ->> 'ownerId', '')::uuid, nullif(upsert_person.attrs ->> 'userId', '')::uuid, nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid, nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')), nullif(trim(upsert_person.attrs ->> 'language'), ''), auth.uid())
       returning "id", "owner_id" into v_id, v_owner;
     else
       select x."owner_id" into v_previous_owner from "better_supabase"."people" x
-      where x."id" = save_person.person and x."org_id" = save_person.tenant;
-      update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
-        "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
-        "phone" = case when save_person.attrs ? 'phone' then nullif(trim(save_person.attrs ->> 'phone'), '') else x."phone" end,
-        "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
-        "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
-        "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
-        "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
-        "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
-        "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
-        "credit_limit" = case when save_person.attrs ? 'creditLimit' then nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
-        "credit_currency" = case when save_person.attrs ? 'creditCurrency' then upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
-        "credit_block" = case when save_person.attrs ? 'creditBlock' then lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
-        "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
+      where x."id" = upsert_person.person and x."org_id" = upsert_person.tenant;
+      update "better_supabase"."people" x set "name" = case when upsert_person.attrs ? 'name' then coalesce(nullif(trim(upsert_person.attrs ->> 'name'), ''), x."name") else x."name" end,
+        "email" = case when upsert_person.attrs ? 'email' then lower(nullif(trim(upsert_person.attrs ->> 'email'), '')) else x."email" end,
+        "phone" = case when upsert_person.attrs ? 'phone' then nullif(trim(upsert_person.attrs ->> 'phone'), '') else x."phone" end,
+        "title" = case when upsert_person.attrs ? 'title' then nullif(trim(upsert_person.attrs ->> 'title'), '') else x."title" end,
+        "mode" = case when upsert_person.attrs ? 'mode' then coalesce(lower(nullif(trim(upsert_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
+        "lifecycle" = case when upsert_person.attrs ? 'lifecycle' then coalesce(nullif(trim(upsert_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
+        "owner_id" = case when upsert_person.attrs ? 'ownerId' then nullif(upsert_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
+        "user_id" = case when upsert_person.attrs ? 'userId' then nullif(upsert_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
+        "customer_terms_id" = case when upsert_person.attrs ? 'customerTermsId' then nullif(upsert_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
+        "supplier_terms_id" = case when upsert_person.attrs ? 'supplierTermsId' then nullif(upsert_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
+        "credit_limit" = case when upsert_person.attrs ? 'creditLimit' then nullif(trim(upsert_person.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
+        "credit_currency" = case when upsert_person.attrs ? 'creditCurrency' then upper(nullif(trim(upsert_person.attrs ->> 'creditCurrency'), '')) else x."credit_currency" end,
+        "credit_block" = case when upsert_person.attrs ? 'creditBlock' then lower(nullif(trim(upsert_person.attrs ->> 'creditBlock'), '')) else x."credit_block" end,
+        "language" = case when upsert_person.attrs ? 'language' then nullif(trim(upsert_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
-      where x."id" = save_person.person and x."org_id" = save_person.tenant and x."merged_into" is null
+      where x."id" = upsert_person.person and x."org_id" = upsert_person.tenant and x."merged_into" is null
       returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
@@ -14165,8 +14165,8 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_person"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_person"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- Archives a company (archived true) or restores it.
@@ -14287,7 +14287,7 @@ $$;
 revoke execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."set_company_person"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_company_person"(company uuid, person uuid)
+create or replace function "better_supabase"."delete_company_person"(company uuid, person uuid)
 returns boolean
 language plpgsql
 security definer
@@ -14301,20 +14301,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select l."org_id", l."role" into v_tenant, v_role from "better_supabase"."company_people" l
-  where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
+  delete from "better_supabase"."company_people" l where l."company_id" = delete_company_person.company and l."person_id" = delete_company_person.person;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_company_person"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_company_person"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_company_person"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_company_person"(uuid, uuid) to authenticated, service_role;
 
 -- Merges drop into keep: keep's empty fields take drop's values, every
 -- installed module moves its rows from drop to keep, and drop is archived
@@ -15122,7 +15122,7 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 -- name, days (due days), discountBps and discountDays (an early-payment
 -- discount the buyer may deduct), creditRestrictionBps (the part of the
 -- document the tax does not apply to). A key that is not in data keeps its
--- value. Internal: save_payment_term and the import target call it.
+-- value. Internal: upsert_payment_term and the import target call it.
 create or replace function "better_supabase"."payment_term_write"(tenant uuid, data jsonb, id uuid)
 returns jsonb
 language plpgsql
@@ -15181,21 +15181,21 @@ revoke execute on function "better_supabase"."payment_term_write"(uuid, jsonb, u
 
 -- Creates payment terms, or changes the ones with the same code. Needs
 -- contacts.manage. Returns the row.
-create or replace function "better_supabase"."save_payment_term"(tenant uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_payment_term"(tenant uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
+  return "better_supabase"."payment_term_write"(upsert_payment_term.tenant, upsert_payment_term.attrs, null);
 end;
 $$;
-revoke execute on function "better_supabase"."save_payment_term"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_payment_term"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_payment_term"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_payment_terms"(tenant uuid)
 returns jsonb
@@ -15639,7 +15639,7 @@ grant execute on function "better_supabase"."list_person_identities"(uuid) to au
 
 -- Adds an address on a channel to a person, or marks it verified. An address
 -- another person of the organization holds is refused.
-create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+create or replace function "better_supabase"."create_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -15647,8 +15647,8 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_channel text := nullif(trim(add_person_identity.channel), '');
-  v_address text := nullif(trim(add_person_identity.address), '');
+  v_channel text := nullif(trim(create_person_identity.channel), '');
+  v_address text := nullif(trim(create_person_identity.address), '');
   v_holder uuid;
   v_row jsonb;
 begin
@@ -15656,7 +15656,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select p."org_id" into v_tenant from "better_supabase"."people" p
-  where p."id" = add_person_identity.person and p."merged_into" is null;
+  where p."id" = create_person_identity.person and p."merged_into" is null;
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
@@ -15668,13 +15668,13 @@ begin
   end if;
   select i."person_id" into v_holder from "better_supabase"."person_identities" i
   where i."org_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
-  if v_holder is not null and v_holder <> add_person_identity.person then
+  if v_holder is not null and v_holder <> create_person_identity.person then
     raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
   end if;
   insert into "better_supabase"."person_identities" ("org_id", "person_id", "channel", "address", "verified_at")
-  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  values (v_tenant, create_person_identity.person, v_channel, v_address, case when create_person_identity.verified then now() end)
   on conflict do nothing;
-  if add_person_identity.verified then
+  if create_person_identity.verified then
     update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
     where i."org_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
   end if;
@@ -15683,10 +15683,10 @@ begin
   return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."create_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+create or replace function "better_supabase"."delete_person_identity"(identity uuid)
 returns boolean
 language plpgsql
 security definer
@@ -15698,19 +15698,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select i."org_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  select i."org_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   if v_tenant is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  delete from "better_supabase"."person_identities" i where i."id" = delete_person_identity.identity;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_person_identity"(uuid) to authenticated, service_role;
 
 -- The person an address on a channel belongs to, or null.
 create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)

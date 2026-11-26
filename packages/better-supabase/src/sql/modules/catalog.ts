@@ -797,7 +797,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "currency_minor_units", args: ["text"], returns: "integer" },
     {
-      name: "save_product",
+      name: "upsert_product",
       args: [
         "{id}",
         "uuid",
@@ -819,7 +819,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(options
       ? [
           {
-            name: "save_product_option",
+            name: "upsert_product_option",
             args: ["uuid", "uuid", "text", "text[]"],
             returns: "jsonb",
           },
@@ -841,7 +841,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     {
-      name: "save_variant",
+      name: "upsert_variant",
       args: [
         "uuid",
         "uuid",
@@ -864,7 +864,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(lists
       ? [
           {
-            name: "save_price_list",
+            name: "upsert_price_list",
             args: ["{id}", "uuid", "text", "text"],
             returns: "jsonb",
           },
@@ -893,7 +893,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(ctx.hasTable("categories")
       ? [
           {
-            name: "save_category",
+            name: "upsert_category",
             args: [
               "{id}",
               "uuid",
@@ -925,7 +925,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(ctx.hasTable("collections")
       ? [
           {
-            name: "save_collection",
+            name: "upsert_collection",
             args: ["{id}", "uuid", "text", "text", "text", "jsonb"],
             returns: "jsonb",
           },

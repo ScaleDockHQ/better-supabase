@@ -179,7 +179,7 @@ linked tasks with their title, state, due date and close time.
 Action items are tasks, so the block needs `tasks` for them. `savePostmortem`
 no longer takes `actionItems`, and `incident_postmortems` has no `action_items`
 column. The `incidents` upgrade step copies the items of a database that still
-has the column into tasks through `add_incident_postmortem_action`, then drops
+has the column into tasks through `create_incident_postmortem_action`, then drops
 the column (ADR 0149). An item is a string or an object with a `title` (or
 `text`, `name`, `description`), an optional `assigneeId` and an optional
 `dueAt`. An assignee or due date that doesn't parse is dropped from the task,

@@ -52,7 +52,7 @@ function sql(): {
 
   const results: Readonly<Record<string, unknown>> = {
     list_tasks: [TASK],
-    save_initiative: {
+    upsert_initiative: {
       id: "p1",
       key: "PAY",
       name: "Payments",
@@ -111,7 +111,7 @@ describe("renameBlock", () => {
         accepted: [{ taskId: "w1", field: "initiativeId" }],
         rejected: [],
       },
-      calls: ["list_tasks", "save_initiative", "update_tasks"],
+      calls: ["list_tasks", "upsert_initiative", "update_tasks"],
       filter: { initiativeId: "p1" },
       changes: [{ taskId: "w1", field: "initiativeId", value: "p2" }],
     });

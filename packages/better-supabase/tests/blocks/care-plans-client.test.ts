@@ -54,9 +54,9 @@ const action = {
 function transport(fail?: string) {
   const rows: Record<string, unknown> = {
     create_care_plan: plan,
-    add_care_plan_problem: problem,
-    add_care_plan_goal: goal,
-    add_care_plan_action: action,
+    create_care_plan_problem: problem,
+    create_care_plan_goal: goal,
+    create_care_plan_action: action,
     get_care_plan: plan,
     list_care_plans: [plan, { ...plan, id: "p2" }],
     due_care_plan_reviews: 2,
@@ -104,21 +104,21 @@ describe("care plan client", () => {
     expect(created.ok).toBe(false);
 
     const problemFailed = await createCarePlans({
-      transport: transport("add_care_plan_problem"),
+      transport: transport("create_care_plan_problem"),
       tenant: "org-1",
     }).createTree(tree);
 
     expect(problemFailed.ok).toBe(false);
 
     const goalFailed = await createCarePlans({
-      transport: transport("add_care_plan_goal"),
+      transport: transport("create_care_plan_goal"),
       tenant: "org-1",
     }).createTree(tree);
 
     expect(goalFailed.ok).toBe(false);
 
     const actionFailed = await createCarePlans({
-      transport: transport("add_care_plan_action"),
+      transport: transport("create_care_plan_action"),
       tenant: "org-1",
     }).createTree(tree);
 

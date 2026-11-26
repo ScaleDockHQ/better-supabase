@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:fc41003991e2b3185f9eabd9c768cf06268be9bc7722b8e30efce44a50d724b4
+-- @bsb-hash sha256:645c2c6b3c163d728bd5d6d465a4a28bd247331657501253c1993b62d7dd92a2
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,7 +101,7 @@ create policy bsb_agent_skills_read on "better_supabase"."agent_skills"
 -- Creates an agent (id null, needs 'agents.write') or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
-create or replace function "better_supabase"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "better_supabase"."upsert_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -113,23 +113,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_agent.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_agent.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
-  if save_agent.id is null then
-    if auth.uid() is null or not coalesce(better_supabase.can('tenant', save_agent.tenant, 'agents.write'), false) then
+  if upsert_agent.id is null then
+    if auth.uid() is null or not coalesce(better_supabase.can('tenant', upsert_agent.tenant, 'agents.write'), false) then
       raise exception 'you may not create agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
     end if;
-    if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
+    if upsert_agent.fields ->> 'slug' is null or upsert_agent.fields ->> 'name' is null then
       raise exception 'a new agent needs a slug and a name' using errcode = '22023', hint = 'AGENT_INVALID';
     end if;
     insert into "better_supabase"."agents" ("tenant_id", "owner_id", "slug", "name")
-    values (save_agent.tenant, auth.uid(), save_agent.fields ->> 'slug', save_agent.fields ->> 'name')
+    values (upsert_agent.tenant, auth.uid(), upsert_agent.fields ->> 'slug', upsert_agent.fields ->> 'name')
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."tenant_id" = save_agent.tenant for update;
+    select * into v_row from "better_supabase"."agents" x where x."id" = upsert_agent.id and x."tenant_id" = upsert_agent.tenant for update;
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
-      raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+      raise exception 'agent % not found', upsert_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
     if v_row."archived_at" is not null then
     raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
@@ -137,21 +137,21 @@ begin
   
   end if;
   update "better_supabase"."agents" x set
-    "slug" = coalesce(save_agent.fields ->> 'slug', x."slug"),
-    "name" = coalesce(save_agent.fields ->> 'name', x."name"),
-    "description" = coalesce(save_agent.fields ->> 'description', x."description"),
-    "instructions" = coalesce(save_agent.fields ->> 'instructions', x."instructions"),
-    "model" = case when save_agent.fields ? 'model' then save_agent.fields ->> 'model' else x."model" end,
-    "tools" = coalesce(save_agent.fields -> 'tools', x."tools"),
-    "connector_ids" = case when save_agent.fields ? 'connector_ids'
-      then array(select jsonb_array_elements_text(save_agent.fields -> 'connector_ids')::uuid)
+    "slug" = coalesce(upsert_agent.fields ->> 'slug', x."slug"),
+    "name" = coalesce(upsert_agent.fields ->> 'name', x."name"),
+    "description" = coalesce(upsert_agent.fields ->> 'description', x."description"),
+    "instructions" = coalesce(upsert_agent.fields ->> 'instructions', x."instructions"),
+    "model" = case when upsert_agent.fields ? 'model' then upsert_agent.fields ->> 'model' else x."model" end,
+    "tools" = coalesce(upsert_agent.fields -> 'tools', x."tools"),
+    "connector_ids" = case when upsert_agent.fields ? 'connector_ids'
+      then array(select jsonb_array_elements_text(upsert_agent.fields -> 'connector_ids')::uuid)
       else x."connector_ids" end,
-    "knowledge_scope" = coalesce(save_agent.fields -> 'knowledge_scope', x."knowledge_scope"),
-    "starters" = coalesce(save_agent.fields -> 'starters', x."starters"),
+    "knowledge_scope" = coalesce(upsert_agent.fields -> 'knowledge_scope', x."knowledge_scope"),
+    "starters" = coalesce(upsert_agent.fields -> 'starters', x."starters"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if save_agent.id is null then
+  if upsert_agent.id is null then
     perform "better_supabase".emit_event('agent.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.created',
@@ -177,11 +177,11 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 exception
   when unique_violation then
-    raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
+    raise exception 'an agent with slug % exists', upsert_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
 end;
 $$;
-revoke execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_agent"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Publishes an agent to the organization or the public store, or makes it
 -- private again. The owner needs 'agents.publish'; a moderator may always unpublish.
@@ -982,14 +982,14 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "api"."upsert_agent"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_agent"($1, $2, $3) $$;
-revoke execute on function "api"."save_agent"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_agent"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_agent"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_agent"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_agent"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."publish_agent"(id uuid, visibility text)
 returns jsonb

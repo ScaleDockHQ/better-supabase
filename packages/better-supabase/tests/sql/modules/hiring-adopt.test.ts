@@ -232,7 +232,7 @@ async function run(check: string): Promise<void> {
   expect(stack.url).not.toBe("");
 }
 
-const OPEN_JOB = `v_job := (better_supabase.save_job('${TENANT}', null, '{"title": "Engineer", "status": "open", "employmentType": "full_time"}'::jsonb) ->> 'id')::uuid;
+const OPEN_JOB = `v_job := (better_supabase.upsert_job('${TENANT}', null, '{"title": "Engineer", "status": "open", "employmentType": "full_time"}'::jsonb) ->> 'id')::uuid;
   insert into public.job_stages (job_id, name, position, is_hired, system_key) values
     (v_job, 'Applied', 1, false, null),
     (v_job, 'Interview', 2, false, null),
@@ -344,7 +344,7 @@ declare
 begin
   ${SERVICE}
   ${OPEN_JOB}
-  v_other := (better_supabase.save_job('${TENANT}', null, '{"title": "Designer", "status": "open"}'::jsonb) ->> 'id')::uuid;
+  v_other := (better_supabase.upsert_job('${TENANT}', null, '{"title": "Designer", "status": "open"}'::jsonb) ->> 'id')::uuid;
   insert into public.job_stages (job_id, name, position) values (v_other, 'Applied', 1);
   v_app := (better_supabase.apply_to_job(v_job, '{"id": "${ADA}"}'::jsonb, null, null) ->> 'id')::uuid;
   update public.applicants set stage_id = (select id from public.job_stages where job_id = v_other) where id = v_app;
@@ -428,7 +428,7 @@ describe("hiring's managed tables in the new modes", BOOT, () => {
     );
     expect(sql).toContain("notes text, scores jsonb default null)");
     expect(sql).toContain(
-      "better_supabase.as_column_type(save_job.attrs ->> 'hiringManagerId'",
+      "better_supabase.as_column_type(upsert_job.attrs ->> 'hiringManagerId'",
     );
   });
 
@@ -464,7 +464,7 @@ describe("hiring's managed tables in the new modes", BOOT, () => {
 
     expect(sql).toContain(
       `select 1 from "better_supabase"."employees" x
-    where x."id"::text = save_job.attrs ->> 'hiringManagerId'`,
+    where x."id"::text = upsert_job.attrs ->> 'hiringManagerId'`,
     );
     expect(sql).toContain("HIRING_HIRING_MANAGER_INVALID");
   });
@@ -537,7 +537,7 @@ declare
   v_result jsonb;
 begin
   ${SERVICE}
-  v_job := (better_supabase.save_job('${TENANT}', null, '{"title": "Engineer", "status": "open", "hiringManagerId": "${BOB}"}'::jsonb) ->> 'id')::uuid;
+  v_job := (better_supabase.upsert_job('${TENANT}', null, '{"title": "Engineer", "status": "open", "hiringManagerId": "${BOB}"}'::jsonb) ->> 'id')::uuid;
   v_result := better_supabase.apply_to_job(v_job, '{"id": "${ADA}"}'::jsonb, null, null);
   v_app := (v_result ->> 'id')::uuid;
   if v_result ->> 'candidate_type' <> 'person' then

@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:0361e7158897d7f91641688951aed25d1994d8f3c9b512c4f007cfd86927d452
+-- @bsb-hash sha256:febbb62825be37f2de4fa0be8aaa24ab22f56b97c36849f3271b211ac4ab0b4b
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -249,7 +249,7 @@ create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveri
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function "better_supabase"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -258,15 +258,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_products"%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_product.tenant, 'funding.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_product.tenant, 'funding.manage'), false)) then
     raise exception 'not allowed to manage funding products' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) > 50 then
@@ -278,36 +278,36 @@ begin
   if v_unit is null or v_unit not in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece') then
     raise exception 'unit is minute, hour, day_part, day, visit or piece' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     raise exception 'a rate is zero or more minor units' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     raise exception 'a product is valid until on or after it is valid from' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if exists (
     select 1 from "better_supabase"."funding_products" x
-    where x."tenant_id" = save_funding_product.tenant and x."code" = v_code
-      and x."id" is distinct from save_funding_product.product_id
+    where x."tenant_id" = upsert_funding_product.tenant and x."code" = v_code
+      and x."id" is distinct from upsert_funding_product.product_id
   ) then
     raise exception 'the organization already has a funding product with this code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into "better_supabase"."funding_products" ("tenant_id", "code", "title", "unit", "rate", "currency", "valid_from", "valid_until")
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update "better_supabase"."funding_products" x set
       "code" = v_code,
       "title" = v_title,
       "unit" = v_unit,
-      "rate" = save_funding_product.rate,
+      "rate" = upsert_funding_product.rate,
       "currency" = v_currency,
-      "valid_from" = save_funding_product.valid_from,
-      "valid_until" = save_funding_product.valid_until, "updated_at" = now()
-    where x."id" = save_funding_product.product_id and x."tenant_id" = save_funding_product.tenant
+      "valid_from" = upsert_funding_product.valid_from,
+      "valid_until" = upsert_funding_product.valid_until, "updated_at" = now()
+    where x."id" = upsert_funding_product.product_id and x."tenant_id" = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
@@ -316,8 +316,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'title', v_row."title", 'unit', v_row."unit", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -339,7 +339,7 @@ grant execute on function "better_supabase"."list_funding_products"(uuid, boolea
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function "better_supabase"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -348,7 +348,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_awards"%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -361,80 +361,80 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_award.tenant, 'funding.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_award.tenant, 'funding.write'), false)) then
     raise exception 'not allowed to change funding awards' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs is an object' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   
-  if save_funding_award.award_id is null then
-    if not (case save_funding_award.subject_type
-      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'till' then exists (select 1 from "better_supabase"."tills" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'lease' then exists (select 1 from "better_supabase"."leases" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'compliance_policy' then exists (select 1 from "better_supabase"."compliance_policies" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'inspection' then exists (select 1 from "better_supabase"."inspections" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'inspection_program' then exists (select 1 from "better_supabase"."inspection_programs" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'inspection_finding' then exists (select 1 from "better_supabase"."inspection_findings" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'dam_usage_right' then exists (select 1 from "better_supabase"."dam_usage_rights" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'lims_sample' then exists (select 1 from "better_supabase"."lims_samples" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'tax_code' then exists (select 1 from "better_supabase"."tax_codes" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (save_funding_award.subject_id)::uuid and s."organization_id"::text = save_funding_award.tenant::text)
-      when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (save_funding_award.subject_id)::uuid and s."id"::text = save_funding_award.tenant::text)
-      when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (save_funding_award.subject_id)::uuid and s."tenant_id"::text = save_funding_award.tenant::text)
-      when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (save_funding_award.subject_id)::uuid and s."organization_id"::text = save_funding_award.tenant::text)
-      when 'project' then exists (select 1 from "public"."projects" s where s."id" = (save_funding_award.subject_id)::uuid and s."organization_id"::text = save_funding_award.tenant::text)
-      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (save_funding_award.subject_id)::uuid and s."organization_id"::text = save_funding_award.tenant::text)
+  if upsert_funding_award.award_id is null then
+    if not (case upsert_funding_award.subject_type
+      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'till' then exists (select 1 from "better_supabase"."tills" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'lease' then exists (select 1 from "better_supabase"."leases" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."compliance_policies" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'inspection' then exists (select 1 from "better_supabase"."inspections" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'inspection_program' then exists (select 1 from "better_supabase"."inspection_programs" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'inspection_finding' then exists (select 1 from "better_supabase"."inspection_findings" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'dam_usage_right' then exists (select 1 from "better_supabase"."dam_usage_rights" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'lims_sample' then exists (select 1 from "better_supabase"."lims_samples" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'tax_code' then exists (select 1 from "better_supabase"."tax_codes" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."organization_id"::text = upsert_funding_award.tenant::text)
+      when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."id"::text = upsert_funding_award.tenant::text)
+      when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."tenant_id"::text = upsert_funding_award.tenant::text)
+      when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."organization_id"::text = upsert_funding_award.tenant::text)
+      when 'project' then exists (select 1 from "public"."projects" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."organization_id"::text = upsert_funding_award.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (upsert_funding_award.subject_id)::uuid and s."organization_id"::text = upsert_funding_award.tenant::text)
       else false
-    end and "better_supabase"."can_subject"(save_funding_award.subject_type, save_funding_award.subject_id, 'read')) then
+    end and "better_supabase"."can_subject"(upsert_funding_award.subject_type, upsert_funding_award.subject_id, 'read')) then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     v_funder := case when v_attrs ? 'funderId' then nullif(trim(v_attrs ->> 'funderId'), '')::uuid else null end;
@@ -447,12 +447,12 @@ begin
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else 'active' end;
   else
     select * into v_row from "better_supabase"."funding_awards" x
-    where x."id" = save_funding_award.award_id and x."tenant_id" = save_funding_award.tenant
+    where x."id" = upsert_funding_award.award_id and x."tenant_id" = upsert_funding_award.tenant
     for update;
     if not found then
       raise exception 'funding award not found' using errcode = 'P0002', hint = 'FUNDING_AWARD_NOT_FOUND';
     end if;
-    if v_row."subject_type" <> save_funding_award.subject_type or v_row."subject_id" <> save_funding_award.subject_id then
+    if v_row."subject_type" <> upsert_funding_award.subject_type or v_row."subject_id" <> upsert_funding_award.subject_id then
       raise exception 'an award stays with its record' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     if v_row."status" in ('ended', 'canceled') then
@@ -467,10 +467,10 @@ begin
   v_reference := case when v_attrs ? 'reference' then nullif(trim(v_attrs ->> 'reference'), '') else v_row."reference" end;
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else v_row."status" end;
   end if;
-  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
+  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
     raise exception 'the funder is a company or person in this organization''s contacts with the funder role' using errcode = '22023', hint = 'FUNDING_FUNDER_INVALID';
   end if;
-  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = save_funding_award.tenant) then
+  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = upsert_funding_award.tenant) then
     raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
   end if;
   if v_units is null or v_units <= 0 then
@@ -496,12 +496,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_attrs;
+        using upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_attrs;
     end if;
   end;
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into "better_supabase"."funding_awards" ("tenant_id", "subject_type", "subject_id", "funder_id", "product_id", "units", "period", "starts_on", "ends_on", "reference", "status", "created_by")
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
     returning * into v_row;
     perform "better_supabase".emit_event('funding_award.created', jsonb_build_object('organizationId', v_row."tenant_id", 'fundingAwardId', v_row."id", 'fundingProductId', v_row."product_id", 'funderId', v_row."funder_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'funding-awards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/funding');
   perform better_supabase.audit_event(
@@ -547,8 +547,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'funderId', v_row."funder_id", 'productId', v_row."product_id", 'units', v_row."units", 'period', v_row."period", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'reference', v_row."reference", 'status', v_row."status", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.
@@ -1691,14 +1691,14 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 
 
-create or replace function "api"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "api"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_funding_product"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "api"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_funding_product"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "api"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -1710,14 +1710,14 @@ as $$ select "better_supabase"."list_funding_products"($1, $2) $$;
 revoke execute on function "api"."list_funding_products"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_funding_products"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "api"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_funding_award"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_funding_award"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."end_funding_award"(award_id uuid, ends_on date default null, canceled boolean default false)
 returns jsonb

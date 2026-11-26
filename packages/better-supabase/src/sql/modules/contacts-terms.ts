@@ -113,7 +113,7 @@ export function termsFunctions(
 -- name, days (due days), discountBps and discountDays (an early-payment
 -- discount the buyer may deduct), creditRestrictionBps (the part of the
 -- document the tax does not apply to). A key that is not in data keeps its
--- value. Internal: save_payment_term and the import target call it.
+-- value. Internal: upsert_payment_term and the import target call it.
 create or replace function ${fn("payment_term_write")}(tenant ${idType}, data jsonb, id uuid)
 returns jsonb
 language plpgsql
@@ -172,20 +172,20 @@ revoke execute on function ${fn("payment_term_write")}(${idType}, jsonb, uuid) f
 
 -- Creates payment terms, or changes the ones with the same code. Needs
 -- contacts.manage. Returns the row.
-create or replace function ${fn("save_payment_term")}(tenant ${idType}, attrs jsonb)
+create or replace function ${fn("upsert_payment_term")}(tenant ${idType}, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not ${allowed("save_payment_term.tenant", names.manage)} then
+  if not ${allowed("upsert_payment_term.tenant", names.manage)} then
     ${fail("PARTY_FORBIDDEN", "not allowed to manage payment terms")}
   end if;
-  return ${fn("payment_term_write")}(save_payment_term.tenant, save_payment_term.attrs, null);
+  return ${fn("payment_term_write")}(upsert_payment_term.tenant, upsert_payment_term.attrs, null);
 end;
 $$;
-${userGrant(`${fn("save_payment_term")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_payment_term")}(${idType}, jsonb)`)}
 
 create or replace function ${fn("list_payment_terms")}(tenant ${idType})
 returns jsonb

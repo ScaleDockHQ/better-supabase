@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:92fc92ed2571a178ef1349ed672c0e0315c21c00efe6c5e366913e5bf4e0d3ec
+-- @bsb-hash sha256:f75ccc55d25ca958b245943b1bb9a2eaf71c29c0c143c42d82436eb461014f01
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -120,7 +120,7 @@ create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
 -- asks consent for, its lawful basis, whether it takes a signature and how many
 -- months a consent lasts. A null tenant saves a system purpose every
 -- organization uses, which takes the service role.
-create or replace function "better_supabase"."save_consent_purpose"(
+create or replace function "better_supabase"."upsert_consent_purpose"(
   tenant uuid,
   key text,
   title text,
@@ -138,21 +138,21 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."consent_purposes";
-  v_key text := lower(trim(save_consent_purpose.key));
-  v_title text := trim(save_consent_purpose.title);
-  v_version text := coalesce(nullif(trim(save_consent_purpose.version), ''), '1');
-  v_description text := nullif(trim(save_consent_purpose.description), '');
-  v_basis text := coalesce(save_consent_purpose.legal_basis, 'consent');
-  v_signature boolean := coalesce(save_consent_purpose.requires_signature, false);
+  v_key text := lower(trim(upsert_consent_purpose.key));
+  v_title text := trim(upsert_consent_purpose.title);
+  v_version text := coalesce(nullif(trim(upsert_consent_purpose.version), ''), '1');
+  v_description text := nullif(trim(upsert_consent_purpose.description), '');
+  v_basis text := coalesce(upsert_consent_purpose.legal_basis, 'consent');
+  v_signature boolean := coalesce(upsert_consent_purpose.requires_signature, false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_consent_purpose.tenant is null then
+  if upsert_consent_purpose.tenant is null then
     if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
       raise exception 'only the service role saves a system purpose' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', save_consent_purpose.tenant, 'consents.manage'), false))) then
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', upsert_consent_purpose.tenant, 'consents.manage'), false))) then
     raise exception 'not allowed to manage consent purposes' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
@@ -170,11 +170,11 @@ begin
   if v_basis not in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest') then
     raise exception 'legal_basis is one of consent, contract, legal_obligation, vital_interest, public_task and legitimate_interest' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
-  if save_consent_purpose.valid_months is not null and save_consent_purpose.valid_months not between 1 and 1200 then
+  if upsert_consent_purpose.valid_months is not null and upsert_consent_purpose.valid_months not between 1 and 1200 then
     raise exception 'valid_months is between 1 and 1200' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."consent_purposes" x
-  where x."tenant_id" is not distinct from save_consent_purpose.tenant
+  where x."tenant_id" is not distinct from upsert_consent_purpose.tenant
     and x."key" = v_key and x."version" = v_version
   for update;
   if found then
@@ -187,21 +187,21 @@ begin
       "legal_basis" = v_basis,
       "requires_signature" = v_signature,
     "updated_at" = now(),
-      "valid_months" = save_consent_purpose.valid_months
+      "valid_months" = upsert_consent_purpose.valid_months
     where x."id" = v_row."id"
     returning * into v_row;
     null;
   else
     insert into "better_supabase"."consent_purposes" ("tenant_id", "key", "title", "description", "legal_basis", "version", "requires_signature", "valid_months")
-    values (save_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, save_consent_purpose.valid_months)
+    values (upsert_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, upsert_consent_purpose.valid_months)
     returning * into v_row;
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
-grant execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
+grant execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
 
 -- Archives a purpose: no new consent can be recorded for it, and the consents
 -- already given stay as they are.
@@ -1336,7 +1336,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:c310b2c18e2121a8051ee177de5653ecf74a692147f91dc7a30df5253a736bc5
+-- @bsb-hash sha256:0e15419d1f1b37910b7d55e8624a1dc08c6b5161c9f3402044123732c07acdd3
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1455,7 +1455,7 @@ create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
 -- asks consent for, its lawful basis, whether it takes a signature and how many
 -- months a consent lasts. A null tenant saves a system purpose every
 -- organization uses, which takes the service role.
-create or replace function "better_supabase"."save_consent_purpose"(
+create or replace function "better_supabase"."upsert_consent_purpose"(
   tenant uuid,
   key text,
   title text,
@@ -1473,21 +1473,21 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."consent_purposes";
-  v_key text := lower(trim(save_consent_purpose.key));
-  v_title text := trim(save_consent_purpose.title);
-  v_version text := coalesce(nullif(trim(save_consent_purpose.version), ''), '1');
-  v_description text := nullif(trim(save_consent_purpose.description), '');
-  v_basis text := coalesce(save_consent_purpose.legal_basis, 'consent');
-  v_signature boolean := coalesce(save_consent_purpose.requires_signature, false);
+  v_key text := lower(trim(upsert_consent_purpose.key));
+  v_title text := trim(upsert_consent_purpose.title);
+  v_version text := coalesce(nullif(trim(upsert_consent_purpose.version), ''), '1');
+  v_description text := nullif(trim(upsert_consent_purpose.description), '');
+  v_basis text := coalesce(upsert_consent_purpose.legal_basis, 'consent');
+  v_signature boolean := coalesce(upsert_consent_purpose.requires_signature, false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_consent_purpose.tenant is null then
+  if upsert_consent_purpose.tenant is null then
     if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
       raise exception 'only the service role saves a system purpose' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', save_consent_purpose.tenant, 'consents.manage'), false))) then
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', upsert_consent_purpose.tenant, 'consents.manage'), false))) then
     raise exception 'not allowed to manage consent purposes' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
@@ -1505,11 +1505,11 @@ begin
   if v_basis not in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest') then
     raise exception 'legal_basis is one of consent, contract, legal_obligation, vital_interest, public_task and legitimate_interest' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
-  if save_consent_purpose.valid_months is not null and save_consent_purpose.valid_months not between 1 and 1200 then
+  if upsert_consent_purpose.valid_months is not null and upsert_consent_purpose.valid_months not between 1 and 1200 then
     raise exception 'valid_months is between 1 and 1200' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."consent_purposes" x
-  where x."tenant_id" is not distinct from save_consent_purpose.tenant
+  where x."tenant_id" is not distinct from upsert_consent_purpose.tenant
     and x."key" = v_key and x."version" = v_version
   for update;
   if found then
@@ -1522,7 +1522,7 @@ begin
       "legal_basis" = v_basis,
       "requires_signature" = v_signature,
     "updated_at" = now(),
-      "valid_months" = save_consent_purpose.valid_months
+      "valid_months" = upsert_consent_purpose.valid_months
     where x."id" = v_row."id"
     returning * into v_row;
     perform "better_supabase".emit_event('consent_purpose.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'purposeId', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'consent-purposes/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/consents');
@@ -1538,7 +1538,7 @@ begin
   );
   else
     insert into "better_supabase"."consent_purposes" ("tenant_id", "key", "title", "description", "legal_basis", "version", "requires_signature", "valid_months")
-    values (save_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, save_consent_purpose.valid_months)
+    values (upsert_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, upsert_consent_purpose.valid_months)
     returning * into v_row;
     perform "better_supabase".emit_event('consent_purpose.created', jsonb_build_object('organizationId', v_row."tenant_id", 'purposeId', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'consent-purposes/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/consents');
   perform better_supabase.audit_event(
@@ -1555,8 +1555,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
-grant execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
+grant execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
 
 -- Archives a purpose: no new consent can be recorded for it, and the consents
 -- already given stay as they are.
@@ -2902,7 +2902,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:a5e181e9a8c8b14ee200e428dce934716dabda7b3484b59865152beca69c49dd
+-- @bsb-hash sha256:fc9263111997628b87b3b21eda29f468c4e98f64b44352344f084adec5cfcd33
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3026,7 +3026,7 @@ create policy bsb_consent_receipts_read on "app_private"."consent_receipts"
 -- asks consent for, its lawful basis, whether it takes a signature and how many
 -- months a consent lasts. A null tenant saves a system purpose every
 -- organization uses, which takes the service role.
-create or replace function "app_private"."save_consent_purpose"(
+create or replace function "app_private"."upsert_consent_purpose"(
   tenant uuid,
   key text,
   title text,
@@ -3044,21 +3044,21 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "app_private"."consent_purposes";
-  v_key text := lower(trim(save_consent_purpose.key));
-  v_title text := trim(save_consent_purpose.title);
-  v_version text := coalesce(nullif(trim(save_consent_purpose.version), ''), '1');
-  v_description text := nullif(trim(save_consent_purpose.description), '');
-  v_basis text := coalesce(save_consent_purpose.legal_basis, 'consent');
-  v_signature boolean := coalesce(save_consent_purpose.requires_signature, false);
+  v_key text := lower(trim(upsert_consent_purpose.key));
+  v_title text := trim(upsert_consent_purpose.title);
+  v_version text := coalesce(nullif(trim(upsert_consent_purpose.version), ''), '1');
+  v_description text := nullif(trim(upsert_consent_purpose.description), '');
+  v_basis text := coalesce(upsert_consent_purpose.legal_basis, 'consent');
+  v_signature boolean := coalesce(upsert_consent_purpose.requires_signature, false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_consent_purpose.tenant is null then
+  if upsert_consent_purpose.tenant is null then
     if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
       raise exception 'only the service role saves a system purpose' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', save_consent_purpose.tenant, 'consents.manage'), false))) then
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', upsert_consent_purpose.tenant, 'consents.manage'), false))) then
     raise exception 'not allowed to manage consent purposes' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
@@ -3076,11 +3076,11 @@ begin
   if v_basis not in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest') then
     raise exception 'legal_basis is one of consent, contract, legal_obligation, vital_interest, public_task and legitimate_interest' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
-  if save_consent_purpose.valid_months is not null and save_consent_purpose.valid_months not between 1 and 1200 then
+  if upsert_consent_purpose.valid_months is not null and upsert_consent_purpose.valid_months not between 1 and 1200 then
     raise exception 'valid_months is between 1 and 1200' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   select * into v_row from "app_private"."consent_purposes" x
-  where x."tenant_id" is not distinct from save_consent_purpose.tenant
+  where x."tenant_id" is not distinct from upsert_consent_purpose.tenant
     and x."key" = v_key and x."version" = v_version
   for update;
   if found then
@@ -3093,21 +3093,21 @@ begin
       "legal_basis" = v_basis,
       "requires_signature" = v_signature,
     "updated_at" = now(),
-      "valid_months" = save_consent_purpose.valid_months
+      "valid_months" = upsert_consent_purpose.valid_months
     where x."id" = v_row."id"
     returning * into v_row;
     null;
   else
     insert into "app_private"."consent_purposes" ("tenant_id", "key", "title", "description", "legal_basis", "version", "requires_signature", "valid_months")
-    values (save_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, save_consent_purpose.valid_months)
+    values (upsert_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, upsert_consent_purpose.valid_months)
     returning * into v_row;
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
-grant execute on function "app_private"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
+grant execute on function "app_private"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
 
 -- Archives a purpose: no new consent can be recorded for it, and the consents
 -- already given stay as they are.
@@ -4242,7 +4242,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:81af1de84100a2f5dcc896c11f4fd60bdcb97ff2ab43a45419493c632c37875b
+-- @bsb-hash sha256:b1fdee95ae5a4bcbe842973a2b87de17a140587896e768faf307c840aebcfdc1
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4361,7 +4361,7 @@ create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
 -- asks consent for, its lawful basis, whether it takes a signature and how many
 -- months a consent lasts. A null tenant saves a system purpose every
 -- organization uses, which takes the service role.
-create or replace function "better_supabase"."save_consent_purpose"(
+create or replace function "better_supabase"."upsert_consent_purpose"(
   tenant uuid,
   key text,
   title text,
@@ -4379,21 +4379,21 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."consent_purposes";
-  v_key text := lower(trim(save_consent_purpose.key));
-  v_title text := trim(save_consent_purpose.title);
-  v_version text := coalesce(nullif(trim(save_consent_purpose.version), ''), '1');
-  v_description text := nullif(trim(save_consent_purpose.description), '');
-  v_basis text := coalesce(save_consent_purpose.legal_basis, 'consent');
-  v_signature boolean := coalesce(save_consent_purpose.requires_signature, false);
+  v_key text := lower(trim(upsert_consent_purpose.key));
+  v_title text := trim(upsert_consent_purpose.title);
+  v_version text := coalesce(nullif(trim(upsert_consent_purpose.version), ''), '1');
+  v_description text := nullif(trim(upsert_consent_purpose.description), '');
+  v_basis text := coalesce(upsert_consent_purpose.legal_basis, 'consent');
+  v_signature boolean := coalesce(upsert_consent_purpose.requires_signature, false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_consent_purpose.tenant is null then
+  if upsert_consent_purpose.tenant is null then
     if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
       raise exception 'only the service role saves a system purpose' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', save_consent_purpose.tenant, 'consents.manage'), false))) then
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', upsert_consent_purpose.tenant, 'consents.manage'), false))) then
     raise exception 'not allowed to manage consent purposes' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
@@ -4411,11 +4411,11 @@ begin
   if v_basis not in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest') then
     raise exception 'legal_basis is one of consent, contract, legal_obligation, vital_interest, public_task and legitimate_interest' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
-  if save_consent_purpose.valid_months is not null and save_consent_purpose.valid_months not between 1 and 1200 then
+  if upsert_consent_purpose.valid_months is not null and upsert_consent_purpose.valid_months not between 1 and 1200 then
     raise exception 'valid_months is between 1 and 1200' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."consent_purposes" x
-  where x."tenant_id" is not distinct from save_consent_purpose.tenant
+  where x."tenant_id" is not distinct from upsert_consent_purpose.tenant
     and x."key" = v_key and x."version" = v_version
   for update;
   if found then
@@ -4428,21 +4428,21 @@ begin
       "legal_basis" = v_basis,
       "requires_signature" = v_signature,
     "updated_at" = now(),
-      "valid_months" = save_consent_purpose.valid_months
+      "valid_months" = upsert_consent_purpose.valid_months
     where x."id" = v_row."id"
     returning * into v_row;
     null;
   else
     insert into "better_supabase"."consent_purposes" ("tenant_id", "key", "title", "description", "legal_basis", "version", "requires_signature", "valid_months")
-    values (save_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, save_consent_purpose.valid_months)
+    values (upsert_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, upsert_consent_purpose.valid_months)
     returning * into v_row;
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
-grant execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
+grant execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
 
 -- Archives a purpose: no new consent can be recorded for it, and the consents
 -- already given stay as they are.
@@ -5567,14 +5567,14 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 
 
-create or replace function "api"."save_consent_purpose"(tenant uuid, key text, title text, version text default '1', description text default null, legal_basis text default 'consent', requires_signature boolean default false, valid_months integer default null)
+create or replace function "api"."upsert_consent_purpose"(tenant uuid, key text, title text, version text default '1', description text default null, legal_basis text default 'consent', requires_signature boolean default false, valid_months integer default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_consent_purpose"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
-grant execute on function "api"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_consent_purpose"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
+grant execute on function "api"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
 
 create or replace function "api"."archive_consent_purpose"(purpose_id uuid)
 returns jsonb
@@ -5736,7 +5736,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:e5495a7c2b631f6b52e4527479ddee2b0686560f488a91fca043e4b501e34731
+-- @bsb-hash sha256:9b374421f288a69b28257acd75ccc88b33a2d09340bbd189590da75b2f8b743e
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5841,7 +5841,7 @@ create policy bsb_consent_receipts_select on "better_supabase"."consent_receipts
 -- asks consent for, its lawful basis, whether it takes a signature and how many
 -- months a consent lasts. A null tenant saves a system purpose every
 -- organization uses, which takes the service role.
-create or replace function "better_supabase"."save_consent_purpose"(
+create or replace function "better_supabase"."upsert_consent_purpose"(
   tenant uuid,
   key text,
   title text,
@@ -5859,21 +5859,21 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."consent_purposes";
-  v_key text := lower(trim(save_consent_purpose.key));
-  v_title text := trim(save_consent_purpose.title);
-  v_version text := coalesce(nullif(trim(save_consent_purpose.version), ''), '1');
-  v_description text := nullif(trim(save_consent_purpose.description), '');
-  v_basis text := coalesce(save_consent_purpose.legal_basis, 'consent');
-  v_signature boolean := coalesce(save_consent_purpose.requires_signature, false);
+  v_key text := lower(trim(upsert_consent_purpose.key));
+  v_title text := trim(upsert_consent_purpose.title);
+  v_version text := coalesce(nullif(trim(upsert_consent_purpose.version), ''), '1');
+  v_description text := nullif(trim(upsert_consent_purpose.description), '');
+  v_basis text := coalesce(upsert_consent_purpose.legal_basis, 'consent');
+  v_signature boolean := coalesce(upsert_consent_purpose.requires_signature, false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_consent_purpose.tenant is null then
+  if upsert_consent_purpose.tenant is null then
     if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
       raise exception 'only the service role saves a system purpose' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', save_consent_purpose.tenant, 'consents.manage'), false))) then
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', upsert_consent_purpose.tenant, 'consents.manage'), false))) then
     raise exception 'not allowed to manage consent purposes' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
@@ -5891,11 +5891,11 @@ begin
   if v_basis not in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest') then
     raise exception 'legal_basis is one of consent, contract, legal_obligation, vital_interest, public_task and legitimate_interest' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
-  if save_consent_purpose.valid_months is not null and save_consent_purpose.valid_months not between 1 and 1200 then
+  if upsert_consent_purpose.valid_months is not null and upsert_consent_purpose.valid_months not between 1 and 1200 then
     raise exception 'valid_months is between 1 and 1200' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."consent_purposes" x
-  where x."tenant_id" is not distinct from save_consent_purpose.tenant
+  where x."tenant_id" is not distinct from upsert_consent_purpose.tenant
     and x."key" = v_key and x."version" = v_version
   for update;
   if found then
@@ -5908,21 +5908,21 @@ begin
       "legal_basis" = better_supabase.as_column_type(v_basis, (null::"better_supabase"."consent_purposes")."legal_basis"),
       "requires_signature" = v_signature,
     "updated_at" = now(),
-      "valid_months" = save_consent_purpose.valid_months
+      "valid_months" = upsert_consent_purpose.valid_months
     where x."id" = v_row."id"
     returning * into v_row;
     null;
   else
     insert into "better_supabase"."consent_purposes" ("tenant_id", "key", "title", "description", "legal_basis", "version", "requires_signature", "valid_months")
-    values (save_consent_purpose.tenant, v_key, v_title, v_description, better_supabase.as_column_type(v_basis, (null::"better_supabase"."consent_purposes")."legal_basis"), v_version, v_signature, save_consent_purpose.valid_months)
+    values (upsert_consent_purpose.tenant, v_key, v_title, v_description, better_supabase.as_column_type(v_basis, (null::"better_supabase"."consent_purposes")."legal_basis"), v_version, v_signature, upsert_consent_purpose.valid_months)
     returning * into v_row;
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
-grant execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
+grant execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
 
 -- Archives a purpose: no new consent can be recorded for it, and the consents
 -- already given stay as they are.
@@ -7057,7 +7057,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:96dcfd6cf5ac35b8f6e33c4015c6511dbf71ea1d3ec7f35d2bd6f2cf61b388e0
+-- @bsb-hash sha256:91c7d3afe637d7f46376c36246d409d4aacbc667a87c211d217b2e7106c42652
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7176,7 +7176,7 @@ create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
 -- asks consent for, its lawful basis, whether it takes a signature and how many
 -- months a consent lasts. A null tenant saves a system purpose every
 -- organization uses, which takes the service role.
-create or replace function "better_supabase"."save_consent_purpose"(
+create or replace function "better_supabase"."upsert_consent_purpose"(
   tenant uuid,
   key text,
   title text,
@@ -7194,21 +7194,21 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."consent_purposes";
-  v_key text := lower(trim(save_consent_purpose.key));
-  v_title text := trim(save_consent_purpose.title);
-  v_version text := coalesce(nullif(trim(save_consent_purpose.version), ''), '1');
-  v_description text := nullif(trim(save_consent_purpose.description), '');
-  v_basis text := coalesce(save_consent_purpose.legal_basis, 'consent');
-  v_signature boolean := coalesce(save_consent_purpose.requires_signature, false);
+  v_key text := lower(trim(upsert_consent_purpose.key));
+  v_title text := trim(upsert_consent_purpose.title);
+  v_version text := coalesce(nullif(trim(upsert_consent_purpose.version), ''), '1');
+  v_description text := nullif(trim(upsert_consent_purpose.description), '');
+  v_basis text := coalesce(upsert_consent_purpose.legal_basis, 'consent');
+  v_signature boolean := coalesce(upsert_consent_purpose.requires_signature, false);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_consent_purpose.tenant is null then
+  if upsert_consent_purpose.tenant is null then
     if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
       raise exception 'only the service role saves a system purpose' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
     end if;
-  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', save_consent_purpose.tenant, 'consents.manage'), false))) then
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_consent_purpose.tenant is not null and coalesce(better_supabase.can('tenant', upsert_consent_purpose.tenant, 'consents.manage'), false))) then
     raise exception 'not allowed to manage consent purposes' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
@@ -7226,11 +7226,11 @@ begin
   if v_basis not in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest') then
     raise exception 'legal_basis is one of consent, contract, legal_obligation, vital_interest, public_task and legitimate_interest' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
-  if save_consent_purpose.valid_months is not null and save_consent_purpose.valid_months not between 1 and 1200 then
+  if upsert_consent_purpose.valid_months is not null and upsert_consent_purpose.valid_months not between 1 and 1200 then
     raise exception 'valid_months is between 1 and 1200' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."consent_purposes" x
-  where x."org_id" is not distinct from save_consent_purpose.tenant
+  where x."org_id" is not distinct from upsert_consent_purpose.tenant
     and x."key" = v_key and x."version" = v_version
   for update;
   if found then
@@ -7243,21 +7243,21 @@ begin
       "legal_basis" = v_basis,
       "requires_signature" = v_signature,
     "updated_at" = now(),
-      "valid_months" = save_consent_purpose.valid_months
+      "valid_months" = upsert_consent_purpose.valid_months
     where x."id" = v_row."id"
     returning * into v_row;
     null;
   else
     insert into "better_supabase"."consent_purposes" ("org_id", "key", "title", "description", "legal_basis", "version", "requires_signature", "valid_months")
-    values (save_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, save_consent_purpose.valid_months)
+    values (upsert_consent_purpose.tenant, v_key, v_title, v_description, v_basis, v_version, v_signature, upsert_consent_purpose.valid_months)
     returning * into v_row;
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
-grant execute on function "better_supabase"."save_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) from public, anon;
+grant execute on function "better_supabase"."upsert_consent_purpose"(uuid, text, text, text, text, text, boolean, integer) to authenticated, service_role;
 
 -- Archives a purpose: no new consent can be recorded for it, and the consents
 -- already given stay as they are.

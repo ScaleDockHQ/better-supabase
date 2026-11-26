@@ -47,7 +47,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
 
   const saveProduct = (title: string, slug: string | null = null) =>
     call<Saved>(
-      "better_supabase.save_product($1, null, $2, $3, null, 'physical')",
+      "better_supabase.upsert_product($1, null, $2, $3, null, 'physical')",
       [tenant, title, slug],
     );
 
@@ -57,7 +57,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     expect(product).toMatchObject({ slug: "linen-shirt", status: "draft" });
     expect(
       await session.hint(
-        "better_supabase.save_product($1, null, 'Other', 'linen-shirt', null, null)",
+        "better_supabase.upsert_product($1, null, 'Other', 'linen-shirt', null, null)",
         [tenant],
       ),
     ).toBe("CATALOG_SLUG_TAKEN");
@@ -74,7 +74,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     await session.as(member);
     expect(
       await session.hint(
-        "better_supabase.save_product($1, null, 'Nope', null, null, null)",
+        "better_supabase.upsert_product($1, null, 'Nope', null, null, null)",
         [tenant],
       ),
     ).toBe("CATALOG_FORBIDDEN");
@@ -89,47 +89,48 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
       id: string;
       values: { id: string; value: string }[];
     }>(
-      "better_supabase.save_product_option($1, null, 'Size', array['S', 'M'])",
+      "better_supabase.upsert_product_option($1, null, 'Size', array['S', 'M'])",
       [product.id],
     );
 
     const color = await call<{
       id: string;
       values: { id: string; value: string }[];
-    }>("better_supabase.save_product_option($1, null, 'Color', array['Red'])", [
-      product.id,
-    ]);
+    }>(
+      "better_supabase.upsert_product_option($1, null, 'Color', array['Red'])",
+      [product.id],
+    );
 
     const [small, medium] = size.values;
     const [red] = color.values;
 
     const variant = await call<Saved>(
-      "better_supabase.save_variant($1, null, 'TEE-S-RED', $2::uuid[], null, null, null, null, null)",
+      "better_supabase.upsert_variant($1, null, 'TEE-S-RED', $2::uuid[], null, null, null, null, null)",
       [product.id, [small!.id, red!.id]],
     );
 
     expect(variant.rank).toBe("V");
     expect(
       await session.hint(
-        "better_supabase.save_variant($1, null, 'TEE-S-RED-2', $2::uuid[], null, null, null, null, null)",
+        "better_supabase.upsert_variant($1, null, 'TEE-S-RED-2', $2::uuid[], null, null, null, null, null)",
         [product.id, [red!.id, small!.id]],
       ),
     ).toBe("CATALOG_VARIANT_DUPLICATE");
     expect(
       await session.hint(
-        "better_supabase.save_variant($1, null, 'TEE-M', $2::uuid[], null, null, null, null, null)",
+        "better_supabase.upsert_variant($1, null, 'TEE-M', $2::uuid[], null, null, null, null, null)",
         [product.id, [medium!.id]],
       ),
     ).toBe("CATALOG_VARIANT_OPTIONS");
     expect(
       await session.hint(
-        "better_supabase.save_variant($1, null, 'TEE-S-RED', $2::uuid[], null, null, null, null, null)",
+        "better_supabase.upsert_variant($1, null, 'TEE-S-RED', $2::uuid[], null, null, null, null, null)",
         [product.id, [medium!.id, red!.id]],
       ),
     ).toBe("CATALOG_SKU_TAKEN");
     expect(
       await session.hint(
-        "better_supabase.save_product_option($1, $2, 'Size', array['M'])",
+        "better_supabase.upsert_product_option($1, $2, 'Size', array['M'])",
         [product.id, size.id],
       ),
     ).toBe("no error");
@@ -141,13 +142,13 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     ).toBe(false);
     expect(
       await session.hint(
-        "better_supabase.save_product_option($1, null, 'Fit', array['Slim'])",
+        "better_supabase.upsert_product_option($1, null, 'Fit', array['Slim'])",
         [product.id],
       ),
     ).toBe("no error");
     expect(
       await session.hint(
-        "better_supabase.save_variant($1, $2, null, $3::uuid[], null, null, null, null, null)",
+        "better_supabase.upsert_variant($1, $2, null, $3::uuid[], null, null, null, null, null)",
         [product.id, variant.id, [small!.id, red!.id]],
       ),
     ).toBe("CATALOG_VARIANT_OPTIONS");
@@ -180,7 +181,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
       const product = await saveProduct("Priced Mug");
       variant = (
         await call<Saved>(
-          "better_supabase.save_variant($1, null, 'MUG-1', null, null, null, 350, null, null)",
+          "better_supabase.upsert_variant($1, null, 'MUG-1', null, null, null, 350, null, null)",
           [product.id],
         )
       ).id;
@@ -264,7 +265,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
       await session.as(owner);
 
       const list = await call<Saved>(
-        "better_supabase.save_price_list($1, null, 'Wholesale', 'b2b')",
+        "better_supabase.upsert_price_list($1, null, 'Wholesale', 'b2b')",
         [tenant],
       );
 
@@ -301,12 +302,12 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     await session.as(owner);
 
     const apparel = await call<Saved>(
-      "better_supabase.save_category($1, null, null, 'Apparel', null, null)",
+      "better_supabase.upsert_category($1, null, null, 'Apparel', null, null)",
       [tenant],
     );
 
     const shirts = await call<Saved>(
-      "better_supabase.save_category($1, null, $2, 'Shirts', null, null)",
+      "better_supabase.upsert_category($1, null, $2, 'Shirts', null, null)",
       [tenant, apparel.id],
     );
 
@@ -332,7 +333,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     await session.as(owner);
 
     const manual = await call<Saved>(
-      "better_supabase.save_collection($1, null, 'Summer', null, 'manual', null)",
+      "better_supabase.upsert_collection($1, null, 'Summer', null, 'manual', null)",
       [tenant],
     );
 
@@ -359,7 +360,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     };
 
     const smart = await call<Saved>(
-      "better_supabase.save_collection($1, null, 'Physical', null, 'rule', $2::jsonb)",
+      "better_supabase.upsert_collection($1, null, 'Physical', null, 'rule', $2::jsonb)",
       [tenant, JSON.stringify(rule)],
     );
 
@@ -371,7 +372,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     ).toBe("CATALOG_COLLECTION_RULE");
     expect(
       await session.hint(
-        "better_supabase.save_collection($1, null, 'Broken', null, 'rule', '{\"type\": \"rule\"}'::jsonb)",
+        "better_supabase.upsert_collection($1, null, 'Broken', null, 'rule', '{\"type\": \"rule\"}'::jsonb)",
         [tenant],
       ),
     ).toBe("CATALOG_COLLECTION_RULE");
@@ -402,7 +403,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     await saveProduct("Hidden Lamp");
 
     const variant = await call<Saved>(
-      "better_supabase.save_variant($1, null, 'LAMP-1', null, null, null, null, null, null)",
+      "better_supabase.upsert_variant($1, null, 'LAMP-1', null, null, null, null, null, null)",
       [shown.id],
     );
 

@@ -286,9 +286,9 @@ ${keyedFields(
   const audited = ctx.flag("auditReads", false);
 
   const logRead = ctx.read(
-    "read_field_values.subject_type",
-    "read_field_values.subject_id",
-    "read_field_values",
+    "get_field_values.subject_type",
+    "get_field_values.subject_id",
+    "get_field_values",
   );
 
   if (audited && !ctx.installed("audit")) {
@@ -357,14 +357,14 @@ ${packColumns(ctx, definitions)}`
   // it has one and the organization's value where it doesn't.
   const readableValues = perEntity
     ? `(select distinct on (x.${ctx.col("values", "definition")}) x.* from ${values} x
-    where x.${ctx.col("values", "tenant")} = read_field_values.tenant
-      and x.${ctx.col("values", "subjectType")} = read_field_values.subject_type
-      and x.${ctx.col("values", "subjectId")} = read_field_values.subject_id
-      and (x.${FIELD_VALUE_ENTITY_COLUMN} is null or x.${FIELD_VALUE_ENTITY_COLUMN} = read_field_values.legal_entity)
+    where x.${ctx.col("values", "tenant")} = get_field_values.tenant
+      and x.${ctx.col("values", "subjectType")} = get_field_values.subject_type
+      and x.${ctx.col("values", "subjectId")} = get_field_values.subject_id
+      and (x.${FIELD_VALUE_ENTITY_COLUMN} is null or x.${FIELD_VALUE_ENTITY_COLUMN} = get_field_values.legal_entity)
     order by x.${ctx.col("values", "definition")}, x.${FIELD_VALUE_ENTITY_COLUMN} nulls last)`
     : values;
 
-  const entityChecked = entityCheck(ctx, "save_field_definition.entity");
+  const entityChecked = entityCheck(ctx, "upsert_field_definition.entity");
   const entityGuard = entityChecked === "" ? "" : `${entityChecked}\n  `;
 
   const visible = inline
@@ -394,7 +394,7 @@ ${packColumns(ctx, definitions)}`
 ${inline ? "" : `${formatValidatorSql(ctx.schemaName, CUSTOM_FIELD_VALIDATORS)}\n`}-- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 ${tables}
-create or replace function ${ctx.fn("save_field_definition")}(tenant ${ctx.idType}, entity text, key text, label text, type text, sensitive boolean)
+create or replace function ${ctx.fn("upsert_field_definition")}(tenant ${ctx.idType}, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -407,7 +407,7 @@ declare
   v_last text;
   v_rank text;
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_field_definition.tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("upsert_field_definition.tenant", manage)}) then
     ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   ${
@@ -416,21 +416,21 @@ begin
       : `${entityGuard}${
           ranked
             ? `select max(d.${rank} collate "C") into v_last from ${definitions} d
-    where d.${ctx.col("definitions", "tenant")} = save_field_definition.tenant and d.${ctx.col("definitions", "entity")} = save_field_definition.entity;
+    where d.${ctx.col("definitions", "tenant")} = upsert_field_definition.tenant and d.${ctx.col("definitions", "entity")} = upsert_field_definition.entity;
   v_rank := ${rankAfter("v_last")};
   `
             : ""
         }${
           archivable
             ? `if exists (select 1 from ${definitions} d
-    where d.${ctx.col("definitions", "tenant")} = save_field_definition.tenant and d.${ctx.col("definitions", "entity")} = save_field_definition.entity
-      and d.${ctx.col("definitions", "key")} = save_field_definition.key and d.${archivedAt} is not null) then
+    where d.${ctx.col("definitions", "tenant")} = upsert_field_definition.tenant and d.${ctx.col("definitions", "entity")} = upsert_field_definition.entity
+      and d.${ctx.col("definitions", "key")} = upsert_field_definition.key and d.${archivedAt} is not null) then
     ${archivedError}
   end if;
   `
             : ""
         }insert into ${definitions} (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")}, ${ctx.col("definitions", "label")}, ${ctx.col("definitions", "type")}, ${ctx.col("definitions", "sensitive")}${ranked ? `, ${rank}` : ""})
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false)${ranked ? ", v_rank" : ""})
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false)${ranked ? ", v_rank" : ""})
   on conflict (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
   do update set ${ctx.col("definitions", "label")} = excluded.${ctx.col("definitions", "label")}, ${ctx.col("definitions", "sensitive")} = excluded.${ctx.col("definitions", "sensitive")}
   returning ${ctx.col("definitions", "id")}, xmax = 0 into v_id, v_inserted;`
@@ -438,18 +438,18 @@ begin
   ${createdOrUpdated("v_inserted", (verb) =>
     ctx.record({
       type: `field_definition.${verb}`,
-      payload: `jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity)`,
-      subject: `'custom-fields/' || coalesce(v_id::text, save_field_definition.key)`,
-      tenant: "save_field_definition.tenant",
+      payload: `jsonb_build_object('organizationId', upsert_field_definition.tenant, 'id', v_id, 'entity', upsert_field_definition.entity)`,
+      subject: `'custom-fields/' || coalesce(v_id::text, upsert_field_definition.key)`,
+      tenant: "upsert_field_definition.tenant",
       audit: false,
     }),
   )}
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${ctx.fn("save_field_definition")}(${ctx.idType}, text, text, text, text, boolean)`)}
+${userGrant(`${ctx.fn("upsert_field_definition")}(${ctx.idType}, text, text, text, text, boolean)`)}
 
-drop function if exists ${ctx.fn("read_field_values")}(${ctx.idType}, text, text${perEntity ? "" : ", uuid"});\ncreate or replace function ${ctx.fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text${perEntity ? ", legal_entity uuid default null" : ""})
+drop function if exists ${ctx.fn("get_field_values")}(${ctx.idType}, text, text${perEntity ? "" : ", uuid"});\ncreate or replace function ${ctx.fn("get_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text${perEntity ? ", legal_entity uuid default null" : ""})
 returns jsonb
 language plpgsql
 ${audited ? "volatile" : ctx.readVolatility()}
@@ -458,7 +458,7 @@ set search_path = ''
 as $$
 declare
   v_values jsonb;${encrypted === "" ? "" : `\n  v_key text;`}${audited ? `\n  v_read jsonb;` : ""}
-begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('tenant:' || read_field_values.tenant::text, false);`}
+begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('tenant:' || get_field_values.tenant::text, false);`}
   select coalesce(jsonb_agg(jsonb_build_object('id', v.${ctx.col("values", "id")}, 'text', ${encrypted === "" ? `v.${ctx.col("values", "valueText")}` : `case when ${encrypted} then ${encryption?.fn("field_open")}(v_key, v.${ctx.col("values", "valueText")}) else v.${ctx.col("values", "valueText")} end`})), '[]'::jsonb)${
     audited
       ? `,
@@ -468,20 +468,20 @@ begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('ten
   into v_values${audited ? ", v_read" : ""}
   from ${readableValues} v
   ${inline ? "" : `left join ${definitions} d on d.${ctx.col("definitions", "id")} = v.${ctx.col("values", "definition")}`}
-  where v.${ctx.col("values", "tenant")} = read_field_values.tenant
-    and v.${ctx.col("values", "subjectType")} = read_field_values.subject_type
-    and v.${ctx.col("values", "subjectId")} = read_field_values.subject_id
+  where v.${ctx.col("values", "tenant")} = get_field_values.tenant
+    and v.${ctx.col("values", "subjectType")} = get_field_values.subject_type
+    and v.${ctx.col("values", "subjectId")} = get_field_values.subject_id
     and (auth.role() = 'service_role' or ${fieldReadGate(
-      "read_field_values.subject_type",
+      "get_field_values.subject_type",
       recordSubjects,
       readAccess === "record" && recordSubjects.length === subjects.length,
       {
         record: subjectReadable(ctx, recordSubjects, {
-          type: "read_field_values.subject_type",
-          id: "read_field_values.subject_id",
-          tenant: "read_field_values.tenant",
+          type: "get_field_values.subject_type",
+          id: "get_field_values.subject_id",
+          tenant: "get_field_values.tenant",
         }),
-        tenant: ctx.scope.can("read_field_values.tenant", read),
+        tenant: ctx.scope.can("get_field_values.tenant", read),
       },
     )})
     and (${visible});${
@@ -490,14 +490,14 @@ begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('ten
   if v_read is not null then
     ${ctx.audit({
       type: "field_value.viewed",
-      payload: `jsonb_build_object('organizationId', read_field_values.tenant, 'subjectType', read_field_values.subject_type, 'subjectId', read_field_values.subject_id, 'ids', v_read)`,
-      subject: `'field-values/' || read_field_values.subject_id`,
-      tenant: "read_field_values.tenant",
+      payload: `jsonb_build_object('organizationId', get_field_values.tenant, 'subjectType', get_field_values.subject_type, 'subjectId', get_field_values.subject_id, 'ids', v_read)`,
+      subject: `'field-values/' || get_field_values.subject_id`,
+      tenant: "get_field_values.tenant",
       audit: {
         category: "read",
         targetType: "field_value",
-        recordId: "read_field_values.subject_id",
-        summary: `'Read ' || jsonb_array_length(v_read)::text || ' protected field value(s) of ' || read_field_values.subject_type`,
+        recordId: "get_field_values.subject_id",
+        summary: `'Read ' || jsonb_array_length(v_read)::text || ' protected field value(s) of ' || get_field_values.subject_type`,
       },
     })}
   end if;`
@@ -513,7 +513,7 @@ begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('ten
   return v_values;
 end;
 $$;
-${userGrant(`${ctx.fn("read_field_values")}(${ctx.idType}, text, text${perEntity ? ", uuid" : ""})`)}
+${userGrant(`${ctx.fn("get_field_values")}(${ctx.idType}, text, text${perEntity ? ", uuid" : ""})`)}
 
 drop function if exists ${ctx.fn("set_field_value")}(${ctx.idType}, text, text, uuid, text${perEntity ? "" : ", uuid"});\ncreate or replace function ${ctx.fn("set_field_value")}(tenant ${ctx.idType}, subject_type text, subject_id text, definition uuid, value text${perEntity ? ", legal_entity uuid default null" : ""})
 returns jsonb
@@ -860,12 +860,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_field_definition",
+      name: "upsert_field_definition",
       args: ["{id}", "text", "text", "text", "text", "boolean"],
       returns: "jsonb",
     },
     {
-      name: "read_field_values",
+      name: "get_field_values",
       args: [
         "{id}",
         "text",

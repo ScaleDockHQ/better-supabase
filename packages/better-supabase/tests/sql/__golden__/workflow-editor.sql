@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:397ed6a9ab132afe23d1fa6bb74640b5b89bd921c3c60272007c1ae4fdb4436b
+-- @bsb-hash sha256:ab814be51ec285e204283348141e10603b06e2f5aa5a6e6cbdbe7549dddeefa4
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -404,7 +404,7 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 
 -- fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_workflow_definition"(
+create or replace function "better_supabase"."upsert_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
@@ -495,8 +495,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -998,7 +998,7 @@ grant execute on function "better_supabase"."workflow_definition_get"(uuid) to a
 
 -- Deletes a definition with its versions, triggers and alerts: the service
 -- role or workflow.admin in its tenant. Its runs stay.
-create or replace function "better_supabase"."remove_workflow_definition"(definition uuid)
+create or replace function "better_supabase"."delete_workflow_definition"(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1014,15 +1014,15 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
 
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
+create or replace function "better_supabase"."upsert_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1092,8 +1092,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -1883,7 +1883,7 @@ revoke execute on function "better_supabase"."workflow_definition_grants_list"(u
 grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
-create or replace function "better_supabase"."save_workflow_trigger"(
+create or replace function "better_supabase"."upsert_workflow_trigger"(
   definition uuid,
   kind text,
   config jsonb default '{}'::jsonb,
@@ -1949,8 +1949,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_triggers_list"(definition uuid)
 returns jsonb
@@ -1972,7 +1972,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_triggers_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_triggers_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_trigger"(trigger uuid)
+create or replace function "better_supabase"."delete_workflow_trigger"(trigger uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2000,8 +2000,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_trigger"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_trigger"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_trigger"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_trigger"(uuid) to authenticated, service_role;
 
 -- Issues a new token for a webhook trigger and returns it; only its SHA-256
 -- is kept, so the old token stops working. workflow.edit in its tenant.
@@ -2113,7 +2113,7 @@ revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
-create or replace function "better_supabase"."save_workflow_credential"(
+create or replace function "better_supabase"."upsert_workflow_credential"(
   tenant uuid,
   kind text,
   name text,
@@ -2135,9 +2135,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
-    and (jsonb_typeof(save_workflow_credential.ref -> 'tenant') is distinct from 'string' or (save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_workflow_credential.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_workflow_credential.ref is not null and jsonb_typeof(upsert_workflow_credential.ref) <> 'null'
+    and (jsonb_typeof(upsert_workflow_credential.ref -> 'tenant') is distinct from 'string' or (upsert_workflow_credential.ref ->> 'tenant') is distinct from (upsert_workflow_credential.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_workflow_credential.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "better_supabase"."workflow_credentials" as x ("tenant_id", "kind", "name", "credential_ref", "scopes", "created_by")
@@ -2159,8 +2159,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
-grant execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
@@ -2207,7 +2207,7 @@ grant execute on function "better_supabase"."workflow_credential_get"(uuid) to s
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
-create or replace function "better_supabase"."remove_workflow_credential"(credential uuid)
+create or replace function "better_supabase"."delete_workflow_credential"(credential uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -2238,8 +2238,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_credential"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
 -- description, inputSchema, outputSchema, credentialKind, operation } });
@@ -2373,7 +2373,7 @@ grant execute on function "better_supabase"."workflow_node_runs_list"(text) to a
 
 -- Creates or updates an alert: workflow.admin in the definition's tenant.
 -- threshold (slow alerts) is how long a run may stay unfinished.
-create or replace function "better_supabase"."save_workflow_alert"(
+create or replace function "better_supabase"."upsert_workflow_alert"(
   definition uuid,
   on_event text,
   channel jsonb default '{}'::jsonb,
@@ -2423,8 +2423,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_alerts_list"(definition uuid)
 returns jsonb
@@ -2446,7 +2446,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_alerts_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_alerts_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_alert"(alert uuid)
+create or replace function "better_supabase"."delete_workflow_alert"(alert uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2464,8 +2464,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_alert"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
@@ -2610,7 +2610,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:f17bb9b18956af0678629dac47a3e883089f961be7908db7a8227829935f8ec9
+-- @bsb-hash sha256:8b7179f63d1366e3d1d5aa0067392e8793d3cd3359edb83054e3e46bfa5fb072
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3013,7 +3013,7 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 
 -- fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_workflow_definition"(
+create or replace function "better_supabase"."upsert_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
@@ -3105,8 +3105,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -3608,7 +3608,7 @@ grant execute on function "better_supabase"."workflow_definition_get"(uuid) to a
 
 -- Deletes a definition with its versions, triggers and alerts: the service
 -- role or workflow.admin in its tenant. Its runs stay.
-create or replace function "better_supabase"."remove_workflow_definition"(definition uuid)
+create or replace function "better_supabase"."delete_workflow_definition"(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3624,15 +3624,15 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
 
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
+create or replace function "better_supabase"."upsert_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3703,8 +3703,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -4525,7 +4525,7 @@ revoke execute on function "better_supabase"."workflow_definition_grants_list"(u
 grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
-create or replace function "better_supabase"."save_workflow_trigger"(
+create or replace function "better_supabase"."upsert_workflow_trigger"(
   definition uuid,
   kind text,
   config jsonb default '{}'::jsonb,
@@ -4592,8 +4592,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_triggers_list"(definition uuid)
 returns jsonb
@@ -4615,7 +4615,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_triggers_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_triggers_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_trigger"(trigger uuid)
+create or replace function "better_supabase"."delete_workflow_trigger"(trigger uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4644,8 +4644,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_trigger"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_trigger"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_trigger"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_trigger"(uuid) to authenticated, service_role;
 
 -- Issues a new token for a webhook trigger and returns it; only its SHA-256
 -- is kept, so the old token stops working. workflow.edit in its tenant.
@@ -4758,7 +4758,7 @@ revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
-create or replace function "better_supabase"."save_workflow_credential"(
+create or replace function "better_supabase"."upsert_workflow_credential"(
   tenant uuid,
   kind text,
   name text,
@@ -4780,9 +4780,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
-    and (jsonb_typeof(save_workflow_credential.ref -> 'tenant') is distinct from 'string' or (save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_workflow_credential.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_workflow_credential.ref is not null and jsonb_typeof(upsert_workflow_credential.ref) <> 'null'
+    and (jsonb_typeof(upsert_workflow_credential.ref -> 'tenant') is distinct from 'string' or (upsert_workflow_credential.ref ->> 'tenant') is distinct from (upsert_workflow_credential.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_workflow_credential.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "better_supabase"."workflow_credentials" as x ("tenant_id", "kind", "name", "credential_ref", "scopes", "created_by")
@@ -4804,8 +4804,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
-grant execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
@@ -4852,7 +4852,7 @@ grant execute on function "better_supabase"."workflow_credential_get"(uuid) to s
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
-create or replace function "better_supabase"."remove_workflow_credential"(credential uuid)
+create or replace function "better_supabase"."delete_workflow_credential"(credential uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -4883,8 +4883,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_credential"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
 -- description, inputSchema, outputSchema, credentialKind, operation } });
@@ -5018,7 +5018,7 @@ grant execute on function "better_supabase"."workflow_node_runs_list"(text) to a
 
 -- Creates or updates an alert: workflow.admin in the definition's tenant.
 -- threshold (slow alerts) is how long a run may stay unfinished.
-create or replace function "better_supabase"."save_workflow_alert"(
+create or replace function "better_supabase"."upsert_workflow_alert"(
   definition uuid,
   on_event text,
   channel jsonb default '{}'::jsonb,
@@ -5068,8 +5068,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_alerts_list"(definition uuid)
 returns jsonb
@@ -5091,7 +5091,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_alerts_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_alerts_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_alert"(alert uuid)
+create or replace function "better_supabase"."delete_workflow_alert"(alert uuid)
 returns boolean
 language plpgsql
 security definer
@@ -5109,8 +5109,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_alert"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
@@ -5260,7 +5260,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:b748b1dd160724967e044b15286327c3bebd48322ea484fc348c5920ae933496
+-- @bsb-hash sha256:a0e935789df50cfac152ebd3dadd4686f355857f2574224cef309bfb75427af9
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5668,7 +5668,7 @@ grant execute on function "app_private"."validate_workflow_graph"(jsonb) to auth
 
 -- fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "app_private"."save_workflow_definition"(
+create or replace function "app_private"."upsert_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
@@ -5759,8 +5759,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
-grant execute on function "app_private"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "app_private"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -6262,7 +6262,7 @@ grant execute on function "app_private"."workflow_definition_get"(uuid) to authe
 
 -- Deletes a definition with its versions, triggers and alerts: the service
 -- role or workflow.admin in its tenant. Its runs stay.
-create or replace function "app_private"."remove_workflow_definition"(definition uuid)
+create or replace function "app_private"."delete_workflow_definition"(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6278,15 +6278,15 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "app_private"."remove_workflow_definition"(uuid) from public, anon;
-grant execute on function "app_private"."remove_workflow_definition"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_workflow_definition"(uuid) from public, anon;
+grant execute on function "app_private"."delete_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
 
-create or replace function "app_private"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
+create or replace function "app_private"."upsert_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6356,8 +6356,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "app_private"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -7147,7 +7147,7 @@ revoke execute on function "app_private"."workflow_definition_grants_list"(uuid)
 grant execute on function "app_private"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
-create or replace function "app_private"."save_workflow_trigger"(
+create or replace function "app_private"."upsert_workflow_trigger"(
   definition uuid,
   kind text,
   config jsonb default '{}'::jsonb,
@@ -7213,8 +7213,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
-grant execute on function "app_private"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
+grant execute on function "app_private"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
 
 create or replace function "app_private"."workflow_triggers_list"(definition uuid)
 returns jsonb
@@ -7236,7 +7236,7 @@ $$;
 revoke execute on function "app_private"."workflow_triggers_list"(uuid) from public, anon;
 grant execute on function "app_private"."workflow_triggers_list"(uuid) to authenticated, service_role;
 
-create or replace function "app_private"."remove_workflow_trigger"(trigger uuid)
+create or replace function "app_private"."delete_workflow_trigger"(trigger uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7264,8 +7264,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "app_private"."remove_workflow_trigger"(uuid) from public, anon;
-grant execute on function "app_private"."remove_workflow_trigger"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_workflow_trigger"(uuid) from public, anon;
+grant execute on function "app_private"."delete_workflow_trigger"(uuid) to authenticated, service_role;
 
 -- Issues a new token for a webhook trigger and returns it; only its SHA-256
 -- is kept, so the old token stops working. workflow.edit in its tenant.
@@ -7377,7 +7377,7 @@ revoke execute on function "app_private"."workflow_event_targets"(text, uuid) fr
 grant execute on function "app_private"."workflow_event_targets"(text, uuid) to service_role;
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
-create or replace function "app_private"."save_workflow_credential"(
+create or replace function "app_private"."upsert_workflow_credential"(
   tenant uuid,
   kind text,
   name text,
@@ -7399,9 +7399,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
-    and (jsonb_typeof(save_workflow_credential.ref -> 'tenant') is distinct from 'string' or (save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_workflow_credential.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_workflow_credential.ref is not null and jsonb_typeof(upsert_workflow_credential.ref) <> 'null'
+    and (jsonb_typeof(upsert_workflow_credential.ref -> 'tenant') is distinct from 'string' or (upsert_workflow_credential.ref ->> 'tenant') is distinct from (upsert_workflow_credential.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_workflow_credential.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "app_private"."workflow_credentials" as x ("tenant_id", "kind", "name", "credential_ref", "scopes", "created_by")
@@ -7423,8 +7423,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."save_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
-grant execute on function "app_private"."save_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
+grant execute on function "app_private"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
 
 create or replace function "app_private"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
@@ -7471,7 +7471,7 @@ grant execute on function "app_private"."workflow_credential_get"(uuid) to servi
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
-create or replace function "app_private"."remove_workflow_credential"(credential uuid)
+create or replace function "app_private"."delete_workflow_credential"(credential uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -7502,8 +7502,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."remove_workflow_credential"(uuid) from public, anon;
-grant execute on function "app_private"."remove_workflow_credential"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_workflow_credential"(uuid) from public, anon;
+grant execute on function "app_private"."delete_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
 -- description, inputSchema, outputSchema, credentialKind, operation } });
@@ -7637,7 +7637,7 @@ grant execute on function "app_private"."workflow_node_runs_list"(text) to authe
 
 -- Creates or updates an alert: workflow.admin in the definition's tenant.
 -- threshold (slow alerts) is how long a run may stay unfinished.
-create or replace function "app_private"."save_workflow_alert"(
+create or replace function "app_private"."upsert_workflow_alert"(
   definition uuid,
   on_event text,
   channel jsonb default '{}'::jsonb,
@@ -7687,8 +7687,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "app_private"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
-grant execute on function "app_private"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
+grant execute on function "app_private"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
 
 create or replace function "app_private"."workflow_alerts_list"(definition uuid)
 returns jsonb
@@ -7710,7 +7710,7 @@ $$;
 revoke execute on function "app_private"."workflow_alerts_list"(uuid) from public, anon;
 grant execute on function "app_private"."workflow_alerts_list"(uuid) to authenticated, service_role;
 
-create or replace function "app_private"."remove_workflow_alert"(alert uuid)
+create or replace function "app_private"."delete_workflow_alert"(alert uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7728,8 +7728,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "app_private"."remove_workflow_alert"(uuid) from public, anon;
-grant execute on function "app_private"."remove_workflow_alert"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_workflow_alert"(uuid) from public, anon;
+grant execute on function "app_private"."delete_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
@@ -7874,7 +7874,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:64a246fde0d9a248634f4cc67252b67947864ab462232636dd7507dc59721d97
+-- @bsb-hash sha256:5f024245ceb4cfa13746ba709832907fadd763e26d62ebb677c4ff3eeb1c3d92
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8277,7 +8277,7 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 
 -- fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_workflow_definition"(
+create or replace function "better_supabase"."upsert_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
@@ -8368,8 +8368,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -8871,7 +8871,7 @@ grant execute on function "better_supabase"."workflow_definition_get"(uuid) to a
 
 -- Deletes a definition with its versions, triggers and alerts: the service
 -- role or workflow.admin in its tenant. Its runs stay.
-create or replace function "better_supabase"."remove_workflow_definition"(definition uuid)
+create or replace function "better_supabase"."delete_workflow_definition"(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -8887,15 +8887,15 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
 
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
+create or replace function "better_supabase"."upsert_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8965,8 +8965,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -9756,7 +9756,7 @@ revoke execute on function "better_supabase"."workflow_definition_grants_list"(u
 grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
-create or replace function "better_supabase"."save_workflow_trigger"(
+create or replace function "better_supabase"."upsert_workflow_trigger"(
   definition uuid,
   kind text,
   config jsonb default '{}'::jsonb,
@@ -9822,8 +9822,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_triggers_list"(definition uuid)
 returns jsonb
@@ -9845,7 +9845,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_triggers_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_triggers_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_trigger"(trigger uuid)
+create or replace function "better_supabase"."delete_workflow_trigger"(trigger uuid)
 returns boolean
 language plpgsql
 security definer
@@ -9873,8 +9873,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_trigger"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_trigger"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_trigger"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_trigger"(uuid) to authenticated, service_role;
 
 -- Issues a new token for a webhook trigger and returns it; only its SHA-256
 -- is kept, so the old token stops working. workflow.edit in its tenant.
@@ -9986,7 +9986,7 @@ revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
-create or replace function "better_supabase"."save_workflow_credential"(
+create or replace function "better_supabase"."upsert_workflow_credential"(
   tenant uuid,
   kind text,
   name text,
@@ -10008,9 +10008,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
-    and (jsonb_typeof(save_workflow_credential.ref -> 'tenant') is distinct from 'string' or (save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_workflow_credential.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_workflow_credential.ref is not null and jsonb_typeof(upsert_workflow_credential.ref) <> 'null'
+    and (jsonb_typeof(upsert_workflow_credential.ref -> 'tenant') is distinct from 'string' or (upsert_workflow_credential.ref ->> 'tenant') is distinct from (upsert_workflow_credential.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_workflow_credential.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "better_supabase"."workflow_credentials" as x ("tenant_id", "kind", "name", "credential_ref", "scopes", "created_by")
@@ -10032,8 +10032,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
-grant execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
@@ -10080,7 +10080,7 @@ grant execute on function "better_supabase"."workflow_credential_get"(uuid) to s
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
-create or replace function "better_supabase"."remove_workflow_credential"(credential uuid)
+create or replace function "better_supabase"."delete_workflow_credential"(credential uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -10111,8 +10111,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_credential"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
 -- description, inputSchema, outputSchema, credentialKind, operation } });
@@ -10246,7 +10246,7 @@ grant execute on function "better_supabase"."workflow_node_runs_list"(text) to a
 
 -- Creates or updates an alert: workflow.admin in the definition's tenant.
 -- threshold (slow alerts) is how long a run may stay unfinished.
-create or replace function "better_supabase"."save_workflow_alert"(
+create or replace function "better_supabase"."upsert_workflow_alert"(
   definition uuid,
   on_event text,
   channel jsonb default '{}'::jsonb,
@@ -10296,8 +10296,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_alerts_list"(definition uuid)
 returns jsonb
@@ -10319,7 +10319,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_alerts_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_alerts_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_alert"(alert uuid)
+create or replace function "better_supabase"."delete_workflow_alert"(alert uuid)
 returns boolean
 language plpgsql
 security definer
@@ -10337,8 +10337,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_alert"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
@@ -10497,14 +10497,14 @@ as $$ select "better_supabase"."validate_workflow_graph"($1) $$;
 revoke execute on function "api"."validate_workflow_graph"(jsonb) from public, anon;
 grant execute on function "api"."validate_workflow_graph"(jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_workflow_definition"(tenant uuid, slug text, name text, description text default null, subject_types text[] default null, scope text default null, restricted boolean default null)
+create or replace function "api"."upsert_workflow_definition"(tenant uuid, slug text, name text, description text default null, subject_types text[] default null, scope text default null, restricted boolean default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_workflow_definition"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
-grant execute on function "api"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_workflow_definition"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "api"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 create or replace function "api"."workflow_definitions_list"(tenant uuid default null, subject_type text default null)
 returns jsonb
@@ -10536,23 +10536,23 @@ as $$ select "better_supabase"."workflow_definition_get"($1) $$;
 revoke execute on function "api"."workflow_definition_get"(uuid) from public, anon;
 grant execute on function "api"."workflow_definition_get"(uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_workflow_definition"(definition uuid)
+create or replace function "api"."delete_workflow_definition"(definition uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_workflow_definition"($1) $$;
-revoke execute on function "api"."remove_workflow_definition"(uuid) from public, anon;
-grant execute on function "api"."remove_workflow_definition"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_workflow_definition"($1) $$;
+revoke execute on function "api"."delete_workflow_definition"(uuid) from public, anon;
+grant execute on function "api"."delete_workflow_definition"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
+create or replace function "api"."upsert_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_workflow_draft"($1, $2, $3) $$;
-revoke execute on function "api"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "api"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_workflow_draft"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "api"."upsert_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 create or replace function "api"."workflow_graph_permissions"(graph jsonb)
 returns text[]
@@ -10689,14 +10689,14 @@ as $$ select "better_supabase"."workflow_definition_grants_list"($1) $$;
 revoke execute on function "api"."workflow_definition_grants_list"(uuid) from public, anon;
 grant execute on function "api"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_workflow_trigger"(definition uuid, kind text, config jsonb default '{}'::jsonb, enabled boolean default true, trigger uuid default null)
+create or replace function "api"."upsert_workflow_trigger"(definition uuid, kind text, config jsonb default '{}'::jsonb, enabled boolean default true, trigger uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_workflow_trigger"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
-grant execute on function "api"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_workflow_trigger"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
+grant execute on function "api"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
 
 create or replace function "api"."workflow_triggers_list"(definition uuid)
 returns jsonb
@@ -10708,14 +10708,14 @@ as $$ select "better_supabase"."workflow_triggers_list"($1) $$;
 revoke execute on function "api"."workflow_triggers_list"(uuid) from public, anon;
 grant execute on function "api"."workflow_triggers_list"(uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_workflow_trigger"(trigger uuid)
+create or replace function "api"."delete_workflow_trigger"(trigger uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_workflow_trigger"($1) $$;
-revoke execute on function "api"."remove_workflow_trigger"(uuid) from public, anon;
-grant execute on function "api"."remove_workflow_trigger"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_workflow_trigger"($1) $$;
+revoke execute on function "api"."delete_workflow_trigger"(uuid) from public, anon;
+grant execute on function "api"."delete_workflow_trigger"(uuid) to authenticated, service_role;
 
 create or replace function "api"."rotate_workflow_webhook_token"(trigger uuid)
 returns text
@@ -10746,14 +10746,14 @@ as $$ select "better_supabase"."workflow_event_targets"($1, $2) $$;
 revoke execute on function "api"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
 grant execute on function "api"."workflow_event_targets"(text, uuid) to service_role;
 
-create or replace function "api"."save_workflow_credential"(tenant uuid, kind text, name text, ref jsonb, scopes text[] default '{}')
+create or replace function "api"."upsert_workflow_credential"(tenant uuid, kind text, name text, ref jsonb, scopes text[] default '{}')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_workflow_credential"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
-grant execute on function "api"."save_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_workflow_credential"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
+grant execute on function "api"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
 
 create or replace function "api"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
@@ -10775,14 +10775,14 @@ as $$ select "better_supabase"."workflow_credential_get"($1) $$;
 revoke execute on function "api"."workflow_credential_get"(uuid) from public, anon, authenticated;
 grant execute on function "api"."workflow_credential_get"(uuid) to service_role;
 
-create or replace function "api"."remove_workflow_credential"(credential uuid)
+create or replace function "api"."delete_workflow_credential"(credential uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_workflow_credential"($1) $$;
-revoke execute on function "api"."remove_workflow_credential"(uuid) from public, anon;
-grant execute on function "api"."remove_workflow_credential"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_workflow_credential"($1) $$;
+revoke execute on function "api"."delete_workflow_credential"(uuid) from public, anon;
+grant execute on function "api"."delete_workflow_credential"(uuid) to authenticated, service_role;
 
 create or replace function "api"."sync_workflow_steps"(steps jsonb)
 returns integer
@@ -10822,14 +10822,14 @@ as $$ select "better_supabase"."workflow_node_runs_list"($1) $$;
 revoke execute on function "api"."workflow_node_runs_list"(text) from public, anon;
 grant execute on function "api"."workflow_node_runs_list"(text) to authenticated, service_role;
 
-create or replace function "api"."save_workflow_alert"(definition uuid, on_event text, channel jsonb default '{}'::jsonb, threshold interval default null, alert uuid default null)
+create or replace function "api"."upsert_workflow_alert"(definition uuid, on_event text, channel jsonb default '{}'::jsonb, threshold interval default null, alert uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_workflow_alert"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
-grant execute on function "api"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_workflow_alert"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
+grant execute on function "api"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
 
 create or replace function "api"."workflow_alerts_list"(definition uuid)
 returns jsonb
@@ -10841,14 +10841,14 @@ as $$ select "better_supabase"."workflow_alerts_list"($1) $$;
 revoke execute on function "api"."workflow_alerts_list"(uuid) from public, anon;
 grant execute on function "api"."workflow_alerts_list"(uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_workflow_alert"(alert uuid)
+create or replace function "api"."delete_workflow_alert"(alert uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_workflow_alert"($1) $$;
-revoke execute on function "api"."remove_workflow_alert"(uuid) from public, anon;
-grant execute on function "api"."remove_workflow_alert"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_workflow_alert"($1) $$;
+revoke execute on function "api"."delete_workflow_alert"(uuid) from public, anon;
+grant execute on function "api"."delete_workflow_alert"(uuid) to authenticated, service_role;
 
 create or replace function "api"."check_workflow_alerts"(batch integer default 100)
 returns integer
@@ -10878,7 +10878,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:4046911c8aa0a27481dbd9f7715c08189736a0b2fe6ba188a7bab3037ec3e7d1
+-- @bsb-hash sha256:cff34c3b4ceb7319cf414f9168c0a45f6879000605e4a217e6f946ff00c4080b
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11250,7 +11250,7 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 
 -- fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_workflow_definition"(
+create or replace function "better_supabase"."upsert_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
@@ -11341,8 +11341,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -11844,7 +11844,7 @@ grant execute on function "better_supabase"."workflow_definition_get"(uuid) to a
 
 -- Deletes a definition with its versions, triggers and alerts: the service
 -- role or workflow.admin in its tenant. Its runs stay.
-create or replace function "better_supabase"."remove_workflow_definition"(definition uuid)
+create or replace function "better_supabase"."delete_workflow_definition"(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -11860,15 +11860,15 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
 
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
+create or replace function "better_supabase"."upsert_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -11938,8 +11938,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -12729,7 +12729,7 @@ revoke execute on function "better_supabase"."workflow_definition_grants_list"(u
 grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
-create or replace function "better_supabase"."save_workflow_trigger"(
+create or replace function "better_supabase"."upsert_workflow_trigger"(
   definition uuid,
   kind text,
   config jsonb default '{}'::jsonb,
@@ -12795,8 +12795,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_triggers_list"(definition uuid)
 returns jsonb
@@ -12818,7 +12818,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_triggers_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_triggers_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_trigger"(trigger uuid)
+create or replace function "better_supabase"."delete_workflow_trigger"(trigger uuid)
 returns boolean
 language plpgsql
 security definer
@@ -12846,8 +12846,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_trigger"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_trigger"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_trigger"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_trigger"(uuid) to authenticated, service_role;
 
 -- Issues a new token for a webhook trigger and returns it; only its SHA-256
 -- is kept, so the old token stops working. workflow.edit in its tenant.
@@ -12959,7 +12959,7 @@ revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
-create or replace function "better_supabase"."save_workflow_credential"(
+create or replace function "better_supabase"."upsert_workflow_credential"(
   tenant uuid,
   kind text,
   name text,
@@ -12978,16 +12978,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_workflow_credential.tenant is not null and coalesce(better_supabase.can('tenant', save_workflow_credential.tenant, 'workflow_editor.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_workflow_credential.tenant is not null and coalesce(better_supabase.can('tenant', upsert_workflow_credential.tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
-    and (jsonb_typeof(save_workflow_credential.ref -> 'tenant') is distinct from 'string' or (save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_workflow_credential.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_workflow_credential.ref is not null and jsonb_typeof(upsert_workflow_credential.ref) <> 'null'
+    and (jsonb_typeof(upsert_workflow_credential.ref -> 'tenant') is distinct from 'string' or (upsert_workflow_credential.ref ->> 'tenant') is distinct from (upsert_workflow_credential.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_workflow_credential.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "better_supabase"."workflow_credentials" as x ("tenant_id", "kind", "name", "credential_ref", "scopes", "created_by")
-  values (save_workflow_credential.tenant, save_workflow_credential.kind, save_workflow_credential.name, save_workflow_credential.ref, coalesce(save_workflow_credential.scopes, '{}'), (select auth.uid()))
+  values (upsert_workflow_credential.tenant, upsert_workflow_credential.kind, upsert_workflow_credential.name, upsert_workflow_credential.ref, coalesce(upsert_workflow_credential.scopes, '{}'), (select auth.uid()))
   on conflict ("tenant_id", "name") do update set
     "kind" = excluded."kind",
     "credential_ref" = excluded."credential_ref",
@@ -13005,8 +13005,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
-grant execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
@@ -13053,7 +13053,7 @@ grant execute on function "better_supabase"."workflow_credential_get"(uuid) to s
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
-create or replace function "better_supabase"."remove_workflow_credential"(credential uuid)
+create or replace function "better_supabase"."delete_workflow_credential"(credential uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -13084,8 +13084,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_credential"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
 -- description, inputSchema, outputSchema, credentialKind, operation } });
@@ -13219,7 +13219,7 @@ grant execute on function "better_supabase"."workflow_node_runs_list"(text) to a
 
 -- Creates or updates an alert: workflow.admin in the definition's tenant.
 -- threshold (slow alerts) is how long a run may stay unfinished.
-create or replace function "better_supabase"."save_workflow_alert"(
+create or replace function "better_supabase"."upsert_workflow_alert"(
   definition uuid,
   on_event text,
   channel jsonb default '{}'::jsonb,
@@ -13269,8 +13269,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_alerts_list"(definition uuid)
 returns jsonb
@@ -13292,7 +13292,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_alerts_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_alerts_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_alert"(alert uuid)
+create or replace function "better_supabase"."delete_workflow_alert"(alert uuid)
 returns boolean
 language plpgsql
 security definer
@@ -13310,8 +13310,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_alert"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.
@@ -13456,7 +13456,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:f420af9cf71d26a19761a53b1a486c69d25fba2c5a0c356802d2e1c573558983
+-- @bsb-hash sha256:274f6ec7be751a37481ae685e895a84fe5a6013075dce8de9483670fef436b5b
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13859,7 +13859,7 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 
 -- fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_workflow_definition"(
+create or replace function "better_supabase"."upsert_workflow_definition"(
   tenant uuid,
   slug text,
   name text,
@@ -13950,8 +13950,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_definition"(uuid, text, text, text, text[], text, boolean) to authenticated, service_role;
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -14453,7 +14453,7 @@ grant execute on function "better_supabase"."workflow_definition_get"(uuid) to a
 
 -- Deletes a definition with its versions, triggers and alerts: the service
 -- role or workflow.admin in its tenant. Its runs stay.
-create or replace function "better_supabase"."remove_workflow_definition"(definition uuid)
+create or replace function "better_supabase"."delete_workflow_definition"(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -14469,15 +14469,15 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_definition"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_definition"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_definition"(uuid) to authenticated, service_role;
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
 
-create or replace function "better_supabase"."save_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
+create or replace function "better_supabase"."upsert_workflow_draft"(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -14547,8 +14547,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
@@ -15338,7 +15338,7 @@ revoke execute on function "better_supabase"."workflow_definition_grants_list"(u
 grant execute on function "better_supabase"."workflow_definition_grants_list"(uuid) to authenticated, service_role;
 
 -- Creates or updates a trigger: workflow.edit in the definition's tenant.
-create or replace function "better_supabase"."save_workflow_trigger"(
+create or replace function "better_supabase"."upsert_workflow_trigger"(
   definition uuid,
   kind text,
   config jsonb default '{}'::jsonb,
@@ -15404,8 +15404,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_trigger"(uuid, text, jsonb, boolean, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_triggers_list"(definition uuid)
 returns jsonb
@@ -15427,7 +15427,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_triggers_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_triggers_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_trigger"(trigger uuid)
+create or replace function "better_supabase"."delete_workflow_trigger"(trigger uuid)
 returns boolean
 language plpgsql
 security definer
@@ -15455,8 +15455,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_trigger"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_trigger"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_trigger"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_trigger"(uuid) to authenticated, service_role;
 
 -- Issues a new token for a webhook trigger and returns it; only its SHA-256
 -- is kept, so the old token stops working. workflow.edit in its tenant.
@@ -15568,7 +15568,7 @@ revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid
 grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
-create or replace function "better_supabase"."save_workflow_credential"(
+create or replace function "better_supabase"."upsert_workflow_credential"(
   tenant uuid,
   kind text,
   name text,
@@ -15590,9 +15590,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
-    and (jsonb_typeof(save_workflow_credential.ref -> 'tenant') is distinct from 'string' or (save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_workflow_credential.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_workflow_credential.ref is not null and jsonb_typeof(upsert_workflow_credential.ref) <> 'null'
+    and (jsonb_typeof(upsert_workflow_credential.ref -> 'tenant') is distinct from 'string' or (upsert_workflow_credential.ref ->> 'tenant') is distinct from (upsert_workflow_credential.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_workflow_credential.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   insert into "better_supabase"."workflow_credentials" as x ("org_id", "kind", "name", "credential_ref", "scopes", "created_by")
@@ -15614,8 +15614,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
-grant execute on function "better_supabase"."save_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_credential"(uuid, text, text, jsonb, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_credentials_list"(tenant uuid default null)
 returns jsonb
@@ -15662,7 +15662,7 @@ grant execute on function "better_supabase"."workflow_credential_get"(uuid) to s
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
-create or replace function "better_supabase"."remove_workflow_credential"(credential uuid)
+create or replace function "better_supabase"."delete_workflow_credential"(credential uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -15693,8 +15693,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_credential"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_credential"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_credential"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_credential"(uuid) to authenticated, service_role;
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
 -- description, inputSchema, outputSchema, credentialKind, operation } });
@@ -15828,7 +15828,7 @@ grant execute on function "better_supabase"."workflow_node_runs_list"(text) to a
 
 -- Creates or updates an alert: workflow.admin in the definition's tenant.
 -- threshold (slow alerts) is how long a run may stay unfinished.
-create or replace function "better_supabase"."save_workflow_alert"(
+create or replace function "better_supabase"."upsert_workflow_alert"(
   definition uuid,
   on_event text,
   channel jsonb default '{}'::jsonb,
@@ -15878,8 +15878,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
-grant execute on function "better_supabase"."save_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_workflow_alert"(uuid, text, jsonb, interval, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_alerts_list"(definition uuid)
 returns jsonb
@@ -15901,7 +15901,7 @@ $$;
 revoke execute on function "better_supabase"."workflow_alerts_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."workflow_alerts_list"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_workflow_alert"(alert uuid)
+create or replace function "better_supabase"."delete_workflow_alert"(alert uuid)
 returns boolean
 language plpgsql
 security definer
@@ -15919,8 +15919,8 @@ begin
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_workflow_alert"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_workflow_alert"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_workflow_alert"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_workflow_alert"(uuid) to authenticated, service_role;
 
 -- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.

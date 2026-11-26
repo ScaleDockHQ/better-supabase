@@ -443,14 +443,14 @@ export function createAutomations(options: AutomationsOptions): Automations {
       ),
     upsert: ({ organizationId, input }) =>
       call(
-        "save_rule",
+        "upsert_rule",
         { tenant: organizationId, rule: inputArg(input) },
         ruleOf,
       ),
     setEnabled: ({ id, enabled }) =>
       call("set_rule_enabled", { id, enabled }, ruleOf),
     move: ({ id, rank }) => call("rank_rule", { id, rank }, ruleOf),
-    remove: (id) => call("remove_rule", { id }, (value) => value === true),
+    remove: (id) => call("delete_rule", { id }, (value) => value === true),
     resetDefault: (id) => call("reset_default_rule", { id }, ruleOf),
     versions: (id) =>
       call("rule_versions_list", { id }, (value) =>

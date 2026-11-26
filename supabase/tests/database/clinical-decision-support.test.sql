@@ -25,16 +25,16 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.med', better_supabase.save_medication(
+select set_config('t.med', better_supabase.upsert_medication(
   '00000000-0000-4000-8000-000000000001', 'Paracetamol', 'mg') ->> 'id', true);
 
 select lives_ok(
-  format($$select better_supabase.save_care_rule('00000000-0000-4000-8000-000000000001',
+  format($$select better_supabase.upsert_care_rule('00000000-0000-4000-8000-000000000001',
     jsonb_build_object('kind', 'dose_range', 'medicationIds', jsonb_build_array(%L), 'maxDose', 1000))$$, current_setting('t.med')),
   'an owner saves a dose range rule'
 );
 select throws_ok(
-  format($$select better_supabase.save_care_rule('00000000-0000-4000-8000-000000000001',
+  format($$select better_supabase.upsert_care_rule('00000000-0000-4000-8000-000000000001',
     jsonb_build_object('kind', 'dose_range', 'medicationIds', jsonb_build_array(%L)))$$, current_setting('t.med')),
   '22023',
   null,

@@ -28,17 +28,17 @@ select set_config(
 );
 set local role authenticated;
 
-select better_supabase.save_enrollment_program(
+select better_supabase.upsert_enrollment_program(
   '00000000-0000-4000-8000-000000000001',
   '{"key":"leaver-setup","name":"Leaver setup","subjectTypes":["employee"],"steps":[{"id":"kickoff"}]}');
 insert into ids values ('enrollment', (better_supabase.enroll(
   '00000000-0000-4000-8000-000000000001', 'leaver-setup', 'employee',
   (select id::text from ids where name = 'emp')) ->> 'id')::uuid);
 
-insert into ids values ('soon', (better_supabase.save_shift('00000000-0000-4000-8000-000000000001',
+insert into ids values ('soon', (better_supabase.upsert_shift('00000000-0000-4000-8000-000000000001',
   ((current_date + 3) + time '06:00') at time zone 'UTC',
   ((current_date + 3) + time '14:00') at time zone 'UTC') ->> 'id')::uuid);
-insert into ids values ('later', (better_supabase.save_shift('00000000-0000-4000-8000-000000000001',
+insert into ids values ('later', (better_supabase.upsert_shift('00000000-0000-4000-8000-000000000001',
   ((current_date + 60) + time '06:00') at time zone 'UTC',
   ((current_date + 60) + time '14:00') at time zone 'UTC') ->> 'id')::uuid);
 insert into ids values ('soon_assignment', (better_supabase.assign_shift(

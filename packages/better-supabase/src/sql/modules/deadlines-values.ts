@@ -235,7 +235,7 @@ export interface DeadlineCounting {
   readonly status?: PartStatus;
 }
 
-/** What `save_rule_version` takes and a version row holds. */
+/** What `upsert_rule_version` takes and a version row holds. */
 export interface RuleVersionContent {
   readonly rules: readonly DeadlineRule[];
   readonly groups: readonly DeadlineGroup[];

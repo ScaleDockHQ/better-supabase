@@ -63,7 +63,7 @@ describe("normalizeHostname", () => {
 describe("createDomains", () => {
   it("maps hostnames and the proxy lookup", async () => {
     const { calls, transport } = fakeTransport({
-      add_hostname: hostnameRow(),
+      create_hostname: hostnameRow(),
       list_hostnames: (args: Record<string, unknown>) => {
         const rows = [
           hostnameRow({ ...verified, is_primary: true }),
@@ -86,7 +86,7 @@ describe("createDomains", () => {
           : rows;
       },
       set_primary_hostname: hostnameRow({ ...verified, is_primary: true }),
-      remove_hostname: true,
+      delete_hostname: true,
       resolve_hostname: {
         organizationId: "org-1",
         hostname: "acme.acme.app",
@@ -149,7 +149,7 @@ describe("createDomains", () => {
     });
 
     expect(calls).toEqual([
-      ["add_hostname", { tenant: "org-1", hostname: "app.acme.test" }],
+      ["create_hostname", { tenant: "org-1", hostname: "app.acme.test" }],
       ["list_hostnames", { tenant: "org-1" }],
       [
         "list_hostnames",
@@ -160,7 +160,7 @@ describe("createDomains", () => {
       ],
       ["list_hostnames", { tenant: "org-1", filters: { count: true } }],
       ["set_primary_hostname", { id: "h1" }],
-      ["remove_hostname", { id: "h1" }],
+      ["delete_hostname", { id: "h1" }],
       ["resolve_hostname", { hostname: "acme.acme.app" }],
     ]);
   });

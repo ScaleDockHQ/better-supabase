@@ -150,7 +150,7 @@ describe("leave branches", () => {
 
   it("parses a full type row and sends optional type arguments", async () => {
     const fake = transport({
-      save_leave_type: () => TYPE,
+      upsert_leave_type: () => TYPE,
       list_leave_types: () => [TYPE],
     });
 

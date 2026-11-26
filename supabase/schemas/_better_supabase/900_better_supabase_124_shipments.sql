@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:85638afd8d07119bc13d96c7165f145ee2d5aac32ada7a3442fa1c87f2234495
+-- @bsb-hash sha256:0b65cbf4c07ab8617964aa9953745d45380a1ffeb570dc4c0946d611179478cc
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1407,7 +1407,7 @@ grant execute on function "better_supabase"."prepare_intrastat"(uuid, date) to a
 -- null creates one). attrs: { period, flow, country, tradeCode?, netMassKg?,
 -- quantity?, value? (minor units as text), currency?, variantId? }. Returns the
 -- line's id and whether it was created.
-create or replace function "better_supabase"."save_intrastat_line"(tenant uuid, line uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_intrastat_line"(tenant uuid, line uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1415,14 +1415,14 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_attrs jsonb := coalesce(save_intrastat_line.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_intrastat_line.attrs, '{}'::jsonb);
   v_period date;
   v_id uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_intrastat_line.tenant, 'shipments.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_intrastat_line.tenant, 'shipments.manage'), false)) then
     raise exception 'not allowed to manage shipments' using errcode = '42501', hint = 'SHIPMENT_FORBIDDEN';
   end if;
   begin
@@ -1435,12 +1435,12 @@ begin
     or coalesce(v_attrs ->> 'country', '') !~ '^[A-Z]{2}$' or not (v_attrs ->> 'country') = any (array['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE']) then
     raise exception 'a line needs a period, a flow (arrival or dispatch) and the country of a member state' using errcode = '22023', hint = 'SHIPMENT_INTRASTAT_INVALID';
   end if;
-  if (v_attrs ->> 'variantId') is not null and not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (v_attrs ->> 'variantId')::uuid and cv."tenant_id" = save_intrastat_line.tenant) then
+  if (v_attrs ->> 'variantId') is not null and not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (v_attrs ->> 'variantId')::uuid and cv."tenant_id" = upsert_intrastat_line.tenant) then
     raise exception 'the variant isn''t in this organization' using errcode = 'P0002', hint = 'SHIPMENT_INTRASTAT_INVALID';
   end if;
-  if save_intrastat_line.line is null then
+  if upsert_intrastat_line.line is null then
     insert into "better_supabase"."intrastat_lines" as x ("tenant_id", "period", "flow", "source", "variant_id", "trade_code", "country", "net_mass_kg", "quantity", "value", "currency")
-    values (save_intrastat_line.tenant, v_period, v_attrs ->> 'flow', 'manual', nullif(v_attrs ->> 'variantId', '')::uuid, nullif(v_attrs ->> 'tradeCode', ''), v_attrs ->> 'country',
+    values (upsert_intrastat_line.tenant, v_period, v_attrs ->> 'flow', 'manual', nullif(v_attrs ->> 'variantId', '')::uuid, nullif(v_attrs ->> 'tradeCode', ''), v_attrs ->> 'country',
       (v_attrs ->> 'netMassKg')::numeric, (v_attrs ->> 'quantity')::numeric, (v_attrs ->> 'value')::bigint, nullif(v_attrs ->> 'currency', ''))
     returning x."id" into v_id;
     return jsonb_build_object('id', v_id, 'created', true);
@@ -1448,7 +1448,7 @@ begin
   update "better_supabase"."intrastat_lines" x set "period" = v_period, "flow" = v_attrs ->> 'flow', "variant_id" = nullif(v_attrs ->> 'variantId', '')::uuid, "trade_code" = nullif(v_attrs ->> 'tradeCode', ''),
     "country" = v_attrs ->> 'country', "net_mass_kg" = (v_attrs ->> 'netMassKg')::numeric, "quantity" = (v_attrs ->> 'quantity')::numeric,
     "value" = (v_attrs ->> 'value')::bigint, "currency" = nullif(v_attrs ->> 'currency', ''), "updated_at" = now()
-  where x."id" = save_intrastat_line.line and x."tenant_id" = save_intrastat_line.tenant and x."source" = 'manual'
+  where x."id" = upsert_intrastat_line.line and x."tenant_id" = upsert_intrastat_line.tenant and x."source" = 'manual'
   returning x."id" into v_id;
   if v_id is null then
     raise exception 'a manual Intrastat line of this organization wasn''t found' using errcode = 'P0002', hint = 'SHIPMENT_INTRASTAT_NOT_FOUND';
@@ -1456,8 +1456,8 @@ begin
   return jsonb_build_object('id', v_id, 'created', false);
 end;
 $$;
-revoke execute on function "better_supabase"."save_intrastat_line"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_intrastat_line"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_intrastat_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_intrastat_line"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a manual line; derived lines come from the shipments.
 create or replace function "better_supabase"."delete_intrastat_line"(line uuid)
@@ -1762,14 +1762,14 @@ as $$ select "better_supabase"."prepare_intrastat"($1, $2) $$;
 revoke execute on function "api"."prepare_intrastat"(uuid, date) from public, anon;
 grant execute on function "api"."prepare_intrastat"(uuid, date) to authenticated, service_role;
 
-create or replace function "api"."save_intrastat_line"(tenant uuid, line uuid, attrs jsonb)
+create or replace function "api"."upsert_intrastat_line"(tenant uuid, line uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_intrastat_line"($1, $2, $3) $$;
-revoke execute on function "api"."save_intrastat_line"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_intrastat_line"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_intrastat_line"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_intrastat_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_intrastat_line"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_intrastat_line"(line uuid)
 returns boolean

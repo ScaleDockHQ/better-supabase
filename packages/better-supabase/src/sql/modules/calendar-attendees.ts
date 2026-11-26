@@ -99,7 +99,7 @@ function anyAttendeeFunctions(
 
   const byEmail = has("email")
     ? `
-create or replace function ${fn("remove_calendar_attendee")}(event_id uuid, email text)
+create or replace function ${fn("delete_calendar_attendee")}(event_id uuid, email text)
 returns boolean
 language plpgsql
 security definer
@@ -109,18 +109,18 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select ${e("tenant")} into v_tenant from ${events} where ${e("id")} = remove_calendar_attendee.event_id;
+  select ${e("tenant")} into v_tenant from ${events} where ${e("id")} = delete_calendar_attendee.event_id;
   if not found then
     ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
   end if;
-  if not ${writesEvent("remove_calendar_attendee.event_id", "v_tenant")} then
+  if not ${writesEvent("delete_calendar_attendee.event_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
   end if;
-  delete from ${attendees} where ${a("event")} = remove_calendar_attendee.event_id and lower(${a("email")}) = lower(remove_calendar_attendee.email);
+  delete from ${attendees} where ${a("event")} = delete_calendar_attendee.event_id and lower(${a("email")}) = lower(delete_calendar_attendee.email);
   return found;
 end;
 $$;
-${userGrant(`${fn("remove_calendar_attendee")}(uuid, text)`)}
+${userGrant(`${fn("delete_calendar_attendee")}(uuid, text)`)}
 `
     : "";
 
@@ -193,7 +193,7 @@ end;
 $$;
 ${userGrant(`${fn("set_calendar_attendee")}(uuid, text, text, uuid, text)`)}
 ${byEmail}
-create or replace function ${fn("remove_calendar_attendee")}(attendee_id uuid)
+create or replace function ${fn("delete_calendar_attendee")}(attendee_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -207,18 +207,18 @@ begin
   select x.${e("tenant")}, x.${e("id")} into v_tenant, v_event
   from ${attendees} t
   join ${events} x on x.${e("id")} = t.${a("event")}
-  where t.${a("id")} = remove_calendar_attendee.attendee_id;
+  where t.${a("id")} = delete_calendar_attendee.attendee_id;
   if not found then
     ${fail("CALENDAR_ATTENDEE_NOT_FOUND", "attendee not found", "P0002")}
   end if;
   if not ${writesEvent("v_event", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
   end if;
-  delete from ${attendees} where ${a("id")} = remove_calendar_attendee.attendee_id;
+  delete from ${attendees} where ${a("id")} = delete_calendar_attendee.attendee_id;
   return found;
 end;
 $$;
-${userGrant(`${fn("remove_calendar_attendee")}(uuid)`)}
+${userGrant(`${fn("delete_calendar_attendee")}(uuid)`)}
 
 create or replace function ${fn("respond_calendar_event")}(event_id uuid, response text)
 returns boolean
@@ -293,7 +293,7 @@ end;
 $$;
 ${userGrant(`${fn("set_calendar_attendee")}(uuid, text, text, uuid, text)`)}
 
-create or replace function ${fn("remove_calendar_attendee")}(event_id uuid, email text)
+create or replace function ${fn("delete_calendar_attendee")}(event_id uuid, email text)
 returns boolean
 language plpgsql
 security definer
@@ -303,18 +303,18 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select ${e("tenant")} into v_tenant from ${events} where ${e("id")} = remove_calendar_attendee.event_id;
+  select ${e("tenant")} into v_tenant from ${events} where ${e("id")} = delete_calendar_attendee.event_id;
   if not found then
     ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
   end if;
-  if not ${writesEvent("remove_calendar_attendee.event_id", "v_tenant")} then
+  if not ${writesEvent("delete_calendar_attendee.event_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
   end if;
-  delete from ${attendees} where ${a("event")} = remove_calendar_attendee.event_id and ${a("email")} = lower(remove_calendar_attendee.email);
+  delete from ${attendees} where ${a("event")} = delete_calendar_attendee.event_id and ${a("email")} = lower(delete_calendar_attendee.email);
   return found;
 end;
 $$;
-${userGrant(`${fn("remove_calendar_attendee")}(uuid, text)`)}
+${userGrant(`${fn("delete_calendar_attendee")}(uuid, text)`)}
 
 -- The caller answers an invitation: the attendee row with their user id,
 -- or their email when the row has none.

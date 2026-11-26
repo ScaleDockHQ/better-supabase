@@ -23,7 +23,7 @@ select is(
   'without a tenant policy an observation has no blocker'
 );
 
-select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
   '{"subjectType":"case","action":"close","name":"Close needs sign-off",
     "steps":[{"approvers":{"users":["00000000-0000-4000-8000-0000000000a2"]},"required":1}]}');
 select is(

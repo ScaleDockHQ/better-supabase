@@ -387,7 +387,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
     saveDefinition: ({ entity, key, label, type, sensitive }) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_field_definition",
+          "upsert_field_definition",
           {
             tenant: organizationId,
             entity,
@@ -396,7 +396,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
             type,
             sensitive: sensitive ?? false,
           },
-          idOf("save_field_definition"),
+          idOf("upsert_field_definition"),
         ),
       ),
     reorderDefinition: ({ id, neighbors }) => {
@@ -472,7 +472,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
     readValues: ({ subject, scope }) =>
       tenant().andThen((organizationId) =>
         call(
-          "read_field_values",
+          "get_field_values",
           {
             tenant: organizationId,
             subject_type: subject.type,
@@ -500,7 +500,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
     readFields: (subject) =>
       tenant().andThen((organizationId) =>
         call(
-          "read_field_values",
+          "get_field_values",
           {
             tenant: organizationId,
             subject_type: subject.type,

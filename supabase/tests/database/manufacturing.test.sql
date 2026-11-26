@@ -31,11 +31,11 @@ set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 insert into ids
-select v.name, (better_supabase.save_variant(
-  (better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, v.title, v.name, null, 'physical', null) ->> 'id')::uuid,
+select v.name, (better_supabase.upsert_variant(
+  (better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, v.title, v.name, null, 'physical', null) ->> 'id')::uuid,
   null, upper(v.name), null, v.title, null, null, true, false, null) ->> 'id')::uuid
 from (values ('bread', 'Bread'), ('flour', 'Flour'), ('salt', 'Salt')) v(name, title);
-insert into ids values ('bakery', (better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'BAK', 'Bakery', null, null) ->> 'id')::uuid);
+insert into ids values ('bakery', (better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'BAK', 'Bakery', null, null) ->> 'id')::uuid);
 select better_supabase.set_stock_item((select id from ids where name = 'bread'), 'pcs', 0::smallint, 'lot', false, 'average', 'EUR');
 select better_supabase.set_stock_item((select id from ids where name = 'flour'), 'kg', 3::smallint, 'lot', false, 'average', 'EUR');
 select better_supabase.set_stock_item((select id from ids where name = 'salt'), 'g', 0::smallint, 'none', false, 'average', 'EUR');
@@ -45,7 +45,7 @@ select better_supabase.adjust_stock((select id from ids where name = 'salt'), (s
   '{"unitCost": "10", "currency": "EUR"}');
 insert into ids values ('flour_lot', (select x.id from better_supabase.stock_lots x where x.variant_id = (select id from ids where name = 'flour') and x.code = 'F1'));
 
-insert into ids values ('oven', (better_supabase.save_work_center('00000000-0000-4000-8000-000000000001',
+insert into ids values ('oven', (better_supabase.upsert_work_center('00000000-0000-4000-8000-000000000001',
   '{"name": "Oven", "costRate": 6000, "currency": "EUR"}') ->> 'id')::uuid);
 select is(
   (select jsonb_build_array(x ->> 'name', x ->> 'costRate', x ->> 'currency')
@@ -54,7 +54,7 @@ select is(
   'the owner adds a work center at 60.00 EUR an hour'
 );
 
-insert into ids values ('bread_bom', (better_supabase.save_bom('00000000-0000-4000-8000-000000000001', (select id from ids where name = 'bread'),
+insert into ids values ('bread_bom', (better_supabase.upsert_bom('00000000-0000-4000-8000-000000000001', (select id from ids where name = 'bread'),
   jsonb_build_object(
     'operations', jsonb_build_array(jsonb_build_object('sequence', 10, 'workCenterId', (select id from ids where name = 'oven'),
       'title', 'Bake', 'runMinutesPerUnit', 6)),
@@ -68,7 +68,7 @@ select is(
   'a new bill of materials is draft version 1'
 );
 select throws_ok(
-  format($$select better_supabase.save_bom('00000000-0000-4000-8000-000000000001', %L, jsonb_build_object('components', jsonb_build_array(jsonb_build_object('variantId', %L, 'quantity', 1))))$$,
+  format($$select better_supabase.upsert_bom('00000000-0000-4000-8000-000000000001', %L, jsonb_build_object('components', jsonb_build_array(jsonb_build_object('variantId', %L, 'quantity', 1))))$$,
     (select id from ids where name = 'bread'), (select id from ids where name = 'bread')),
   '22023',
   'a variant can''t be a component of itself',
@@ -87,7 +87,7 @@ select is(
   'the owner activates the bill of materials'
 );
 
-insert into ids values ('flour_bom', (better_supabase.save_bom('00000000-0000-4000-8000-000000000001', (select id from ids where name = 'flour'),
+insert into ids values ('flour_bom', (better_supabase.upsert_bom('00000000-0000-4000-8000-000000000001', (select id from ids where name = 'flour'),
   jsonb_build_object('components', jsonb_build_array(jsonb_build_object('variantId', (select id from ids where name = 'bread'), 'quantity', 1)))) ->> 'id')::uuid);
 select throws_ok(
   format($$select better_supabase.activate_bom(%L)$$, (select id from ids where name = 'flour_bom')),
@@ -161,7 +161,7 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  format($$select better_supabase.save_bom('00000000-0000-4000-8000-000000000001', %L, jsonb_build_object('components', jsonb_build_array(jsonb_build_object('variantId', %L, 'quantity', 1))))$$,
+  format($$select better_supabase.upsert_bom('00000000-0000-4000-8000-000000000001', %L, jsonb_build_object('components', jsonb_build_array(jsonb_build_object('variantId', %L, 'quantity', 1))))$$,
     (select id from ids where name = 'bread'), (select id from ids where name = 'salt')),
   '42501',
   null,

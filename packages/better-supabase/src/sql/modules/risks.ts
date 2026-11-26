@@ -232,7 +232,7 @@ create table if not exists ${matrices} (
   ${m("tenant")} ${ctx.idType} not null,
   ${m("key")} text not null check (${m("key")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${m("name")} text not null check (length(${m("name")}) between 1 and 200),
-  -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
+  -- [{ value, label }] with values 1 to n; upsert_risk_matrix checks the shape.
   ${m("likelihoodLevels")} jsonb not null check (jsonb_typeof(${m("likelihoodLevels")}) = 'array'),
   ${m("impactLevels")} jsonb not null check (jsonb_typeof(${m("impactLevels")}) = 'array'),
   -- [{ key, label, min, max }] covering every score once.
@@ -337,7 +337,7 @@ ${riskAssessFunctions(ctx)}`;
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_risk_matrix",
+      name: "upsert_risk_matrix",
       args: [
         "{id}",
         "text",

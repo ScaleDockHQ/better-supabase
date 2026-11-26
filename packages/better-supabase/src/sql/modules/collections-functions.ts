@@ -381,7 +381,7 @@ ${userGrant(`${fn("get_collection")}(uuid)`)}
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function ${fn("add_collection_entries")}(collection uuid, subject_ids text[], subject_type text)
+create or replace function ${fn("create_collection_entries")}(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -395,19 +395,19 @@ declare
   v_rank text;
   v_added text[] := '{}';
 begin
-  ${tooMany("add_collection_entries.subject_ids")}
-  ${load("add_collection_entries.collection", true)}
+  ${tooMany("create_collection_entries.subject_ids")}
+  ${load("create_collection_entries.collection", true)}
   ${fillable}
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row.${co("subjectType")} then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row.${co("subjectType")} then
     ${fail("COLLECTION_SUBJECT_TYPE_MISMATCH", "the collection holds another subject type", "22023")}
   end if;
   ${ctx.hook("before_collection_add", [
     ["uuid", `v_row.${co("id")}`],
-    ["text[]", "add_collection_entries.subject_ids"],
+    ["text[]", "create_collection_entries.subject_ids"],
   ])}
   select max(e.${en("rank")}) into v_last from ${t("entries")} e where e.${en("collection")} = v_row.${co("id")};
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -431,10 +431,10 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-${userGrant(`${fn("add_collection_entries")}(uuid, text[], text)`)}
+${userGrant(`${fn("create_collection_entries")}(uuid, text[], text)`)}
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function ${fn("remove_collection_entries")}(collection uuid, subject_ids text[])
+create or replace function ${fn("delete_collection_entries")}(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -445,13 +445,13 @@ declare
   v_id text;
   v_count integer := 0;
 begin
-  ${tooMany("remove_collection_entries.subject_ids")}
-  ${load("remove_collection_entries.collection", true)}
+  ${tooMany("delete_collection_entries.subject_ids")}
+  ${load("delete_collection_entries.collection", true)}
   ${fillable}
   for v_id in
     delete from ${t("entries")} e
     where e.${en("collection")} = v_row.${co("id")}
-      and e.${en("subjectId")} = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e.${en("subjectId")} = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (${SERVICE} or ${names.canSubject}(e.${en("subjectType")}, e.${en("subjectId")}, 'read'))
     returning e.${en("subjectId")}
   loop
@@ -461,7 +461,7 @@ begin
   return v_count;
 end;
 $$;
-${userGrant(`${fn("remove_collection_entries")}(uuid, text[])`)}
+${userGrant(`${fn("delete_collection_entries")}(uuid, text[])`)}
 
 create or replace function ${fn("rank_collection_entry")}(collection uuid, subject_id text, rank text)
 returns boolean
@@ -695,7 +695,7 @@ export function savedItemFunctions(
   return `
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function ${fn("save_for_later")}(tenant ${ctx.idType}, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function ${fn("upsert_for_later")}(tenant ${ctx.idType}, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -704,34 +704,34 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if v_user is null then
     ${fail("SAVED_ITEM_INVALID", "saving for later needs a signed-in user", "22023")}
   end if;
-  if not ${ctx.scope.can("save_for_later.tenant", names.read)} then
+  if not ${ctx.scope.can("upsert_for_later.tenant", names.read)} then
     ${fail("SAVED_ITEM_FORBIDDEN", "not allowed to save records")}
   end if;
-  if not ${subjectInTenant(ctx, "save_for_later.subject_type", "save_for_later.subject_id", "save_for_later.tenant")} then
+  if not ${subjectInTenant(ctx, "upsert_for_later.subject_type", "upsert_for_later.subject_id", "upsert_for_later.tenant")} then
     ${fail("SAVED_ITEM_SUBJECT_FORBIDDEN", "the record is unknown or not readable in this organization")}
   end if;
   if length(v_note) > 1000 then
     ${fail("SAVED_ITEM_INVALID", "a note holds at most 1000 characters", "22023")}
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     ${fail("SAVED_ITEM_INVALID", "the reminder time must be in the future", "22023")}
   end if;
   insert into ${t("savedItems")} (${sv("user")}, ${sv("tenant")}, ${sv("subjectType")}, ${sv("subjectId")}${noted ? `, ${sv("note")}` : ""}, ${sv("remindAt")})
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id${noted ? ", v_note" : ""}, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id${noted ? ", v_note" : ""}, upsert_for_later.remind_at)
   on conflict (${sv("user")}, ${sv("subjectType")}, ${sv("subjectId")}) do update
     set ${noted ? `${sv("note")} = excluded.${sv("note")},\n      ` : ""}${sv("remindAt")} = excluded.${sv("remindAt")},
       ${sv("remindedAt")} = null,
       ${sv("completedAt")} = null;
   return (select ${json("s")} from ${t("savedItems")} s
-    where s.${sv("user")} = v_user and s.${sv("subjectType")} = save_for_later.subject_type and s.${sv("subjectId")} = save_for_later.subject_id);
+    where s.${sv("user")} = v_user and s.${sv("subjectType")} = upsert_for_later.subject_type and s.${sv("subjectId")} = upsert_for_later.subject_id);
 end;
 $$;
-${userGrant(`${fn("save_for_later")}(${ctx.idType}, text, text, text, timestamptz)`)}
+${userGrant(`${fn("upsert_for_later")}(${ctx.idType}, text, text, text, timestamptz)`)}
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -750,7 +750,7 @@ end;
 $$;
 ${userGrant(`${fn("complete_saved_item")}(uuid, boolean)`)}
 
-create or replace function ${fn("remove_saved_item")}(item uuid)
+create or replace function ${fn("delete_saved_item")}(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -758,11 +758,11 @@ set search_path = ''
 as $$
 begin
   delete from ${t("savedItems")} s
-    where s.${sv("id")} = remove_saved_item.item and s.${sv("user")} = auth.uid();
+    where s.${sv("id")} = delete_saved_item.item and s.${sv("user")} = auth.uid();
   return found;
 end;
 $$;
-${userGrant(`${fn("remove_saved_item")}(uuid)`)}
+${userGrant(`${fn("delete_saved_item")}(uuid)`)}
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.

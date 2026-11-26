@@ -10,7 +10,7 @@ function setup(codes: (args: Record<string, unknown>) => unknown) {
       call(_schema: string, fn: string, args: Record<string, unknown>) {
         calls.push([fn, args]);
 
-        if (fn === "save_promotion") {
+        if (fn === "upsert_promotion") {
           return Promise.resolve({ id: "p1" });
         }
 
@@ -71,7 +71,7 @@ describe("promotions helpers", () => {
 
     expect(made.ok).toBe(false);
     expect(calls.map(([fn]) => fn)).toEqual([
-      "save_promotion",
+      "upsert_promotion",
       "create_promotion_codes",
       "delete_promotion",
     ]);

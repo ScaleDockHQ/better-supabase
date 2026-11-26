@@ -94,7 +94,7 @@ export function shippingRateFunctions(
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function ${fn("save_shipping_rate")}(tenant ${ctx.idType}, rate uuid, data jsonb)
+create or replace function ${fn("upsert_shipping_rate")}(tenant ${ctx.idType}, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -104,7 +104,7 @@ declare
   v_id uuid;
   v_countries text[];
 begin
-  ${guard(names.scope, names.manage, "save_shipping_rate.tenant")}
+  ${guard(names.scope, names.manage, "upsert_shipping_rate.tenant")}
   if jsonb_typeof(data) is distinct from 'object' then
     ${fail("ORDERS_RATE_INVALID", "the rate is an object", "22023")}
   end if;
@@ -128,16 +128,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ ${COUNTRY}) then
     ${fail("ORDERS_ADDRESS_INVALID", "countries are ISO 3166-1 alpha-2 codes", "22023")}
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into ${rates} (${s("tenant")}, ${s("name")}, ${s("countries")}, ${s("currency")}, ${s("kind")}, ${s("amount")}, ${s("perKg")}, ${freeOver ? `${s("freeOver")}, ` : ""}${s("active")})
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', ${kind},
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', ${kind},
       ${amount("amount")}, coalesce(${amount("amountPerKg")}, 0), ${freeOver ? `${amount("freeOver")}, ` : ""}coalesce((data ->> 'active')::boolean, true))
     returning ${s("id")} into v_id;
   else
     update ${rates} x set ${s("name")} = data ->> 'name', ${s("countries")} = v_countries, ${s("currency")} = data ->> 'currency',
       ${s("kind")} = ${kind}, ${s("amount")} = ${amount("amount")}, ${s("perKg")} = coalesce(${amount("amountPerKg")}, 0),
       ${freeOver ? `${s("freeOver")} = ${amount("freeOver")}, ` : ""}${s("active")} = coalesce((data ->> 'active')::boolean, true), ${s("updatedAt")} = now()
-    where x.${s("id")} = save_shipping_rate.rate and x.${s("tenant")} = save_shipping_rate.tenant
+    where x.${s("id")} = upsert_shipping_rate.rate and x.${s("tenant")} = upsert_shipping_rate.tenant
     returning x.${s("id")} into v_id;
     if v_id is null then
       ${fail("ORDERS_RATE_NOT_FOUND", "shipping rate not found", "P0002")}
@@ -146,7 +146,7 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${fn("save_shipping_rate")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_shipping_rate")}(${ctx.idType}, uuid, jsonb)`)}
 
 create or replace function ${fn("delete_shipping_rate")}(rate uuid)
 returns boolean

@@ -1,6 +1,6 @@
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:f3f705d3971968d6d42e4b7622df35cbe52fc95b991eec76c8699fa7b6d2298b
+-- @bsb-hash sha256:de5b3f984f18016ee1aca6cd9b5853f643a6cf09f14760fcd9d0da9cf8b4e998
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ grant all on "better_supabase"."hostnames" to service_role;
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
 -- with the TXT record to publish; adding it again returns the same row.
-create or replace function "better_supabase"."add_hostname"(tenant uuid, hostname text)
+create or replace function "better_supabase"."create_hostname"(tenant uuid, hostname text)
 returns jsonb
 language plpgsql
 security definer
@@ -40,7 +40,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."hostnames";
-  v_hostname text := lower(trim(trailing '.' from trim(add_hostname.hostname)));
+  v_hostname text := lower(trim(trailing '.' from trim(create_hostname.hostname)));
   v_kind text := 'custom';
   v_label text;
   v_new boolean;
@@ -48,13 +48,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', add_hostname.tenant, 'domains.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_hostname.tenant, 'domains.manage'), false)) then
     raise exception 'You may not manage this organization''s hostnames' using errcode = '42501', hint = 'DOMAIN_FORBIDDEN';
   end if;
   if v_hostname is null or length(v_hostname) > 253 or v_hostname !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
-    raise exception 'Not a hostname: %', add_hostname.hostname using errcode = '22023', hint = 'DOMAIN_INVALID';
+    raise exception 'Not a hostname: %', create_hostname.hostname using errcode = '22023', hint = 'DOMAIN_INVALID';
   end if;
-  select * into v_row from "better_supabase"."hostnames" x where x."tenant_id" = add_hostname.tenant and x."hostname" = v_hostname;
+  select * into v_row from "better_supabase"."hostnames" x where x."tenant_id" = create_hostname.tenant and x."hostname" = v_hostname;
   if v_row."id" is not null then
     return (to_jsonb(v_row) - 'verification_token') || case when v_row."verified_at" is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || v_row."hostname", 'value', 'better-supabase-hostname-verification=' || v_row."verification_token")) else '{}'::jsonb end;
   end if;
@@ -62,7 +62,7 @@ begin
     raise exception 'Another organization holds %', v_hostname using errcode = '23505', hint = 'DOMAIN_TAKEN';
   end if;
   insert into "better_supabase"."hostnames" ("tenant_id", "hostname", "kind", "verified_at")
-  values (add_hostname.tenant, v_hostname, v_kind, case when v_kind = 'subdomain' then now() end)
+  values (create_hostname.tenant, v_hostname, v_kind, case when v_kind = 'subdomain' then now() end)
   returning * into v_row;
   perform "better_supabase".emit_event('hostname.added', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'hostnameId', v_row."id"::text, 'hostname', v_row."hostname"), 'hostnames/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/domains');
   perform better_supabase.audit_event(
@@ -405,7 +405,7 @@ end;
 $$;
 
 -- Removes a hostname; false when there is none the caller manages.
-create or replace function "better_supabase"."remove_hostname"(id uuid)
+create or replace function "better_supabase"."delete_hostname"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -417,7 +417,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."hostnames" x where x."id" = remove_hostname.id;
+  select * into v_row from "better_supabase"."hostnames" x where x."id" = delete_hostname.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'domains.manage'), false)) then
     return false;
   end if;
@@ -461,33 +461,33 @@ as $$
     and x."verified_at" is not null
 $$;
 
-revoke execute on function "better_supabase"."add_hostname"(uuid, text) from public, anon;
+revoke execute on function "better_supabase"."create_hostname"(uuid, text) from public, anon;
 revoke execute on function "better_supabase"."list_hostnames"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."hostname_by_id"(uuid) from public, anon;
 revoke execute on function "better_supabase"."verify_hostname"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."set_primary_hostname"(uuid) from public, anon;
-revoke execute on function "better_supabase"."remove_hostname"(uuid) from public, anon;
+revoke execute on function "better_supabase"."delete_hostname"(uuid) from public, anon;
 revoke execute on function "better_supabase"."resolve_hostname"(text) from public;
-grant execute on function "better_supabase"."add_hostname"(uuid, text) to authenticated, service_role;
+grant execute on function "better_supabase"."create_hostname"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_hostnames"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."hostname_by_id"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_hostname"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."set_primary_hostname"(uuid) to authenticated, service_role;
-grant execute on function "better_supabase"."remove_hostname"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."delete_hostname"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."resolve_hostname"(text) to anon, authenticated, service_role;
 
 -- blocks.domains.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."add_hostname"(tenant uuid, hostname text)
+create or replace function "api"."create_hostname"(tenant uuid, hostname text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_hostname"($1, $2) $$;
-revoke execute on function "api"."add_hostname"(uuid, text) from public, anon;
-grant execute on function "api"."add_hostname"(uuid, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_hostname"($1, $2) $$;
+revoke execute on function "api"."create_hostname"(uuid, text) from public, anon;
+grant execute on function "api"."create_hostname"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."list_hostnames"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -527,14 +527,14 @@ as $$ select "better_supabase"."set_primary_hostname"($1) $$;
 revoke execute on function "api"."set_primary_hostname"(uuid) from public, anon;
 grant execute on function "api"."set_primary_hostname"(uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_hostname"(id uuid)
+create or replace function "api"."delete_hostname"(id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_hostname"($1) $$;
-revoke execute on function "api"."remove_hostname"(uuid) from public, anon;
-grant execute on function "api"."remove_hostname"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_hostname"($1) $$;
+revoke execute on function "api"."delete_hostname"(uuid) from public, anon;
+grant execute on function "api"."delete_hostname"(uuid) to authenticated, service_role;
 
 create or replace function "api"."resolve_hostname"(hostname text)
 returns jsonb

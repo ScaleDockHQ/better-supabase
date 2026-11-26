@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:da8761fb2d836c9da421117f220b699110d0cdb349ec053298e16a3f1bd9af48
+-- @bsb-hash sha256:4d2e5bf8b205e1f09e3a8a2e5006c46b4558f70947483be6c7c61e9f6329afd9
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,7 +231,7 @@ $$;
 revoke execute on function "better_supabase"."purge_teams"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."purge_teams"(uuid[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."add_team_member"(team uuid, member uuid)
+create or replace function "better_supabase"."create_team_member"(team uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -243,7 +243,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = add_team_member.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = create_team_member.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
@@ -253,21 +253,21 @@ begin
   if not exists (
     select 1 from "better_supabase"."memberships" m
     where m."organization_id" = v_tenant
-      and m."user_id" = add_team_member.member
+      and m."user_id" = create_team_member.member
   ) then
     raise exception 'user is not a member of the tenant' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';
   end if;
   insert into "better_supabase"."team_members" ("team_id", "user_id", "tenant_id")
-  values (add_team_member.team, add_team_member.member, v_tenant)
+  values (create_team_member.team, create_team_member.member, v_tenant)
   on conflict do nothing;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."add_team_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."add_team_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_team_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."create_team_member"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_team_member"(team uuid, member uuid)
+create or replace function "better_supabase"."delete_team_member"(team uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -279,7 +279,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = remove_team_member.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = delete_team_member.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
@@ -287,13 +287,13 @@ begin
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   delete from "better_supabase"."team_members"
-  where "team_id" = remove_team_member.team and "user_id" = remove_team_member.member;
+  where "team_id" = delete_team_member.team and "user_id" = delete_team_member.member;
   null;
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_team_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_team_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_team_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_team_member"(uuid, uuid) to authenticated, service_role;
 -- Teams as a keyset page, by name unless sort says otherwise (ADR 1077).
 -- filters may hold status (a value or a list), search, sort (name,
 -- createdAt), direction, facet, count, limit and after. Without paged it

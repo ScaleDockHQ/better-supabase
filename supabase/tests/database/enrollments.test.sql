@@ -13,7 +13,7 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (better_supabase.save_enrollment_program(
+  (better_supabase.upsert_enrollment_program(
     '00000000-0000-4000-8000-000000000001',
     '{"key":"customer-setup","name":"Customer setup","subjectTypes":["customer"],"steps":[{"id":"kickoff"},{"id":"import"}]}'
   ) ->> 'version')::integer,
@@ -21,7 +21,7 @@ select is(
   'an admin saves a program'
 );
 select throws_ok(
-  $$select better_supabase.save_enrollment_program('00000000-0000-4000-8000-000000000001', '{"key":"Bad Key","name":"x","steps":[]}')$$,
+  $$select better_supabase.upsert_enrollment_program('00000000-0000-4000-8000-000000000001', '{"key":"Bad Key","name":"x","steps":[]}')$$,
   '22023',
   null,
   'a program key is a lowercase slug'
@@ -69,7 +69,7 @@ select is(
 );
 
 select is(
-  (better_supabase.save_enrollment_program(
+  (better_supabase.upsert_enrollment_program(
     '00000000-0000-4000-8000-000000000001',
     '{"key":"go-live","name":"Go live","steps":[{"id":"kickoff","assignee":{"userId":"00000000-0000-4000-8000-0000000000a2"},"due":{"days":2,"from":"start"}},{"id":"import"},{"id":"review","assignee":{"role":"admin"},"due":{"days":-1,"from":"end"}}]}'
   ) -> 'steps' -> 0 -> 'due' ->> 'days')::integer,
@@ -77,7 +77,7 @@ select is(
   'a program step keeps its assignee and due date'
 );
 select throws_ok(
-  $$select better_supabase.save_enrollment_program('00000000-0000-4000-8000-000000000001', '{"key":"late","name":"Late","steps":[{"id":"a","due":{"days":1,"from":"later"}}]}')$$,
+  $$select better_supabase.upsert_enrollment_program('00000000-0000-4000-8000-000000000001', '{"key":"late","name":"Late","steps":[{"id":"a","due":{"days":1,"from":"later"}}]}')$$,
   '22023',
   null,
   'a due date counts from the start or the end'
@@ -155,7 +155,7 @@ select throws_ok(
   'a member can''t pause an enrollment'
 );
 select throws_ok(
-  $$select better_supabase.save_enrollment_program('00000000-0000-4000-8000-000000000001', '{"key":"other","name":"Other","steps":[]}')$$,
+  $$select better_supabase.upsert_enrollment_program('00000000-0000-4000-8000-000000000001', '{"key":"other","name":"Other","steps":[]}')$$,
   '42501',
   null,
   'a member can''t save a program'

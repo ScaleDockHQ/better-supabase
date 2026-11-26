@@ -19,7 +19,7 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  $$select api.save_assignment_queue('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_assignment_queue('00000000-0000-4000-8000-000000000001',
     '{"name":"Leads","subjectType":"company","strategy":"round_robin"}')$$,
   '42501',
   null,
@@ -36,22 +36,22 @@ select set_config(
 set local role authenticated;
 
 insert into ids
-select 'leads', (api.save_assignment_queue('00000000-0000-4000-8000-000000000001', '{"name":"Leads","subjectType":"company",
+select 'leads', (api.upsert_assignment_queue('00000000-0000-4000-8000-000000000001', '{"name":"Leads","subjectType":"company",
   "strategy":"round_robin","rank":0,"conditions":{"id":"root","type":"group","combinator":"and","rules":[
     {"id":"r1","type":"rule","path":["lifecycle"],"operator":"is","value":"lead"}]}}') ->> 'id')::uuid;
 insert into ids
-select 'rest', (api.save_assignment_queue('00000000-0000-4000-8000-000000000001',
+select 'rest', (api.upsert_assignment_queue('00000000-0000-4000-8000-000000000001',
   '{"name":"Everyone else","subjectType":"company","strategy":"weighted","rank":1}') ->> 'id')::uuid;
 
 select throws_ok(
-  $$select api.save_assignment_queue('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_assignment_queue('00000000-0000-4000-8000-000000000001',
     '{"name":"Leads","subjectType":"company","strategy":"weighted"}')$$,
   '23505',
   null,
   'two queues in one organization cannot share a name'
 );
 select throws_ok(
-  $$select api.save_assignment_queue('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_assignment_queue('00000000-0000-4000-8000-000000000001',
     '{"name":"Random","subjectType":"company","strategy":"random"}')$$,
   '22023',
   null,
@@ -173,7 +173,7 @@ select set_config(
 set local role authenticated;
 
 select is(
-  api.remove_assignment_queue((select id from ids where name = 'leads')),
+  api.delete_assignment_queue((select id from ids where name = 'leads')),
   true,
   'the owner removes a queue'
 );

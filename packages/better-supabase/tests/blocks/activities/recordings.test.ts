@@ -200,7 +200,7 @@ describe("activity recordings", () => {
   it("pages a transcript and saves one", async () => {
     const t = transport({
       activity_transcript: () => SEGMENTS,
-      save_activity_transcript: () => TRANSCRIBED,
+      upsert_activity_transcript: () => TRANSCRIBED,
     });
 
     const activities = createActivities({ transport: t });
@@ -249,7 +249,7 @@ describe("activity recordings", () => {
 
     const service = transport({
       get_activity_recording: () => RECORDING,
-      save_activity_transcript: () => TRANSCRIBED,
+      upsert_activity_transcript: () => TRANSCRIBED,
     });
 
     const store = files();
@@ -271,7 +271,7 @@ describe("activity recordings", () => {
     expect(store.reads).toEqual(["f1", "f1"]);
     expect(t.calls).toEqual([]);
     expect(service.calls[1]).toEqual([
-      "save_activity_transcript",
+      "upsert_activity_transcript",
       {
         recording: "r1",
         segments: [
@@ -295,7 +295,7 @@ describe("activity recordings", () => {
   it("passes no language when the recording has none", async () => {
     const service = transport({
       get_activity_recording: () => ({ ...RECORDING, language: null }),
-      save_activity_transcript: () => TRANSCRIBED,
+      upsert_activity_transcript: () => TRANSCRIBED,
     });
 
     const seen: (string | undefined)[] = [];
@@ -365,7 +365,7 @@ describe("activity recordings", () => {
   it("runs as a job and marks the recording failed on the last attempt", async () => {
     const service = transport({
       get_activity_recording: () => RECORDING,
-      save_activity_transcript: () => TRANSCRIBED,
+      upsert_activity_transcript: () => TRANSCRIBED,
       fail_activity_recording: () => true,
     });
 
@@ -405,7 +405,7 @@ describe("activity recordings", () => {
       pending_activity_recordings: () => ["r1", "r2"],
       get_activity_recording: (args) =>
         args["recording"] === "r1" ? RECORDING : null,
-      save_activity_transcript: () => TRANSCRIBED,
+      upsert_activity_transcript: () => TRANSCRIBED,
       fail_activity_recording: () => false,
     });
 
@@ -467,7 +467,7 @@ describe("activity notes", () => {
   it("reads and saves a member's notes", async () => {
     const t = transport({
       activity_notes: (args) => (args["activity"] === "e1" ? NOTES : null),
-      save_activity_notes: () => ({
+      upsert_activity_notes: () => ({
         ...NOTES,
         source: "member",
         model: null,
@@ -525,7 +525,7 @@ describe("activity notes", () => {
           recordingId: "r1",
         })),
       }),
-      save_activity_notes: () => NOTES,
+      upsert_activity_notes: () => NOTES,
     });
 
     const inputs: unknown[] = [];
@@ -561,7 +561,7 @@ describe("activity notes", () => {
     ]);
     expect(inputs[1]).toMatchObject([{}, false]);
     expect(t.calls[1]).toEqual([
-      "save_activity_notes",
+      "upsert_activity_notes",
       {
         activity: "e1",
         notes: {

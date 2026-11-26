@@ -77,7 +77,7 @@ export function statusPageFunctions(ctx: BlockSqlContext): string {
   return `
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
-create or replace function ${fn("save_status_page")}(tenant ${idType}, slug text, title text, description text default null, published boolean default false)
+create or replace function ${fn("upsert_status_page")}(tenant ${idType}, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -86,19 +86,19 @@ as $$
 declare
   v_row ${pages}%rowtype;
 begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "save_status_page.tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "upsert_status_page.tenant", manage)}) then
     ${fail("INCIDENTS_FORBIDDEN", "not allowed to manage the status page")}
   end if;
-  if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
+  if upsert_status_page.slug is null or upsert_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
     ${fail("INCIDENTS_INVALID", "the slug takes 2 to 63 lowercase letters, digits and dashes", "22023")}
   end if;
   if exists (
-    select 1 from ${pages} x where x.${g("slug")} = save_status_page.slug and x.${g("tenant")} <> save_status_page.tenant
+    select 1 from ${pages} x where x.${g("slug")} = upsert_status_page.slug and x.${g("tenant")} <> upsert_status_page.tenant
   ) then
     ${fail("STATUS_PAGE_SLUG_TAKEN", "another organization uses this slug", "23505")}
   end if;
   insert into ${pages} (${g("tenant")}, ${g("slug")}, ${g("title")}${pageDescription ? `, ${g("description")}` : ""}, ${g("published")})
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title)${pageDescription ? ", save_status_page.description" : ""}, coalesce(save_status_page.published, false))
+  values (upsert_status_page.tenant, upsert_status_page.slug, trim(upsert_status_page.title)${pageDescription ? ", upsert_status_page.description" : ""}, coalesce(upsert_status_page.published, false))
   on conflict (${g("tenant")}) do update
     set ${g("slug")} = excluded.${g("slug")}, ${g("title")} = excluded.${g("title")}${pageDescription ? `, ${g("description")} = excluded.${g("description")}` : ""},
       ${g("published")} = excluded.${g("published")}${ctx.has("pages", "updatedAt") ? `, ${g("updatedAt")} = now()` : ""}
@@ -106,7 +106,7 @@ begin
   return ${pageJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_status_page")}(${idType}, text, text, text, boolean)`)}
+${userGrant(`${fn("upsert_status_page")}(${idType}, text, text, text, boolean)`)}
 
 create or replace function ${fn("get_status_page")}(tenant ${idType})
 returns jsonb

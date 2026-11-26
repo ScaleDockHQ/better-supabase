@@ -498,7 +498,7 @@ export function createQualifications<
   const client: Qualifications<F> = {
     saveType: ({ organizationId, input }) =>
       call(
-        "save_qualification_type",
+        "upsert_qualification_type",
         {
           tenant: organizationId,
           key: input.key,
@@ -510,7 +510,7 @@ export function createQualifications<
           description: input.description ?? null,
           type_id: input.typeId ?? null,
         },
-        (value) => typeOf(value, "save_qualification_type"),
+        (value) => typeOf(value, "upsert_qualification_type"),
       ),
     archiveType: (typeId) =>
       call("archive_qualification_type", { type_id: typeId }, (value) =>
@@ -539,15 +539,15 @@ export function createQualifications<
       ),
     addRequirement: ({ typeId, targetType, targetValue }) =>
       call(
-        "add_qualification_requirement",
+        "create_qualification_requirement",
         { type_id: typeId, target_type: targetType, target_value: targetValue },
-        requirement("add_qualification_requirement"),
+        requirement("create_qualification_requirement"),
       ),
     removeRequirement: (requirementId) =>
       call(
-        "remove_qualification_requirement",
+        "delete_qualification_requirement",
         { requirement_id: requirementId },
-        requirement("remove_qualification_requirement"),
+        requirement("delete_qualification_requirement"),
       ),
     requirements: (typeId) =>
       call(

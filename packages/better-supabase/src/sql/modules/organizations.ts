@@ -726,7 +726,7 @@ function members(ctx: BlockSqlContext, n: OrganizationNames): string {
     ? `
 -- blocks.memberships.options.roles.many: add or remove one of a member's
 -- roles. The membership's role column follows the highest-ranked one left.
-create or replace function ${ctx.fn("add_member_role")}(organization ${id}, member uuid, role text)
+create or replace function ${ctx.fn("create_member_role")}(organization ${id}, member uuid, role text)
 returns boolean
 language plpgsql
 security definer
@@ -757,7 +757,7 @@ begin
 end;
 $$;
 
-create or replace function ${ctx.fn("remove_member_role")}(organization ${id}, member uuid, role text)
+create or replace function ${ctx.fn("delete_member_role")}(organization ${id}, member uuid, role text)
 returns boolean
 language plpgsql
 security definer
@@ -793,8 +793,8 @@ end;
 $$;
 `
     : `
-drop function if exists ${ctx.fn("add_member_role")}(${id}, uuid, text);
-drop function if exists ${ctx.fn("remove_member_role")}(${id}, uuid, text);
+drop function if exists ${ctx.fn("create_member_role")}(${id}, uuid, text);
+drop function if exists ${ctx.fn("delete_member_role")}(${id}, uuid, text);
 `;
 
   return `
@@ -837,7 +837,7 @@ begin
 end;
 $$;
 
-create or replace function ${ctx.fn("remove_member")}(organization ${id}, member uuid)
+create or replace function ${ctx.fn("delete_member")}(organization ${id}, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1018,7 +1018,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["delete_organization", id],
   ["update_member_role", `${id}, uuid, text`],
   ["update_member_roles", `${id}, uuid[], text`],
-  ["remove_member", `${id}, uuid`],
+  ["delete_member", `${id}, uuid`],
   ["leave_organization", id],
   ["sole_owned_organizations", `uuid, ${id}`],
   ["transfer_ownership", `${id}, uuid, text`],
@@ -1052,8 +1052,8 @@ const functionsOf = (
       ] as const)),
   ...(manyRoles(ctx.of("memberships"))
     ? ([
-        ["add_member_role", `${id}, uuid, text`],
-        ["remove_member_role", `${id}, uuid, text`],
+        ["create_member_role", `${id}, uuid, text`],
+        ["delete_member_role", `${id}, uuid, text`],
       ] as const)
     : []),
 ];

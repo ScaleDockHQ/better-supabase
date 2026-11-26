@@ -30,19 +30,19 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('soc2', (better_supabase.save_control_framework(
+insert into ids values ('soc2', (better_supabase.upsert_control_framework(
   '00000000-0000-4000-8000-000000000001', 'soc2', 'SOC 2', '2017') ->> 'id')::uuid);
-insert into ids values ('cc61', (better_supabase.save_control(
+insert into ids values ('cc61', (better_supabase.upsert_control(
   (select id from ids where name = 'soc2'), 'CC6.1', 'Logical access',
   owner_id => '00000000-0000-4000-8000-0000000000a2') ->> 'id')::uuid);
-insert into ids values ('cc72', (better_supabase.save_control(
+insert into ids values ('cc72', (better_supabase.upsert_control(
   (select id from ids where name = 'soc2'), 'CC7.2', 'Monitoring') ->> 'id')::uuid);
-insert into ids values ('a11', (better_supabase.save_control(
+insert into ids values ('a11', (better_supabase.upsert_control(
   (select id from ids where name = 'soc2'), 'A1.1', 'Capacity', applicable => false) ->> 'id')::uuid);
-insert into ids values ('review', (better_supabase.save_evidence_task(
+insert into ids values ('review', (better_supabase.upsert_evidence_task(
   (select id from ids where name = 'cc72'), 'Review alerts', 30, current_date - 1,
   '00000000-0000-4000-8000-0000000000a2') ->> 'id')::uuid);
-insert into ids values ('aup', (better_supabase.save_compliance_policy(
+insert into ids values ('aup', (better_supabase.upsert_compliance_policy(
   '00000000-0000-4000-8000-000000000001', 'acceptable-use', 'Acceptable use') ->> 'id')::uuid);
 
 select is(
@@ -51,7 +51,7 @@ select is(
   'the owner sets up a framework, three controls, an evidence task and a policy'
 );
 select throws_ok(
-  $$select better_supabase.save_control_framework('00000000-0000-4000-8000-000000000002', 'iso', 'ISO 27001')$$,
+  $$select better_supabase.upsert_control_framework('00000000-0000-4000-8000-000000000002', 'iso', 'ISO 27001')$$,
   '42501',
   null,
   'the owner cannot add a framework to an organization they only belong to as a member'
@@ -91,7 +91,7 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  $$select better_supabase.save_control((select id from ids where name = 'soc2'), 'CC9.9', 'Sneaky')$$,
+  $$select better_supabase.upsert_control((select id from ids where name = 'soc2'), 'CC9.9', 'Sneaky')$$,
   '42501',
   null,
   'a member cannot add controls'
@@ -102,12 +102,12 @@ select is(
   'an evidence task past its due date is overdue'
 );
 select is(
-  (better_supabase.add_control_evidence((select id from ids where name = 'cc61'), note => 'Access review done') ->> 'controlId')::uuid,
+  (better_supabase.create_control_evidence((select id from ids where name = 'cc61'), note => 'Access review done') ->> 'controlId')::uuid,
   (select id from ids where name = 'cc61'),
   'a member collects evidence for a control'
 );
 select ok(
-  (better_supabase.add_control_evidence((select id from ids where name = 'cc72'), note => 'Alerts reviewed',
+  (better_supabase.create_control_evidence((select id from ids where name = 'cc72'), note => 'Alerts reviewed',
     task_id => (select id from ids where name = 'review')) ->> 'id') is not null,
   'a member collects evidence for an evidence task'
 );
@@ -153,7 +153,7 @@ select is(
   'the Globex owner sees no Acme controls or policies'
 );
 select throws_ok(
-  $$select better_supabase.add_control_evidence((select id from ids where name = 'cc61'), note => 'Forged')$$,
+  $$select better_supabase.create_control_evidence((select id from ids where name = 'cc61'), note => 'Forged')$$,
   null,
   null,
   'the Globex owner cannot add evidence to an Acme control'
@@ -175,8 +175,8 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select better_supabase.save_control(
-    (better_supabase.save_control_framework(
+  (select better_supabase.upsert_control(
+    (better_supabase.upsert_control_framework(
       '00000000-0000-4000-8000-000000000001', 'gdpr', 'GDPR register', kind => 'legal') ->> 'id')::uuid,
     'ART30', 'Records of processing',
     source => 'GDPR article 30', jurisdiction => 'EU') - 'id' - 'organizationId' - 'frameworkId' - 'createdAt' - 'updatedAt' - 'fields' - 'status' - 'description' - 'ownerId' - 'applicable' - 'code' - 'title'),
@@ -190,7 +190,7 @@ select is(
   'a legal register is a framework of kind legal'
 );
 select throws_ok(
-  $$select better_supabase.save_control_framework('00000000-0000-4000-8000-000000000001', 'odd', 'Odd', kind => 'treaty')$$,
+  $$select better_supabase.upsert_control_framework('00000000-0000-4000-8000-000000000001', 'odd', 'Odd', kind => 'treaty')$$,
   '22023',
   'kind must be one of standard, legal, internal, contract',
   'a framework kind outside the list is refused'

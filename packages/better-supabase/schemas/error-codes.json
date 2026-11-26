@@ -1174,7 +1174,7 @@
   },
   {
     "code": "CATALOG_VARIANT_OPTIONS",
-    "message": "a live variant needs one value of each product option; set them with save_variant"
+    "message": "a live variant needs one value of each product option; set them with upsert_variant"
   },
   {
     "code": "CATALOG_VARIANT_STATUS_UNSUPPORTED",

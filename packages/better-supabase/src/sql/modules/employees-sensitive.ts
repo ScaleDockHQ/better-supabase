@@ -191,11 +191,11 @@ function privateSql(
     ...DETAILS.filter((detail) => has(detail.column)).map((detail) => {
       const key = sqlString(detail.key);
 
-      return `${p(detail.column)} = case when save_employee_private_details.attrs ? ${key} then ${detail.value(`save_employee_private_details.attrs ->> ${key}`, `save_employee_private_details.attrs -> ${key}`)} else x.${p(detail.column)} end`;
+      return `${p(detail.column)} = case when upsert_employee_private_details.attrs ? ${key} then ${detail.value(`upsert_employee_private_details.attrs ->> ${key}`, `upsert_employee_private_details.attrs -> ${key}`)} else x.${p(detail.column)} end`;
     }),
     ...flat.map((logical) => {
       const [parent, path] = NESTED[logical];
-      const attrs = "save_employee_private_details.attrs";
+      const attrs = "upsert_employee_private_details.attrs";
 
       const nested = has(parent)
         ? ""
@@ -211,7 +211,7 @@ function privateSql(
 
   const extras = ctx.extraColumns("privateDetails", []);
 
-  const fields = "(save_employee_private_details.attrs -> 'fields')";
+  const fields = "(upsert_employee_private_details.attrs -> 'fields')";
   const required = insertExtraColumns(table, extras, fields);
 
   return `
@@ -239,7 +239,7 @@ ${userGrant(`${n.fn("employee_private_details")}(uuid)`)}
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
 -- one.${extras.length === 0 ? "" : " fields sets the extra columns."} The employee edits their own details too.
-create or replace function ${n.fn("save_employee_private_details")}(employee uuid, attrs jsonb)
+create or replace function ${n.fn("upsert_employee_private_details")}(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -248,8 +248,8 @@ as $$
 declare
   v_employee ${n.t("employees")};
   v_row ${table};
-begin${load("save_employee_private_details", "employee", n.privateDetailsWrite === undefined ? reader("v_employee") : `(${n.service} or (${ctx.scope.can(`v_employee.${e("tenant")}`, n.sensitive)} and ${ctx.scope.can(`v_employee.${e("tenant")}`, n.privateDetailsWrite)}) or coalesce(v_employee.${e("user")} = auth.uid(), false))`)}
-  if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
+begin${load("upsert_employee_private_details", "employee", n.privateDetailsWrite === undefined ? reader("v_employee") : `(${n.service} or (${ctx.scope.can(`v_employee.${e("tenant")}`, n.sensitive)} and ${ctx.scope.can(`v_employee.${e("tenant")}`, n.privateDetailsWrite)}) or coalesce(v_employee.${e("user")} = auth.uid(), false))`)}
+  if jsonb_typeof(coalesce(upsert_employee_private_details.attrs, '{}')) <> 'object' then
     ${fail("EMPLOYEE_PRIVATE_INVALID", "attrs must be an object", "22023")}
   end if;
   insert into ${table} (${p("employee")}, ${p("tenant")}${user ? `, ${p("user")}` : ""}${required.columns})
@@ -265,7 +265,7 @@ begin${load("save_employee_private_details", "employee", n.privateDetailsWrite =
   return ${json("v_row")};
 end;
 $$;
-${userGrant(`${n.fn("save_employee_private_details")}(uuid, jsonb)`)}
+${userGrant(`${n.fn("upsert_employee_private_details")}(uuid, jsonb)`)}
 `;
 }
 
@@ -314,10 +314,10 @@ function contractsSql(
       : `(${minor})::bigint`;
 
   const arg = (key: string): string =>
-    `add_employee_contract.attrs ->> ${sqlString(key)}`;
+    `create_employee_contract.attrs ->> ${sqlString(key)}`;
 
   const extras = ctx.extraColumns("contracts", []);
-  const fields = "(add_employee_contract.attrs -> 'fields')";
+  const fields = "(create_employee_contract.attrs -> 'fields')";
   const required = insertExtraColumns(table, extras, fields);
 
   const columns = [
@@ -357,7 +357,7 @@ function contractsSql(
 
   const insert =
     currency && !ctx.owns("contracts")
-      ? `if add_employee_contract.attrs ? 'currency' then
+      ? `if create_employee_contract.attrs ? 'currency' then
       ${insertWith(undefined).replaceAll("\n    ", "\n      ")}
     else
       ${insertWith(k("currency")).replaceAll("\n    ", "\n      ")}
@@ -395,7 +395,7 @@ ${userGrant(`${n.fn("employee_contracts")}(uuid)`)}
 -- (minor units) with currency, salaryPeriod (hour, week, month or year)
 -- and note. It starts after the latest contract, which ends the day
 -- before. Needs employees.write and employees.view_sensitive.
-create or replace function ${n.fn("add_employee_contract")}(employee uuid, attrs jsonb)
+create or replace function ${n.fn("create_employee_contract")}(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -405,7 +405,7 @@ declare
   v_employee ${n.t("employees")};
   v_row ${table};
   v_starts date;
-begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_employee"))}${denyOverlaps(ctx) ? lockEmployee(n, "v_employee") : ""}
+begin${load("create_employee_contract", "employee", contractWriter(ctx, n, "v_employee"))}${denyOverlaps(ctx) ? lockEmployee(n, "v_employee") : ""}
   begin
     v_starts := (${arg("startsOn")})::date;
     if v_starts is null then
@@ -428,7 +428,7 @@ begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_emplo
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${n.fn("add_employee_contract")}(uuid, jsonb)`)}
+${userGrant(`${n.fn("create_employee_contract")}(uuid, jsonb)`)}
 ${editableContracts(ctx) ? editContractsSql(ctx, n, { table, k, has, row, updated, extras, salaryValue }) : ""}`;
 }
 

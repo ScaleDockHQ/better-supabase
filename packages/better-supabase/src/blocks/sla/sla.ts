@@ -240,7 +240,7 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
           .args(extra)
           .andThen((checked) =>
             call(
-              "save_sla_policy",
+              "upsert_sla_policy",
               {
                 tenant: organizationId,
                 policy: id ?? null,

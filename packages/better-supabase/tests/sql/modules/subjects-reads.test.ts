@@ -180,7 +180,7 @@ describe("read logging", () => {
       `${READ_CALL}list_activity.subject_type, list_activity.subject_id, null, 'timeline', 'list_activity');`,
     );
     expect(sqlOf(files, "custom-fields")).toContain(
-      `${READ_CALL}read_field_values.subject_type, read_field_values.subject_id, null, 'custom-fields', 'read_field_values');`,
+      `${READ_CALL}get_field_values.subject_type, get_field_values.subject_id, null, 'custom-fields', 'get_field_values');`,
     );
     expect(sqlOf(files, "comments")).toMatch(
       /"list_comments"\([^)]*\)\s+returns jsonb\s+language plpgsql\s+volatile/u,

@@ -140,7 +140,7 @@ const validate = (
 describe("createManufacturing", () => {
   it("saves, activates and reads bills of materials", async () => {
     const t = fieldsTransport({
-      save_bom: () => ({ ...BOM, status: "draft", activatedAt: null }),
+      upsert_bom: () => ({ ...BOM, status: "draft", activatedAt: null }),
       activate_bom: () => BOM,
       list_boms: () => [BOM],
       explode_bom: () => ({
@@ -226,7 +226,7 @@ describe("createManufacturing", () => {
     expect(explosion.lines[0]?.made).toBe(false);
     expect(uses[0]).toMatchObject({ variantId: "bread", quantity: 0.5 });
     expect(t.calls[0]).toEqual([
-      "save_bom",
+      "upsert_bom",
       {
         tenant: "org-1",
         variant: "bread",
@@ -261,7 +261,7 @@ describe("createManufacturing", () => {
 
   it("saves work centers with a cost rate in money", async () => {
     const t = fieldsTransport({
-      save_work_center: () => WORK_CENTER,
+      upsert_work_center: () => WORK_CENTER,
       list_work_centers: () => [{ ...WORK_CENTER, currency: null }],
     });
 
@@ -280,7 +280,7 @@ describe("createManufacturing", () => {
     expect(saved.hoursPerDay).toBe(8);
     expect(listed[0]?.costRate).toBeUndefined();
     expect(t.calls[0]).toEqual([
-      "save_work_center",
+      "upsert_work_center",
       {
         tenant: "org-1",
         input: { name: "Oven", costRate: "6000", currency: "EUR" },

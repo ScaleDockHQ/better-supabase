@@ -385,9 +385,9 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
     saveBoard: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_post_board",
+          "upsert_post_board",
           { tenant: organizationId, board: definedOf(input) },
-          (value) => boardOf(value, "save_post_board"),
+          (value) => boardOf(value, "upsert_post_board"),
         ),
       ),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)

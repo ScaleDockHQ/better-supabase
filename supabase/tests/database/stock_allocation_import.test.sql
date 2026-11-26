@@ -14,9 +14,9 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.p1', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Nut', 'nut-alloc-import', null, 'physical', null) ->> 'id', true);
-select set_config('t.v1', better_supabase.save_variant(current_setting('t.p1')::uuid, null, 'NUT-1', null, 'Nut', null, null, true, false, null) ->> 'id', true);
-select set_config('t.location', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'ALIMP', 'Allocation import dock', null, null) ->> 'id', true);
+select set_config('t.p1', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Nut', 'nut-alloc-import', null, 'physical', null) ->> 'id', true);
+select set_config('t.v1', better_supabase.upsert_variant(current_setting('t.p1')::uuid, null, 'NUT-1', null, 'Nut', null, null, true, false, null) ->> 'id', true);
+select set_config('t.location', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'ALIMP', 'Allocation import dock', null, null) ->> 'id', true);
 
 create function pg_temp.start_run(source text) returns void language plpgsql as $$
 begin

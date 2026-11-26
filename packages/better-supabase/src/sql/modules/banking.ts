@@ -222,7 +222,7 @@ ${linked(ctx, "accounting") ? accountingSourcesSql(ctx, bankingAccountingSources
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_bank_account",
+      name: "upsert_bank_account",
       args: ["{id}", "jsonb", "uuid"],
       returns: "jsonb",
     },
@@ -258,7 +258,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_bank_rule",
+      name: "upsert_bank_rule",
       args: ["{id}", "jsonb", "uuid"],
       returns: "jsonb",
     },

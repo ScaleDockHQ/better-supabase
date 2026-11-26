@@ -42,12 +42,12 @@ insert into ids values ('journal', (select id from better_supabase.accounting_jo
   where tenant_id = '00000000-0000-4000-8000-000000000001' and code = 'BNK'));
 
 select throws_ok(
-  $$select better_supabase.save_bank_account('00000000-0000-4000-8000-000000000001', '{"name": "Main", "iban": "NL92ABNA0417164300", "currency": "EUR"}')$$,
+  $$select better_supabase.upsert_bank_account('00000000-0000-4000-8000-000000000001', '{"name": "Main", "iban": "NL92ABNA0417164300", "currency": "EUR"}')$$,
   '22023',
   'the IBAN''s check digits don''t match',
   'an IBAN with wrong check digits is refused'
 );
-insert into ids values ('account', (better_supabase.save_bank_account('00000000-0000-4000-8000-000000000001',
+insert into ids values ('account', (better_supabase.upsert_bank_account('00000000-0000-4000-8000-000000000001',
   jsonb_build_object('name', 'Main', 'iban', 'nl91 abna 0417 1643 00', 'currency', 'EUR', 'journalId', (select id from ids where name = 'journal'))) ->> 'id')::uuid);
 select is(
   (select jsonb_build_array(iban, currency, journal_id = (select id from ids where name = 'journal'))
@@ -56,7 +56,7 @@ select is(
   'the owner adds an account; the IBAN is stored upper case without spaces'
 );
 
-insert into ids values ('customer', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null,
+insert into ids values ('customer', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null,
   '{"name": "Banking customer"}') ->> 'id')::uuid);
 insert into ids values ('invoice', (better_supabase.create_invoice('00000000-0000-4000-8000-000000000001',
   jsonb_build_object('title', 'Consulting', 'currency', 'EUR', 'company', jsonb_build_object('id', (select id from ids where name = 'customer'))),
@@ -146,15 +146,15 @@ select throws_ok(
   'a matched transaction can''t be matched again'
 );
 
-select better_supabase.save_bank_rule('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+select better_supabase.upsert_bank_rule('00000000-0000-4000-8000-000000000001', jsonb_build_object(
   'name', 'Bank fees',
   'conditions', '{"type": "group", "combinator": "and", "rules": [{"type": "rule", "path": ["counterpartyName"], "operator": "is", "value": "Bank"}, {"type": "rule", "path": ["direction"], "operator": "is", "value": "out"}]}'::jsonb,
   'accountId', (select id from better_supabase.accounting_accounts where tenant_id = '00000000-0000-4000-8000-000000000001' and code = '6000'),
   'priority', 10));
-select better_supabase.save_bank_rule('00000000-0000-4000-8000-000000000001',
+select better_supabase.upsert_bank_rule('00000000-0000-4000-8000-000000000001',
   '{"name": "Own transfers", "conditions": {"type": "group", "combinator": "and", "rules": [{"type": "rule", "path": ["counterpartyName"], "operator": "contains", "value": "savings"}]}}');
 select throws_ok(
-  $$select better_supabase.save_bank_rule('00000000-0000-4000-8000-000000000001', '{"name": "Bad", "conditions": {"type": "rule", "path": ["amount"], "operator": "resembles"}}')$$,
+  $$select better_supabase.upsert_bank_rule('00000000-0000-4000-8000-000000000001', '{"name": "Bad", "conditions": {"type": "rule", "path": ["amount"], "operator": "resembles"}}')$$,
   '22023',
   'conditions must be a filter tree of known operators',
   'a rule with an unknown operator is refused'
@@ -188,7 +188,7 @@ select set_config(
 );
 
 select throws_ok(
-  $$select better_supabase.save_bank_account('00000000-0000-4000-8000-000000000001', '{"name": "Petty", "currency": "EUR"}')$$,
+  $$select better_supabase.upsert_bank_account('00000000-0000-4000-8000-000000000001', '{"name": "Petty", "currency": "EUR"}')$$,
   '42501',
   'not allowed to manage bank accounts',
   'a member can''t add a bank account'

@@ -40,7 +40,7 @@ const CLOCK = {
 describe("sla block", () => {
   it("saves a policy with the attributes it names", async () => {
     const t = transport({
-      save_sla_policy: () => ({
+      upsert_sla_policy: () => ({
         id: "p1",
         subject_type: "ticket",
         name: "Urgent",
@@ -94,7 +94,7 @@ describe("sla block", () => {
     ] as const;
 
     const t = transport({
-      save_sla_policy: () => ({
+      upsert_sla_policy: () => ({
         id: "p1",
         subject_type: "ticket",
         name: "Urgent",

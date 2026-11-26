@@ -370,7 +370,7 @@ export function createHiring<
       return AsyncResult.from(() => fields.write({ ...extra }))
         .andThen((valid) =>
           call(
-            "save_job",
+            "upsert_job",
             {
               tenant: organizationId,
               job: id ?? null,

@@ -31,7 +31,7 @@ async function verified(
   await s.as(owner);
 
   const row = await s.value<{ id: string }>(
-    "better_supabase.add_organization_domain($1, $2)",
+    "better_supabase.create_organization_domain($1, $2)",
     [tenant, name],
   );
 
@@ -65,7 +65,7 @@ describe.skipIf(!live)("sso", () => {
         id: string;
         record: { name: string; value: string };
         verification_token?: string;
-      }>("better_supabase.add_organization_domain($1, $2)", [
+      }>("better_supabase.create_organization_domain($1, $2)", [
         tenant,
         ` ${name.toUpperCase()}. `,
       ]);
@@ -77,7 +77,7 @@ describe.skipIf(!live)("sso", () => {
       expect(added.verification_token).toBeUndefined();
       expect(
         await s.hint(
-          "better_supabase.add_organization_domain($1, 'not a domain')",
+          "better_supabase.create_organization_domain($1, 'not a domain')",
           [tenant],
         ),
       ).toBe("SSO_DOMAIN_INVALID");
@@ -89,7 +89,7 @@ describe.skipIf(!live)("sso", () => {
       ).toBe("SSO_DOMAIN_NOT_VERIFIED");
       await s.as(member);
       expect(
-        await s.hint("better_supabase.add_organization_domain($1, $2)", [
+        await s.hint("better_supabase.create_organization_domain($1, $2)", [
           tenant,
           name,
         ]),
@@ -139,7 +139,7 @@ describe.skipIf(!live)("sso", () => {
       await s.as(rival);
 
       const claim = await s.value<{ id: string }>(
-        "better_supabase.add_organization_domain($1, $2)",
+        "better_supabase.create_organization_domain($1, $2)",
         [other, name],
       );
 
@@ -288,7 +288,7 @@ describe.skipIf(!live)("sso", () => {
 
       await s.as(owner);
       expect(
-        await s.hint("better_supabase.remove_organization_domain($1)", [id]),
+        await s.hint("better_supabase.delete_organization_domain($1)", [id]),
       ).toBe("SSO_DOMAIN_IN_USE");
       const sso = createSso({ transport: sqlTransport(s.sql) });
       expect((await sso.providers(tenant).orThrow()).map((p) => p.id)).toEqual([

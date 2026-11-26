@@ -150,7 +150,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
   return `-- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function ${fn("save_inbox_draft")}(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function ${fn("upsert_inbox_draft")}(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -159,9 +159,9 @@ as $$
 declare
   v_conv ${T("conversations")}%rowtype;
   v_row ${T("drafts")}%rowtype;
-  v_input jsonb := coalesce(input, '{}'::jsonb) ${STRIPPED};${metadataDeclare("save_inbox_draft.metadata")}
+  v_input jsonb := coalesce(input, '{}'::jsonb) ${STRIPPED};${metadataDeclare("upsert_inbox_draft.metadata")}
 begin
-  ${getConversation("save_inbox_draft.conversation")}
+  ${getConversation("upsert_inbox_draft.conversation")}
   if (select auth.uid()) is null or not ${q.command(`v_conv.${cv("tenant")}`, "reply", "reply")} then
     ${forbidden("not allowed to reply in this conversation")}
   end if;
@@ -176,7 +176,7 @@ begin
   return ${q.json("drafts", "v_row")};
 end;
 $$;
-${authed(`${fn("save_inbox_draft")}(uuid, jsonb, jsonb)`)}
+${authed(`${fn("upsert_inbox_draft")}(uuid, jsonb, jsonb)`)}
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.

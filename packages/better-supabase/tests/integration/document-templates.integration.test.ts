@@ -87,7 +87,7 @@ describe.skipIf(!live)("document-templates module in Postgres", () => {
 
   it("refuses a template with an unknown variable and names the hint", async () => {
     const hint = await session.hint(
-      `select better_supabase.save_document_template($1, 'quote', '{{document.nope}}')`,
+      `select better_supabase.upsert_document_template($1, 'quote', '{{document.nope}}')`,
       [tenant],
     );
 

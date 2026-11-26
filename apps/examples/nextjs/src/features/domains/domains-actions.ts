@@ -20,7 +20,7 @@ const Id = v.pipe(v.string(), v.uuid());
 
 const manage = { requireTenant: true, permission: "domains.manage" } as const;
 
-/** Adds a hostname as the caller (`add_hostname` checks `domains.manage`). */
+/** Adds a hostname as the caller (`create_hostname` checks `domains.manage`). */
 export const addDomain = bsb.action(
   {
     ...manage,
@@ -44,7 +44,7 @@ export const addDomain = bsb.action(
       connection
         .asUser(claims)
         .queryRaw<{ row: { id: string } }>(
-          "select better_supabase.add_hostname($1, $2) as row",
+          "select better_supabase.create_hostname($1, $2) as row",
           [tenant, hostname],
         ),
     );
@@ -109,7 +109,7 @@ export const removeDomain = bsb.action(
       connection
         .asUser(claims)
         .queryRaw<{ removed: boolean }>(
-          "select better_supabase.remove_hostname($1) as removed",
+          "select better_supabase.delete_hostname($1) as removed",
           [id],
         ),
     );

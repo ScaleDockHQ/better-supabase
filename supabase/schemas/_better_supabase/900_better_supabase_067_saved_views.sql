@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:53bc6e5755d4fb717cd7749e4b144482064de841a6df12150814a3d14b023e2d
+-- @bsb-hash sha256:4025bbc3821abecc3c1564e18689fa2d4af9c6bf1e78c11d4c09b77152f157d4
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -56,7 +56,7 @@ grant all on "better_supabase"."saved_view_preferences" to service_role;
 create policy bsb_saved_view_preferences_read on "better_supabase"."saved_view_preferences"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
+create or replace function "better_supabase"."upsert_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -64,8 +64,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_view.view_id;
-  v_inserted boolean := save_view.view_id is null;
+  v_id uuid := upsert_view.view_id;
+  v_inserted boolean := upsert_view.view_id is null;
   v_row "better_supabase"."shared_views";
   v_last text;
   v_rank text;
@@ -74,45 +74,45 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_view.scope is null or save_view.scope not in ('user', 'team', 'tenant') then
+  if upsert_view.scope is null or upsert_view.scope not in ('user', 'team', 'tenant') then
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
   end if;
-  if save_view.kind is null or save_view.kind not in ('table', 'board', 'calendar', 'timeline', 'gantt') then
+  if upsert_view.kind is null or upsert_view.kind not in ('table', 'board', 'calendar', 'timeline', 'gantt') then
     raise exception 'unknown view kind' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
   end if;
-  if save_view.state is null or jsonb_typeof(save_view.state) <> 'object' then
+  if upsert_view.state is null or jsonb_typeof(upsert_view.state) <> 'object' then
     raise exception 'state must be an object' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
   end if;
-  if not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'saved_views.read'), false)) then
+  if not (v_service or coalesce(better_supabase.can('tenant', upsert_view.tenant, 'saved_views.read'), false)) then
     raise exception 'not allowed to save views' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
-  if save_view.state ? 'collectionId' and (
-    jsonb_typeof(save_view.state -> 'collectionId') <> 'string'
-    or (save_view.state ->> 'collectionId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  if upsert_view.state ? 'collectionId' and (
+    jsonb_typeof(upsert_view.state -> 'collectionId') <> 'string'
+    or (upsert_view.state ->> 'collectionId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
     or not exists (
       select 1 from "better_supabase"."subject_collections" c
-      where c."id" = (save_view.state ->> 'collectionId')::uuid
-        and c."tenant_id" = save_view.tenant
+      where c."id" = (upsert_view.state ->> 'collectionId')::uuid
+        and c."tenant_id" = upsert_view.tenant
         and (v_service or c."scope" <> 'user' or c."owner_id" = auth.uid())
     )) then
     raise exception 'the view''s collection is not found' using errcode = 'P0002', hint = 'SAVED_VIEW_COLLECTION_NOT_FOUND';
   end if;
-  if save_view.scope = 'user' and auth.uid() is null then
+  if upsert_view.scope = 'user' and auth.uid() is null then
     raise exception 'a personal view needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
   end if;
-  if save_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'saved_views.share'), false)) then
+  if upsert_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', upsert_view.tenant, 'saved_views.share'), false)) then
     raise exception 'not allowed to share views' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
-  if save_view.scope = 'team' then
-    if save_view.team is null then
+  if upsert_view.scope = 'team' then
+    if upsert_view.team is null then
       raise exception 'a team view needs a team' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
     end if;
-    if not (v_service or save_view.team in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)) then
+    if not (v_service or upsert_view.team in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)) then
       raise exception 'not a member of this team' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
   end if;
   if v_id is not null then
-    select * into v_row from "better_supabase"."shared_views" where "id" = v_id and "tenant_id" = save_view.tenant for update;
+    select * into v_row from "better_supabase"."shared_views" where "id" = v_id and "tenant_id" = upsert_view.tenant for update;
     if not found then
       raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
     end if;
@@ -127,44 +127,44 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_view.tenant, save_view.list, save_view.scope, save_view.state;
+        using upsert_view.tenant, upsert_view.list, upsert_view.scope, upsert_view.state;
     end if;
   end;
   if v_id is null then
     select max(v."rank" collate "C") into v_last from "better_supabase"."shared_views" v
-      where v."tenant_id" = save_view.tenant and v."list" = save_view.list;
+      where v."tenant_id" = upsert_view.tenant and v."list" = upsert_view.list;
     v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
     insert into "better_supabase"."shared_views" ("tenant_id", "list", "scope", "owner_id", "team_id", "name", "kind", "state", "rank")
-    values (save_view.tenant, save_view.list, save_view.scope, auth.uid(),
-      case when save_view.scope = 'team' then save_view.team end,
-      save_view.name, save_view.kind, save_view.state, v_rank)
+    values (upsert_view.tenant, upsert_view.list, upsert_view.scope, auth.uid(),
+      case when upsert_view.scope = 'team' then upsert_view.team end,
+      upsert_view.name, upsert_view.kind, upsert_view.state, v_rank)
     returning "id" into v_id;
   else
     update "better_supabase"."shared_views" set
-      "list" = save_view.list,
-      "scope" = save_view.scope,
-      "team_id" = case when save_view.scope = 'team' then save_view.team end,
+      "list" = upsert_view.list,
+      "scope" = upsert_view.scope,
+      "team_id" = case when upsert_view.scope = 'team' then upsert_view.team end,
       "owner_id" = coalesce("owner_id", auth.uid()),
-      "name" = save_view.name,
-      "kind" = save_view.kind,
-      "state" = save_view.state,
+      "name" = upsert_view.name,
+      "kind" = upsert_view.kind,
+      "state" = upsert_view.state,
       -- The default is per list, scope and team; moving the view drops it.
       "is_default" = case
-        when "scope" = save_view.scope and "list" = save_view.list
-          and "team_id" is not distinct from case when save_view.scope = 'team' then save_view.team end
+        when "scope" = upsert_view.scope and "list" = upsert_view.list
+          and "team_id" is not distinct from case when upsert_view.scope = 'team' then upsert_view.team end
         then "is_default" else false end,
       "updated_at" = now()
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
   if v_inserted then
-    perform "better_supabase".emit_event('saved_view.created', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+    perform "better_supabase".emit_event('saved_view.created', jsonb_build_object('organizationId', upsert_view.tenant, 'id', v_id, 'kind', upsert_view.kind, 'name', upsert_view.name), 'saved-views/' || v_id::text, (upsert_view.tenant)::text, null, 'better-supabase/saved-views');
   else
-    perform "better_supabase".emit_event('saved_view.updated', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+    perform "better_supabase".emit_event('saved_view.updated', jsonb_build_object('organizationId', upsert_view.tenant, 'id', v_id, 'kind', upsert_view.kind, 'name', upsert_view.name), 'saved-views/' || v_id::text, (upsert_view.tenant)::text, null, 'better-supabase/saved-views');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
@@ -177,8 +177,8 @@ begin
   return jsonb_build_object('id', v_id, 'rank', v_rank);
 end;
 $$;
-revoke execute on function "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_view"(uuid, text, text, text, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_view"(uuid, text, text, text, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_view"(uuid, text, text, text, text, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_views"(tenant uuid, list text)
 returns jsonb
@@ -723,7 +723,7 @@ $$;
 revoke execute on function "better_supabase"."delete_view"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_view"(uuid) to authenticated, service_role;
 
--- A copy of a view the caller sees, saved through save_view, so the copy
+-- A copy of a view the caller sees, saved through upsert_view, so the copy
 -- needs the same rights as a new view of that scope.
 create or replace function "better_supabase"."duplicate_view"(view_id uuid, scope text, name text, team text)
 returns jsonb
@@ -742,7 +742,7 @@ begin
       or v_row."scope" = 'tenant'))) then
     raise exception 'saved view not found' using errcode = 'P0002', hint = 'SAVED_VIEW_NOT_FOUND';
   end if;
-  return "better_supabase"."save_view"(v_row."tenant_id", v_row."list",
+  return "better_supabase"."upsert_view"(v_row."tenant_id", v_row."list",
     coalesce(duplicate_view.name, v_row."name"), v_row."kind",
     coalesce(duplicate_view.scope, 'user'), duplicate_view.team, v_row."state", null);
 end;
@@ -851,14 +851,14 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
+create or replace function "api"."upsert_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_view"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_view"(uuid, text, text, text, text, text, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_view"(uuid, text, text, text, text, text, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_view"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_view"(uuid, text, text, text, text, text, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_view"(uuid, text, text, text, text, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_views"(tenant uuid, list text)
 returns jsonb

@@ -268,7 +268,7 @@ export function catalogSupply(
   return {
     saveProductIdentifier: ({ organizationId, input }) =>
       call(
-        "save_product_identifier",
+        "upsert_product_identifier",
         {
           tenant: organizationId,
           variant: input.variantId,
@@ -277,7 +277,7 @@ export function catalogSupply(
           party: input.partyId ?? null,
         },
         (value) => {
-          const row = recordOf(value, "save_product_identifier");
+          const row = recordOf(value, "upsert_product_identifier");
 
           return { id: textOf(row["id"]), created: row["created"] === true };
         },
@@ -319,7 +319,7 @@ export function catalogSupply(
       ),
     saveProductRelation: ({ organizationId, input }) =>
       call(
-        "save_product_relation",
+        "upsert_product_relation",
         {
           tenant: organizationId,
           from_variant: input.fromVariantId,
@@ -327,7 +327,8 @@ export function catalogSupply(
           kind: input.kind,
         },
         (value) => ({
-          created: recordOf(value, "save_product_relation")["created"] === true,
+          created:
+            recordOf(value, "upsert_product_relation")["created"] === true,
         }),
       ),
     deleteProductRelation: (input) =>
@@ -357,7 +358,7 @@ export function catalogSupply(
       call("replacement_variant", { variant: variantId }, textOf),
     saveSupplierItem: ({ organizationId, input }) =>
       call(
-        "save_supplier_item",
+        "upsert_supplier_item",
         {
           tenant: organizationId,
           item: input.id ?? null,
@@ -370,7 +371,7 @@ export function catalogSupply(
           keywords: input.keywords ?? null,
         },
         (value) => {
-          const row = recordOf(value, "save_supplier_item");
+          const row = recordOf(value, "upsert_supplier_item");
 
           return { id: textOf(row["id"]), code: textOf(row["code"]) };
         },

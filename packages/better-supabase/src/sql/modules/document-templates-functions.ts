@@ -432,7 +432,7 @@ ${userGrant(`${fn("document_slot_rank")}(uuid, uuid, text, text)`)}
 -- for the organization) and a language (null for any). Saving a changed body
 -- raises the version by one; the same body and state change nothing. Raises
 -- with a hint code when the body names an unknown variable.
-create or replace function ${fn("save_document_template")}(tenant ${idType}, document_type text, body text, language text default null, name text default 'default', legal_entity_id uuid default null, active boolean default true)
+create or replace function ${fn("upsert_document_template")}(tenant ${idType}, document_type text, body text, language text default null, name text default 'default', legal_entity_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -441,15 +441,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${templates}%rowtype;
-  v_language text := lower(nullif(btrim(save_document_template.language), ''));
-  v_name text := coalesce(nullif(btrim(save_document_template.name), ''), 'default');
-  v_active boolean := coalesce(save_document_template.active, true);
+  v_language text := lower(nullif(btrim(upsert_document_template.language), ''));
+  v_name text := coalesce(nullif(btrim(upsert_document_template.name), ''), 'default');
+  v_active boolean := coalesce(upsert_document_template.active, true);
   v_changed boolean;
 begin
-  if not ${allowed("save_document_template.tenant")} then
+  if not ${allowed("upsert_document_template.tenant")} then
     ${forbidden}
   end if;
-  if save_document_template.document_type is null or save_document_template.document_type not in (${types}) then
+  if upsert_document_template.document_type is null or upsert_document_template.document_type not in (${types}) then
     ${typeInvalid}
   end if;
   if v_name !~ '${NAME_PATTERN}' then
@@ -458,31 +458,31 @@ begin
   if v_language is not null and v_language !~ '${DOCUMENT_LANGUAGE_PATTERN}' then
     ${invalid("a language is a code such as nl or nl-NL")}
   end if;
-  if save_document_template.body is null or length(btrim(save_document_template.body)) = 0 or length(save_document_template.body) > ${String(DOCUMENT_BODY_MAX)} then
+  if upsert_document_template.body is null or length(btrim(upsert_document_template.body)) = 0 or length(upsert_document_template.body) > ${String(DOCUMENT_BODY_MAX)} then
     ${invalid(`a template body is 1 to ${String(DOCUMENT_BODY_MAX)} characters`)}
   end if;
-  if save_document_template.legal_entity_id is not null then
-    perform ${legal.fn("legal_entity_of")}(save_document_template.tenant, save_document_template.legal_entity_id);
+  if upsert_document_template.legal_entity_id is not null then
+    perform ${legal.fn("legal_entity_of")}(upsert_document_template.tenant, upsert_document_template.legal_entity_id);
   end if;
-  perform ${fn("assert_document_template")}(save_document_template.document_type, save_document_template.body);
+  perform ${fn("assert_document_template")}(upsert_document_template.document_type, upsert_document_template.body);
   ${ctx.hook("before_document_template_save", [
-    [idType, "save_document_template.tenant"],
-    ["text", "save_document_template.document_type"],
+    [idType, "upsert_document_template.tenant"],
+    ["text", "upsert_document_template.document_type"],
   ])}
-  ${lock(`'document_templates:' || save_document_template.tenant::text`)}
+  ${lock(`'document_templates:' || upsert_document_template.tenant::text`)}
   select * into v_row from ${templates} t
-    where t.${x("tenant")} = save_document_template.tenant
-      and t.${x("documentType")} = save_document_template.document_type
+    where t.${x("tenant")} = upsert_document_template.tenant
+      and t.${x("documentType")} = upsert_document_template.document_type
       and t.${x("name")} = v_name
-      and t.${x("legalEntity")} is not distinct from save_document_template.legal_entity_id
+      and t.${x("legalEntity")} is not distinct from upsert_document_template.legal_entity_id
       and t.${x("language")} is not distinct from v_language;
   if found then
-    v_changed := v_row.${x("body")} <> save_document_template.body;
+    v_changed := v_row.${x("body")} <> upsert_document_template.body;
     if not v_changed and v_row.${x("active")} = v_active then
       return ${templateJson("v_row")};
     end if;
     update ${templates} t set
-      ${x("body")} = save_document_template.body,
+      ${x("body")} = upsert_document_template.body,
       ${x("version")} = t.${x("version")} + case when v_changed then 1 else 0 end,
       ${x("active")} = v_active,
       ${x("updatedAt")} = now()
@@ -491,7 +491,7 @@ begin
     ${templateRecord("updated", "v_row")}
   else
     insert into ${templates} (${x("tenant")}, ${x("legalEntity")}, ${x("documentType")}, ${x("language")}, ${x("name")}, ${x("body")}, ${x("active")})
-    values (save_document_template.tenant, save_document_template.legal_entity_id, save_document_template.document_type, v_language, v_name, save_document_template.body, v_active)
+    values (upsert_document_template.tenant, upsert_document_template.legal_entity_id, upsert_document_template.document_type, v_language, v_name, upsert_document_template.body, v_active)
     returning * into v_row;
     ${templateRecord("created", "v_row")}
   end if;
@@ -499,7 +499,7 @@ begin
   return ${templateJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_document_template")}(${idType}, text, text, text, text, uuid, boolean)`)}
+${userGrant(`${fn("upsert_document_template")}(${idType}, text, text, text, text, uuid, boolean)`)}
 
 -- Turns a template on or off. An inactive template drops out of the fallback
 -- chain; documents already frozen keep the copy they froze.
@@ -594,7 +594,7 @@ ${userGrant(`${fn("page_document_templates")}(${idType}, jsonb)`)}
 -- sentence, a dunning text, a footer, a legal line. The text may hold the same
 -- placeholders a template does, of any document type. An entity text beats the
 -- organization's, and an exact language beats a text with no language.
-create or replace function ${fn("save_document_text_block")}(tenant ${idType}, key text, body text, language text default null, legal_entity_id uuid default null)
+create or replace function ${fn("upsert_document_text_block")}(tenant ${idType}, key text, body text, language text default null, legal_entity_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -603,45 +603,45 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${blocks}%rowtype;
-  v_language text := lower(nullif(btrim(save_document_text_block.language), ''));
+  v_language text := lower(nullif(btrim(upsert_document_text_block.language), ''));
 begin
-  if not ${allowed("save_document_text_block.tenant")} then
+  if not ${allowed("upsert_document_text_block.tenant")} then
     ${forbidden}
   end if;
-  if save_document_text_block.key is null or save_document_text_block.key !~ '${DOCUMENT_TEXT_KEY_PATTERN}' then
+  if upsert_document_text_block.key is null or upsert_document_text_block.key !~ '${DOCUMENT_TEXT_KEY_PATTERN}' then
     ${invalid("a text key is lower case letters, digits and _, from a letter, up to 64 characters")}
   end if;
   if v_language is not null and v_language !~ '${DOCUMENT_LANGUAGE_PATTERN}' then
     ${invalid("a language is a code such as nl or nl-NL")}
   end if;
-  if save_document_text_block.body is null or length(btrim(save_document_text_block.body)) = 0 or length(save_document_text_block.body) > ${String(DOCUMENT_BODY_MAX)} then
+  if upsert_document_text_block.body is null or length(btrim(upsert_document_text_block.body)) = 0 or length(upsert_document_text_block.body) > ${String(DOCUMENT_BODY_MAX)} then
     ${invalid(`a text block body is 1 to ${String(DOCUMENT_BODY_MAX)} characters`)}
   end if;
-  if save_document_text_block.legal_entity_id is not null then
-    perform ${legal.fn("legal_entity_of")}(save_document_text_block.tenant, save_document_text_block.legal_entity_id);
+  if upsert_document_text_block.legal_entity_id is not null then
+    perform ${legal.fn("legal_entity_of")}(upsert_document_text_block.tenant, upsert_document_text_block.legal_entity_id);
   end if;
-  perform ${fn("assert_document_template")}(null, save_document_text_block.body, true);
+  perform ${fn("assert_document_template")}(null, upsert_document_text_block.body, true);
   ${ctx.hook("before_document_text_block_save", [
-    [idType, "save_document_text_block.tenant"],
-    ["text", "save_document_text_block.key"],
+    [idType, "upsert_document_text_block.tenant"],
+    ["text", "upsert_document_text_block.key"],
   ])}
-  ${lock(`'document_text_blocks:' || save_document_text_block.tenant::text`)}
+  ${lock(`'document_text_blocks:' || upsert_document_text_block.tenant::text`)}
   select * into v_row from ${blocks} b
-    where b.${y("tenant")} = save_document_text_block.tenant
-      and b.${y("key")} = save_document_text_block.key
-      and b.${y("legalEntity")} is not distinct from save_document_text_block.legal_entity_id
+    where b.${y("tenant")} = upsert_document_text_block.tenant
+      and b.${y("key")} = upsert_document_text_block.key
+      and b.${y("legalEntity")} is not distinct from upsert_document_text_block.legal_entity_id
       and b.${y("language")} is not distinct from v_language;
   if found then
-    if v_row.${y("body")} = save_document_text_block.body then
+    if v_row.${y("body")} = upsert_document_text_block.body then
       return ${blockJson("v_row")};
     end if;
-    update ${blocks} b set ${y("body")} = save_document_text_block.body, ${y("version")} = b.${y("version")} + 1, ${y("updatedAt")} = now()
+    update ${blocks} b set ${y("body")} = upsert_document_text_block.body, ${y("version")} = b.${y("version")} + 1, ${y("updatedAt")} = now()
     where b.${y("id")} = v_row.${y("id")}
     returning * into v_row;
     ${blockRecord("updated", "v_row")}
   else
     insert into ${blocks} (${y("tenant")}, ${y("legalEntity")}, ${y("key")}, ${y("language")}, ${y("body")})
-    values (save_document_text_block.tenant, save_document_text_block.legal_entity_id, save_document_text_block.key, v_language, save_document_text_block.body)
+    values (upsert_document_text_block.tenant, upsert_document_text_block.legal_entity_id, upsert_document_text_block.key, v_language, upsert_document_text_block.body)
     returning * into v_row;
     ${blockRecord("created", "v_row")}
   end if;
@@ -649,7 +649,7 @@ begin
   return ${blockJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_document_text_block")}(${idType}, text, text, text, uuid)`)}
+${userGrant(`${fn("upsert_document_text_block")}(${idType}, text, text, text, uuid)`)}
 
 create or replace function ${fn("list_document_text_blocks")}(tenant ${idType}, key text default null, legal_entity_id uuid default null)
 returns jsonb

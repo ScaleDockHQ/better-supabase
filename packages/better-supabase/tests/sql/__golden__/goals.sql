@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:75dde5af74545944503224080711c6e15270539b15c5fb856082425f58876cc1
+-- @bsb-hash sha256:fbfab8d4b91115f8654dd0816eca2983e0729883825ad603e4a444ef253e3731
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,38 +37,38 @@ create policy bsb_goals_read on "better_supabase"."goals"
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function "better_supabase"."save_goal"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_goal.target;
+  v_id uuid := upsert_goal.target;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_goal.tenant, 'goals.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_goal.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'GOAL_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
-      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
-        (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
-        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
+      values (upsert_goal.tenant, upsert_goal.attrs ->> 'name', upsert_goal.attrs ->> 'metric', (upsert_goal.attrs ->> 'ownerId')::uuid,
+        (upsert_goal.attrs ->> 'teamId')::uuid, (upsert_goal.attrs ->> 'periodStart')::date, (upsert_goal.attrs ->> 'periodEnd')::date,
+        upper(upsert_goal.attrs ->> 'currency'), (upsert_goal.attrs ->> 'goal')::bigint, coalesce((upsert_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
       update "better_supabase"."goals" x set
-        "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
-        "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
-        "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
-        "period_start" = coalesce((save_goal.attrs ->> 'periodStart')::date, x."period_start"),
-        "period_end" = coalesce((save_goal.attrs ->> 'periodEnd')::date, x."period_end"),
-        "archived_at" = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_goal.attrs ->> 'name', x."name"),
+        "goal" = coalesce((upsert_goal.attrs ->> 'goal')::bigint, x."goal"),
+        "actual" = coalesce((upsert_goal.attrs ->> 'actual')::bigint, x."actual"),
+        "period_start" = coalesce((upsert_goal.attrs ->> 'periodStart')::date, x."period_start"),
+        "period_end" = coalesce((upsert_goal.attrs ->> 'periodEnd')::date, x."period_end"),
+        "archived_at" = case when coalesce((upsert_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_goal.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_goal.tenant;
       if not found then
         raise exception 'target not found' using errcode = 'P0002', hint = 'GOAL_NOT_FOUND';
       end if;
@@ -79,8 +79,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."goals" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: none installed. Others read actual.
@@ -141,7 +141,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:183956331e022b1f183cae5f05dc952ede4ed84f66b287cdede0667d1a48b2a5
+-- @bsb-hash sha256:e779ef77e69d2d6da6ec1c66681bbb514a9a4359ac42e1ee85484c8bef23845f
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -177,38 +177,38 @@ create policy bsb_goals_read on "better_supabase"."goals"
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function "better_supabase"."save_goal"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_goal.target;
+  v_id uuid := upsert_goal.target;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_goal.tenant, 'goals.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_goal.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'GOAL_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
-      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
-        (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
-        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
+      values (upsert_goal.tenant, upsert_goal.attrs ->> 'name', upsert_goal.attrs ->> 'metric', (upsert_goal.attrs ->> 'ownerId')::uuid,
+        (upsert_goal.attrs ->> 'teamId')::uuid, (upsert_goal.attrs ->> 'periodStart')::date, (upsert_goal.attrs ->> 'periodEnd')::date,
+        upper(upsert_goal.attrs ->> 'currency'), (upsert_goal.attrs ->> 'goal')::bigint, coalesce((upsert_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
       update "better_supabase"."goals" x set
-        "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
-        "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
-        "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
-        "period_start" = coalesce((save_goal.attrs ->> 'periodStart')::date, x."period_start"),
-        "period_end" = coalesce((save_goal.attrs ->> 'periodEnd')::date, x."period_end"),
-        "archived_at" = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_goal.attrs ->> 'name', x."name"),
+        "goal" = coalesce((upsert_goal.attrs ->> 'goal')::bigint, x."goal"),
+        "actual" = coalesce((upsert_goal.attrs ->> 'actual')::bigint, x."actual"),
+        "period_start" = coalesce((upsert_goal.attrs ->> 'periodStart')::date, x."period_start"),
+        "period_end" = coalesce((upsert_goal.attrs ->> 'periodEnd')::date, x."period_end"),
+        "archived_at" = case when coalesce((upsert_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_goal.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_goal.tenant;
       if not found then
         raise exception 'target not found' using errcode = 'P0002', hint = 'GOAL_NOT_FOUND';
       end if;
@@ -219,8 +219,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."goals" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: deals.won_amount, deals.won_count, tasks.completed, invoices.paid_amount. Others read actual.
@@ -298,7 +298,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:e4a973a1013fbfdb6a1080e537578f3171449239855a03ff707447194084d083
+-- @bsb-hash sha256:b80e41345c023081d47cdebf8acc2c6f409c417af6a023c02e5026746f5f4ea8
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -339,38 +339,38 @@ create policy bsb_goals_read on "app_private"."goals"
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function "app_private"."save_goal"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "app_private"."upsert_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_goal.target;
+  v_id uuid := upsert_goal.target;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_goal.tenant, 'goals.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_goal.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'GOAL_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "app_private"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
-      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
-        (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
-        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
+      values (upsert_goal.tenant, upsert_goal.attrs ->> 'name', upsert_goal.attrs ->> 'metric', (upsert_goal.attrs ->> 'ownerId')::uuid,
+        (upsert_goal.attrs ->> 'teamId')::uuid, (upsert_goal.attrs ->> 'periodStart')::date, (upsert_goal.attrs ->> 'periodEnd')::date,
+        upper(upsert_goal.attrs ->> 'currency'), (upsert_goal.attrs ->> 'goal')::bigint, coalesce((upsert_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
       update "app_private"."goals" x set
-        "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
-        "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
-        "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
-        "period_start" = coalesce((save_goal.attrs ->> 'periodStart')::date, x."period_start"),
-        "period_end" = coalesce((save_goal.attrs ->> 'periodEnd')::date, x."period_end"),
-        "archived_at" = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_goal.attrs ->> 'name', x."name"),
+        "goal" = coalesce((upsert_goal.attrs ->> 'goal')::bigint, x."goal"),
+        "actual" = coalesce((upsert_goal.attrs ->> 'actual')::bigint, x."actual"),
+        "period_start" = coalesce((upsert_goal.attrs ->> 'periodStart')::date, x."period_start"),
+        "period_end" = coalesce((upsert_goal.attrs ->> 'periodEnd')::date, x."period_end"),
+        "archived_at" = case when coalesce((upsert_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_goal.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_goal.tenant;
       if not found then
         raise exception 'target not found' using errcode = 'P0002', hint = 'GOAL_NOT_FOUND';
       end if;
@@ -381,8 +381,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "app_private"."goals" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_goal"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: none installed. Others read actual.
@@ -443,7 +443,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:7a383be4e0135fce65cf2912fd0bb014a5ff8348d0ee534ce02afd3a6135c77d
+-- @bsb-hash sha256:ff0b14fe4c7fe1aa577a73ede61da5aac54d3b8d2a1da4f73b00813ee28520e1
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -479,38 +479,38 @@ create policy bsb_goals_read on "better_supabase"."goals"
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function "better_supabase"."save_goal"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_goal.target;
+  v_id uuid := upsert_goal.target;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_goal.tenant, 'goals.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_goal.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'GOAL_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
-      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
-        (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
-        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
+      values (upsert_goal.tenant, upsert_goal.attrs ->> 'name', upsert_goal.attrs ->> 'metric', (upsert_goal.attrs ->> 'ownerId')::uuid,
+        (upsert_goal.attrs ->> 'teamId')::uuid, (upsert_goal.attrs ->> 'periodStart')::date, (upsert_goal.attrs ->> 'periodEnd')::date,
+        upper(upsert_goal.attrs ->> 'currency'), (upsert_goal.attrs ->> 'goal')::bigint, coalesce((upsert_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
       update "better_supabase"."goals" x set
-        "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
-        "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
-        "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
-        "period_start" = coalesce((save_goal.attrs ->> 'periodStart')::date, x."period_start"),
-        "period_end" = coalesce((save_goal.attrs ->> 'periodEnd')::date, x."period_end"),
-        "archived_at" = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_goal.attrs ->> 'name', x."name"),
+        "goal" = coalesce((upsert_goal.attrs ->> 'goal')::bigint, x."goal"),
+        "actual" = coalesce((upsert_goal.attrs ->> 'actual')::bigint, x."actual"),
+        "period_start" = coalesce((upsert_goal.attrs ->> 'periodStart')::date, x."period_start"),
+        "period_end" = coalesce((upsert_goal.attrs ->> 'periodEnd')::date, x."period_end"),
+        "archived_at" = case when coalesce((upsert_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_goal.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_goal.tenant;
       if not found then
         raise exception 'target not found' using errcode = 'P0002', hint = 'GOAL_NOT_FOUND';
       end if;
@@ -521,8 +521,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."goals" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: none installed. Others read actual.
@@ -570,14 +570,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictiv
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_goal"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "api"."upsert_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_goal"($1, $2, $3) $$;
-revoke execute on function "api"."save_goal"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_goal"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."goal_progress"(tenant uuid, on_date date, owner uuid)
 returns jsonb
@@ -606,7 +606,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:5155919fd5879b7e6b8fea9fabdfea12da7fe6ac1967790c227870b6edb67bc7
+-- @bsb-hash sha256:4699f899e522559d06bd345cab9fdbc0ddf563041cf4a2200123d8a11e6b5cef
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -639,38 +639,38 @@ create policy bsb_goals_select on "better_supabase"."goals"
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function "better_supabase"."save_goal"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_goal.target;
+  v_id uuid := upsert_goal.target;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_goal.tenant, 'goals.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_goal.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'GOAL_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
-      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
-        (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
-        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
+      values (upsert_goal.tenant, upsert_goal.attrs ->> 'name', upsert_goal.attrs ->> 'metric', (upsert_goal.attrs ->> 'ownerId')::uuid,
+        (upsert_goal.attrs ->> 'teamId')::uuid, (upsert_goal.attrs ->> 'periodStart')::date, (upsert_goal.attrs ->> 'periodEnd')::date,
+        upper(upsert_goal.attrs ->> 'currency'), (upsert_goal.attrs ->> 'goal')::bigint, coalesce((upsert_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
       update "better_supabase"."goals" x set
-        "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
-        "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
-        "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
-        "period_start" = coalesce((save_goal.attrs ->> 'periodStart')::date, x."period_start"),
-        "period_end" = coalesce((save_goal.attrs ->> 'periodEnd')::date, x."period_end"),
-        "archived_at" = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_goal.attrs ->> 'name', x."name"),
+        "goal" = coalesce((upsert_goal.attrs ->> 'goal')::bigint, x."goal"),
+        "actual" = coalesce((upsert_goal.attrs ->> 'actual')::bigint, x."actual"),
+        "period_start" = coalesce((upsert_goal.attrs ->> 'periodStart')::date, x."period_start"),
+        "period_end" = coalesce((upsert_goal.attrs ->> 'periodEnd')::date, x."period_end"),
+        "archived_at" = case when coalesce((upsert_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_goal.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_goal.tenant;
       if not found then
         raise exception 'target not found' using errcode = 'P0002', hint = 'GOAL_NOT_FOUND';
       end if;
@@ -681,8 +681,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."goals" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: none installed. Others read actual.
@@ -743,7 +743,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:10c844783e78837130d59c65e3a2b8eb2a5debaaa7e7a4b4e0f12e690b4d7862
+-- @bsb-hash sha256:35954065cf0283d9ccc5e382ea89c14b9f7ff4e36bd8393e607bfe030e33363d
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -779,38 +779,38 @@ create policy bsb_goals_read on "better_supabase"."goals"
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function "better_supabase"."save_goal"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_goal.target;
+  v_id uuid := upsert_goal.target;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_goal.tenant, 'goals.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_goal.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'GOAL_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."goals" ("org_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
-      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
-        (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
-        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
+      values (upsert_goal.tenant, upsert_goal.attrs ->> 'name', upsert_goal.attrs ->> 'metric', (upsert_goal.attrs ->> 'ownerId')::uuid,
+        (upsert_goal.attrs ->> 'teamId')::uuid, (upsert_goal.attrs ->> 'periodStart')::date, (upsert_goal.attrs ->> 'periodEnd')::date,
+        upper(upsert_goal.attrs ->> 'currency'), (upsert_goal.attrs ->> 'goal')::bigint, coalesce((upsert_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
       update "better_supabase"."goals" x set
-        "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
-        "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
-        "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
-        "period_start" = coalesce((save_goal.attrs ->> 'periodStart')::date, x."period_start"),
-        "period_end" = coalesce((save_goal.attrs ->> 'periodEnd')::date, x."period_end"),
-        "archived_at" = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(upsert_goal.attrs ->> 'name', x."name"),
+        "goal" = coalesce((upsert_goal.attrs ->> 'goal')::bigint, x."goal"),
+        "actual" = coalesce((upsert_goal.attrs ->> 'actual')::bigint, x."actual"),
+        "period_start" = coalesce((upsert_goal.attrs ->> 'periodStart')::date, x."period_start"),
+        "period_end" = coalesce((upsert_goal.attrs ->> 'periodEnd')::date, x."period_end"),
+        "archived_at" = case when coalesce((upsert_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."org_id" = save_goal.tenant;
+      where x."id" = v_id and x."org_id" = upsert_goal.tenant;
       if not found then
         raise exception 'target not found' using errcode = 'P0002', hint = 'GOAL_NOT_FOUND';
       end if;
@@ -821,8 +821,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."goals" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: none installed. Others read actual.

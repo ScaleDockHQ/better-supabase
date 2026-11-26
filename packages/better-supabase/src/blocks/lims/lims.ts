@@ -364,13 +364,13 @@ export function createLims(options: LimsOptions): Lims {
     saveMethod: ({ input, methodId }) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_lims_method",
+          "upsert_lims_method",
           {
             tenant: organizationId,
             input: definedOf(input),
             ...(methodId === undefined ? {} : { method_id: methodId }),
           },
-          (value) => methodOf(value, "save_lims_method"),
+          (value) => methodOf(value, "upsert_lims_method"),
         ),
       ),
     archiveMethod: (methodId) =>

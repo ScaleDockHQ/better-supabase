@@ -618,7 +618,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
     items: {
       add: ({ datasetId, items }) =>
         call(
-          "add_eval_items",
+          "create_eval_items",
           {
             dataset: datasetId,
             items: items.map((item) => ({
@@ -631,7 +631,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
         ),
       addFromFeedback: ({ datasetId, ...feedbackOptions }) =>
         call(
-          "add_eval_items_from_feedback",
+          "create_eval_items_from_feedback",
           {
             dataset: datasetId,
             rating: feedbackOptions.rating ?? -1,

@@ -188,15 +188,15 @@ describe("row mappers", () => {
 describe("createWorkflowEditor", () => {
   it("passes definitions, versions, triggers, steps, node runs and alerts through", async () => {
     const { transport, calls } = fake({
-      save_workflow_definition: () => DEFINITION,
+      upsert_workflow_definition: () => DEFINITION,
       workflow_definitions_list: () => [DEFINITION],
       workflow_definition_get: () => null,
-      remove_workflow_definition: () => true,
-      save_workflow_draft: () => VERSION,
+      delete_workflow_definition: () => true,
+      upsert_workflow_draft: () => VERSION,
       workflow_versions_list: () => [VERSION],
-      save_workflow_trigger: () => TRIGGER,
+      upsert_workflow_trigger: () => TRIGGER,
       workflow_triggers_list: () => [TRIGGER],
-      remove_workflow_trigger: () => true,
+      delete_workflow_trigger: () => true,
       rotate_workflow_webhook_token: () => "wfh_abc",
       sync_workflow_steps: () => 1,
       workflow_steps_list: () => [{ name: "s", title: "S", inputSchema: null }],
@@ -204,9 +204,9 @@ describe("createWorkflowEditor", () => {
       workflow_node_runs_list: () => [
         { run: "r", node: "n", status: "completed", attempts: 1 },
       ],
-      save_workflow_alert: () => ALERT,
+      upsert_workflow_alert: () => ALERT,
       workflow_alerts_list: () => [ALERT],
-      remove_workflow_alert: () => true,
+      delete_workflow_alert: () => true,
       check_workflow_alerts: () => 2,
     });
 
@@ -284,14 +284,14 @@ describe("createWorkflowEditor", () => {
         },
       },
     });
-    expect(args("save_workflow_trigger")[0]).toEqual({
+    expect(args("upsert_workflow_trigger")[0]).toEqual({
       definition: "d1",
       kind: "webhook",
       config: {},
       enabled: true,
       trigger: undefined,
     });
-    expect(args("save_workflow_alert").map((a) => a["threshold"])).toEqual([
+    expect(args("upsert_workflow_alert").map((a) => a["threshold"])).toEqual([
       "60 seconds",
       undefined,
     ]);
@@ -1262,10 +1262,13 @@ describe("createWorkflowEditor", () => {
     let row: unknown = CREDENTIAL;
 
     const { transport } = fake({
-      save_workflow_credential: (args) => ({ ...CREDENTIAL, ref: args["ref"] }),
+      upsert_workflow_credential: (args) => ({
+        ...CREDENTIAL,
+        ref: args["ref"],
+      }),
       workflow_credentials_list: () => [CREDENTIAL],
       workflow_credential_get: () => row,
-      remove_workflow_credential: () => row,
+      delete_workflow_credential: () => row,
     });
 
     const { memory, revoke, set } = provider();
@@ -1361,7 +1364,7 @@ describe("createWorkflowEditor", () => {
   it("refuses what a provider can't do", async () => {
     const { transport } = fake({
       workflow_credential_get: () => CREDENTIAL,
-      remove_workflow_credential: () => CREDENTIAL,
+      delete_workflow_credential: () => CREDENTIAL,
     });
 
     const { memory: noStore, revoke } = provider(

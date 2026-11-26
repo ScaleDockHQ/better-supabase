@@ -158,9 +158,9 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_type := better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation');
+  v_type := better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation');
   v_type_id := (v_type ->> 'id')::uuid;
-  v_type := better_supabase.save_leave_type('${TENANT}', 'vacation', 'Holiday', 'days');
+  v_type := better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Holiday', 'days');
   if (v_type ->> 'id')::uuid <> v_type_id or (select label from public.absence_kinds where id = v_type_id) <> 'Holiday' then
     raise exception 'saved %', v_type;
   end if;
@@ -197,12 +197,12 @@ declare
   v_request jsonb;
 begin
   ${SERVICE}
-  v_type := better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation');
+  v_type := better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation');
   v_type_id := (v_type ->> 'id')::uuid;
   if v_type ->> 'key' <> v_type_id::text then
     raise exception 'key %', v_type;
   end if;
-  v_type := better_supabase.save_leave_type('${TENANT}', v_type_id::text, 'Holiday');
+  v_type := better_supabase.upsert_leave_type('${TENANT}', v_type_id::text, 'Holiday');
   if (v_type ->> 'id')::uuid <> v_type_id or (select count(*) from public.absence_kinds) <> 1
     or (select label from public.absence_kinds) <> 'Holiday' then
     raise exception 'updated %', v_type;
@@ -252,8 +252,8 @@ declare
   v_approval uuid;
 begin
   ${SERVICE}
-  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
-  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
+  v_holiday := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
+  v_sick := (better_supabase.upsert_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
   perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_holiday, 10, 2099);
   ${AS_ALICE}
   v_request := better_supabase.request_leave('${TENANT}', v_holiday, '2099-03-02', '2099-03-03');
@@ -305,7 +305,7 @@ declare
   v_balance jsonb;
 begin
   ${SERVICE}
-  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
+  v_holiday := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
   perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_holiday, 10, 2099);
   ${AS_ALICE}
   v_request := better_supabase.request_leave('${TENANT}', v_holiday, '2099-03-02', '2099-03-03');
@@ -376,7 +376,7 @@ declare
   v_request jsonb;
 begin
   ${SERVICE}
-  v_type_id := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  v_type_id := (better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
   perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_type_id, 10, 2099);
   ${AS_ALICE}
   v_id := (better_supabase.request_leave('${TENANT}', v_type_id, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
@@ -417,7 +417,7 @@ declare
   v_type_id uuid;
 begin
   ${SERVICE}
-  v_type_id := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  v_type_id := (better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
   perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_type_id, 10, 2099);
   ${AS_ALICE}
   perform better_supabase.request_leave('${TENANT}', v_type_id, '2099-03-02', '2099-03-08', 'full', null, 'beach');
@@ -443,7 +443,7 @@ declare
   v_link_id uuid;
 begin
   ${SERVICE}
-  v_type_id := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  v_type_id := (better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
   perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_type_id, 10, 2099);
   ${AS_ALICE}
   v_first := (better_supabase.request_leave('${TENANT}', v_type_id, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
@@ -550,8 +550,8 @@ declare
   v_link jsonb;
 begin
   ${SERVICE}
-  v_vacation := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
-  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick') ->> 'id')::uuid;
+  v_vacation := (better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  v_sick := (better_supabase.upsert_leave_type('${TENANT}', 'sick', 'Sick') ->> 'id')::uuid;
   update public.absence_kinds set confidential = true where id = v_sick;
   perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_vacation, 10, 2099);
   perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_sick, 10, 2099);
@@ -829,7 +829,7 @@ declare
   v_balances jsonb;
 begin
   ${SERVICE}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation', 'hours') ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation', 'hours') ->> 'id')::uuid;
   perform better_supabase.adjust_leave_balance('${TENANT}', null, v_type, 40, 2099, 'grant', 'yearly', employee_id => '${ALICE_EMPLOYEE}');
   perform better_supabase.adjust_leave_balance('${TENANT}', null, v_type, 8, 2099, 'grant', null, employee_id => '${ALICE_EMPLOYEE}', expires_on => '2099-01-31');
   perform better_supabase.adjust_leave_balance('${TENANT}', null, v_type, 16, 2099, 'grant', null, employee_id => '${NO_ACCOUNT}');
@@ -916,8 +916,8 @@ declare
   v_split jsonb;
 begin
   ${SERVICE}
-  v_days := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days') ->> 'id')::uuid;
-  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
+  v_days := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days') ->> 'id')::uuid;
+  v_sick := (better_supabase.upsert_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
   if not (select auto_approve from public.time_off_types where id = v_sick) then
     raise exception 'auto approve not saved';
   end if;
@@ -1015,8 +1015,8 @@ declare
   v_feed jsonb;
 begin
   ${SERVICE}
-  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
-  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
+  v_holiday := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
+  v_sick := (better_supabase.upsert_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false, auto_approve => true) ->> 'id')::uuid;
   perform better_supabase.accrue_leave('${TENANT}', v_holiday, 10, 2099);
   perform better_supabase.request_leave('${TENANT}', v_sick, '2099-03-02', '2099-03-02', 'afternoon', employee_id => '${ALICE_EMPLOYEE}', fields => '{"reason": "dentist"}');
   perform better_supabase.request_leave('${TENANT}', v_sick, '2099-03-03', '2099-03-03', employee_id => '${BOB_EMPLOYEE}');
@@ -1052,7 +1052,7 @@ declare
   v_entry jsonb;
 begin
   ${SERVICE}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation', 'hours') ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation', 'hours') ->> 'id')::uuid;
   v_entry := better_supabase.adjust_leave_balance('${TENANT}', null, v_type, -4, null, 'adjustment', 'correction',
     employee_id => '${ALICE_EMPLOYEE}', effective_on => '2098-11-15');
   if (select effective_on from public.time_off_ledger where id = (v_entry ->> 'id')::uuid) <> '2098-11-15'
@@ -1196,8 +1196,8 @@ declare
   v_feed jsonb;
 begin
   ${SERVICE}
-  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days') ->> 'id')::uuid;
-  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false) ->> 'id')::uuid;
+  v_holiday := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days') ->> 'id')::uuid;
+  v_sick := (better_supabase.upsert_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false) ->> 'id')::uuid;
   update public.time_off_types set confidential = true where id = v_sick;
   perform better_supabase.adjust_leave_balance('${TENANT}', null, v_holiday, 10, 2099, 'grant', null, employee_id => '${ALICE_EMPLOYEE}');
   perform better_supabase.adjust_leave_balance('${TENANT}', null, v_holiday, 10, 2099, 'grant', null, employee_id => '${BOB_EMPLOYEE}');
@@ -1245,7 +1245,7 @@ declare
   v_balances jsonb;
 begin
   ${SERVICE}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
   if better_supabase.accrue_leave('${TENANT}', v_type, 10, 2099) <> 3 then
     raise exception 'accrued';
   end if;

@@ -103,7 +103,7 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
 
   const programInsert = (
     [
-      ["tenant", "save_enrollment_program.tenant"],
+      ["tenant", "upsert_enrollment_program.tenant"],
       ["key", "v_key"],
       ["name", "v_name"],
       ["description", "v_description"],
@@ -511,7 +511,7 @@ ${stateInternals()}
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
 -- stored one.
-create or replace function ${fn("save_enrollment_program")}(tenant ${idType}, program jsonb)
+create or replace function ${fn("upsert_enrollment_program")}(tenant ${idType}, program jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -531,38 +531,38 @@ declare
   v_step jsonb;
   v_ids text[] := '{}';
 begin
-  if not ${allowed("save_enrollment_program.tenant", manage)} then
+  if not ${allowed("upsert_enrollment_program.tenant", manage)} then
     ${forbidden("not allowed to manage enrollment programs")}
   end if;
-  if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
+  if upsert_enrollment_program.program is null or jsonb_typeof(upsert_enrollment_program.program) <> 'object' then
     ${invalid("program must be an object")}
   end if;
-  v_id := nullif(save_enrollment_program.program ->> 'id', '')::uuid;
+  v_id := nullif(upsert_enrollment_program.program ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from ${programs} x
-    where x.${p("id")} = v_id and x.${p("tenant")} = save_enrollment_program.tenant
+    where x.${p("id")} = v_id and x.${p("tenant")} = upsert_enrollment_program.tenant
     for update;
     if v_old.${p("id")} is null then
       ${programMissing}
     end if;
-${archivable ? `    if v_old.${p("archivedAt")} is not null then\n      ${archivedError}\n    end if;\n` : ""}    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old.${p("version")} then
+${archivable ? `    if v_old.${p("archivedAt")} is not null then\n      ${archivedError}\n    end if;\n` : ""}    if upsert_enrollment_program.program ? 'version' and (upsert_enrollment_program.program ->> 'version')::integer is distinct from v_old.${p("version")} then
       ${fail("ENROLLMENTS_PROGRAM_CONFLICT", "the program changed since you read it", "40001")}
     end if;
   end if;
-  if save_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(save_enrollment_program.program -> 'subjectTypes') <> 'array' then
+  if upsert_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(upsert_enrollment_program.program -> 'subjectTypes') <> 'array' then
     ${invalid("subjectTypes must be an array of subject types")}
   end if;
-  v_key := coalesce(save_enrollment_program.program ->> 'key', v_old.${p("key")});
-  v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old.${p("name")}));
-  v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else ${field("programs", "v_old", "description")} end;
-  v_types := case when save_enrollment_program.program ? 'subjectTypes'
-    then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
+  v_key := coalesce(upsert_enrollment_program.program ->> 'key', v_old.${p("key")});
+  v_name := trim(coalesce(upsert_enrollment_program.program ->> 'name', v_old.${p("name")}));
+  v_description := case when upsert_enrollment_program.program ? 'description'
+    then nullif(trim(upsert_enrollment_program.program ->> 'description'), '') else ${field("programs", "v_old", "description")} end;
+  v_types := case when upsert_enrollment_program.program ? 'subjectTypes'
+    then array(select t.value from jsonb_array_elements_text(upsert_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old.${p("subjectTypes")}, '{}') end;
-  v_steps := case when save_enrollment_program.program ? 'steps'
-    then save_enrollment_program.program -> 'steps' else coalesce(v_old.${p("steps")}, '[]'::jsonb) end;
-  v_enabled := case when save_enrollment_program.program ? 'enabled'
-    then (save_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old.${p("enabled")}, true) end;
+  v_steps := case when upsert_enrollment_program.program ? 'steps'
+    then upsert_enrollment_program.program -> 'steps' else coalesce(v_old.${p("steps")}, '[]'::jsonb) end;
+  v_enabled := case when upsert_enrollment_program.program ? 'enabled'
+    then (upsert_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old.${p("enabled")}, true) end;
   if v_key is null or v_key !~ '${TYPE}' then
     ${invalid('key: use lowercase letters, digits, "_" or "-", starting with a letter')}
   end if;
@@ -627,7 +627,7 @@ ${archivable ? `    if v_old.${p("archivedAt")} is not null then\n      ${archiv
   return ${programJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_enrollment_program")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_enrollment_program")}(${idType}, jsonb)`)}
 
 ${programLifecycleFunctions(ctx, {
   allowed,

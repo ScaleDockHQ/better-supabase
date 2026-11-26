@@ -46,9 +46,9 @@ select throws_ok(
 
 create temporary table parties on commit drop as
 select
-  (better_supabase.save_company('00000000-0000-4000-8000-000000000002', null, '{"name": "Globex supplier"}') ->> 'id')::uuid as globex_company,
-  (better_supabase.save_person('00000000-0000-4000-8000-000000000002', null, '{"name": "Globex person"}') ->> 'id')::uuid as globex_person,
-  (better_supabase.save_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Acme person"}') ->> 'id')::uuid as acme_person;
+  (better_supabase.upsert_company('00000000-0000-4000-8000-000000000002', null, '{"name": "Globex supplier"}') ->> 'id')::uuid as globex_company,
+  (better_supabase.upsert_person('00000000-0000-4000-8000-000000000002', null, '{"name": "Globex person"}') ->> 'id')::uuid as globex_person,
+  (better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Acme person"}') ->> 'id')::uuid as acme_person;
 
 select throws_ok(
   format($$select better_supabase.import_party_bank_account(gen_random_uuid(), jsonb_build_object(

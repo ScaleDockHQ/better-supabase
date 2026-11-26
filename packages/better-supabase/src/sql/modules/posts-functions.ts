@@ -20,14 +20,14 @@ function boardFunctions(ctx: BlockSqlContext): string {
   const { fn, b, boards, invalid, forbidden, boardMissing, boardJson } = q;
 
   const description =
-    "nullif(trim(save_post_board.board ->> 'description'), '')";
+    "nullif(trim(upsert_post_board.board ->> 'description'), '')";
 
   const archived =
-    "case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end";
+    "case when coalesce((upsert_post_board.board ->> 'archived')::boolean, false) then now() end";
 
   const inserted = (
     [
-      ["tenant", "save_post_board.tenant"],
+      ["tenant", "upsert_post_board.tenant"],
       ["key", "v_key"],
       ["name", "v_name"],
       ["description", description],
@@ -41,13 +41,13 @@ function boardFunctions(ctx: BlockSqlContext): string {
     `${b("name")} = v_name`,
     ...(q.hasBoard("description")
       ? [
-          `${b("description")} = case when save_post_board.board ? 'description' then ${description} else x.${b("description")} end`,
+          `${b("description")} = case when upsert_post_board.board ? 'description' then ${description} else x.${b("description")} end`,
         ]
       : []),
     `${b("kind")} = ${ctx.cast("boards", "kind", "v_kind")}`,
     ...(q.hasBoard("archivedAt")
       ? [
-          `${b("archivedAt")} = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x.${b("archivedAt")}, now()) end else x.${b("archivedAt")} end`,
+          `${b("archivedAt")} = case when upsert_post_board.board ? 'archived' then case when (upsert_post_board.board ->> 'archived')::boolean then coalesce(x.${b("archivedAt")}, now()) end else x.${b("archivedAt")} end`,
         ]
       : []),
     ...(q.hasBoard("updatedAt") ? [`${b("updatedAt")} = now()`] : []),
@@ -71,7 +71,7 @@ function boardFunctions(ctx: BlockSqlContext): string {
 
   return `-- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.
-create or replace function ${fn("save_post_board")}(tenant ${ctx.idType}, board jsonb)
+create or replace function ${fn("upsert_post_board")}(tenant ${ctx.idType}, board jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -86,25 +86,25 @@ declare
   v_name text;
   v_kind text;
 begin
-  if not ${q.allowed("save_post_board.tenant", q.manage)} then
+  if not ${q.allowed("upsert_post_board.tenant", q.manage)} then
     ${forbidden("not allowed to manage boards")}
   end if;
-  if jsonb_typeof(save_post_board.board) is distinct from 'object' then
+  if jsonb_typeof(upsert_post_board.board) is distinct from 'object' then
     ${invalid("board must be an object")}
   end if;
-  v_id := nullif(save_post_board.board ->> 'id', '')::uuid;
+  v_id := nullif(upsert_post_board.board ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from ${boards} x where x.${b("id")} = v_id and x.${b("tenant")} = save_post_board.tenant for update;
+    select * into v_old from ${boards} x where x.${b("id")} = v_id and x.${b("tenant")} = upsert_post_board.tenant for update;
     if v_old.${b("id")} is null then
       ${boardMissing}
     end if;
-    if save_post_board.board ? 'key' and save_post_board.board ->> 'key' is distinct from v_old.${b("key")} then
+    if upsert_post_board.board ? 'key' and upsert_post_board.board ->> 'key' is distinct from v_old.${b("key")} then
       ${invalid("a board's key can't change")}
     end if;
   end if;
-  v_key := coalesce(v_old.${b("key")}, save_post_board.board ->> 'key');
-  v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old.${b("name")});
-  v_kind := coalesce(save_post_board.board ->> 'kind', ${asText(ctx, "boards", `v_old.${b("kind")}`)}, 'forum');
+  v_key := coalesce(v_old.${b("key")}, upsert_post_board.board ->> 'key');
+  v_name := coalesce(nullif(trim(upsert_post_board.board ->> 'name'), ''), v_old.${b("name")});
+  v_kind := coalesce(upsert_post_board.board ->> 'kind', ${asText(ctx, "boards", `v_old.${b("kind")}`)}, 'forum');
   if v_key is null or v_key !~ ${sqlString(KEY)} then
     ${invalid("a board needs a key of lowercase letters, digits, dashes and underscores")}
   end if;
@@ -128,7 +128,7 @@ begin
   return ${boardJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_post_board")}(${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_post_board")}(${ctx.idType}, jsonb)`)}
 
 -- The organization's boards by name; archived ones only when asked.
 create or replace function ${fn("list_post_boards")}(tenant ${ctx.idType}, archived boolean default false)

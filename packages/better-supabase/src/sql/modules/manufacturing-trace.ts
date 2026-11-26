@@ -62,7 +62,7 @@ export function traceFunctions(ctx: BlockSqlContext): string {
   const createPurchase = requisitions
     ? `v_purchase := ${inventory.fn("request_purchase")}(create_from_requirements.tenant, v_group.location, v_group.lines,
       v_group.supplier_type, v_group.supplier_id, v_group.currency, 'From material requirements');`
-    : `v_purchase := ${inventory.fn("save_purchase_order")}(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
+    : `v_purchase := ${inventory.fn("upsert_purchase_order")}(create_from_requirements.tenant, null, v_group.location, v_group.supplier_type,
       v_group.supplier_id, v_group.currency, null, v_group.lines, 'From material requirements');`;
 
   const lotJson = (alias: string): string =>

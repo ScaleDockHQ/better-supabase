@@ -67,7 +67,7 @@ async function product(
   await s.as(owner);
 
   const saved = await s.value<{ id: string }>(
-    "better_supabase.save_product($1, null, $2, null, null, 'physical')",
+    "better_supabase.upsert_product($1, null, $2, null, null, 'physical')",
     [tenant, title],
   );
 

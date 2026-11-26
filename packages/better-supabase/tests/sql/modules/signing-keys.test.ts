@@ -12,7 +12,7 @@ describe("signing-keys module", () => {
     const sql = body();
 
     for (const signature of [
-      '"add_signing_key"(text, text, text, text, jsonb, text)',
+      '"create_signing_key"(text, text, text, text, jsonb, text)',
       '"signing_key"(text, text)',
       '"note_signing_key_exp"(text, timestamptz)',
       '"retire_signing_key"(text)',

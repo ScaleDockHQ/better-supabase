@@ -637,13 +637,13 @@ export function builderRuntimeSql(s: BuilderSql): string {
     stepDescribed,
   } = s;
 
-  // A parameter of save_workflow_credential. Over the app's table its upsert
+  // A parameter of upsert_workflow_credential. Over the app's table its upsert
   // names the key columns, which a same-named parameter would shadow.
   const credential = (name: string): string =>
-    ownCredentials ? name : `save_workflow_credential.${name}`;
+    ownCredentials ? name : `upsert_workflow_credential.${name}`;
 
   return `-- Creates or updates a trigger: workflow.edit in the definition's tenant.
-create or replace function ${fn("save_workflow_trigger")}(
+create or replace function ${fn("upsert_workflow_trigger")}(
   definition uuid,
   kind text,
   config jsonb default '{}'::jsonb,
@@ -689,7 +689,7 @@ begin
   return ${triggerJson("v_row")};
 end;
 $$;
-${callable(`${fn("save_workflow_trigger")}(uuid, text, jsonb, boolean, uuid)`)}
+${callable(`${fn("upsert_workflow_trigger")}(uuid, text, jsonb, boolean, uuid)`)}
 
 create or replace function ${fn("workflow_triggers_list")}(definition uuid)
 returns jsonb
@@ -702,7 +702,7 @@ as $$
 $$;
 ${callable(`${fn("workflow_triggers_list")}(uuid)`)}
 
-create or replace function ${fn("remove_workflow_trigger")}(trigger uuid)
+create or replace function ${fn("delete_workflow_trigger")}(trigger uuid)
 returns boolean
 language plpgsql
 security definer
@@ -718,7 +718,7 @@ begin
   return found;
 end;
 $$;
-${callable(`${fn("remove_workflow_trigger")}(uuid)`)}
+${callable(`${fn("delete_workflow_trigger")}(uuid)`)}
 
 -- Issues a new token for a webhook trigger and returns it; only its SHA-256
 -- is kept, so the old token stops working. workflow.edit in its tenant.
@@ -799,7 +799,7 @@ $$;
 ${serviceGrant(`${fn("workflow_event_targets")}(text, ${id})`)}
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
-create or replace function ${fn("save_workflow_credential")}(
+create or replace function ${fn("upsert_workflow_credential")}(
   tenant ${id},
   kind text,
   name text,
@@ -818,7 +818,7 @@ begin
   if not ${allowed(credential("tenant"), "manage")} then
     ${forbidden("You may not manage workflow credentials here")}
   end if;
-  ${tenantRefGuard("save_workflow_credential.ref", "save_workflow_credential.tenant")}
+  ${tenantRefGuard("upsert_workflow_credential.ref", "upsert_workflow_credential.tenant")}
   insert into ${c} as x (${cc("tenant")}, ${cc("kind")}, ${cc("name")}, ${cc("ref")}, ${cc("scopes")}, ${cc("createdBy")})
   values (${["tenant", "kind", "name", "ref"].map(credential).join(", ")}, coalesce(${credential("scopes")}, '{}'), (select auth.uid()))
   on conflict ${ownCredentials ? "on constraint workflow_credentials_tenant_name_key" : `(${cc("tenant")}, ${cc("name")})`} do update set
@@ -829,7 +829,7 @@ begin
   return ${credentialJson("v_row")};
 end;
 $$;
-${callable(`${fn("save_workflow_credential")}(${id}, text, text, jsonb, text[])`)}
+${callable(`${fn("upsert_workflow_credential")}(${id}, text, text, jsonb, text[])`)}
 
 create or replace function ${fn("workflow_credentials_list")}(tenant ${id} default null)
 returns jsonb
@@ -856,7 +856,7 @@ ${serviceGrant(`${fn("workflow_credential_get")}(uuid)`)}
 
 -- Deletes a credential row and returns it, so the caller can revoke the
 -- secret it names: workflow.admin in its tenant.
-create or replace function ${fn("remove_workflow_credential")}(credential uuid)
+create or replace function ${fn("delete_workflow_credential")}(credential uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -875,7 +875,7 @@ begin
   return ${credentialJson("v_row")};
 end;
 $$;
-${callable(`${fn("remove_workflow_credential")}(uuid)`)}
+${callable(`${fn("delete_workflow_credential")}(uuid)`)}
 
 -- Replaces the step library with steps, keyed by name ({ name: { title,
 -- description, inputSchema, outputSchema, credentialKind, operation } });
@@ -988,7 +988,7 @@ ${callable(`${fn("workflow_node_runs_list")}(text)`)}
 
 -- Creates or updates an alert: workflow.admin in the definition's tenant.
 -- threshold (slow alerts) is how long a run may stay unfinished.
-create or replace function ${fn("save_workflow_alert")}(
+create or replace function ${fn("upsert_workflow_alert")}(
   definition uuid,
   on_event text,
   channel jsonb default '{}'::jsonb,
@@ -1027,7 +1027,7 @@ begin
   return ${alertJson("v_row")};
 end;
 $$;
-${callable(`${fn("save_workflow_alert")}(uuid, text, jsonb, interval, uuid)`)}
+${callable(`${fn("upsert_workflow_alert")}(uuid, text, jsonb, interval, uuid)`)}
 
 create or replace function ${fn("workflow_alerts_list")}(definition uuid)
 returns jsonb
@@ -1040,7 +1040,7 @@ as $$
 $$;
 ${callable(`${fn("workflow_alerts_list")}(uuid)`)}
 
-create or replace function ${fn("remove_workflow_alert")}(alert uuid)
+create or replace function ${fn("delete_workflow_alert")}(alert uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1055,7 +1055,7 @@ begin
   return found;
 end;
 $$;
-${callable(`${fn("remove_workflow_alert")}(uuid)`)}
+${callable(`${fn("delete_workflow_alert")}(uuid)`)}
 
 -- Fires the failed alerts of a run's definition (the bsb.definition
 -- attribute) when a live run fails; test runs fire none.

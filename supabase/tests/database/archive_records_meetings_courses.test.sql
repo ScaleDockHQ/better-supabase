@@ -59,7 +59,7 @@ select is(
   'Never held', 'purge removes a planned meeting'
 );
 
-select set_config('test.course', (better_supabase.save_course(
+select set_config('test.course', (better_supabase.upsert_course(
   '00000000-0000-4000-8000-000000000001',
   '{"key": "y2-safety", "title": "Safety", "status": "published"}'::jsonb
 ) ->> 'id'), true);

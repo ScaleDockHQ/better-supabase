@@ -644,7 +644,7 @@ begin
   }
   if v_conv.${cv("access")} = 'tenant' and not ${q.service} and v_conv.${cv("archivedAt")} is null
     and ${q.can(`v_conv.${cv("tenant")}`, "send")} then
-    perform ${fn("add_conversation_members")}(v_conv.${cv("id")}, array[auth.uid()]);
+    perform ${fn("create_conversation_members")}(v_conv.${cv("id")}, array[auth.uid()]);
   end if;
   if not ${fn("can_conversation")}(v_conv.${cv("id")}, 'send') then
     ${fail("MESSAGING_FORBIDDEN", "not allowed to send messages here")}

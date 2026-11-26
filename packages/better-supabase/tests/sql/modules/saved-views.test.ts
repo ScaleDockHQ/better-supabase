@@ -32,7 +32,7 @@ describe("saved-views module", () => {
   it("needs views.share for a team or tenant view", () => {
     const sql = sqlOf();
     expect(sql).toContain(
-      `if save_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'saved_views.share'), false)) then`,
+      `if upsert_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', upsert_view.tenant, 'saved_views.share'), false)) then`,
     );
   });
 
@@ -48,13 +48,13 @@ describe("saved-views module", () => {
       `"team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)`,
     );
     expect(sql).toContain(
-      `save_view.team in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)`,
+      `upsert_view.team in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t)`,
     );
   });
 
   it("guards definer writes against read-only actors", () => {
     const sql = sqlOf();
-    expect(sql).toMatch(/save_view[\s\S]*actor_may_write/);
+    expect(sql).toMatch(/upsert_view[\s\S]*actor_may_write/);
   });
 
   it("keeps per-user preferences that only their user reads", () => {
@@ -78,10 +78,10 @@ describe("saved-views module", () => {
     );
   });
 
-  it("duplicates a visible view through save_view", () => {
+  it("duplicates a visible view through upsert_view", () => {
     const sql = sqlOf();
     expect(sql).toMatch(
-      /duplicate_view"\(view_id uuid, scope text, name text, team text\)[\s\S]*SAVED_VIEW_NOT_FOUND[\s\S]*return "better_supabase"\."save_view"\(v_row\."tenant_id", v_row\."list",/,
+      /duplicate_view"\(view_id uuid, scope text, name text, team text\)[\s\S]*SAVED_VIEW_NOT_FOUND[\s\S]*return "better_supabase"\."upsert_view"\(v_row\."tenant_id", v_row\."list",/,
     );
   });
 
@@ -105,7 +105,7 @@ describe("saved-views module", () => {
       sqlOf(["saved-views"], {
         modules: { "saved-views": { mode: "custom" } },
       }),
-    ).not.toContain("save_view");
+    ).not.toContain("upsert_view");
   });
 });
 

@@ -59,9 +59,9 @@ const outline = {
 
 function transport(fail?: string) {
   const rows: Record<string, unknown> = {
-    save_course: course,
-    save_course_module: moduleRow,
-    save_course_lesson: lesson,
+    upsert_course: course,
+    upsert_course_module: moduleRow,
+    upsert_course_lesson: lesson,
     course_outline: outline,
     list_courses: [course, { ...course, id: "c2", key: "next" }],
   };
@@ -95,9 +95,9 @@ describe("course client", () => {
     expect(saved.ok ? saved.data.id : saved.error.message).toBe("c1");
 
     for (const fn of [
-      "save_course",
-      "save_course_module",
-      "save_course_lesson",
+      "upsert_course",
+      "upsert_course_module",
+      "upsert_course_lesson",
     ]) {
       const failed = await createCourses({
         transport: transport(fn),

@@ -265,7 +265,7 @@ export function createTemplateRecurring(
   return {
     upsert: (input) =>
       call(
-        "save_template_schedule",
+        "upsert_template_schedule",
         {
           schedule_id: input.id ?? null,
           template_id: input.template,
@@ -276,7 +276,7 @@ export function createTemplateRecurring(
           input: input.input ?? {},
           enabled: input.enabled ?? true,
         },
-        (value) => scheduleOf(recordOf(value, "save_template_schedule")),
+        (value) => scheduleOf(recordOf(value, "upsert_template_schedule")),
       ),
     list: ({ organizationId, template }) =>
       call(
@@ -286,7 +286,7 @@ export function createTemplateRecurring(
       ),
     remove: (id) =>
       call(
-        "remove_template_schedule",
+        "delete_template_schedule",
         { schedule_id: id },
         (value) => value === true,
       ),

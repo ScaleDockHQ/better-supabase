@@ -5,9 +5,10 @@ import { userGrant } from "../shared.ts";
 /**
  * `book_with_reminder`: `scheduling.bookWithReminder` as one atomic function
  * (ADR 1235). It books the slot with `hold_booking` (confirmed) and saves the
- * caller's reminder on the booking with `save_reminder`, so each keeps its own
- * permission check, hooks and events. A failed reminder now rolls the booking
- * back. It needs the reminders module; without it the function is not written.
+ * caller's reminder on the booking with `upsert_reminder`, so each keeps its
+ * own permission check, hooks and events. A failed reminder now rolls the
+ * booking back. It needs the reminders module; without it the function is not
+ * written.
  */
 export function bookWithReminder(ctx: BlockSqlContext): string {
   if (!ctx.installed("reminders")) {
@@ -37,7 +38,7 @@ declare
 begin
   select s.${tenant} into v_tenant from ${services} s where s.${id} = book_with_reminder.service;
   v_booking := ${ctx.fn("hold_booking")}(book_with_reminder.service, book_with_reminder.resource, book_with_reminder.starts_at, book_with_reminder.customer, true);
-  v_reminder := ${reminders.fn("save_reminder")}(
+  v_reminder := ${reminders.fn("upsert_reminder")}(
     tenant => v_tenant,
     subject_type => 'booking',
     subject_id => v_booking ->> 'id',

@@ -1,6 +1,6 @@
 -- better-supabase module: tax
 -- @bsb-block tax@2 managed
--- @bsb-hash sha256:444f7a7d48654b25d8bb02005add57874fa889f1fc5d752a4e11569aa92a0118
+-- @bsb-hash sha256:cee239a546f8fdf323e58827d977f14dc0418bb4491842530db2c4f26d13326d
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -189,7 +189,7 @@ grant execute on function "better_supabase"."resolve_tax_code"(uuid, text, uuid)
 -- Adds a rate to a code from valid_from on. A rate that starts after the
 -- code's earlier open rate closes it the day before; without valid_to the rate
 -- runs until the next later rate. A rate with the same start is replaced.
--- Internal: save_tax_rate and the import check who may call it.
+-- Internal: upsert_tax_rate and the import check who may call it.
 create or replace function "better_supabase"."tax_rate_write"(tenant uuid, tax_code uuid, rate_bps integer, valid_from date default null, valid_to date default null)
 returns jsonb
 language plpgsql
@@ -244,7 +244,7 @@ revoke execute on function "better_supabase"."tax_rate_write"(uuid, uuid, intege
 -- Creates or changes a tax code. input: { code, name, type, legalEntityId?,
 -- salesAccountId?, purchaseAccountId?, returnBoxes?, archived?, rateBps?,
 -- validFrom? }. rateBps adds a rate from validFrom (the epoch for a new code,
--- today for an existing one). Internal: save_tax_code and the import check who
+-- today for an existing one). Internal: upsert_tax_code and the import check who
 -- may call it.
 create or replace function "better_supabase"."tax_code_write"(tenant uuid, input jsonb, code_id uuid default null)
 returns jsonb
@@ -376,37 +376,37 @@ end;
 $$;
 revoke execute on function "better_supabase"."tax_code_write"(uuid, jsonb, uuid) from public, anon, authenticated;
 
-create or replace function "better_supabase"."save_tax_code"(tenant uuid, input jsonb, code_id uuid default null)
+create or replace function "better_supabase"."upsert_tax_code"(tenant uuid, input jsonb, code_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_tax_code.tenant is not null and coalesce(better_supabase.can('tenant', save_tax_code.tenant, 'tax.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_tax_code.tenant is not null and coalesce(better_supabase.can('tenant', upsert_tax_code.tenant, 'tax.manage'), false))) then
     raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'TAX_FORBIDDEN';
   end if;
-  return "better_supabase"."tax_code_write"(save_tax_code.tenant, save_tax_code.input, save_tax_code.code_id);
+  return "better_supabase"."tax_code_write"(upsert_tax_code.tenant, upsert_tax_code.input, upsert_tax_code.code_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_tax_code"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_tax_code"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_tax_code"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_tax_code"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."save_tax_rate"(tenant uuid, tax_code uuid, rate_bps integer, valid_from date default null, valid_to date default null)
+create or replace function "better_supabase"."upsert_tax_rate"(tenant uuid, tax_code uuid, rate_bps integer, valid_from date default null, valid_to date default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_tax_rate.tenant is not null and coalesce(better_supabase.can('tenant', save_tax_rate.tenant, 'tax.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_tax_rate.tenant is not null and coalesce(better_supabase.can('tenant', upsert_tax_rate.tenant, 'tax.manage'), false))) then
     raise exception 'not allowed to manage tax rates' using errcode = '42501', hint = 'TAX_FORBIDDEN';
   end if;
-  return "better_supabase"."tax_rate_write"(save_tax_rate.tenant, save_tax_rate.tax_code, save_tax_rate.rate_bps, save_tax_rate.valid_from, save_tax_rate.valid_to);
+  return "better_supabase"."tax_rate_write"(upsert_tax_rate.tenant, upsert_tax_rate.tax_code, upsert_tax_rate.rate_bps, upsert_tax_rate.valid_from, upsert_tax_rate.valid_to);
 end;
 $$;
-revoke execute on function "better_supabase"."save_tax_rate"(uuid, uuid, integer, date, date) from public, anon;
-grant execute on function "better_supabase"."save_tax_rate"(uuid, uuid, integer, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_tax_rate"(uuid, uuid, integer, date, date) from public, anon;
+grant execute on function "better_supabase"."upsert_tax_rate"(uuid, uuid, integer, date, date) to authenticated, service_role;
 
 -- The organization's tax codes with their rate history. With a legal entity,
 -- the codes it can use: its own and the organization's.
@@ -434,7 +434,7 @@ revoke execute on function "better_supabase"."list_tax_codes"(uuid, boolean, uui
 grant execute on function "better_supabase"."list_tax_codes"(uuid, boolean, uuid) to authenticated, service_role;
 
 -- The import target of the tax_code entity: item.data is the input of
--- save_tax_code, with rateBps and validFrom for the first rate.
+-- upsert_tax_code, with rateBps and validFrom for the first rate.
 create or replace function "better_supabase"."import_tax_code"(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql

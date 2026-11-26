@@ -128,7 +128,7 @@ The hooks are `before_lims_sample_register`, `after_lims_sample_register`,
 
 ## Without the client
 
-`save_lims_method(tenant, input, method_id)`, `archive_lims_method(method_id)`, `restore_lims_method(method_id)`,
+`upsert_lims_method(tenant, input, method_id)`, `archive_lims_method(method_id)`, `restore_lims_method(method_id)`,
 `list_lims_methods(tenant, include_archived)`, `register_sample(tenant, input)`,
 `get_sample(sample_id)`, `list_samples(tenant, filters)`,
 `record_lims_result(sample_id, method_id, input)`, `complete_sample(sample_id)`,

@@ -260,7 +260,7 @@ function audienceFields(audience: AnnouncementAudience): {
   }
 }
 
-/** The columns `save_announcement` sets, from the fields the input names. */
+/** The columns `upsert_announcement` sets, from the fields the input names. */
 function fieldsOf(input: Partial<AnnouncementInput>): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
 
@@ -333,7 +333,7 @@ export function createAnnouncements<
     return AsyncResult.from(() => fields.write(extraOf(input, INPUT_KEYS)))
       .andThen((extra) =>
         call(
-          "save_announcement",
+          "upsert_announcement",
           { id, fields: { ...extra, ...columns } },
           (value) => value,
         ),

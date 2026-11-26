@@ -402,8 +402,8 @@ describe("approvals client", () => {
           updatedAt: null,
         },
       ],
-      save_approval_policy: () => POLICY,
-      remove_approval_policy: () => true,
+      upsert_approval_policy: () => POLICY,
+      delete_approval_policy: () => true,
     });
 
     const approvals = createApprovals({
@@ -511,13 +511,13 @@ describe("approvals client", () => {
         { tenant: "o", subject_type: "invoice", page_size: 5 },
       ],
       [
-        "save_approval_policy",
+        "upsert_approval_policy",
         {
           tenant: "o",
           policy: { subjectType: "invoice", action: "send", name: "Large" },
         },
       ],
-      ["remove_approval_policy", { policy_id: "p1" }],
+      ["delete_approval_policy", { policy_id: "p1" }],
     ]);
   });
 

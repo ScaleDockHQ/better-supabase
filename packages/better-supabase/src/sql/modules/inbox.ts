@@ -59,8 +59,8 @@ ${inboxFunctions(
   q,
   teams && {
     create: teams.fn("create_team"),
-    add: teams.fn("add_team_member"),
-    remove: teams.fn("remove_team_member"),
+    add: teams.fn("create_team_member"),
+    remove: teams.fn("delete_team_member"),
   },
 )}
 
@@ -629,7 +629,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "integer",
     },
     {
-      name: "save_inbox_draft",
+      name: "upsert_inbox_draft",
       args: ["uuid", "jsonb", "jsonb"],
       returns: "jsonb",
     },

@@ -641,7 +641,7 @@ describe("quotas", () => {
 
   it("sets and removes a tenant or plan quota", async () => {
     const { transport, calls } = fakeTransport((fn) =>
-      fn === "remove_usage_quota" ? true : null,
+      fn === "delete_usage_quota" ? true : null,
     );
 
     const usage = createUsage({ transport });
@@ -684,7 +684,7 @@ describe("quotas", () => {
         },
       ],
       [
-        "remove_usage_quota",
+        "delete_usage_quota",
         { tenant: "o1", plan: undefined, meter: "ai.input_tokens" },
       ],
     ]);

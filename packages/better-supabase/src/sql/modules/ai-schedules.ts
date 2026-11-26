@@ -433,69 +433,69 @@ ${renderPolicy(makePolicy({ table: runs, name: "ai_task_runs_read", command: "se
 -- tick. Pausing clears it, so a resumed task waits for its next occurrence.
 -- chat_id must be a chat of the task's user in the tenant, and agent_id an
 -- agent of the tenant that user owns or that is published.
-create or replace function ${fn("save_ai_task")}(tenant ${id}, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function ${fn("upsert_ai_task")}(tenant ${id}, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_ai_task.id;
+  v_id uuid := upsert_ai_task.id;
   v_row ${tasks}%rowtype;
   v_service boolean := ${SERVICE_CALLER};
   v_chat uuid;
   v_agent uuid;
 begin
-  if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_ai_task.fields) is distinct from 'object' then
     ${raise("fields must be an object", "22023", "AI_TASK_INVALID")}
   end if;
-  if save_ai_task.fields ? 'timezone' then
+  if upsert_ai_task.fields ? 'timezone' then
     begin
-      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+      perform now() at time zone (upsert_ai_task.fields ->> 'timezone');
     exception when others then
-      ${raise("% is not a time zone", "22023", "AI_TASK_INVALID", "save_ai_task.fields ->> 'timezone'")}
+      ${raise("% is not a time zone", "22023", "AI_TASK_INVALID", "upsert_ai_task.fields ->> 'timezone'")}
     end;
   end if;
   if v_id is null then
-    if not (${SERVICE_CALLER} or ${ctx.scope.can("save_ai_task.tenant", create)}) or auth.uid() is null then
+    if not (${SERVICE_CALLER} or ${ctx.scope.can("upsert_ai_task.tenant", create)}) or auth.uid() is null then
       ${raise("you may not schedule tasks here", "42501", "AI_TASK_FORBIDDEN")}
     end if;
     insert into ${tasks} (${t.tenant}, ${t.user}, ${t.title}, ${t.prompt}, ${t.cron})
-    values (save_ai_task.tenant, auth.uid(), save_ai_task.fields ->> 'title', save_ai_task.fields ->> 'prompt', save_ai_task.fields ->> 'cron')
+    values (upsert_ai_task.tenant, auth.uid(), upsert_ai_task.fields ->> 'title', upsert_ai_task.fields ->> 'prompt', upsert_ai_task.fields ->> 'cron')
     returning * into v_row;
   else
-    select * into v_row from ${tasks} x where x.${t.id} = v_id and x.${t.tenant} = save_ai_task.tenant for update;
+    select * into v_row from ${tasks} x where x.${t.id} = v_id and x.${t.tenant} = upsert_ai_task.tenant for update;
     if not found or not ${mayEdit("v_row")} then
       ${notFound}
     end if;
   end if;
-  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  v_chat := (upsert_ai_task.fields ->> 'chat_id')::uuid;
   if v_chat is not null and not v_service and not ${chatOwned}
   then
     ${raise("chat % is not a chat of this task's user", "42501", "AI_TASK_CHAT_FORBIDDEN", "v_chat")}
   end if;
-  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  v_agent := (upsert_ai_task.fields ->> 'agent_id')::uuid;
   if v_agent is not null and not v_service and not ${agentUsable}
   then
     ${raise("agent % is not an agent this task's user may use", "42501", "AI_TASK_AGENT_FORBIDDEN", "v_agent")}
   end if;
   update ${tasks} x set
-    ${t.title} = coalesce(save_ai_task.fields ->> 'title', x.${t.title}),
-    ${t.prompt} = coalesce(save_ai_task.fields ->> 'prompt', x.${t.prompt}),
-    ${t.cron} = coalesce(save_ai_task.fields ->> 'cron', x.${t.cron}),
-    ${t.timezone} = coalesce(save_ai_task.fields ->> 'timezone', x.${t.timezone}),${task("chat") ? `\n    ${t.chat} = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x.${t.chat} end,` : ""}${task("agent") ? `\n    ${t.agent} = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x.${t.agent} end,` : ""}
-    ${t.enabled} = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x.${t.enabled}),
+    ${t.title} = coalesce(upsert_ai_task.fields ->> 'title', x.${t.title}),
+    ${t.prompt} = coalesce(upsert_ai_task.fields ->> 'prompt', x.${t.prompt}),
+    ${t.cron} = coalesce(upsert_ai_task.fields ->> 'cron', x.${t.cron}),
+    ${t.timezone} = coalesce(upsert_ai_task.fields ->> 'timezone', x.${t.timezone}),${task("chat") ? `\n    ${t.chat} = case when upsert_ai_task.fields ? 'chat_id' then (upsert_ai_task.fields ->> 'chat_id')::uuid else x.${t.chat} end,` : ""}${task("agent") ? `\n    ${t.agent} = case when upsert_ai_task.fields ? 'agent_id' then (upsert_ai_task.fields ->> 'agent_id')::uuid else x.${t.agent} end,` : ""}
+    ${t.enabled} = coalesce((upsert_ai_task.fields ->> 'enabled')::boolean, x.${t.enabled}),
     ${t.nextRunAt} = case
-      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
-      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
-      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      when (upsert_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (upsert_ai_task.next_run_at is not null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone') then upsert_ai_task.next_run_at
+      when upsert_ai_task.id is null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone' then null
       else x.${t.nextRunAt} end${task("updatedAt") ? `,\n    ${t.updatedAt} = now()` : ""}
   where x.${t.id} = v_row.${t.id}
-  returning * into v_row;${writeExtraColumns(tasks, extras, "save_ai_task.fields", `x.${t.id} = v_row.${t.id}`, "v_row")}
+  returning * into v_row;${writeExtraColumns(tasks, extras, "upsert_ai_task.fields", `x.${t.id} = v_row.${t.id}`, "v_row")}
   return ${taskJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_ai_task")}(${id}, uuid, jsonb, timestamptz)`)}
+${userGrant(`${fn("upsert_ai_task")}(${id}, uuid, jsonb, timestamptz)`)}
 
 create or replace function ${fn("delete_ai_task")}(id uuid)
 returns boolean

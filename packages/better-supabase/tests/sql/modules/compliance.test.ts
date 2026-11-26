@@ -72,7 +72,7 @@ describe("compliance module", () => {
     const [contract] = customContracts(["compliance"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "save_control",
+        "upsert_control",
         "control_posture",
         "list_compliance_policies",
       ]),

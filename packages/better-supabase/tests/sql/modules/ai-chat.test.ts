@@ -65,15 +65,15 @@ describe("ai-chat module", () => {
     const sql = body();
 
     for (const signature of [
-      '"save_ai_assistant_message"(uuid, jsonb, text, text, text, text, jsonb, uuid)',
+      '"upsert_ai_assistant_message"(uuid, jsonb, text, text, text, text, jsonb, uuid)',
       '"claim_ai_chat_stream"(uuid, text, text, text, text, text)',
       '"release_ai_chat_stream"(uuid, text, text, jsonb, text, text, bigint)',
       '"upsert_ai_models"(jsonb, boolean)',
       '"purge_ai_chats"(integer)',
       '"attach_ai_run"(uuid, text)',
       '"record_ai_run_step"(uuid, jsonb)',
-      '"load_ai_harness_session"(uuid, text)',
-      '"save_ai_harness_session"(uuid, text, jsonb, text)',
+      '"get_ai_harness_session"(uuid, text)',
+      '"upsert_ai_harness_session"(uuid, text, jsonb, text)',
       '"lock_ai_harness_session"(uuid, text, text, integer)',
       '"unlock_ai_harness_session"(uuid, text, text)',
     ]) {

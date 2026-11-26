@@ -453,7 +453,7 @@ export function createAgents<
   ): AsyncResult<Agent & F> =>
     AsyncResult.from(() => fields.write(extraOf(agent, AGENT_FIELDS))).andThen(
       (extra) =>
-        one("save_agent", {
+        one("upsert_agent", {
           tenant: organizationId,
           id: agentId,
           fields: { ...extra, ...fieldsArg(agent) },

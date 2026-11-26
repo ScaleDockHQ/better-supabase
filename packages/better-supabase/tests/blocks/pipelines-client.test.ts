@@ -36,7 +36,7 @@ function pipelines(fail?: string) {
           return Promise.resolve(fail === "empty" ? [] : [pipeline]);
         }
 
-        if (fn === "save_pipeline_stage") {
+        if (fn === "upsert_pipeline_stage") {
           return Promise.resolve({
             ...stage,
             icon: "dot",
@@ -107,13 +107,13 @@ describe("pipeline client", () => {
     expect(created.ok ? created.data.key : created.error.message).toBe("next");
 
     expect((await pipelines("list_pipelines").ensure(input)).ok).toBe(false);
-    expect((await pipelines("save_pipeline").ensure(input)).ok).toBe(false);
+    expect((await pipelines("upsert_pipeline").ensure(input)).ok).toBe(false);
     expect((await pipelines("empty").ensure({ ...input, stages: [] })).ok).toBe(
       true,
     );
     expect(
       (
-        await pipelines("save_pipeline_stage").ensure({
+        await pipelines("upsert_pipeline_stage").ensure({
           ...input,
           stages: [{ key: "new", name: "New", category: "open" }],
         })
@@ -213,7 +213,7 @@ describe("pipeline client", () => {
               : Promise.reject(new Error("reread"));
           }
 
-          if (fn === "save_pipeline_stage") {
+          if (fn === "upsert_pipeline_stage") {
             return Promise.resolve(stage);
           }
 

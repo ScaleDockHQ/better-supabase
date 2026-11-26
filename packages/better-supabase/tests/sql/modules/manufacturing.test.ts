@@ -81,7 +81,7 @@ describe("manufacturing module", () => {
   it("turns purchase suggestions into the inventory block's purchase orders", () => {
     const sql = sqlOf();
 
-    expect(sql).toContain('"better_supabase"."save_purchase_order"(');
+    expect(sql).toContain('"better_supabase"."upsert_purchase_order"(');
     expect(sql).toContain("From material requirements");
   });
 
@@ -89,9 +89,9 @@ describe("manufacturing module", () => {
     const sql = sqlOf();
 
     for (const fn of [
-      "save_bom",
+      "upsert_bom",
       "activate_bom",
-      "save_work_center",
+      "upsert_work_center",
       "create_production_order",
       "release_production_order",
       "complete_production_order",
@@ -124,7 +124,7 @@ describe("manufacturing module", () => {
     const [contract] = customContracts(["manufacturing"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "save_bom",
+        "upsert_bom",
         "activate_bom",
         "explode_bom",
         "create_production_order",

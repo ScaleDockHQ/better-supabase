@@ -167,7 +167,7 @@ export function recordReadSubjects(
 }
 
 /**
- * The read check of `read_field_values`: `record` for the subject types in
+ * The read check of `get_field_values`: `record` for the subject types in
  * `byRecord`, `tenant` for the others, or `record` alone when every subject
  * reads by record under the module's own `readAccess: "record"`.
  */
@@ -497,23 +497,23 @@ export function keyedFields(
     recordSubjects.length === subjects.length;
 
   const canRead = ctx.installed("subjects")
-    ? ` and coalesce(${ctx.of("subjects").fn("can_subject")}(read_field_values.subject_type, read_field_values.subject_id, 'read'), false)`
+    ? ` and coalesce(${ctx.of("subjects").fn("can_subject")}(get_field_values.subject_type, get_field_values.subject_id, 'read'), false)`
     : "";
 
   const readable = `(auth.role() = 'service_role' or ${fieldReadGate(
-    "read_field_values.subject_type",
+    "get_field_values.subject_type",
     recordSubjects,
     all,
     {
       record: `(${subjectReadable(ctx, all ? subjects : recordSubjects, {
-        type: "read_field_values.subject_type",
-        id: "read_field_values.subject_id",
-        tenant: "read_field_values.tenant",
+        type: "get_field_values.subject_type",
+        id: "get_field_values.subject_id",
+        tenant: "get_field_values.tenant",
       })})${canRead}`,
       tenant: allowed(
         "read",
-        "read_field_values.subject_type",
-        "read_field_values.tenant",
+        "get_field_values.subject_type",
+        "get_field_values.tenant",
       ),
     },
   )})`;
@@ -582,7 +582,7 @@ $$;
 ${userGrant(`${fn("set_field_value")}(${ctx.idType}, text, text, text, text, text, jsonb, text, boolean)`)}
 
 -- Every field of a subject as typed rows, in rank order (then by key).
-create or replace function ${fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text)
+create or replace function ${fn("get_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
 ${ctx.readVolatility()}
@@ -594,20 +594,20 @@ declare
 begin
   select coalesce(jsonb_agg(${rowJson(ctx, "v", integerRank)} order by ${order}), '[]'::jsonb) into v_values
   from ${values} v
-  where v.${c("tenant")} = read_field_values.tenant
-    and ${subjectMatch(ctx, "v", "read_field_values.subject_type", "read_field_values.subject_id")}
+  where v.${c("tenant")} = get_field_values.tenant
+    and ${subjectMatch(ctx, "v", "get_field_values.subject_type", "get_field_values.subject_id")}
     and ${readable};${getIfAny(
       ctx.read(
-        "read_field_values.subject_type",
-        "read_field_values.subject_id",
-        "read_field_values",
+        "get_field_values.subject_type",
+        "get_field_values.subject_id",
+        "get_field_values",
       ),
       "v_values",
     )}
   return v_values;
 end;
 $$;
-${userGrant(`${fn("read_field_values")}(${ctx.idType}, text, text)`)}
+${userGrant(`${fn("get_field_values")}(${ctx.idType}, text, text)`)}
 
 -- Removes one field value.
 create or replace function ${fn("delete_field_value")}(value_id uuid)
@@ -648,7 +648,7 @@ ${userGrant(`${fn("delete_field_value")}(uuid)`)}
 export function keyedContract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "read_field_values",
+      name: "get_field_values",
       args: ["{id}", "text", "text"],
       returns: "jsonb",
     },

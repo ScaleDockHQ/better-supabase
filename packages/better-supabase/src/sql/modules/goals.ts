@@ -169,48 +169,48 @@ ${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("targets")
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function ${fn("save_goal")}(tenant ${ctx.idType}, target uuid, attrs jsonb)
+create or replace function ${fn("upsert_goal")}(tenant ${ctx.idType}, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_goal.target;
+  v_id uuid := upsert_goal.target;
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_goal.tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("upsert_goal.tenant", manage)}) then
     ${fail("GOAL_FORBIDDEN", "not allowed to manage targets")}
   end if;
   begin
     if v_id is null then
       insert into ${t} (${c("tenant")}, ${c("name")}, ${c("metric")}, ${c("owner")}, ${has("team") ? `${c("team")}, ` : ""}${c("periodStart")}, ${c("periodEnd")}, ${c("currency")}, ${c("goal")}, ${c("actual")})
-      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
-        ${has("team") ? "(save_goal.attrs ->> 'teamId')::uuid, " : ""}(save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
-        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
+      values (upsert_goal.tenant, upsert_goal.attrs ->> 'name', upsert_goal.attrs ->> 'metric', (upsert_goal.attrs ->> 'ownerId')::uuid,
+        ${has("team") ? "(upsert_goal.attrs ->> 'teamId')::uuid, " : ""}(upsert_goal.attrs ->> 'periodStart')::date, (upsert_goal.attrs ->> 'periodEnd')::date,
+        upper(upsert_goal.attrs ->> 'currency'), (upsert_goal.attrs ->> 'goal')::bigint, coalesce((upsert_goal.attrs ->> 'actual')::bigint, 0))
       returning ${c("id")} into v_id;
     else
       update ${t} x set
-        ${c("name")} = coalesce(save_goal.attrs ->> 'name', x.${c("name")}),
-        ${c("goal")} = coalesce((save_goal.attrs ->> 'goal')::bigint, x.${c("goal")}),
-        ${c("actual")} = coalesce((save_goal.attrs ->> 'actual')::bigint, x.${c("actual")}),
-        ${c("periodStart")} = coalesce((save_goal.attrs ->> 'periodStart')::date, x.${c("periodStart")}),
-        ${c("periodEnd")} = coalesce((save_goal.attrs ->> 'periodEnd')::date, x.${c("periodEnd")})${
+        ${c("name")} = coalesce(upsert_goal.attrs ->> 'name', x.${c("name")}),
+        ${c("goal")} = coalesce((upsert_goal.attrs ->> 'goal')::bigint, x.${c("goal")}),
+        ${c("actual")} = coalesce((upsert_goal.attrs ->> 'actual')::bigint, x.${c("actual")}),
+        ${c("periodStart")} = coalesce((upsert_goal.attrs ->> 'periodStart')::date, x.${c("periodStart")}),
+        ${c("periodEnd")} = coalesce((upsert_goal.attrs ->> 'periodEnd')::date, x.${c("periodEnd")})${
           has("archivedAt")
-            ? `,\n        ${c("archivedAt")} = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x.${c("archivedAt")}, now()) else x.${c("archivedAt")} end`
+            ? `,\n        ${c("archivedAt")} = case when coalesce((upsert_goal.attrs ->> 'archived')::boolean, false) then coalesce(x.${c("archivedAt")}, now()) else x.${c("archivedAt")} end`
             : ""
         }${has("updatedAt") ? `,\n        ${c("updatedAt")} = now()` : ""}
-      where x.${c("id")} = v_id and x.${c("tenant")} = save_goal.tenant;
+      where x.${c("id")} = v_id and x.${c("tenant")} = upsert_goal.tenant;
       if not found then
         ${fail("GOAL_NOT_FOUND", "target not found", "P0002")}
       end if;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("GOAL_INVALID", "a target needs a name, a metric, a period and a positive goal", "22023")}
-  end;${writeExtraColumns(t, extras, "(save_goal.attrs -> 'fields')", `x.${c("id")} = v_id`)}
+  end;${writeExtraColumns(t, extras, "(upsert_goal.attrs -> 'fields')", `x.${c("id")} = v_id`)}
   return (select ${withExtraFields(`(to_jsonb(x) || ${int8Text("x", int8)})`, "x", extras)} from ${t} x where x.${c("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_goal")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_goal")}(${ctx.idType}, uuid, jsonb)`)}
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: ${Object.keys(known).join(", ") || "none installed"}. Others read actual.
@@ -237,7 +237,7 @@ ${userGrant(`${fn("goal_progress")}(${ctx.idType}, date, uuid)`)}
 
 function contract(): readonly BlockSqlContractFunction[] {
   return [
-    { name: "save_goal", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
+    { name: "upsert_goal", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     { name: "goal_progress", args: ["{id}", "date", "uuid"], returns: "jsonb" },
   ];
 }

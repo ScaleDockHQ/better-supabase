@@ -462,7 +462,7 @@ function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "list_advisory_products", args: ["{id}"], returns: "jsonb" },
     {
-      name: "save_advisory_product",
+      name: "upsert_advisory_product",
       args: ["{id}", "text", "text", "text", "text", "boolean", "uuid"],
       returns: "jsonb",
     },
@@ -483,7 +483,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_vulnerability",
+      name: "upsert_vulnerability",
       args: [
         "{id}",
         "text",
@@ -514,7 +514,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "version_exposure", args: ["{id}", "uuid"], returns: "jsonb" },
     {
-      name: "save_vex_statement",
+      name: "upsert_vex_statement",
       args: ["{id}", "uuid", "uuid", "text", "uuid", "text", "text", "text"],
       returns: "jsonb",
     },
@@ -524,7 +524,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_advisory",
+      name: "upsert_advisory",
       args: ["{id}", "text", "text", "text", "uuid", "uuid[]", "text", "uuid"],
       returns: "jsonb",
     },

@@ -12,14 +12,14 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('test.travel', better_supabase.save_expense_category(
+select set_config('test.travel', better_supabase.upsert_expense_category(
   '00000000-0000-4000-8000-000000000001', 'travel', 'Travel', 'EUR', limit_amount => 50000, receipt_over => 20000
 ) ->> 'id', true);
-select set_config('test.meals', better_supabase.save_expense_category(
+select set_config('test.meals', better_supabase.upsert_expense_category(
   '00000000-0000-4000-8000-000000000001', 'meals', 'Meals'
 ) ->> 'id', true);
 select throws_ok(
-  $$select better_supabase.save_expense_category('00000000-0000-4000-8000-000000000001', 'Bad Key', 'Bad')$$,
+  $$select better_supabase.upsert_expense_category('00000000-0000-4000-8000-000000000001', 'Bad Key', 'Bad')$$,
   '22023',
   'a key is lowercase letters, digits and underscores',
   'a category key is lowercase'
@@ -47,7 +47,7 @@ select is(
   'the member reads the categories to file lines'
 );
 select throws_ok(
-  $$select better_supabase.save_expense_category('00000000-0000-4000-8000-000000000001', 'gifts', 'Gifts')$$,
+  $$select better_supabase.upsert_expense_category('00000000-0000-4000-8000-000000000001', 'gifts', 'Gifts')$$,
   '42501',
   'not allowed to manage expense categories',
   'the member cannot change the policy'
@@ -56,11 +56,11 @@ select throws_ok(
 select set_config('test.report', better_supabase.create_expense_report(
   '00000000-0000-4000-8000-000000000001', 'Berlin trip', 'EUR'
 ) ->> 'id', true);
-select set_config('test.train', better_supabase.add_expense_line(
+select set_config('test.train', better_supabase.create_expense_line(
   current_setting('test.report')::uuid, current_setting('test.travel')::uuid, '2026-10-01', 30000, 'Train', 'DB'
 ) ->> 'id', true);
 select is(
-  better_supabase.add_expense_line(
+  better_supabase.create_expense_line(
     current_setting('test.report')::uuid, current_setting('test.meals')::uuid, '2026-10-01', 4000, 'Dinner'
   ) ->> 'currency',
   'EUR',
@@ -73,7 +73,7 @@ select is(
 );
 select throws_ok(
   format(
-    $$select better_supabase.add_expense_line(%L, %L, '2026-10-02', 1000, 'Taxi', currency => 'USD')$$,
+    $$select better_supabase.create_expense_line(%L, %L, '2026-10-02', 1000, 'Taxi', currency => 'USD')$$,
     current_setting('test.report'), current_setting('test.travel')
   ),
   '22023',
@@ -114,7 +114,7 @@ select is(
 );
 select throws_ok(
   format(
-    $$select better_supabase.add_expense_line(%L, %L, '2026-10-02', 1000, 'Taxi')$$,
+    $$select better_supabase.create_expense_line(%L, %L, '2026-10-02', 1000, 'Taxi')$$,
     current_setting('test.report'), current_setting('test.travel')
   ),
   'PT409',
@@ -179,7 +179,7 @@ select set_config('test.split', better_supabase.create_expense_report(
   '00000000-0000-4000-8000-000000000001', 'Two projects', 'EUR'
 ) ->> 'id', true);
 select is(
-  better_supabase.add_expense_line(
+  better_supabase.create_expense_line(
     current_setting('test.split')::uuid, current_setting('test.meals')::uuid, '2026-10-03', 900, 'Lunch',
     dimensions => '{"project":"apollo"}'::jsonb
   ) -> 'dimensions',
@@ -187,14 +187,14 @@ select is(
   'a line keeps its dimensions'
 );
 select is(
-  better_supabase.add_expense_line(
+  better_supabase.create_expense_line(
     current_setting('test.split')::uuid, current_setting('test.meals')::uuid, '2026-10-03', 100, 'Water'
   ) -> 'dimensions',
   '{}'::jsonb,
   'a line without dimensions keeps an empty object'
 );
 select throws_ok(
-  format($$select better_supabase.add_expense_line(%L, %L, '2026-10-03', 100, 'Bad', dimensions => '"x"'::jsonb)$$,
+  format($$select better_supabase.create_expense_line(%L, %L, '2026-10-03', 100, 'Bad', dimensions => '"x"'::jsonb)$$,
     current_setting('test.split'), current_setting('test.meals')),
   '22023',
   'dimensions is an object of dimension keys and value codes',

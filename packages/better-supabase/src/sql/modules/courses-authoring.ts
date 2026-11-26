@@ -108,7 +108,7 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
 
   const courseInsert = (
     [
-      ["tenant", "save_course.tenant"],
+      ["tenant", "upsert_course.tenant"],
       ["key", "v_key"],
       ["title", "v_title"],
       ["summary", "v_summary"],
@@ -135,7 +135,7 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
   /** A lesson value from the input, else `old` when the table has `column`. */
   const kept = (column: string, value: string, old: string): string =>
     ctx.has("lessons", column)
-      ? `case when save_course_lesson.lesson ? '${value}' then ${old} else v_old.${l(column)} end`
+      ? `case when upsert_course_lesson.lesson ? '${value}' then ${old} else v_old.${l(column)} end`
       : "null";
 
   const purgeKey =
@@ -250,7 +250,7 @@ revoke execute on function ${fn("course_sync")}(uuid) from public, anon, authent
 -- Creates or changes a course. course is { id?, key, title, summary, status,
 -- certificate, validForMonths, fields }; keys left out keep their value.
 -- validForMonths is how long a certificate stays valid; null never expires.
-create or replace function ${fn("save_course")}(tenant ${idType}, course jsonb)
+create or replace function ${fn("upsert_course")}(tenant ${idType}, course jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -268,34 +268,34 @@ declare
   v_certificate boolean;
   v_valid_for integer;
 begin
-  if not ${q.allowed("save_course.tenant", q.manage)} then
+  if not ${q.allowed("upsert_course.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage courses")}
   end if;
-  if save_course.course is null or jsonb_typeof(save_course.course) <> 'object' then
+  if upsert_course.course is null or jsonb_typeof(upsert_course.course) <> 'object' then
     ${q.invalid("course must be an object")}
   end if;
-  v_id := nullif(save_course.course ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course.course ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from ${q.courses} x where x.${c("id")} = v_id and x.${c("tenant")} = save_course.tenant for update;
+    select * into v_old from ${q.courses} x where x.${c("id")} = v_id and x.${c("tenant")} = upsert_course.tenant for update;
     if v_old.${c("id")} is null then
       ${q.courseMissing}
     end if;
   end if;
-  v_key := coalesce(save_course.course ->> 'key', v_old.${c("key")});
-  v_title := trim(coalesce(save_course.course ->> 'title', v_old.${c("title")}));
-  v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else ${field("courses", "v_old", "summary")} end;
-  v_status := coalesce(save_course.course ->> 'status', v_old.${c("status")}, 'draft');
-  v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(${field("courses", "v_old", "certificate")}, true) end;
+  v_key := coalesce(upsert_course.course ->> 'key', v_old.${c("key")});
+  v_title := trim(coalesce(upsert_course.course ->> 'title', v_old.${c("title")}));
+  v_summary := case when upsert_course.course ? 'summary' then nullif(trim(upsert_course.course ->> 'summary'), '') else ${field("courses", "v_old", "summary")} end;
+  v_status := coalesce(upsert_course.course ->> 'status', v_old.${c("status")}, 'draft');
+  v_certificate := case when upsert_course.course ? 'certificate' then (upsert_course.course ->> 'certificate')::boolean else coalesce(${field("courses", "v_old", "certificate")}, true) end;
   v_valid_for := ${field("courses", "v_old", "validForMonths")};
-  if save_course.course ? 'validForMonths' then
-    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+  if upsert_course.course ? 'validForMonths' then
+    if jsonb_typeof(upsert_course.course -> 'validForMonths') = 'null' then
       v_valid_for := null;
-    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
-      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
-      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+    elsif jsonb_typeof(upsert_course.course -> 'validForMonths') <> 'number'
+      or (upsert_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (upsert_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
       ${q.invalid("validForMonths must be a whole number of months from 1 to 240, or null")}
     else
-      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+      v_valid_for := (upsert_course.course ->> 'validForMonths')::integer;
     end if;
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
@@ -327,12 +327,12 @@ begin
     exception when unique_violation then
       ${fail("COURSE_EXISTS", "a course with this key already exists", "23505")}
     end;
-  end if;${writeExtraColumns(q.courses, extras, "(save_course.course -> 'fields')", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
+  end if;${writeExtraColumns(q.courses, extras, "(upsert_course.course -> 'fields')", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
   ${createdOrUpdated(`v_old.${c("id")} is null`, (verb) => courseRecord(`course.${verb}`, "v_row", `${verb} a course`))}
   return ${fn("course_json")}(v_row.${c("id")});
 end;
 $$;
-${userGrant(`${fn("save_course")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_course")}(${idType}, jsonb)`)}
 
 -- Archives a course: it takes status archived, which hides it from everyone
 -- without courses.manage, and records course.archived. Enrollments and
@@ -443,7 +443,7 @@ ${userGrant(`${fn("list_courses")}(${idType}, jsonb)`)}
 
 -- Creates or changes a module of a course. module is { id?, title, rank? };
 -- a new module without a rank goes last.
-create or replace function ${fn("save_course_module")}(course_id uuid, module jsonb)
+create or replace function ${fn("upsert_course_module")}(course_id uuid, module jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -459,27 +459,27 @@ declare
   v_last text;
   v_rank text;
 begin
-  select * into v_course from ${q.courses} x where x.${c("id")} = save_course_module.course_id;
+  select * into v_course from ${q.courses} x where x.${c("id")} = upsert_course_module.course_id;
   if v_course.${c("id")} is null then
     ${q.courseMissing}
   end if;
   ${manageCourse("v_course")}
-  if save_course_module.module is null or jsonb_typeof(save_course_module.module) <> 'object' then
+  if upsert_course_module.module is null or jsonb_typeof(upsert_course_module.module) <> 'object' then
     ${q.invalid("module must be an object")}
   end if;
-  v_id := nullif(save_course_module.module ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_module.module ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from ${q.modules} x where x.${m("id")} = v_id and x.${m("course")} = v_course.${c("id")} for update;
     if v_old.${m("id")} is null then
       ${fail("COURSE_MODULE_NOT_FOUND", "course module not found", "P0002")}
     end if;
   end if;
-  v_title := trim(coalesce(save_course_module.module ->> 'title', v_old.${m("title")}));
+  v_title := trim(coalesce(upsert_course_module.module ->> 'title', v_old.${m("title")}));
   if v_title is null or length(v_title) not between 1 and 200 then
     ${q.invalid("title must be 1 to 200 characters")}
   end if;
   select max(x.${m("rank")}) into v_last from ${q.modules} x where x.${m("course")} = v_course.${c("id")};
-  v_rank := ${rankOf("save_course_module.module", `coalesce(v_old.${m("rank")}, ${rankAfter("v_last")})`)};
+  v_rank := ${rankOf("upsert_course_module.module", `coalesce(v_old.${m("rank")}, ${rankAfter("v_last")})`)};
   if v_rank !~ ${RANK_KEY_PATTERN} then
     ${q.invalid("rank must be a rank key")}
   end if;
@@ -496,7 +496,7 @@ begin
   return ${moduleJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_course_module")}(uuid, jsonb)`)}
+${userGrant(`${fn("upsert_course_module")}(uuid, jsonb)`)}
 
 -- Deletes a module with its lessons; false when it was already gone.
 create or replace function ${fn("delete_course_module")}(module_id uuid)
@@ -526,7 +526,7 @@ ${userGrant(`${fn("delete_course_module")}(uuid)`)}
 -- mediaUrl, formId, required, minutes, rank? }; keys left out keep their
 -- value, and a lesson without a rank goes last in its module. A quiz lesson
 -- names the form that grades it.
-create or replace function ${fn("save_course_lesson")}(course_id uuid, lesson jsonb)
+create or replace function ${fn("upsert_course_lesson")}(course_id uuid, lesson jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -541,15 +541,15 @@ declare
   v_id uuid;
   v_last text;
 begin
-  select * into v_course from ${q.courses} x where x.${c("id")} = save_course_lesson.course_id;
+  select * into v_course from ${q.courses} x where x.${c("id")} = upsert_course_lesson.course_id;
   if v_course.${c("id")} is null then
     ${q.courseMissing}
   end if;
   ${manageCourse("v_course")}
-  if save_course_lesson.lesson is null or jsonb_typeof(save_course_lesson.lesson) <> 'object' then
+  if upsert_course_lesson.lesson is null or jsonb_typeof(upsert_course_lesson.lesson) <> 'object' then
     ${q.invalid("lesson must be an object")}
   end if;
-  v_id := nullif(save_course_lesson.lesson ->> 'id', '')::uuid;
+  v_id := nullif(upsert_course_lesson.lesson ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from ${q.lessons} x where x.${l("id")} = v_id and x.${l("course")} = v_course.${c("id")} for update;
     if v_old.${l("id")} is null then
@@ -558,14 +558,14 @@ begin
   end if;
   select
     v_course.${c("tenant")} as tenant,
-    coalesce(nullif(save_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old.${l("module")}) as module,
-    trim(coalesce(save_course_lesson.lesson ->> 'title', v_old.${l("title")})) as title,
-    coalesce(save_course_lesson.lesson ->> 'kind', v_old.${l("kind")}, 'content') as kind,
-    ${kept("body", "body", "nullif(save_course_lesson.lesson -> 'body', 'null'::jsonb)")} as body,
-    ${kept("mediaUrl", "mediaUrl", "nullif(save_course_lesson.lesson ->> 'mediaUrl', '')")} as media,
-    case when save_course_lesson.lesson ? 'formId' then nullif(save_course_lesson.lesson ->> 'formId', '')::uuid else v_old.${l("form")} end as form,
-    case when save_course_lesson.lesson ? 'required' then (save_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old.${l("required")}, true) end as required,
-    ${kept("minutes", "minutes", "(save_course_lesson.lesson ->> 'minutes')::integer")} as minutes
+    coalesce(nullif(upsert_course_lesson.lesson ->> 'moduleId', '')::uuid, v_old.${l("module")}) as module,
+    trim(coalesce(upsert_course_lesson.lesson ->> 'title', v_old.${l("title")})) as title,
+    coalesce(upsert_course_lesson.lesson ->> 'kind', v_old.${l("kind")}, 'content') as kind,
+    ${kept("body", "body", "nullif(upsert_course_lesson.lesson -> 'body', 'null'::jsonb)")} as body,
+    ${kept("mediaUrl", "mediaUrl", "nullif(upsert_course_lesson.lesson ->> 'mediaUrl', '')")} as media,
+    case when upsert_course_lesson.lesson ? 'formId' then nullif(upsert_course_lesson.lesson ->> 'formId', '')::uuid else v_old.${l("form")} end as form,
+    case when upsert_course_lesson.lesson ? 'required' then (upsert_course_lesson.lesson ->> 'required')::boolean else coalesce(v_old.${l("required")}, true) end as required,
+    ${kept("minutes", "minutes", "(upsert_course_lesson.lesson ->> 'minutes')::integer")} as minutes
   into v_new;
   if v_new.module is null or not exists (select 1 from ${q.modules} x where x.${m("id")} = v_new.module and x.${m("course")} = v_course.${c("id")}) then
     ${q.invalid("moduleId: pass a module of this course")}
@@ -596,7 +596,7 @@ begin
     ${q.invalid("minutes must be from 1 to 10000")}
   end if;
   select max(x.${l("rank")}) into v_last from ${q.lessons} x where x.${l("module")} = v_new.module and x.${l("id")} is distinct from v_old.${l("id")};
-  v_last := ${rankOf("save_course_lesson.lesson", `case when v_old.${l("module")} = v_new.module then v_old.${l("rank")} else ${rankAfter("v_last")} end`)};
+  v_last := ${rankOf("upsert_course_lesson.lesson", `case when v_old.${l("module")} = v_new.module then v_old.${l("rank")} else ${rankAfter("v_last")} end`)};
   if v_last !~ ${RANK_KEY_PATTERN} then
     ${q.invalid("rank must be a rank key")}
   end if;
@@ -615,7 +615,7 @@ begin
   return ${lessonJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_course_lesson")}(uuid, jsonb)`)}
+${userGrant(`${fn("upsert_course_lesson")}(uuid, jsonb)`)}
 
 -- Deletes a lesson with its progress; false when it was already gone.
 create or replace function ${fn("delete_course_lesson")}(lesson_id uuid)

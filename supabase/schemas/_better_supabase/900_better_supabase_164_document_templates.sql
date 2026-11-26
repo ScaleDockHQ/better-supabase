@@ -1,6 +1,6 @@
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:38c20b7de9731160d337dc29727f556e37413f933aca9a1a7737b5571bf5663f
+-- @bsb-hash sha256:0f1c8fb0c4544ed7eaa4d62f94c67fd1d612642a10c9339bea013f4ab8091b73
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -919,7 +919,7 @@ grant execute on function "better_supabase"."document_slot_rank"(uuid, uuid, tex
 -- for the organization) and a language (null for any). Saving a changed body
 -- raises the version by one; the same body and state change nothing. Raises
 -- with a hint code when the body names an unknown variable.
-create or replace function "better_supabase"."save_document_template"(tenant uuid, document_type text, body text, language text default null, name text default 'default', legal_entity_id uuid default null, active boolean default true)
+create or replace function "better_supabase"."upsert_document_template"(tenant uuid, document_type text, body text, language text default null, name text default 'default', legal_entity_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -928,18 +928,18 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."document_templates"%rowtype;
-  v_language text := lower(nullif(btrim(save_document_template.language), ''));
-  v_name text := coalesce(nullif(btrim(save_document_template.name), ''), 'default');
-  v_active boolean := coalesce(save_document_template.active, true);
+  v_language text := lower(nullif(btrim(upsert_document_template.language), ''));
+  v_name text := coalesce(nullif(btrim(upsert_document_template.name), ''), 'default');
+  v_active boolean := coalesce(upsert_document_template.active, true);
   v_changed boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_document_template.tenant, 'document_templates.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_document_template.tenant, 'document_templates.manage'), false)) then
     raise exception 'not allowed to manage document templates' using errcode = '42501', hint = 'DOCUMENT_TEMPLATE_FORBIDDEN';
   end if;
-  if save_document_template.document_type is null or save_document_template.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order') then
+  if upsert_document_template.document_type is null or upsert_document_template.document_type not in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order') then
     raise exception 'the document type is invoice, credit_note, quote, order, dunning_letter, delivery_note, statement, purchase_order' using errcode = '22023', hint = 'DOCUMENT_TYPE_INVALID';
   end if;
   if v_name !~ '^[a-z][a-z0-9_-]{0,63}$' then
@@ -948,35 +948,35 @@ begin
   if v_language is not null and v_language !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a language is a code such as nl or nl-NL' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
   end if;
-  if save_document_template.body is null or length(btrim(save_document_template.body)) = 0 or length(save_document_template.body) > 200000 then
+  if upsert_document_template.body is null or length(btrim(upsert_document_template.body)) = 0 or length(upsert_document_template.body) > 200000 then
     raise exception 'a template body is 1 to 200000 characters' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
   end if;
-  if save_document_template.legal_entity_id is not null then
-    perform "better_supabase"."legal_entity_of"(save_document_template.tenant, save_document_template.legal_entity_id);
+  if upsert_document_template.legal_entity_id is not null then
+    perform "better_supabase"."legal_entity_of"(upsert_document_template.tenant, upsert_document_template.legal_entity_id);
   end if;
-  perform "better_supabase"."assert_document_template"(save_document_template.document_type, save_document_template.body);
+  perform "better_supabase"."assert_document_template"(upsert_document_template.document_type, upsert_document_template.body);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_document_template_save"(uuid, text)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_document_template.tenant, save_document_template.document_type;
+        using upsert_document_template.tenant, upsert_document_template.document_type;
     end if;
   end;
-  perform pg_advisory_xact_lock(hashtextextended('document_templates:' || save_document_template.tenant::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('document_templates:' || upsert_document_template.tenant::text, 0));
   select * into v_row from "better_supabase"."document_templates" t
-    where t."tenant_id" = save_document_template.tenant
-      and t."document_type" = save_document_template.document_type
+    where t."tenant_id" = upsert_document_template.tenant
+      and t."document_type" = upsert_document_template.document_type
       and t."name" = v_name
-      and t."legal_entity_id" is not distinct from save_document_template.legal_entity_id
+      and t."legal_entity_id" is not distinct from upsert_document_template.legal_entity_id
       and t."language" is not distinct from v_language;
   if found then
-    v_changed := v_row."body" <> save_document_template.body;
+    v_changed := v_row."body" <> upsert_document_template.body;
     if not v_changed and v_row."active" = v_active then
       return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'legalEntityId', v_row."legal_entity_id", 'documentType', v_row."document_type", 'language', v_row."language", 'name', v_row."name", 'body', v_row."body", 'version', v_row."version", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
     end if;
     update "better_supabase"."document_templates" t set
-      "body" = save_document_template.body,
+      "body" = upsert_document_template.body,
       "version" = t."version" + case when v_changed then 1 else 0 end,
       "active" = v_active,
       "updated_at" = now()
@@ -994,7 +994,7 @@ begin
   );
   else
     insert into "better_supabase"."document_templates" ("tenant_id", "legal_entity_id", "document_type", "language", "name", "body", "active")
-    values (save_document_template.tenant, save_document_template.legal_entity_id, save_document_template.document_type, v_language, v_name, save_document_template.body, v_active)
+    values (upsert_document_template.tenant, upsert_document_template.legal_entity_id, upsert_document_template.document_type, v_language, v_name, upsert_document_template.body, v_active)
     returning * into v_row;
     perform "better_supabase".emit_event('document_template.created', jsonb_build_object('organizationId', v_row."tenant_id", 'templateId', v_row."id", 'documentType', v_row."document_type", 'legalEntityId', v_row."legal_entity_id", 'language', v_row."language", 'name', v_row."name", 'version', v_row."version"), 'document-templates/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/document-templates');
   perform better_supabase.audit_event(
@@ -1018,8 +1018,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'legalEntityId', v_row."legal_entity_id", 'documentType', v_row."document_type", 'language', v_row."language", 'name', v_row."name", 'body', v_row."body", 'version', v_row."version", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_document_template"(uuid, text, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."save_document_template"(uuid, text, text, text, text, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_document_template"(uuid, text, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_document_template"(uuid, text, text, text, text, uuid, boolean) to authenticated, service_role;
 
 -- Turns a template on or off. An inactive template drops out of the fallback
 -- chain; documents already frozen keep the copy they froze.
@@ -1345,7 +1345,7 @@ grant execute on function "better_supabase"."page_document_templates"(uuid, json
 -- sentence, a dunning text, a footer, a legal line. The text may hold the same
 -- placeholders a template does, of any document type. An entity text beats the
 -- organization's, and an exact language beats a text with no language.
-create or replace function "better_supabase"."save_document_text_block"(tenant uuid, key text, body text, language text default null, legal_entity_id uuid default null)
+create or replace function "better_supabase"."upsert_document_text_block"(tenant uuid, key text, body text, language text default null, legal_entity_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1354,46 +1354,46 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."document_text_blocks"%rowtype;
-  v_language text := lower(nullif(btrim(save_document_text_block.language), ''));
+  v_language text := lower(nullif(btrim(upsert_document_text_block.language), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_document_text_block.tenant, 'document_templates.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_document_text_block.tenant, 'document_templates.manage'), false)) then
     raise exception 'not allowed to manage document templates' using errcode = '42501', hint = 'DOCUMENT_TEMPLATE_FORBIDDEN';
   end if;
-  if save_document_text_block.key is null or save_document_text_block.key !~ '^[a-z][a-z0-9_]{0,63}$' then
+  if upsert_document_text_block.key is null or upsert_document_text_block.key !~ '^[a-z][a-z0-9_]{0,63}$' then
     raise exception 'a text key is lower case letters, digits and _, from a letter, up to 64 characters' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
   end if;
   if v_language is not null and v_language !~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' then
     raise exception 'a language is a code such as nl or nl-NL' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
   end if;
-  if save_document_text_block.body is null or length(btrim(save_document_text_block.body)) = 0 or length(save_document_text_block.body) > 200000 then
+  if upsert_document_text_block.body is null or length(btrim(upsert_document_text_block.body)) = 0 or length(upsert_document_text_block.body) > 200000 then
     raise exception 'a text block body is 1 to 200000 characters' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
   end if;
-  if save_document_text_block.legal_entity_id is not null then
-    perform "better_supabase"."legal_entity_of"(save_document_text_block.tenant, save_document_text_block.legal_entity_id);
+  if upsert_document_text_block.legal_entity_id is not null then
+    perform "better_supabase"."legal_entity_of"(upsert_document_text_block.tenant, upsert_document_text_block.legal_entity_id);
   end if;
-  perform "better_supabase"."assert_document_template"(null, save_document_text_block.body, true);
+  perform "better_supabase"."assert_document_template"(null, upsert_document_text_block.body, true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_document_text_block_save"(uuid, text)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_document_text_block.tenant, save_document_text_block.key;
+        using upsert_document_text_block.tenant, upsert_document_text_block.key;
     end if;
   end;
-  perform pg_advisory_xact_lock(hashtextextended('document_text_blocks:' || save_document_text_block.tenant::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('document_text_blocks:' || upsert_document_text_block.tenant::text, 0));
   select * into v_row from "better_supabase"."document_text_blocks" b
-    where b."tenant_id" = save_document_text_block.tenant
-      and b."key" = save_document_text_block.key
-      and b."legal_entity_id" is not distinct from save_document_text_block.legal_entity_id
+    where b."tenant_id" = upsert_document_text_block.tenant
+      and b."key" = upsert_document_text_block.key
+      and b."legal_entity_id" is not distinct from upsert_document_text_block.legal_entity_id
       and b."language" is not distinct from v_language;
   if found then
-    if v_row."body" = save_document_text_block.body then
+    if v_row."body" = upsert_document_text_block.body then
       return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'legalEntityId', v_row."legal_entity_id", 'key', v_row."key", 'language', v_row."language", 'body', v_row."body", 'version', v_row."version", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
     end if;
-    update "better_supabase"."document_text_blocks" b set "body" = save_document_text_block.body, "version" = b."version" + 1, "updated_at" = now()
+    update "better_supabase"."document_text_blocks" b set "body" = upsert_document_text_block.body, "version" = b."version" + 1, "updated_at" = now()
     where b."id" = v_row."id"
     returning * into v_row;
     perform "better_supabase".emit_event('document_text_block.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'textBlockId', v_row."id", 'key', v_row."key", 'legalEntityId', v_row."legal_entity_id", 'language', v_row."language", 'version', v_row."version"), 'document-templates/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/document-templates');
@@ -1408,7 +1408,7 @@ begin
   );
   else
     insert into "better_supabase"."document_text_blocks" ("tenant_id", "legal_entity_id", "key", "language", "body")
-    values (save_document_text_block.tenant, save_document_text_block.legal_entity_id, save_document_text_block.key, v_language, save_document_text_block.body)
+    values (upsert_document_text_block.tenant, upsert_document_text_block.legal_entity_id, upsert_document_text_block.key, v_language, upsert_document_text_block.body)
     returning * into v_row;
     perform "better_supabase".emit_event('document_text_block.created', jsonb_build_object('organizationId', v_row."tenant_id", 'textBlockId', v_row."id", 'key', v_row."key", 'legalEntityId', v_row."legal_entity_id", 'language', v_row."language", 'version', v_row."version"), 'document-templates/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/document-templates');
   perform better_supabase.audit_event(
@@ -1432,8 +1432,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'legalEntityId', v_row."legal_entity_id", 'key', v_row."key", 'language', v_row."language", 'body', v_row."body", 'version', v_row."version", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_document_text_block"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_document_text_block"(uuid, text, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_document_text_block"(uuid, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_document_text_block"(uuid, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_document_text_blocks"(tenant uuid, key text default null, legal_entity_id uuid default null)
 returns jsonb
@@ -1742,7 +1742,7 @@ begin
       raise exception 'the legal entity code is unknown' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
   end if;
-  v_saved := "better_supabase"."save_document_template"(v_tenant, v_data ->> 'documentType', v_data ->> 'body', v_data ->> 'language',
+  v_saved := "better_supabase"."upsert_document_template"(v_tenant, v_data ->> 'documentType', v_data ->> 'body', v_data ->> 'language',
     coalesce(nullif(v_data ->> 'name', ''), 'default'), v_entity, coalesce((v_data ->> 'active')::boolean, true));
   return jsonb_build_object('subjectId', v_saved ->> 'id', 'updatedAt', v_saved -> 'updatedAt');
 end;
@@ -1775,7 +1775,7 @@ begin
       raise exception 'the legal entity code is unknown' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
     end if;
   end if;
-  v_saved := "better_supabase"."save_document_text_block"(v_tenant, v_data ->> 'key', v_data ->> 'body', v_data ->> 'language', v_entity);
+  v_saved := "better_supabase"."upsert_document_text_block"(v_tenant, v_data ->> 'key', v_data ->> 'body', v_data ->> 'language', v_entity);
   return jsonb_build_object('subjectId', v_saved ->> 'id', 'updatedAt', v_saved -> 'updatedAt');
 end;
 $$;
@@ -2089,14 +2089,14 @@ as $$ select "better_supabase"."document_slot_rank"($1, $2, $3, $4) $$;
 revoke execute on function "api"."document_slot_rank"(uuid, uuid, text, text) from public, anon;
 grant execute on function "api"."document_slot_rank"(uuid, uuid, text, text) to authenticated, service_role;
 
-create or replace function "api"."save_document_template"(tenant uuid, document_type text, body text, language text default null, name text default 'default', legal_entity_id uuid default null, active boolean default true)
+create or replace function "api"."upsert_document_template"(tenant uuid, document_type text, body text, language text default null, name text default 'default', legal_entity_id uuid default null, active boolean default true)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_document_template"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_document_template"(uuid, text, text, text, text, uuid, boolean) from public, anon;
-grant execute on function "api"."save_document_template"(uuid, text, text, text, text, uuid, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_document_template"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_document_template"(uuid, text, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "api"."upsert_document_template"(uuid, text, text, text, text, uuid, boolean) to authenticated, service_role;
 
 create or replace function "api"."set_document_template_active"(template_id uuid, active boolean)
 returns jsonb
@@ -2137,14 +2137,14 @@ as $$ select "better_supabase"."page_document_templates"($1, $2) $$;
 revoke execute on function "api"."page_document_templates"(uuid, jsonb) from public, anon;
 grant execute on function "api"."page_document_templates"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_document_text_block"(tenant uuid, key text, body text, language text default null, legal_entity_id uuid default null)
+create or replace function "api"."upsert_document_text_block"(tenant uuid, key text, body text, language text default null, legal_entity_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_document_text_block"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_document_text_block"(uuid, text, text, text, uuid) from public, anon;
-grant execute on function "api"."save_document_text_block"(uuid, text, text, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_document_text_block"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_document_text_block"(uuid, text, text, text, uuid) from public, anon;
+grant execute on function "api"."upsert_document_text_block"(uuid, text, text, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_document_text_blocks"(tenant uuid, key text default null, legal_entity_id uuid default null)
 returns jsonb

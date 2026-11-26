@@ -292,7 +292,7 @@ export function createPromotions<
 
       return writeFields(fields, input.fields, (checked) =>
         call(
-          "save_promotion",
+          "upsert_promotion",
           {
             tenant: organizationId,
             promotion: input.id ?? null,
@@ -300,7 +300,7 @@ export function createPromotions<
             fields: checked,
           },
           (value) => {
-            const row = recordOf(value, "save_promotion");
+            const row = recordOf(value, "upsert_promotion");
 
             return { id: textOf(row["id"]), fields: rowFields(row["fields"]) };
           },

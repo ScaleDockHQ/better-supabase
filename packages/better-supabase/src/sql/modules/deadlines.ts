@@ -187,7 +187,7 @@ ${triggerGrant(`${ctx.fn("deadline_rule_from_v1")}(jsonb)`)}`;
 const TO_GROUPS: BlockSqlUpgrade = {
   from: 1,
   description:
-    "Rule set versions take groups, a counting block and meta, and rules move to the v2 grammar: each version 1 rule (anchor, offset) becomes a rule of its own group, and an approved version keeps its old hash in meta.previous_content_hash. Deadlines gain group_key (backfilled from rule_key), period, provisional, exception, review, basis, deadline and as_of; save_rule_version takes the content, and the per-rule unique constraint gives way to a unique index per group and period.",
+    "Rule set versions take groups, a counting block and meta, and rules move to the v2 grammar: each version 1 rule (anchor, offset) becomes a rule of its own group, and an approved version keeps its old hash in meta.previous_content_hash. Deadlines gain group_key (backfilled from rule_key), period, provisional, exception, review, basis, deadline and as_of; upsert_rule_version takes the content, and the per-rule unique constraint gives way to a unique index per group and period.",
   sql: (ctx) => {
     if (ctx.mode === "custom") {
       return "";
@@ -247,7 +247,7 @@ begin
 end;
 $$;
 
-drop function if exists ${ctx.fn("save_rule_version")}(text, text, jsonb, date, text);
+drop function if exists ${ctx.fn("upsert_rule_version")}(text, text, jsonb, date, text);
 drop function if exists ${ctx.fn("validate_deadline_rules")}(jsonb);`;
   },
 };
@@ -582,7 +582,7 @@ ${fromV1Sql(ctx)}
 -- Saves a rule set version's content ({ rules, groups, counting?, meta? }) as
 -- a new draft version, creating the rule set on first use. A draft is replaced
 -- by the next save until it is approved. Service role only.
-create or replace function ${fn("save_rule_version")}(jurisdiction text, kind text, content jsonb, effective_from date default null, title text default null)
+create or replace function ${fn("upsert_rule_version")}(jurisdiction text, kind text, content jsonb, effective_from date default null, title text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -593,39 +593,39 @@ declare
   v_set ${sets};
   v_row ${versions};
   v_issues text[];
-  v_counting jsonb := case when jsonb_typeof(save_rule_version.content -> 'counting') = 'object' then save_rule_version.content -> 'counting' end;
-  v_meta jsonb := case when jsonb_typeof(save_rule_version.content -> 'meta') = 'object' then save_rule_version.content -> 'meta' end;
+  v_counting jsonb := case when jsonb_typeof(upsert_rule_version.content -> 'counting') = 'object' then upsert_rule_version.content -> 'counting' end;
+  v_meta jsonb := case when jsonb_typeof(upsert_rule_version.content -> 'meta') = 'object' then upsert_rule_version.content -> 'meta' end;
 begin
   ${serviceOnly("save rule set versions")}
-  if save_rule_version.jurisdiction is null or save_rule_version.jurisdiction !~ '^[a-z][a-z0-9_-]{0,62}$'
-    or save_rule_version.kind is null or save_rule_version.kind !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_rule_version.jurisdiction is null or upsert_rule_version.jurisdiction !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or upsert_rule_version.kind is null or upsert_rule_version.kind !~ '^[a-z][a-z0-9_]{0,62}$' then
     ${fail("DEADLINE_RULES_INVALID", "a rule set has a lower case jurisdiction and kind", "22023")}
   end if;
-  v_issues := ${fn("validate_deadline_rules")}(save_rule_version.content);
+  v_issues := ${fn("validate_deadline_rules")}(upsert_rule_version.content);
   if cardinality(v_issues) > 0 then
     raise exception 'invalid rules: %', array_to_string(v_issues, '; ') using errcode = '22023', hint = 'DEADLINE_RULES_INVALID', detail = jsonb_build_object('issues', to_jsonb(v_issues))::text;
   end if;
   insert into ${sets} (${s("jurisdiction")}, ${s("kind")}, ${s("title")})
-  values (save_rule_version.jurisdiction, save_rule_version.kind, nullif(btrim(save_rule_version.title), ''))
-  on conflict on constraint ${sqlIdent(`${ctx.tableName("ruleSets").name}_key`)} do update set ${s("title")} = coalesce(nullif(btrim(save_rule_version.title), ''), ${sets}.${s("title")})
+  values (upsert_rule_version.jurisdiction, upsert_rule_version.kind, nullif(btrim(upsert_rule_version.title), ''))
+  on conflict on constraint ${sqlIdent(`${ctx.tableName("ruleSets").name}_key`)} do update set ${s("title")} = coalesce(nullif(btrim(upsert_rule_version.title), ''), ${sets}.${s("title")})
   returning * into v_set;
   select * into v_row from ${versions} x
   where x.${v("ruleSet")} = v_set.${s("id")} and x.${v("status")} = 'draft'
   order by x.${v("version")} desc limit 1 for update;
   if found then
-    update ${versions} x set ${v("rules")} = save_rule_version.content -> 'rules', ${v("groups")} = save_rule_version.content -> 'groups',
-      ${v("counting")} = v_counting, ${v("meta")} = v_meta, ${v("effectiveFrom")} = save_rule_version.effective_from
+    update ${versions} x set ${v("rules")} = upsert_rule_version.content -> 'rules', ${v("groups")} = upsert_rule_version.content -> 'groups',
+      ${v("counting")} = v_counting, ${v("meta")} = v_meta, ${v("effectiveFrom")} = upsert_rule_version.effective_from
     where x.${v("id")} = v_row.${v("id")} returning * into v_row;
   else
     insert into ${versions} (${v("ruleSet")}, ${v("version")}, ${v("rules")}, ${v("groups")}, ${v("counting")}, ${v("meta")}, ${v("effectiveFrom")})
     values (v_set.${s("id")}, coalesce((select max(y.${v("version")}) from ${versions} y where y.${v("ruleSet")} = v_set.${s("id")}), 0) + 1,
-      save_rule_version.content -> 'rules', save_rule_version.content -> 'groups', v_counting, v_meta, save_rule_version.effective_from)
+      upsert_rule_version.content -> 'rules', upsert_rule_version.content -> 'groups', v_counting, v_meta, upsert_rule_version.effective_from)
     returning * into v_row;
   end if;
   return ${versionJson("v_row")};
 end;
 $$;
-${serviceGrant(`${fn("save_rule_version")}(text, text, jsonb, date, text)`)}
+${serviceGrant(`${fn("upsert_rule_version")}(text, text, jsonb, date, text)`)}
 
 -- Approves a draft version: freezes its content with a SHA-256 content hash and
 -- records who approved it and from which date it applies. ${approvals === undefined ? "" : "The approval request (subject type deadline_rule_version, subject id the version id) must be approved. "}Service role only.
@@ -998,7 +998,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "validate_deadline_rules", args: ["jsonb"], returns: "text[]" },
     {
-      name: "save_rule_version",
+      name: "upsert_rule_version",
       args: ["text", "text", "jsonb", "date", "text"],
       returns: "jsonb",
     },

@@ -1,7 +1,7 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:a5f4c0d973dedcab393775fbfb0e879cba8ca58f7d7597dd84541ba2ad93b17e
+-- @bsb-hash sha256:c03210de60eca3682aee2731301b96688a50b605acc53b869aa1a75154847a11
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,7 +76,7 @@ create trigger "bsb_membership_roles" after insert or update of "role" on "bette
   for each row execute function "better_supabase"."membership_roles_from_role"();
 
 -- Adding or removing a role moves "role" to the highest-ranked one left. An
--- emptied set leaves it alone; remove_member_role refuses the last role.
+-- emptied set leaves it alone; delete_member_role refuses the last role.
 create or replace function "better_supabase"."membership_role_from_roles"()
 returns trigger
 language plpgsql
@@ -923,7 +923,7 @@ on conflict (name) do update
 -- ==== organizations
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:36bedf94797c751400825449b0323127ed8c05cd27456900cc9d4bc73315361d
+-- @bsb-hash sha256:6c754a225b54ce99db25e03b9fc377a3eb879f9194cb243d8966d2c40ec561eb
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1246,7 +1246,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member"(organization uuid, member uuid)
+create or replace function "better_supabase"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1433,7 +1433,7 @@ $$;
 
 -- blocks.memberships.options.roles.many: add or remove one of a member's
 -- roles. The membership's role column follows the highest-ranked one left.
-create or replace function "better_supabase"."add_member_role"(organization uuid, member uuid, role text)
+create or replace function "better_supabase"."create_member_role"(organization uuid, member uuid, role text)
 returns boolean
 language plpgsql
 security definer
@@ -1480,7 +1480,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member_role"(organization uuid, member uuid, role text)
+create or replace function "better_supabase"."delete_member_role"(organization uuid, member uuid, role text)
 returns boolean
 language plpgsql
 security definer
@@ -2263,8 +2263,8 @@ revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, te
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."sole_owned_organizations"(uuid, uuid) from public, anon;
@@ -2291,10 +2291,10 @@ revoke execute on function "better_supabase"."suspend_member"(uuid, uuid) from p
 grant execute on function "better_supabase"."suspend_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."resume_member"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."resume_member"(uuid, uuid) to authenticated, service_role;
-revoke execute on function "better_supabase"."add_member_role"(uuid, uuid, text) from public, anon;
-grant execute on function "better_supabase"."add_member_role"(uuid, uuid, text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member_role"(uuid, uuid, text) from public, anon;
-grant execute on function "better_supabase"."remove_member_role"(uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_member_role"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."create_member_role"(uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member_role"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."delete_member_role"(uuid, uuid, text) to authenticated, service_role;
 
 create table "better_supabase"."organization_profiles" (
   "tenant_id" uuid primary key,

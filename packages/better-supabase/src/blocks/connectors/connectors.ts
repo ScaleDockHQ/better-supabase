@@ -369,7 +369,7 @@ export function createConnectors<
       .args(fields.fields)
       .andThen((checked) =>
         call(
-          "save_connector_server",
+          "upsert_connector_server",
           {
             tenant: organizationId,
             id: serverId,
@@ -485,7 +485,7 @@ export function createConnectors<
         ),
       upsert: ({ serverId, session }) =>
         call(
-          "save_connector_session",
+          "upsert_connector_session",
           {
             server_id: serverId,
             chat_key: session.chatKey ?? "",
@@ -496,7 +496,7 @@ export function createConnectors<
         ),
       forget: ({ serverId, chatKey }) =>
         call(
-          "save_connector_session",
+          "upsert_connector_session",
           { server_id: serverId, chat_key: chatKey ?? "" },
           (value) => value === true,
         ),

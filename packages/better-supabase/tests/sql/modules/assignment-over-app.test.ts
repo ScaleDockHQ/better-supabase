@@ -115,7 +115,7 @@ declare
   v_second jsonb;
 begin
   ${OWNER}
-  v_queue := better_supabase.save_assignment_queue('${TENANT}', '{"name": "Inbound", "subjectType": "lead", "strategy": "weighted"}'::jsonb);
+  v_queue := better_supabase.upsert_assignment_queue('${TENANT}', '{"name": "Inbound", "subjectType": "lead", "strategy": "weighted"}'::jsonb);
   v_id := (v_queue ->> 'id')::uuid;
   if v_queue ->> 'strategy' <> 'weighted' or v_queue -> 'conditions' <> 'null'::jsonb or (v_queue ->> 'rank')::integer <> 0 then
     raise exception 'queue %', v_queue;
@@ -129,7 +129,7 @@ begin
   if (select count(*) from public.routing_members where queue_id = v_id) <> 2 then
     raise exception 'members were duplicated';
   end if;
-  perform better_supabase.save_assignment_queue('${TENANT}', jsonb_build_object('id', v_id, 'strategy', 'round_robin'));
+  perform better_supabase.upsert_assignment_queue('${TENANT}', jsonb_build_object('id', v_id, 'strategy', 'round_robin'));
   if (select strategy from public.routing_queues where id = v_id) <> 'round_robin' then
     raise exception 'strategy not changed';
   end if;
@@ -148,7 +148,7 @@ $$;`),
       run(`do $$
 begin
   ${OWNER}
-  perform better_supabase.save_assignment_queue('${TENANT}', '{"name": "EU", "subjectType": "lead", "conditions": {"all": []}}'::jsonb);
+  perform better_supabase.upsert_assignment_queue('${TENANT}', '{"name": "EU", "subjectType": "lead", "conditions": {"all": []}}'::jsonb);
 end;
 $$;`),
     ).rejects.toThrow(/no conditions column/);

@@ -25,7 +25,7 @@ const draftRow = {
 describe("inbox drafts", () => {
   it("upserts, suggests and lists drafts", async () => {
     const { transport, call } = fakeTransport({
-      save_inbox_draft: draftRow,
+      upsert_inbox_draft: draftRow,
       suggest_inbox_draft: {
         ...draftRow,
         author_id: null,

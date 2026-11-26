@@ -79,8 +79,8 @@ describe("pipelines helpers", () => {
 
         return listed === 1 ? [] : [{ ...PIPELINE, stages: [STAGE] }];
       },
-      save_pipeline: () => PIPELINE,
-      save_pipeline_stage: () => STAGE,
+      upsert_pipeline: () => PIPELINE,
+      upsert_pipeline_stage: () => STAGE,
     });
 
     const pipelines = createPipelines({ transport: t });
@@ -98,8 +98,8 @@ describe("pipelines helpers", () => {
     expect(made.stages).toHaveLength(1);
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "list_pipelines",
-      "save_pipeline",
-      "save_pipeline_stage",
+      "upsert_pipeline",
+      "upsert_pipeline_stage",
       "list_pipelines",
     ]);
   });

@@ -143,7 +143,7 @@ export function alarmOf(
   };
 }
 
-/** An alarm as the jsonb `save_calendar_event` takes in `item.alarms`. */
+/** An alarm as the jsonb `upsert_calendar_event` takes in `item.alarms`. */
 export function alarmItem(alarm: CalendarAlarm): Record<string, unknown> {
   const item: Record<string, unknown> = { method: alarm.method };
 
@@ -164,7 +164,7 @@ export function alarmItem(alarm: CalendarAlarm): Record<string, unknown> {
 
 /**
  * A calendar's default alarm (`calendar_default_alarms`, with
- * `options.defaultAlarms`): `save_calendar_event` copies the defaults onto a
+ * `options.defaultAlarms`): `upsert_calendar_event` copies the defaults onto a
  * new event whose input sets no `alarms`.
  */
 export interface CalendarDefaultAlarm {

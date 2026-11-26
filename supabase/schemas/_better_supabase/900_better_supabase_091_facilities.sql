@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@8 managed tasks
--- @bsb-hash sha256:dbec438b08c3324220e3fe4be18644c617f8041f8ba239642c7452c6d133a6a8
+-- @bsb-hash sha256:9c126d33dad38134acd84ee961d34f8d204e73a535f21bea207a29edbb3d3708
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -139,7 +139,7 @@ create policy bsb_maintenance_request_material_lines_read on "better_supabase"."
 
 -- Adds a specification line (the line id null) or changes one. A new line
 -- without a rank goes after the last one. Needs tasks.write.
-create or replace function "better_supabase"."save_maintenance_request_specification_line"(task uuid, line_id uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_maintenance_request_specification_line"(task uuid, line_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -148,32 +148,32 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."maintenance_requests";
-  v_id uuid := save_maintenance_request_specification_line.line_id;
+  v_id uuid := upsert_maintenance_request_specification_line.line_id;
   v_last text;
   v_line "better_supabase"."maintenance_request_specification_lines";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_maintenance_request_specification_line.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_maintenance_request_specification_line.attrs) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'TASK_LINE_INVALID';
   end if;
   select * into v_row from "better_supabase"."maintenance_requests" x
-  where x."id" = save_maintenance_request_specification_line.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
+  where x."id" = upsert_maintenance_request_specification_line.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   if v_id is null then
     select max(y."rank") into v_last from "better_supabase"."maintenance_request_specification_lines" y where y."maintenance_request_id" = v_row."id";
     insert into "better_supabase"."maintenance_request_specification_lines" ("tenant_id", "maintenance_request_id", "description", "quantity", "unit", "estimate", "rank")
-    values (v_row."tenant_id", v_row."id", nullif(btrim(save_maintenance_request_specification_line.attrs ->> 'description'), ''), nullif(save_maintenance_request_specification_line.attrs ->> 'quantity', '')::numeric, nullif(btrim(save_maintenance_request_specification_line.attrs ->> 'unit'), ''), nullif(save_maintenance_request_specification_line.attrs ->> 'estimate', '')::numeric, coalesce(nullif(save_maintenance_request_specification_line.attrs ->> 'rank', ''), case
+    values (v_row."tenant_id", v_row."id", nullif(btrim(upsert_maintenance_request_specification_line.attrs ->> 'description'), ''), nullif(upsert_maintenance_request_specification_line.attrs ->> 'quantity', '')::numeric, nullif(btrim(upsert_maintenance_request_specification_line.attrs ->> 'unit'), ''), nullif(upsert_maintenance_request_specification_line.attrs ->> 'estimate', '')::numeric, coalesce(nullif(upsert_maintenance_request_specification_line.attrs ->> 'rank', ''), case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end))
     returning * into v_line;
   else
-    update "better_supabase"."maintenance_request_specification_lines" y set "description" = coalesce(nullif(btrim(save_maintenance_request_specification_line.attrs ->> 'description'), ''), "description"), "quantity" = coalesce(nullif(save_maintenance_request_specification_line.attrs ->> 'quantity', '')::numeric, "quantity"), "unit" = case when save_maintenance_request_specification_line.attrs ? 'unit' then nullif(btrim(save_maintenance_request_specification_line.attrs ->> 'unit'), '') else "unit" end, "estimate" = case when save_maintenance_request_specification_line.attrs ? 'estimate' then nullif(save_maintenance_request_specification_line.attrs ->> 'estimate', '')::numeric else "estimate" end, "rank" = coalesce(nullif(save_maintenance_request_specification_line.attrs ->> 'rank', ''), "rank")
+    update "better_supabase"."maintenance_request_specification_lines" y set "description" = coalesce(nullif(btrim(upsert_maintenance_request_specification_line.attrs ->> 'description'), ''), "description"), "quantity" = coalesce(nullif(upsert_maintenance_request_specification_line.attrs ->> 'quantity', '')::numeric, "quantity"), "unit" = case when upsert_maintenance_request_specification_line.attrs ? 'unit' then nullif(btrim(upsert_maintenance_request_specification_line.attrs ->> 'unit'), '') else "unit" end, "estimate" = case when upsert_maintenance_request_specification_line.attrs ? 'estimate' then nullif(upsert_maintenance_request_specification_line.attrs ->> 'estimate', '')::numeric else "estimate" end, "rank" = coalesce(nullif(upsert_maintenance_request_specification_line.attrs ->> 'rank', ''), "rank")
     where y."id" = v_id and y."maintenance_request_id" = v_row."id"
     returning * into v_line;
     if v_line."id" is null then
@@ -183,8 +183,8 @@ begin
   return jsonb_build_object('id', v_line."id", 'taskId', v_line."maintenance_request_id", 'rank', v_line."rank");
 end;
 $$;
-revoke execute on function "better_supabase"."save_maintenance_request_specification_line"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_maintenance_request_specification_line"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_maintenance_request_specification_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_maintenance_request_specification_line"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- The specification lines of one work item, in rank order. Needs tasks.read.
@@ -206,7 +206,7 @@ grant execute on function "better_supabase"."list_maintenance_request_specificat
 
 -- Adds a materials line (the line id null) or changes one. A new line
 -- without a rank goes after the last one. Needs tasks.write.
-create or replace function "better_supabase"."save_maintenance_request_material_line"(task uuid, line_id uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_maintenance_request_material_line"(task uuid, line_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -215,32 +215,32 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."maintenance_requests";
-  v_id uuid := save_maintenance_request_material_line.line_id;
+  v_id uuid := upsert_maintenance_request_material_line.line_id;
   v_last text;
   v_line "better_supabase"."maintenance_request_material_lines";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_maintenance_request_material_line.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_maintenance_request_material_line.attrs) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'TASK_LINE_INVALID';
   end if;
   select * into v_row from "better_supabase"."maintenance_requests" x
-  where x."id" = save_maintenance_request_material_line.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
+  where x."id" = upsert_maintenance_request_material_line.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   if v_id is null then
     select max(y."rank") into v_last from "better_supabase"."maintenance_request_material_lines" y where y."maintenance_request_id" = v_row."id";
     insert into "better_supabase"."maintenance_request_material_lines" ("tenant_id", "maintenance_request_id", "variant_id", "quantity", "unit", "rank")
-    values (v_row."tenant_id", v_row."id", nullif(save_maintenance_request_material_line.attrs ->> 'variantId', '')::uuid, nullif(save_maintenance_request_material_line.attrs ->> 'quantity', '')::numeric, nullif(btrim(save_maintenance_request_material_line.attrs ->> 'unit'), ''), coalesce(nullif(save_maintenance_request_material_line.attrs ->> 'rank', ''), case
+    values (v_row."tenant_id", v_row."id", nullif(upsert_maintenance_request_material_line.attrs ->> 'variantId', '')::uuid, nullif(upsert_maintenance_request_material_line.attrs ->> 'quantity', '')::numeric, nullif(btrim(upsert_maintenance_request_material_line.attrs ->> 'unit'), ''), coalesce(nullif(upsert_maintenance_request_material_line.attrs ->> 'rank', ''), case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end))
     returning * into v_line;
   else
-    update "better_supabase"."maintenance_request_material_lines" y set "variant_id" = coalesce(nullif(save_maintenance_request_material_line.attrs ->> 'variantId', '')::uuid, "variant_id"), "quantity" = coalesce(nullif(save_maintenance_request_material_line.attrs ->> 'quantity', '')::numeric, "quantity"), "unit" = case when save_maintenance_request_material_line.attrs ? 'unit' then nullif(btrim(save_maintenance_request_material_line.attrs ->> 'unit'), '') else "unit" end, "rank" = coalesce(nullif(save_maintenance_request_material_line.attrs ->> 'rank', ''), "rank")
+    update "better_supabase"."maintenance_request_material_lines" y set "variant_id" = coalesce(nullif(upsert_maintenance_request_material_line.attrs ->> 'variantId', '')::uuid, "variant_id"), "quantity" = coalesce(nullif(upsert_maintenance_request_material_line.attrs ->> 'quantity', '')::numeric, "quantity"), "unit" = case when upsert_maintenance_request_material_line.attrs ? 'unit' then nullif(btrim(upsert_maintenance_request_material_line.attrs ->> 'unit'), '') else "unit" end, "rank" = coalesce(nullif(upsert_maintenance_request_material_line.attrs ->> 'rank', ''), "rank")
     where y."id" = v_id and y."maintenance_request_id" = v_row."id"
     returning * into v_line;
     if v_line."id" is null then
@@ -250,8 +250,8 @@ begin
   return jsonb_build_object('id', v_line."id", 'taskId', v_line."maintenance_request_id", 'rank', v_line."rank");
 end;
 $$;
-revoke execute on function "better_supabase"."save_maintenance_request_material_line"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_maintenance_request_material_line"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_maintenance_request_material_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_maintenance_request_material_line"(uuid, uuid, jsonb) to authenticated, service_role;
 
 
 -- The materials lines of one work item, in rank order. Needs tasks.read.
@@ -1423,7 +1423,7 @@ grant execute on function "better_supabase"."clone_maintenance_request"(uuid, js
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function "better_supabase"."save_maintenance_request_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_maintenance_request_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1431,14 +1431,14 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."maintenance_requests";
-  v_id uuid := save_maintenance_request_checklist_item.checklist_item;
+  v_id uuid := upsert_maintenance_request_checklist_item.checklist_item;
   v_last text;
-  v_done boolean := (save_maintenance_request_checklist_item.attrs ->> 'done')::boolean;
+  v_done boolean := (upsert_maintenance_request_checklist_item.attrs ->> 'done')::boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = save_maintenance_request_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = upsert_maintenance_request_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1446,9 +1446,9 @@ begin
     if v_id is null then
       select max(y."rank") into v_last from "better_supabase"."maintenance_request_checklist_items" y where y."maintenance_request_id" = v_row."id";
       insert into "better_supabase"."maintenance_request_checklist_items" ("tenant_id", "maintenance_request_id", "title", "done", "done_at", "done_by", "rank", "created_by")
-      values (v_row."tenant_id", v_row."id", trim(save_maintenance_request_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
+      values (v_row."tenant_id", v_row."id", trim(upsert_maintenance_request_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
-        coalesce(save_maintenance_request_checklist_item.attrs ->> 'rank', case
+        coalesce(upsert_maintenance_request_checklist_item.attrs ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -1456,8 +1456,8 @@ begin
       returning "id" into v_id;
     else
       update "better_supabase"."maintenance_request_checklist_items" y set
-        "title" = coalesce(trim(save_maintenance_request_checklist_item.attrs ->> 'title'), y."title"),
-        "rank" = coalesce(save_maintenance_request_checklist_item.attrs ->> 'rank', y."rank"),
+        "title" = coalesce(trim(upsert_maintenance_request_checklist_item.attrs ->> 'title'), y."title"),
+        "rank" = coalesce(upsert_maintenance_request_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
         "done_at" = case when v_done is null then y."done_at" when v_done then coalesce(y."done_at", now()) end,
         "done_by" = case when v_done is null then y."done_by" when v_done then coalesce(y."done_by", auth.uid()) end
@@ -1473,8 +1473,8 @@ begin
   return (select jsonb_build_object('id', y."id", 'maintenanceRequestId', y."maintenance_request_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."maintenance_request_checklist_items" y where y."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_maintenance_request_checklist_item"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_maintenance_request_checklist_item"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_maintenance_request_checklist_item"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_maintenance_request_checklist_item"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_maintenance_request_checklist_item"(checklist_item uuid)
 returns boolean
@@ -2631,14 +2631,14 @@ create trigger bsb_realtime_delete after delete on "better_supabase"."maintenanc
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_maintenance_request_specification_line"(task uuid, line_id uuid, attrs jsonb)
+create or replace function "api"."upsert_maintenance_request_specification_line"(task uuid, line_id uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_maintenance_request_specification_line"($1, $2, $3) $$;
-revoke execute on function "api"."save_maintenance_request_specification_line"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_maintenance_request_specification_line"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_maintenance_request_specification_line"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_maintenance_request_specification_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_maintenance_request_specification_line"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_maintenance_request_specification"(task uuid)
 returns jsonb
@@ -2650,14 +2650,14 @@ as $$ select "better_supabase"."list_maintenance_request_specification"($1) $$;
 revoke execute on function "api"."list_maintenance_request_specification"(uuid) from public, anon;
 grant execute on function "api"."list_maintenance_request_specification"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_maintenance_request_material_line"(task uuid, line_id uuid, attrs jsonb)
+create or replace function "api"."upsert_maintenance_request_material_line"(task uuid, line_id uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_maintenance_request_material_line"($1, $2, $3) $$;
-revoke execute on function "api"."save_maintenance_request_material_line"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_maintenance_request_material_line"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_maintenance_request_material_line"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_maintenance_request_material_line"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_maintenance_request_material_line"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_maintenance_request_materials"(task uuid)
 returns jsonb
@@ -2781,14 +2781,14 @@ as $$ select "better_supabase"."clone_maintenance_request"($1, $2) $$;
 revoke execute on function "api"."clone_maintenance_request"(uuid, jsonb) from public, anon;
 grant execute on function "api"."clone_maintenance_request"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_maintenance_request_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
+create or replace function "api"."upsert_maintenance_request_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_maintenance_request_checklist_item"($1, $2, $3) $$;
-revoke execute on function "api"."save_maintenance_request_checklist_item"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_maintenance_request_checklist_item"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_maintenance_request_checklist_item"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_maintenance_request_checklist_item"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_maintenance_request_checklist_item"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_maintenance_request_checklist_item"(checklist_item uuid)
 returns boolean

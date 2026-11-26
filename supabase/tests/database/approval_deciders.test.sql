@@ -46,7 +46,7 @@ select set_config(
 );
 set local role authenticated;
 select lives_ok(
-  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
     '{"subjectType":"customer","action":"*","name":"Every customer action","steps":[{"approvers":{"users":["00000000-0000-4000-8000-0000000000a2"]}}]}')$$,
   'a tenant policy covers every action of a subject type with a floor'
 );

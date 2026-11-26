@@ -1,6 +1,6 @@
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:742f5cbf1b8246ec206274a9dd1ddd0c22803705d57791582c3a29524ad053c3
+-- @bsb-hash sha256:446dc7a96f5b797b3d523b3adf2ca5d7f8f207cebda659e318ba11efa87a7b58
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -426,7 +426,7 @@ $$;
 
 -- Creates an announcement (id null) or changes one. fields holds the
 -- columns to set; the others keep their value or default.
-create or replace function "better_supabase"."save_announcement"(id uuid, fields jsonb)
+create or replace function "better_supabase"."upsert_announcement"(id uuid, fields jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -441,7 +441,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('announcements.manage'), false))) then
     raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
   end if;
-  if save_announcement.id is null then
+  if upsert_announcement.id is null then
     v_row := jsonb_populate_record(null::"better_supabase"."announcements", jsonb_build_object(
       'id', gen_random_uuid(),
       'body', '',
@@ -452,21 +452,21 @@ begin
       'dismissible', true,
       'created_by', auth.uid(),
       'created_at', now()
-    ) || save_announcement.fields);
+    ) || upsert_announcement.fields);
     v_row."updated_at" := now();
     insert into "better_supabase"."announcements" select v_row.* returning * into v_row;
   else
-    select * into v_row from "better_supabase"."announcements" x where x."id" = save_announcement.id for update;
+    select * into v_row from "better_supabase"."announcements" x where x."id" = upsert_announcement.id for update;
     if v_row."id" is null then
-      raise exception 'No announcement %', save_announcement.id using errcode = 'P0002', hint = 'ANNOUNCEMENT_NOT_FOUND';
+      raise exception 'No announcement %', upsert_announcement.id using errcode = 'P0002', hint = 'ANNOUNCEMENT_NOT_FOUND';
     end if;
-    v_row := jsonb_populate_record(v_row, save_announcement.fields - 'id' - 'archived_at' - 'created_by' - 'created_at');
+    v_row := jsonb_populate_record(v_row, upsert_announcement.fields - 'id' - 'archived_at' - 'created_by' - 'created_at');
     v_row."updated_at" := now();
     update "better_supabase"."announcements" x set ("title", "body", "severity", "href", "audience", "targets", "starts_at", "ends_at", "dismissible", "updated_at") = (v_row."title", v_row."body", v_row."severity", v_row."href", v_row."audience", v_row."targets", v_row."starts_at", v_row."ends_at", v_row."dismissible", v_row."updated_at")
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  if save_announcement.id is null then
+  if upsert_announcement.id is null then
     perform "better_supabase".emit_event('announcement.created', jsonb_build_object('announcementId', v_row."id"), 'announcements/' || v_row."id"::text, null, null, 'better-supabase/announcements');
   perform better_supabase.audit_event(
     event_type => 'announcement.created',
@@ -627,7 +627,7 @@ create policy bsb_announcements_receive on realtime.messages
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
 revoke execute on function "better_supabase"."list_announcements"(boolean) from public, anon;
-revoke execute on function "better_supabase"."save_announcement"(uuid, jsonb) from public, anon;
+revoke execute on function "better_supabase"."upsert_announcement"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."page_announcements"(jsonb) from public, anon;
 revoke execute on function "better_supabase"."get_announcement"(uuid) from public, anon;
 revoke execute on function "better_supabase"."archive_announcement"(uuid) from public, anon;
@@ -636,7 +636,7 @@ revoke execute on function "better_supabase"."purge_announcement"(uuid) from pub
 grant execute on function "better_supabase"."active_announcements"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."dismiss_announcement"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."list_announcements"(boolean) to authenticated, service_role;
-grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_announcement"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."archive_announcement"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."restore_announcement"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."purge_announcement"(uuid) to authenticated, service_role;
@@ -679,14 +679,14 @@ as $$ select "better_supabase"."list_announcements"($1) $$;
 revoke execute on function "api"."list_announcements"(boolean) from public, anon;
 grant execute on function "api"."list_announcements"(boolean) to authenticated, service_role;
 
-create or replace function "api"."save_announcement"(id uuid, fields jsonb)
+create or replace function "api"."upsert_announcement"(id uuid, fields jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_announcement"($1, $2) $$;
-revoke execute on function "api"."save_announcement"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_announcement"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_announcement"($1, $2) $$;
+revoke execute on function "api"."upsert_announcement"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_announcement"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."archive_announcement"(id uuid)
 returns jsonb

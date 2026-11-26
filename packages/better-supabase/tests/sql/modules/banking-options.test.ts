@@ -40,7 +40,7 @@ async function run(modules: AnyBlocksConfig, check: string): Promise<void> {
 }
 
 const save = (input: string, id = "null"): string =>
-  `better_supabase.save_bank_account('${TENANT}', '${input}', ${id})`;
+  `better_supabase.upsert_bank_account('${TENANT}', '${input}', ${id})`;
 
 describe("banking options", { timeout: 120_000 }, () => {
   it("keeps one primary account per organization and accounts without a currency", async () => {

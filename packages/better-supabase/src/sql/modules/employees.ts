@@ -665,7 +665,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ? [
         { name: "employee_private_details", args: ["uuid"], returns: "jsonb" },
         {
-          name: "save_employee_private_details",
+          name: "upsert_employee_private_details",
           args: ["uuid", "jsonb"],
           returns: "jsonb",
         },
@@ -676,7 +676,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ? [
         { name: "employee_contracts", args: ["uuid"], returns: "jsonb" },
         {
-          name: "add_employee_contract",
+          name: "create_employee_contract",
           args: ["uuid", "jsonb"],
           returns: "jsonb",
         },

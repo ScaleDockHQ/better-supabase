@@ -229,7 +229,7 @@ export function taskExtraFunctions(
   const checklist = `
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function ${fn("save_task_checklist_item")}(task uuid, checklist_item uuid, attrs jsonb)
+create or replace function ${fn("upsert_task_checklist_item")}(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -237,11 +237,11 @@ set search_path = ''
 as $$
 declare
   v_row ${t("items")};
-  v_id uuid := save_task_checklist_item.checklist_item;
+  v_id uuid := upsert_task_checklist_item.checklist_item;
   v_last text;
-  v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
+  v_done boolean := (upsert_task_checklist_item.attrs ->> 'done')::boolean;
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = save_task_checklist_item.task and ${editable("x")} and x.${w("archivedAt")} is null;
+  select * into v_row from ${t("items")} x where x.${w("id")} = upsert_task_checklist_item.task and ${editable("x")} and x.${w("archivedAt")} is null;
   if v_row.${w("id")} is null then
     ${notFound}
   end if;
@@ -254,7 +254,7 @@ begin
         [
           `v_row.${w("tenant")}`,
           `v_row.${w("id")}`,
-          "trim(save_task_checklist_item.attrs ->> 'title')",
+          "trim(upsert_task_checklist_item.attrs ->> 'title')",
           "coalesce(v_done, false)",
         ],
         [
@@ -266,15 +266,15 @@ begin
           ),
         ],
         [
-          `coalesce(save_task_checklist_item.attrs ->> 'rank', ${rankAfter("v_last")})`,
+          `coalesce(upsert_task_checklist_item.attrs ->> 'rank', ${rankAfter("v_last")})`,
           present("checklist", "createdBy", "auth.uid()"),
         ],
       )})
       returning ${k("id")} into v_id;
     else
       update ${t("checklist")} y set
-        ${k("title")} = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y.${k("title")}),
-        ${k("rank")} = coalesce(save_task_checklist_item.attrs ->> 'rank', y.${k("rank")}),
+        ${k("title")} = coalesce(trim(upsert_task_checklist_item.attrs ->> 'title'), y.${k("title")}),
+        ${k("rank")} = coalesce(upsert_task_checklist_item.attrs ->> 'rank', y.${k("rank")}),
         ${k("done")} = coalesce(v_done, y.${k("done")})${ctx.has("checklist", "doneAt") ? set("checklist", "doneAt", `case when v_done is null then y.${k("doneAt")} when v_done then coalesce(y.${k("doneAt")}, now()) end`) : ""}${ctx.has("checklist", "doneBy") ? set("checklist", "doneBy", `case when v_done is null then y.${k("doneBy")} when v_done then coalesce(y.${k("doneBy")}, auth.uid()) end`) : ""}
       where y.${k("id")} = v_id and y.${k("item")} = v_row.${w("id")};
       if not found then
@@ -288,7 +288,7 @@ begin
   return (select ${checklistRow("y")} from ${t("checklist")} y where y.${k("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_task_checklist_item")}(uuid, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_task_checklist_item")}(uuid, uuid, jsonb)`)}
 
 create or replace function ${fn("delete_task_checklist_item")}(checklist_item uuid)
 returns boolean
@@ -535,7 +535,7 @@ export function taskExtrasContract(
     ...(ctx.hasTable("checklist")
       ? [
           {
-            name: "save_task_checklist_item",
+            name: "upsert_task_checklist_item",
             args: ["uuid", "uuid", "jsonb"],
             returns: "jsonb",
           },

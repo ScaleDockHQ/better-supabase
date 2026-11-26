@@ -31,13 +31,13 @@ select set_config(
 );
 
 -- Fixtures the calls below need.
-select better_supabase.save_enrollment_program(
+select better_supabase.upsert_enrollment_program(
   '00000000-0000-4000-8000-000000000001',
   '{"key":"hook-program","name":"Hook program","subjectTypes":["customer"],"steps":[{"id":"kickoff"}]}'
 );
 create temporary table ids (name text primary key, id uuid) on commit drop;
 insert into ids
-select 'sequence', (better_supabase.save_sequence('00000000-0000-4000-8000-000000000001',
+select 'sequence', (better_supabase.upsert_sequence('00000000-0000-4000-8000-000000000001',
   '{"key":"hook-seq","name":"Hook seq","status":"active","steps":[{"id":"pause","kind":"wait","minutes":60}]}') ->> 'id')::uuid;
 insert into ids
 select 'conversation', id from better_supabase.conversations where kind = 'inbox';
@@ -79,10 +79,10 @@ select pg_temp.drop_hook('after_enrollment_cancel', 'uuid');
 
 -- sequences
 select pg_temp.set_hook('before_sequence_save', 'uuid, jsonb');
-select throws_ok($$select better_supabase.save_sequence('00000000-0000-4000-8000-000000000001', '{"key":"other","name":"Other"}')$$, 'P0001', 'hook:before_sequence_save', 'save_sequence calls before_sequence_save');
+select throws_ok($$select better_supabase.upsert_sequence('00000000-0000-4000-8000-000000000001', '{"key":"other","name":"Other"}')$$, 'P0001', 'hook:before_sequence_save', 'upsert_sequence calls before_sequence_save');
 select pg_temp.drop_hook('before_sequence_save', 'uuid, jsonb');
 select pg_temp.set_hook('after_sequence_save', 'uuid');
-select throws_ok($$select better_supabase.save_sequence('00000000-0000-4000-8000-000000000001', '{"key":"other","name":"Other"}')$$, 'P0001', 'hook:after_sequence_save', 'save_sequence calls after_sequence_save');
+select throws_ok($$select better_supabase.upsert_sequence('00000000-0000-4000-8000-000000000001', '{"key":"other","name":"Other"}')$$, 'P0001', 'hook:after_sequence_save', 'upsert_sequence calls after_sequence_save');
 select pg_temp.drop_hook('after_sequence_save', 'uuid');
 select pg_temp.set_hook('before_sequence_enroll', 'uuid, text, text');
 select throws_ok(format($$select better_supabase.enroll_in_sequence(%L, 'customer', '00000000-0000-4000-8000-00000000a001')$$, (select id from ids where name = 'sequence')), 'P0001', 'hook:before_sequence_enroll', 'enroll_in_sequence calls before_sequence_enroll');
@@ -93,18 +93,18 @@ select pg_temp.drop_hook('after_sequence_enroll', 'uuid');
 
 -- automations
 select pg_temp.set_hook('before_automation_save', 'uuid, jsonb');
-select throws_ok($$select better_supabase.save_rule('00000000-0000-4000-8000-000000000001', '{"subjectType":"customer","trigger":"customer.updated","name":"Hook rule"}')$$, 'P0001', 'hook:before_automation_save', 'save_rule calls before_automation_save');
+select throws_ok($$select better_supabase.upsert_rule('00000000-0000-4000-8000-000000000001', '{"subjectType":"customer","trigger":"customer.updated","name":"Hook rule"}')$$, 'P0001', 'hook:before_automation_save', 'upsert_rule calls before_automation_save');
 select pg_temp.drop_hook('before_automation_save', 'uuid, jsonb');
 select pg_temp.set_hook('after_automation_save', 'uuid');
-select throws_ok($$select better_supabase.save_rule('00000000-0000-4000-8000-000000000001', '{"subjectType":"customer","trigger":"customer.updated","name":"Hook rule"}')$$, 'P0001', 'hook:after_automation_save', 'save_rule calls after_automation_save');
+select throws_ok($$select better_supabase.upsert_rule('00000000-0000-4000-8000-000000000001', '{"subjectType":"customer","trigger":"customer.updated","name":"Hook rule"}')$$, 'P0001', 'hook:after_automation_save', 'upsert_rule calls after_automation_save');
 select pg_temp.drop_hook('after_automation_save', 'uuid');
 insert into ids
-select 'rule', (better_supabase.save_rule('00000000-0000-4000-8000-000000000001', '{"subjectType":"customer","trigger":"customer.updated","name":"Remove me"}') ->> 'id')::uuid;
+select 'rule', (better_supabase.upsert_rule('00000000-0000-4000-8000-000000000001', '{"subjectType":"customer","trigger":"customer.updated","name":"Remove me"}') ->> 'id')::uuid;
 select pg_temp.set_hook('before_automation_remove', 'uuid');
-select throws_ok(format($$select better_supabase.remove_rule(%L)$$, (select id from ids where name = 'rule')), 'P0001', 'hook:before_automation_remove', 'remove_rule calls before_automation_remove');
+select throws_ok(format($$select better_supabase.delete_rule(%L)$$, (select id from ids where name = 'rule')), 'P0001', 'hook:before_automation_remove', 'delete_rule calls before_automation_remove');
 select pg_temp.drop_hook('before_automation_remove', 'uuid');
 select pg_temp.set_hook('after_automation_remove', 'uuid');
-select throws_ok(format($$select better_supabase.remove_rule(%L)$$, (select id from ids where name = 'rule')), 'P0001', 'hook:after_automation_remove', 'remove_rule calls after_automation_remove');
+select throws_ok(format($$select better_supabase.delete_rule(%L)$$, (select id from ids where name = 'rule')), 'P0001', 'hook:after_automation_remove', 'delete_rule calls after_automation_remove');
 select pg_temp.drop_hook('after_automation_remove', 'uuid');
 
 select * from finish();

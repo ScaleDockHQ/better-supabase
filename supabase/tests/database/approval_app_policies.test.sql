@@ -79,7 +79,7 @@ select is(
   'the * floor for quote.send asks for nothing by itself'
 );
 select lives_ok(
-  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
     '{"subjectType":"chat_thread","action":"quote.send","name":"Quotes from chats","steps":[{"approvers":{"users":["00000000-0000-4000-8000-0000000000a2"]}}],"fields":{"description":"Agents ask Ben"}}')$$,
   'a tenant policy tightens the * floor for one subject type'
 );

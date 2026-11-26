@@ -125,8 +125,8 @@ where m.conversation_id = moved.id`,
   },
   {
     seed: pipelinesSeed,
-    sql: `select better_supabase.save_pipeline_stage((p.pipeline ->> 'id')::uuid, null, s.value ->> 'key', s.value ->> 'name', s.value ->> 'category', (s.value ->> 'probability')::integer, null, null, null, null)
-from (select better_supabase.save_pipeline(tenant => $1::uuid, pipeline => null, subject_type => $2::jsonb ->> 'subject_type', key => $2::jsonb ->> 'key', name => $2::jsonb ->> 'name', scope_id => null, is_default => ($2::jsonb ->> 'is_default')::boolean) as pipeline) p
+    sql: `select better_supabase.upsert_pipeline_stage((p.pipeline ->> 'id')::uuid, null, s.value ->> 'key', s.value ->> 'name', s.value ->> 'category', (s.value ->> 'probability')::integer, null, null, null, null)
+from (select better_supabase.upsert_pipeline(tenant => $1::uuid, pipeline => null, subject_type => $2::jsonb ->> 'subject_type', key => $2::jsonb ->> 'key', name => $2::jsonb ->> 'name', scope_id => null, is_default => ($2::jsonb ->> 'is_default')::boolean) as pipeline) p
 cross join lateral jsonb_array_elements($2::jsonb -> 'stages') with ordinality as s(value, position)
 order by s.position`,
     identity: ["name", "key"],
@@ -151,18 +151,18 @@ where tenant_id = $1::uuid and name = $2::jsonb ->> 'name'`,
   },
   {
     seed: segmentsSeed,
-    sql: "select better_supabase.refresh_segment((better_supabase.save_segment(tenant => $1::uuid, segment => $2::jsonb) ->> 'id')::uuid)",
+    sql: "select better_supabase.refresh_segment((better_supabase.upsert_segment(tenant => $1::uuid, segment => $2::jsonb) ->> 'id')::uuid)",
     identity: ["name"],
   },
   {
     seed: assignmentQueuesSeed,
-    sql: "select better_supabase.set_assignment_members((better_supabase.save_assignment_queue(tenant => $1::uuid, queue => $2::jsonb - 'members') ->> 'id')::uuid, $2::jsonb -> 'members')",
+    sql: "select better_supabase.set_assignment_members((better_supabase.upsert_assignment_queue(tenant => $1::uuid, queue => $2::jsonb - 'members') ->> 'id')::uuid, $2::jsonb -> 'members')",
     identity: ["name"],
   },
   {
     seed: scoresSeed,
     // The model is saved once, then scores every company of the tenant.
-    sql: `with model as (select better_supabase.save_score_model(tenant => $1::uuid, model => $2::jsonb) as saved)
+    sql: `with model as (select better_supabase.upsert_score_model(tenant => $1::uuid, model => $2::jsonb) as saved)
 select m.saved, case when c.id is not null then better_supabase.compute_score($1::uuid, $2::jsonb ->> 'key', 'company', c.id::text, jsonb_build_object('lifecycle', c.lifecycle), null) end
 from model m
 left join better_supabase.companies c on c.tenant_id = $1::uuid`,

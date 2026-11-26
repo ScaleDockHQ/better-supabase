@@ -319,17 +319,19 @@ function build(ctx: BlockSqlContext): string {
   } as const;
 
   const keyInsert: readonly (readonly [string, string])[] = [
-    [k.tenant, "save_ai_provider_key.tenant"],
-    [k.provider, "save_ai_provider_key.provider"],
-    [k.name, "coalesce(save_ai_provider_key.name, 'default')"],
-    [k.credentialRef, "save_ai_provider_key.credential_ref"],
+    [k.tenant, "upsert_ai_provider_key.tenant"],
+    [k.provider, "upsert_ai_provider_key.provider"],
+    [k.name, "coalesce(upsert_ai_provider_key.name, 'default')"],
+    [k.credentialRef, "upsert_ai_provider_key.credential_ref"],
     ...(key("settings")
       ? ([
-          [k.settings, "coalesce(save_ai_provider_key.settings, '{}')"],
+          [k.settings, "coalesce(upsert_ai_provider_key.settings, '{}')"],
         ] as const)
       : []),
     ...(key("enabled")
-      ? ([[k.enabled, "coalesce(save_ai_provider_key.enabled, true)"]] as const)
+      ? ([
+          [k.enabled, "coalesce(upsert_ai_provider_key.enabled, true)"],
+        ] as const)
       : []),
     ...(key("createdBy") ? ([[k.createdBy, "auth.uid()"]] as const) : []),
   ];
@@ -408,7 +410,7 @@ function build(ctx: BlockSqlContext): string {
   ];
 
   const itemInsert: readonly (readonly [string, string])[] = [
-    [i.batch, "save_ai_batch_items.id"],
+    [i.batch, "upsert_ai_batch_items.id"],
     [i.request, "item ->> 'request_id'"],
     [i.tenant, "v_tenant"],
     [i.status, ctx.cast("items", "status", "item ->> 'status'")],
@@ -530,7 +532,7 @@ ${userGrant(`${fn("get_ai_provider_key")}(uuid)`)}
 -- Adds or replaces a tenant's key for a provider (${manage} or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
-create or replace function ${fn("save_ai_provider_key")}(tenant ${id}, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
+create or replace function ${fn("upsert_ai_provider_key")}(tenant ${id}, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -542,12 +544,12 @@ declare
   v_inserted boolean;
   v_row ${keys}%rowtype;
 begin
-  if not (${SERVICE_CALLER} or ${ctx.scope.can("save_ai_provider_key.tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("upsert_ai_provider_key.tenant", manage)}) then
     ${raise("you may not manage provider keys here", "42501", "AI_PROVIDER_KEY_FORBIDDEN")}
   end if;
-  ${tenantRefGuard("save_ai_provider_key.credential_ref", "save_ai_provider_key.tenant")}
+  ${tenantRefGuard("upsert_ai_provider_key.credential_ref", "upsert_ai_provider_key.tenant")}
   select x.${k.credentialRef} into v_old from ${keys} x
-  where x.${k.tenant} = save_ai_provider_key.tenant and x.${k.provider} = save_ai_provider_key.provider and x.${k.name} = coalesce(save_ai_provider_key.name, 'default')
+  where x.${k.tenant} = upsert_ai_provider_key.tenant and x.${k.provider} = upsert_ai_provider_key.provider and x.${k.name} = coalesce(upsert_ai_provider_key.name, 'default')
   for update;
   v_inserted := not found;
   insert into ${keys} (${keyInsert.map(([column]) => column).join(", ")})
@@ -559,7 +561,7 @@ begin
   return jsonb_build_object('key', ${keyJson("v_row")}, 'replaced', v_old);
 end;
 $$;
-${userGrant(`${fn("save_ai_provider_key")}(${id}, text, jsonb, text, jsonb, boolean)`)}
+${userGrant(`${fn("upsert_ai_provider_key")}(${id}, text, jsonb, text, jsonb, boolean)`)}
 
 -- Deletes a key (${manage} or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
@@ -700,7 +702,7 @@ ${serviceGrant(`${fn("due_ai_batches")}(integer, integer)`)}
 
 -- Saves result items: { "items": [{ "request_id", "status", "output",
 -- "usage", "error" }] } (service role). Returns how many were written.
-create or replace function ${fn("save_ai_batch_items")}(id uuid, items jsonb)
+create or replace function ${fn("upsert_ai_batch_items")}(id uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -708,12 +710,12 @@ set search_path = ''
 as $$
 declare
   v_tenant ${id};
-  v_items jsonb := case when jsonb_typeof(save_ai_batch_items.items) = 'object' then save_ai_batch_items.items -> 'items' else save_ai_batch_items.items end;
+  v_items jsonb := case when jsonb_typeof(upsert_ai_batch_items.items) = 'object' then upsert_ai_batch_items.items -> 'items' else upsert_ai_batch_items.items end;
   v_count integer;
 begin
-  select x.${b.tenant} into v_tenant from ${batches} x where x.${b.id} = save_ai_batch_items.id;
+  select x.${b.tenant} into v_tenant from ${batches} x where x.${b.id} = upsert_ai_batch_items.id;
   if not found then
-    ${raise("batch % not found", "P0002", "AI_BATCH_NOT_FOUND", "save_ai_batch_items.id")}
+    ${raise("batch % not found", "P0002", "AI_BATCH_NOT_FOUND", "upsert_ai_batch_items.id")}
   end if;
   insert into ${items} (${itemInsert.map(([column]) => column).join(", ")})
   select ${itemInsert.map(([, value]) => value).join(", ")}
@@ -727,7 +729,7 @@ begin
   return v_count;
 end;
 $$;
-${serviceGrant(`${fn("save_ai_batch_items")}(uuid, jsonb)`)}
+${serviceGrant(`${fn("upsert_ai_batch_items")}(uuid, jsonb)`)}
 
 create or replace function ${fn("get_ai_batch")}(id uuid)
 returns jsonb

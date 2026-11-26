@@ -86,7 +86,7 @@ describe("option-sets block", () => {
 
   it("sends nulls for what an item input leaves out and replaces on archive", async () => {
     const t = transport({
-      save_option_set_item: () => ITEM,
+      upsert_option_set_item: () => ITEM,
       archive_option_set_item: () => true,
       rank_option_set_item: () => true,
     });
@@ -107,7 +107,7 @@ describe("option-sets block", () => {
       .orThrow();
 
     expect(t.calls[0]).toEqual([
-      "save_option_set_item",
+      "upsert_option_set_item",
       {
         option_set: "s1",
         item: null,

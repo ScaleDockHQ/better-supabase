@@ -315,14 +315,14 @@ const SUGGESTION = {
 describe("warehouse putaway, slotting and routes", () => {
   it("saves, lists and deletes putaway rules and slots", async () => {
     const t = fieldsTransport({
-      save_putaway_rule: () => RULE,
+      upsert_putaway_rule: () => RULE,
       list_putaway_rules: () => [
         RULE,
         { ...RULE, variantId: undefined, maxQuantity: undefined },
       ],
       delete_putaway_rule: (args) => args["rule_id"] === "r1",
-      save_bin_slot: () => ({ binId: "b1", walkRank: 3 }),
-      save_variant_size: () => ({ variantId: "v1", size: "2.000000" }),
+      upsert_bin_slot: () => ({ binId: "b1", walkRank: 3 }),
+      upsert_variant_size: () => ({ variantId: "v1", size: "2.000000" }),
       list_bin_slots: () => [
         {
           binId: "b1",
@@ -378,7 +378,7 @@ describe("warehouse putaway, slotting and routes", () => {
     expect(slots[1]?.walkRank).toBeUndefined();
     expect(slots[1]?.hold).toBe(true);
     expect(t.calls[0]).toEqual([
-      "save_putaway_rule",
+      "upsert_putaway_rule",
       { tenant: "org-1", input: { binId: "b1", variantId: "v1", priority: 5 } },
     ]);
   });

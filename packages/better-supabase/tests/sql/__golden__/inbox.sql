@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@11 managed
--- @bsb-hash sha256:6ecf0a48b6f14cd27b1b44d106770911f01f9975db62851bfd6ff90b9058f7e3
+-- @bsb-hash sha256:bf453c6e52f53fa69d07b44624c78fe610637af750258b8be14efdd08c6fe72c
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -601,9 +601,9 @@ set search_path = ''
 as $$
 begin
   if not coalesce(present, true) then
-    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
+    return "better_supabase"."delete_team_member"(set_inbox_team_member.team, member);
   end if;
-  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
+  return "better_supabase"."create_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -2853,7 +2853,7 @@ grant execute on function "better_supabase"."publish_due_inbox_messages"(integer
 -- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function "better_supabase"."upsert_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2863,12 +2863,12 @@ declare
   v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_row "better_supabase"."inbox_drafts"%rowtype;
   v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
-  v_metadata jsonb := save_inbox_draft.metadata;
+  v_metadata jsonb := upsert_inbox_draft.metadata;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = upsert_inbox_draft.conversation;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -2893,8 +2893,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.
@@ -3292,7 +3292,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@11 managed
--- @bsb-hash sha256:b45b9721b5e6e9372fc4d5f76872ad25118b86fc31ddfb374256df7b98fbc444
+-- @bsb-hash sha256:2d5d52e4b61f15886595fb9ab5215f8948ee8ccf5dc449b7bc166b5ca10deb9a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3892,9 +3892,9 @@ set search_path = ''
 as $$
 begin
   if not coalesce(present, true) then
-    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
+    return "better_supabase"."delete_team_member"(set_inbox_team_member.team, member);
   end if;
-  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
+  return "better_supabase"."create_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -6298,7 +6298,7 @@ grant execute on function "better_supabase"."publish_due_inbox_messages"(integer
 -- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function "better_supabase"."upsert_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6308,12 +6308,12 @@ declare
   v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_row "better_supabase"."inbox_drafts"%rowtype;
   v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
-  v_metadata jsonb := save_inbox_draft.metadata;
+  v_metadata jsonb := upsert_inbox_draft.metadata;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = upsert_inbox_draft.conversation;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -6338,8 +6338,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.
@@ -6744,7 +6744,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@11 managed
--- @bsb-hash sha256:4b9b82ba150f5aa214fac7a22ccb61c565182127d5d7688eb3677bb1a138b713
+-- @bsb-hash sha256:b3cb6690388c484268d6f39b7358570d7ea48031fa9e07824aac7b47f20e146d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7349,9 +7349,9 @@ set search_path = ''
 as $$
 begin
   if not coalesce(present, true) then
-    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
+    return "better_supabase"."delete_team_member"(set_inbox_team_member.team, member);
   end if;
-  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
+  return "better_supabase"."create_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "app_private"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -9601,7 +9601,7 @@ grant execute on function "app_private"."publish_due_inbox_messages"(integer) to
 -- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function "app_private"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function "app_private"."upsert_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -9611,12 +9611,12 @@ declare
   v_conv "app_private"."inbox_conversations"%rowtype;
   v_row "app_private"."inbox_drafts"%rowtype;
   v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
-  v_metadata jsonb := save_inbox_draft.metadata;
+  v_metadata jsonb := upsert_inbox_draft.metadata;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "app_private"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  select * into v_conv from "app_private"."inbox_conversations" where "id" = upsert_inbox_draft.conversation;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -9641,8 +9641,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "app_private"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "app_private"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.
@@ -10040,7 +10040,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@11 managed
--- @bsb-hash sha256:69ed0c19483c52596b902524f503e293a0f9404cbf754fb87de85d0ff5dcbacd
+-- @bsb-hash sha256:5b4b4a62db049fe315d805652eb32fa10ba63e6acadad6c68a447d2ae21fd493
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10640,9 +10640,9 @@ set search_path = ''
 as $$
 begin
   if not coalesce(present, true) then
-    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
+    return "better_supabase"."delete_team_member"(set_inbox_team_member.team, member);
   end if;
-  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
+  return "better_supabase"."create_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -12892,7 +12892,7 @@ grant execute on function "better_supabase"."publish_due_inbox_messages"(integer
 -- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function "better_supabase"."upsert_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -12902,12 +12902,12 @@ declare
   v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_row "better_supabase"."inbox_drafts"%rowtype;
   v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
-  v_metadata jsonb := save_inbox_draft.metadata;
+  v_metadata jsonb := upsert_inbox_draft.metadata;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = upsert_inbox_draft.conversation;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -12932,8 +12932,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.
@@ -13731,14 +13731,14 @@ as $$ select "better_supabase"."publish_due_inbox_messages"($1) $$;
 revoke execute on function "api"."publish_due_inbox_messages"(integer) from public, anon, authenticated;
 grant execute on function "api"."publish_due_inbox_messages"(integer) to service_role;
 
-create or replace function "api"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function "api"."upsert_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_inbox_draft"($1, $2, $3) $$;
-revoke execute on function "api"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "api"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_inbox_draft"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "api"."upsert_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 create or replace function "api"."suggest_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
@@ -13803,7 +13803,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@11 managed
--- @bsb-hash sha256:40c021ca6682a6784518f79e30a644ffca92688ffb5f6f732bf171f5ef7a0cf8
+-- @bsb-hash sha256:fe8f4f08a09a714ba5f0a74e5508b298dfe1dcb1b9350933fdd6c1644034fe39
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14383,9 +14383,9 @@ set search_path = ''
 as $$
 begin
   if not coalesce(present, true) then
-    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
+    return "better_supabase"."delete_team_member"(set_inbox_team_member.team, member);
   end if;
-  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
+  return "better_supabase"."create_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -16640,7 +16640,7 @@ grant execute on function "better_supabase"."publish_due_inbox_messages"(integer
 -- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function "better_supabase"."upsert_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -16650,12 +16650,12 @@ declare
   v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_row "better_supabase"."inbox_drafts"%rowtype;
   v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
-  v_metadata jsonb := save_inbox_draft.metadata;
+  v_metadata jsonb := upsert_inbox_draft.metadata;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = upsert_inbox_draft.conversation;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -16680,8 +16680,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'conversation_id', v_row."conversation_id", 'author_id', v_row."author_id", 'source', v_row."source", 'input', v_row."input", 'status', v_row."status", 'metadata', v_row."metadata", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.
@@ -17079,7 +17079,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@11 managed
--- @bsb-hash sha256:d795a5c117c5afa5f6f499026e2dece04ba61ddea8688a6a67549b7600672997
+-- @bsb-hash sha256:f2351cddfeeb643b682f34ece4d8f0cedf2339da22b209a83fa29ab30ffde714
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17679,9 +17679,9 @@ set search_path = ''
 as $$
 begin
   if not coalesce(present, true) then
-    return "better_supabase"."remove_team_member"(set_inbox_team_member.team, member);
+    return "better_supabase"."delete_team_member"(set_inbox_team_member.team, member);
   end if;
-  return "better_supabase"."add_team_member"(set_inbox_team_member.team, member);
+  return "better_supabase"."create_team_member"(set_inbox_team_member.team, member);
 end;
 $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
@@ -19931,7 +19931,7 @@ grant execute on function "better_supabase"."publish_due_inbox_messages"(integer
 -- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function "better_supabase"."save_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function "better_supabase"."upsert_inbox_draft"(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -19941,12 +19941,12 @@ declare
   v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_row "better_supabase"."inbox_drafts"%rowtype;
   v_input jsonb := coalesce(input, '{}'::jsonb) - 'files' - 'external_id' - 'author_type' - 'delivered_by_caller';
-  v_metadata jsonb := save_inbox_draft.metadata;
+  v_metadata jsonb := upsert_inbox_draft.metadata;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = save_inbox_draft.conversation;
+  select * into v_conv from "better_supabase"."inbox_conversations" where "id" = upsert_inbox_draft.conversation;
   if not found then
     raise exception 'conversation not found' using errcode = 'P0002', hint = 'CONVERSATION_NOT_FOUND';
   end if;
@@ -19971,8 +19971,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_inbox_draft"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.

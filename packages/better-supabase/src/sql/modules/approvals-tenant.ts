@@ -550,7 +550,7 @@ function tenantPoliciesSql(
   const inserted = insertExtraColumns(
     t,
     extras,
-    "coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb)",
+    "coalesce(upsert_approval_policy.policy -> 'fields', '{}'::jsonb)",
   );
 
   // Who may change the policies of tenant `tenant`; platform staff for the
@@ -634,7 +634,7 @@ ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies
         and (v_effect is null or f.value -> 'effects' ? v_effect)
     )${
       platform
-        ? ` or (save_approval_policy.tenant is null) or exists (
+        ? ` or (upsert_approval_policy.tenant is null) or exists (
       select 1 from ${t} f
       where f.${p("tenant")} is null and f.${p("enabled")}
         and (f.${p("subjectType")} in (v_type, '*'))
@@ -655,7 +655,7 @@ ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies
 -- name, conditions, mode, steps, selfApproval, expiresIn, enabled }; keys
 -- left out keep their value. A tenant policy only adds to the options.policies
 -- floor for its subject type and action, so it can never loosen it.
-create or replace function ${fn("save_approval_policy")}(tenant ${ctx.idType}, policy jsonb)
+create or replace function ${fn("upsert_approval_policy")}(tenant ${ctx.idType}, policy jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -674,59 +674,59 @@ declare
   v_effect text;
   v_who jsonb;
 begin
-  if not ${manages("save_approval_policy.tenant")} then
+  if not ${manages("upsert_approval_policy.tenant")} then
     ${fail("APPROVAL_FORBIDDEN", "managing approval policies needs approvals.manage")}
   end if;
-  if jsonb_typeof(save_approval_policy.policy) is distinct from 'object' then
+  if jsonb_typeof(upsert_approval_policy.policy) is distinct from 'object' then
     ${fail("APPROVAL_POLICY_INVALID", "policy must be an object", "22023")}
   end if;
-  if save_approval_policy.policy ? 'id' then
+  if upsert_approval_policy.policy ? 'id' then
     select * into v_old from ${t} x
-    where x.${p("id")} = (save_approval_policy.policy ->> 'id')::uuid and x.${p("tenant")} is not distinct from save_approval_policy.tenant
+    where x.${p("id")} = (upsert_approval_policy.policy ->> 'id')::uuid and x.${p("tenant")} is not distinct from upsert_approval_policy.tenant
     for update;
     if not found then
       ${fail("APPROVAL_POLICY_NOT_FOUND", "approval policy not found", "P0002")}
     end if;
   end if;
-  v_type := coalesce(save_approval_policy.policy ->> 'subjectType', v_old.${p("subjectType")});
-  v_action := coalesce(save_approval_policy.policy ->> 'action', v_old.${p("action")});
-  v_effect := ${has("effect") ? `case when save_approval_policy.policy ? 'effect' then nullif(save_approval_policy.policy ->> 'effect', '') else v_old.${p("effect")} end` : "null"};${
+  v_type := coalesce(upsert_approval_policy.policy ->> 'subjectType', v_old.${p("subjectType")});
+  v_action := coalesce(upsert_approval_policy.policy ->> 'action', v_old.${p("action")});
+  v_effect := ${has("effect") ? `case when upsert_approval_policy.policy ? 'effect' then nullif(upsert_approval_policy.policy ->> 'effect', '') else v_old.${p("effect")} end` : "null"};${
     has("effect")
       ? ""
       : `
-  if nullif(save_approval_policy.policy ->> 'effect', '') is not null then
+  if nullif(upsert_approval_policy.policy ->> 'effect', '') is not null then
     ${fail("APPROVAL_EFFECT_UNSUPPORTED", "this approval policies table has no effect column", "22023")}
   end if;`
   }
   if v_type is null or v_action is null or not ${floorExists} then
     ${fail("APPROVAL_POLICY_UNKNOWN", "a tenant policy tightens an options.policies entry, and there is none for this subject type, action and effect", "22023")}
   end if;
-  v_conditions := case when save_approval_policy.policy ? 'conditions' then nullif(save_approval_policy.policy -> 'conditions', 'null'::jsonb) else ${or("v_old", "conditions")} end;${conditionCheck}
-  v_steps := coalesce(save_approval_policy.policy -> 'steps', v_old.${p("steps")}, '[]'::jsonb);
+  v_conditions := case when upsert_approval_policy.policy ? 'conditions' then nullif(upsert_approval_policy.policy -> 'conditions', 'null'::jsonb) else ${or("v_old", "conditions")} end;${conditionCheck}
+  v_steps := coalesce(upsert_approval_policy.policy -> 'steps', v_old.${p("steps")}, '[]'::jsonb);
   if jsonb_typeof(v_steps) <> 'array' or jsonb_array_length(v_steps) > 20 then
     ${stepsInvalid}
   end if;
 ${stepsCheck("v_steps", stepsInvalid, manager)}${deciderCheck}
   v_steps := ${allUsersCounted("v_steps")};
-  if coalesce(save_approval_policy.policy ->> 'mode', v_old.${p("mode")}::text, 'authorize') not in ('confirm', 'authorize') then
+  if coalesce(upsert_approval_policy.policy ->> 'mode', v_old.${p("mode")}::text, 'authorize') not in ('confirm', 'authorize') then
     ${fail("APPROVAL_POLICY_INVALID", "mode must be confirm or authorize", "22023")}
   end if;
   if v_old.${p("id")} is null then
     insert into ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")}, ${p("name")}${has("conditions") ? `, ${p("conditions")}` : ""}${has("effect") ? `, ${p("effect")}` : ""}, ${p("mode")}, ${p("steps")}, ${p("selfApproval")}${has("expiresIn") ? `, ${p("expiresIn")}` : ""}, ${p("enabled")}${has("createdBy") ? `, ${p("createdBy")}` : ""}${inserted.columns})
-    values (save_approval_policy.tenant, v_type, v_action, btrim(save_approval_policy.policy ->> 'name')${has("conditions") ? ", v_conditions" : ""}${has("effect") ? ", v_effect" : ""},
-      ${ctx.cast("policies", "mode", "coalesce(save_approval_policy.policy ->> 'mode', 'authorize')")}, v_steps,
-      coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, false)${has("expiresIn") ? ", (save_approval_policy.policy ->> 'expiresIn')::interval" : ""},
-      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true)${has("createdBy") ? ", auth.uid()" : ""}${inserted.values})
+    values (upsert_approval_policy.tenant, v_type, v_action, btrim(upsert_approval_policy.policy ->> 'name')${has("conditions") ? ", v_conditions" : ""}${has("effect") ? ", v_effect" : ""},
+      ${ctx.cast("policies", "mode", "coalesce(upsert_approval_policy.policy ->> 'mode', 'authorize')")}, v_steps,
+      coalesce((upsert_approval_policy.policy ->> 'selfApproval')::boolean, false)${has("expiresIn") ? ", (upsert_approval_policy.policy ->> 'expiresIn')::interval" : ""},
+      coalesce((upsert_approval_policy.policy ->> 'enabled')::boolean, true)${has("createdBy") ? ", auth.uid()" : ""}${inserted.values})
     returning * into v_row;
   else
     update ${t} x set
       ${p("subjectType")} = v_type,
       ${p("action")} = v_action,
-      ${p("name")} = coalesce(btrim(save_approval_policy.policy ->> 'name'), x.${p("name")}),${has("conditions") ? `\n      ${p("conditions")} = v_conditions,` : ""}${has("effect") ? `\n      ${p("effect")} = v_effect,` : ""}
-      ${p("mode")} = coalesce(${ctx.cast("policies", "mode", "save_approval_policy.policy ->> 'mode'")}, x.${p("mode")}),
+      ${p("name")} = coalesce(btrim(upsert_approval_policy.policy ->> 'name'), x.${p("name")}),${has("conditions") ? `\n      ${p("conditions")} = v_conditions,` : ""}${has("effect") ? `\n      ${p("effect")} = v_effect,` : ""}
+      ${p("mode")} = coalesce(${ctx.cast("policies", "mode", "upsert_approval_policy.policy ->> 'mode'")}, x.${p("mode")}),
       ${p("steps")} = v_steps,
-      ${p("selfApproval")} = coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, x.${p("selfApproval")}),${has("expiresIn") ? `\n      ${p("expiresIn")} = case when save_approval_policy.policy ? 'expiresIn' then (save_approval_policy.policy ->> 'expiresIn')::interval else x.${p("expiresIn")} end,` : ""}
-      ${p("enabled")} = coalesce((save_approval_policy.policy ->> 'enabled')::boolean, x.${p("enabled")})${has("updatedAt") ? `,\n      ${p("updatedAt")} = now()` : ""}${updateExtraColumns(t, extras, "(save_approval_policy.policy -> 'fields')")}
+      ${p("selfApproval")} = coalesce((upsert_approval_policy.policy ->> 'selfApproval')::boolean, x.${p("selfApproval")}),${has("expiresIn") ? `\n      ${p("expiresIn")} = case when upsert_approval_policy.policy ? 'expiresIn' then (upsert_approval_policy.policy ->> 'expiresIn')::interval else x.${p("expiresIn")} end,` : ""}
+      ${p("enabled")} = coalesce((upsert_approval_policy.policy ->> 'enabled')::boolean, x.${p("enabled")})${has("updatedAt") ? `,\n      ${p("updatedAt")} = now()` : ""}${updateExtraColumns(t, extras, "(upsert_approval_policy.policy -> 'fields')")}
     where x.${p("id")} = v_old.${p("id")}
     returning * into v_row;
   end if;
@@ -750,9 +750,9 @@ exception
     ${fail("APPROVAL_POLICY_INVALID", "policy has an invalid name, mode, expiry or flag", "22023")}
 end;
 $$;
-${userGrant(`${fn("save_approval_policy")}(${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_approval_policy")}(${ctx.idType}, jsonb)`)}
 
-create or replace function ${fn("remove_approval_policy")}(policy_id uuid)
+create or replace function ${fn("delete_approval_policy")}(policy_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -761,7 +761,7 @@ as $$
 declare
   v_row ${t}%rowtype;
 begin
-  select * into v_row from ${t} x where x.${p("id")} = remove_approval_policy.policy_id;
+  select * into v_row from ${t} x where x.${p("id")} = delete_approval_policy.policy_id;
   if not found then
     return false;
   end if;
@@ -784,7 +784,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_approval_policy")}(uuid)`)}
+${userGrant(`${fn("delete_approval_policy")}(uuid)`)}
 
 create or replace function ${fn("list_approval_policies")}(tenant ${ctx.idType}, subject_type text default null, page_size integer default 100)
 returns jsonb
@@ -1134,12 +1134,12 @@ export function approvalsTenantContract(
     ...(tenantPoliciesOn(ctx)
       ? [
           {
-            name: "save_approval_policy",
+            name: "upsert_approval_policy",
             args: ["{id}", "jsonb"],
             returns: "jsonb",
           },
           {
-            name: "remove_approval_policy",
+            name: "delete_approval_policy",
             args: ["uuid"],
             returns: "boolean",
           },

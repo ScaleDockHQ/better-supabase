@@ -26,11 +26,11 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('test.grill', better_supabase.save_kitchen_station(
+select set_config('test.grill', better_supabase.upsert_kitchen_station(
   '00000000-0000-4000-8000-000000000001', null,
   '{"key": "grill", "name": "Grill", "productIds": ["00000000-0000-4000-8000-00000000f001"]}'
 )::text, true);
-select set_config('test.cold', better_supabase.save_kitchen_station(
+select set_config('test.cold', better_supabase.upsert_kitchen_station(
   '00000000-0000-4000-8000-000000000001', null, '{"key": "cold", "name": "Cold", "default": true}'
 )::text, true);
 

@@ -104,7 +104,7 @@ describe("lims module", () => {
     const [contract] = customContracts(["lims"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "save_lims_method",
+        "upsert_lims_method",
         "register_sample",
         "record_lims_result",
         "release_sample",

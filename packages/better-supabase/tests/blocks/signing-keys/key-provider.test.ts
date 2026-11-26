@@ -219,7 +219,7 @@ describe("vaultKeyProvider", () => {
     ).toBe(true);
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "signing_key",
-      "add_signing_key",
+      "create_signing_key",
       "signing_key",
       "note_signing_key_exp",
     ]);

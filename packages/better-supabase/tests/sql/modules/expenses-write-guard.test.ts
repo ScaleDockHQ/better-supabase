@@ -585,9 +585,9 @@ declare
   v_report uuid;
 begin
   ${as(ALICE)}
-  v_category := (better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel') ->> 'id')::uuid;
+  v_category := (better_supabase.upsert_expense_category('${TENANT}', 'travel', 'Travel') ->> 'id')::uuid;
   v_report := (better_supabase.create_expense_report('${TENANT}', 'Trip', 'EUR') ->> 'id')::uuid;
-  perform better_supabase.add_expense_line(v_report, v_category, '2099-03-02', 1250, 'Taxi');
+  perform better_supabase.create_expense_line(v_report, v_category, '2099-03-02', 1250, 'Taxi');
   set local role authenticated;
   update better_supabase.expense_reports set title = 'Trip to Berlin' where id = v_report;
   update better_supabase.expense_lines set amount = 1300 where report_id = v_report;

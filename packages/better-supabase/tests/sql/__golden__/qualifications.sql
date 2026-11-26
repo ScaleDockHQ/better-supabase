@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:aafae889547459bfa1a91ee91f9933563e325261dfdff4f41edeb04195dbe779
+-- @bsb-hash sha256:e490d61b4ca4f3104c9139bf041de5367aab61b897177931c8364946e9831577
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,7 @@ create policy bsb_qualifications_read on "better_supabase"."qualifications"
 -- a type with the same key is updated (and unarchived). valid_for_months
 -- sets how long a holding lasts (null: it never expires); course_id grants
 -- the type when a member earns that course's certificate.
-create or replace function "better_supabase"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function "better_supabase"."upsert_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -108,16 +108,16 @@ as $$
 declare
   v_row "better_supabase"."qualification_types"%rowtype;
   v_new boolean;
-  v_name text := nullif(trim(save_qualification_type.name), '');
-  v_holders text[] := array(select distinct h from unnest(save_qualification_type.holder_types) h where h is not null order by h);
+  v_name text := nullif(trim(upsert_qualification_type.name), '');
+  v_holders text[] := array(select distinct h from unnest(upsert_qualification_type.holder_types) h where h is not null order by h);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_qualification_type.tenant, 'qualifications.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_qualification_type.tenant, 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if save_qualification_type.key is null or save_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+  if upsert_qualification_type.key is null or upsert_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
     raise exception 'the key takes lowercase letters, digits, dots, dashes and underscores' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   if v_name is null or length(v_name) > 200 then
@@ -132,10 +132,10 @@ begin
   if 'asset' = any(v_holders) then
     raise exception 'asset holders need the assets block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.valid_for_months is not null and save_qualification_type.valid_for_months not between 1 and 240 then
+  if upsert_qualification_type.valid_for_months is not null and upsert_qualification_type.valid_for_months not between 1 and 240 then
     raise exception 'valid_for_months is between 1 and 240' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.course_id is not null then
+  if upsert_qualification_type.course_id is not null then
     raise exception 'course_id needs the courses block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   declare
@@ -143,36 +143,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_qualification_type.tenant, save_qualification_type.key;
+        using upsert_qualification_type.tenant, upsert_qualification_type.key;
     end if;
   end;
-  if save_qualification_type.type_id is null then
-    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = save_qualification_type.tenant and x."key" = save_qualification_type.key);
+  if upsert_qualification_type.type_id is null then
+    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = upsert_qualification_type.tenant and x."key" = upsert_qualification_type.key);
     insert into "better_supabase"."qualification_types" ("tenant_id", "key", "name", "description", "holder_types", "valid_for_months", "evidence_required", "course_id")
-    values (save_qualification_type.tenant, save_qualification_type.key, v_name, nullif(trim(save_qualification_type.description), ''), v_holders, save_qualification_type.valid_for_months, coalesce(save_qualification_type.evidence_required, false), save_qualification_type.course_id)
+    values (upsert_qualification_type.tenant, upsert_qualification_type.key, v_name, nullif(trim(upsert_qualification_type.description), ''), v_holders, upsert_qualification_type.valid_for_months, coalesce(upsert_qualification_type.evidence_required, false), upsert_qualification_type.course_id)
     on conflict ("tenant_id", "key") do update set
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
     returning * into v_row;
   else
     v_new := false;
     update "better_supabase"."qualification_types" x set
-      "key" = save_qualification_type.key,
+      "key" = upsert_qualification_type.key,
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
-    where x."id" = save_qualification_type.type_id and x."tenant_id" = save_qualification_type.tenant
+    where x."id" = upsert_qualification_type.type_id and x."tenant_id" = upsert_qualification_type.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
@@ -194,8 +194,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
 
 -- Archives a type: it takes no new holdings and leaves the gap report, and
 -- its holdings stay.
@@ -525,7 +525,7 @@ grant execute on function "better_supabase"."get_qualification_type"(uuid) to au
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
 -- asset kind), segment (a segment of companies) or holder (one holder id).
-create or replace function "better_supabase"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
+create or replace function "better_supabase"."create_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language plpgsql
 security definer
@@ -535,65 +535,65 @@ as $$
 declare
   v_type "better_supabase"."qualification_types"%rowtype;
   v_row "better_supabase"."qualification_requirements"%rowtype;
-  v_value text := nullif(trim(add_qualification_requirement.target_value), '');
+  v_value text := nullif(trim(create_qualification_requirement.target_value), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_type from "better_supabase"."qualification_types" x where x."id" = add_qualification_requirement.type_id;
+  select * into v_type from "better_supabase"."qualification_types" x where x."id" = create_qualification_requirement.type_id;
   if not found then
     raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_type."tenant_id", 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if add_qualification_requirement.target_type is null or add_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
+  if create_qualification_requirement.target_type is null or create_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
     raise exception 'target_type is one of role, team, job_title, asset_kind, segment, holder' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
   if v_value is null or length(v_value) > 200 then
     raise exception 'a requirement needs a target value of at most 200 characters' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
-  if add_qualification_requirement.target_type = 'role' then
+  if create_qualification_requirement.target_type = 'role' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'role requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'team' then
+  if create_qualification_requirement.target_type = 'team' then
     raise exception 'team requirements need the teams block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'team requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'job_title' then
+  if create_qualification_requirement.target_type = 'job_title' then
     raise exception 'job_title requirements need the employees block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'job_title requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'asset_kind' then
+  if create_qualification_requirement.target_type = 'asset_kind' then
     raise exception 'asset_kind requirements need the assets block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('asset' = any(v_type."holder_types")) then
       raise exception 'asset_kind requirements apply to asset holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'segment' then
+  if create_qualification_requirement.target_type = 'segment' then
     raise exception 'segment requirements need the segments block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('company' = any(v_type."holder_types")) then
       raise exception 'segment requirements apply to company holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
   insert into "better_supabase"."qualification_requirements" ("tenant_id", "type_id", "target_type", "target_value")
-  values (v_type."tenant_id", v_type."id", add_qualification_requirement.target_type, v_value)
+  values (v_type."tenant_id", v_type."id", create_qualification_requirement.target_type, v_value)
   on conflict ("type_id", "target_type", "target_value") do nothing;
   select * into v_row from "better_supabase"."qualification_requirements" x
-  where x."type_id" = v_type."id" and x."target_type" = add_qualification_requirement.target_type and x."target_value" = v_value;
+  where x."type_id" = v_type."id" and x."target_type" = create_qualification_requirement.target_type and x."target_value" = v_value;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_qualification_requirement"(requirement_id uuid)
+create or replace function "better_supabase"."delete_qualification_requirement"(requirement_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -606,7 +606,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = remove_qualification_requirement.requirement_id;
+  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = delete_qualification_requirement.requirement_id;
   if not found then
     raise exception 'requirement not found' using errcode = 'P0002', hint = 'QUALIFICATION_REQUIREMENT_NOT_FOUND';
   end if;
@@ -617,8 +617,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_qualification_requirement"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_qualification_requirement"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_qualification_requirement"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_qualification_requirement"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_qualification_requirements"(type_id uuid)
 returns jsonb
@@ -1015,7 +1015,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:233cba6eb5831eefeae355ef10a1e7d30bd5cd31ed081c3ba29cc3caf503773d
+-- @bsb-hash sha256:c7d0a49ec410dc8e02419640f3b7f527484dcfe2fb0017568b6f42406d517bec
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1113,7 +1113,7 @@ create policy bsb_qualifications_read on "better_supabase"."qualifications"
 -- a type with the same key is updated (and unarchived). valid_for_months
 -- sets how long a holding lasts (null: it never expires); course_id grants
 -- the type when a member earns that course's certificate.
-create or replace function "better_supabase"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function "better_supabase"."upsert_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1123,16 +1123,16 @@ as $$
 declare
   v_row "better_supabase"."qualification_types"%rowtype;
   v_new boolean;
-  v_name text := nullif(trim(save_qualification_type.name), '');
-  v_holders text[] := array(select distinct h from unnest(save_qualification_type.holder_types) h where h is not null order by h);
+  v_name text := nullif(trim(upsert_qualification_type.name), '');
+  v_holders text[] := array(select distinct h from unnest(upsert_qualification_type.holder_types) h where h is not null order by h);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_qualification_type.tenant, 'qualifications.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_qualification_type.tenant, 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if save_qualification_type.key is null or save_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+  if upsert_qualification_type.key is null or upsert_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
     raise exception 'the key takes lowercase letters, digits, dots, dashes and underscores' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   if v_name is null or length(v_name) > 200 then
@@ -1142,13 +1142,13 @@ begin
     raise exception 'holder_types takes member, company, asset' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   
-  if save_qualification_type.valid_for_months is not null and save_qualification_type.valid_for_months not between 1 and 240 then
+  if upsert_qualification_type.valid_for_months is not null and upsert_qualification_type.valid_for_months not between 1 and 240 then
     raise exception 'valid_for_months is between 1 and 240' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.course_id is not null and not exists (
+  if upsert_qualification_type.course_id is not null and not exists (
     select 1 from "better_supabase"."courses" c
-    where c."id" = save_qualification_type.course_id
-      and c."tenant_id" = save_qualification_type.tenant
+    where c."id" = upsert_qualification_type.course_id
+      and c."tenant_id" = upsert_qualification_type.tenant
   ) then
     raise exception 'the course isn''t in this organization' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
@@ -1157,36 +1157,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_qualification_type.tenant, save_qualification_type.key;
+        using upsert_qualification_type.tenant, upsert_qualification_type.key;
     end if;
   end;
-  if save_qualification_type.type_id is null then
-    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = save_qualification_type.tenant and x."key" = save_qualification_type.key);
+  if upsert_qualification_type.type_id is null then
+    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = upsert_qualification_type.tenant and x."key" = upsert_qualification_type.key);
     insert into "better_supabase"."qualification_types" ("tenant_id", "key", "name", "description", "holder_types", "valid_for_months", "evidence_required", "course_id")
-    values (save_qualification_type.tenant, save_qualification_type.key, v_name, nullif(trim(save_qualification_type.description), ''), v_holders, save_qualification_type.valid_for_months, coalesce(save_qualification_type.evidence_required, false), save_qualification_type.course_id)
+    values (upsert_qualification_type.tenant, upsert_qualification_type.key, v_name, nullif(trim(upsert_qualification_type.description), ''), v_holders, upsert_qualification_type.valid_for_months, coalesce(upsert_qualification_type.evidence_required, false), upsert_qualification_type.course_id)
     on conflict ("tenant_id", "key") do update set
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
     returning * into v_row;
   else
     v_new := false;
     update "better_supabase"."qualification_types" x set
-      "key" = save_qualification_type.key,
+      "key" = upsert_qualification_type.key,
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
-    where x."id" = save_qualification_type.type_id and x."tenant_id" = save_qualification_type.tenant
+    where x."id" = upsert_qualification_type.type_id and x."tenant_id" = upsert_qualification_type.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
@@ -1228,8 +1228,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
 
 -- Archives a type: it takes no new holdings and leaves the gap report, and
 -- its holdings stay.
@@ -1579,7 +1579,7 @@ grant execute on function "better_supabase"."get_qualification_type"(uuid) to au
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
 -- asset kind), segment (a segment of companies) or holder (one holder id).
-create or replace function "better_supabase"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
+create or replace function "better_supabase"."create_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language plpgsql
 security definer
@@ -1589,30 +1589,30 @@ as $$
 declare
   v_type "better_supabase"."qualification_types"%rowtype;
   v_row "better_supabase"."qualification_requirements"%rowtype;
-  v_value text := nullif(trim(add_qualification_requirement.target_value), '');
+  v_value text := nullif(trim(create_qualification_requirement.target_value), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_type from "better_supabase"."qualification_types" x where x."id" = add_qualification_requirement.type_id;
+  select * into v_type from "better_supabase"."qualification_types" x where x."id" = create_qualification_requirement.type_id;
   if not found then
     raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_type."tenant_id", 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if add_qualification_requirement.target_type is null or add_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
+  if create_qualification_requirement.target_type is null or create_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
     raise exception 'target_type is one of role, team, job_title, asset_kind, segment, holder' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
   if v_value is null or length(v_value) > 200 then
     raise exception 'a requirement needs a target value of at most 200 characters' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
-  if add_qualification_requirement.target_type = 'role' then
+  if create_qualification_requirement.target_type = 'role' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'role requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'team' then
+  if create_qualification_requirement.target_type = 'team' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'team requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
@@ -1620,17 +1620,17 @@ begin
       raise exception 'the team isn''t in this organization' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'job_title' then
+  if create_qualification_requirement.target_type = 'job_title' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'job_title requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'asset_kind' then
+  if create_qualification_requirement.target_type = 'asset_kind' then
     if not ('asset' = any(v_type."holder_types")) then
       raise exception 'asset_kind requirements apply to asset holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'segment' then
+  if create_qualification_requirement.target_type = 'segment' then
     if not ('company' = any(v_type."holder_types")) then
       raise exception 'segment requirements apply to company holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
@@ -1639,17 +1639,17 @@ begin
     end if;
   end if;
   insert into "better_supabase"."qualification_requirements" ("tenant_id", "type_id", "target_type", "target_value")
-  values (v_type."tenant_id", v_type."id", add_qualification_requirement.target_type, v_value)
+  values (v_type."tenant_id", v_type."id", create_qualification_requirement.target_type, v_value)
   on conflict ("type_id", "target_type", "target_value") do nothing;
   select * into v_row from "better_supabase"."qualification_requirements" x
-  where x."type_id" = v_type."id" and x."target_type" = add_qualification_requirement.target_type and x."target_value" = v_value;
+  where x."type_id" = v_type."id" and x."target_type" = create_qualification_requirement.target_type and x."target_value" = v_value;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_qualification_requirement"(requirement_id uuid)
+create or replace function "better_supabase"."delete_qualification_requirement"(requirement_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -1662,7 +1662,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = remove_qualification_requirement.requirement_id;
+  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = delete_qualification_requirement.requirement_id;
   if not found then
     raise exception 'requirement not found' using errcode = 'P0002', hint = 'QUALIFICATION_REQUIREMENT_NOT_FOUND';
   end if;
@@ -1673,8 +1673,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_qualification_requirement"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_qualification_requirement"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_qualification_requirement"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_qualification_requirement"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_qualification_requirements"(type_id uuid)
 returns jsonb
@@ -2195,7 +2195,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:73db55cd66a040bca1284616ddec4e425e3efd37462a6e7a416173ed3482ce1d
+-- @bsb-hash sha256:97f9f538b707705ac4b3e8ef91c4794039c5a613b6ac1005e2b1003a3e656d9a
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2297,7 +2297,7 @@ create policy bsb_qualifications_read on "app_private"."qualifications"
 -- a type with the same key is updated (and unarchived). valid_for_months
 -- sets how long a holding lasts (null: it never expires); course_id grants
 -- the type when a member earns that course's certificate.
-create or replace function "app_private"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function "app_private"."upsert_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2307,16 +2307,16 @@ as $$
 declare
   v_row "app_private"."qualification_types"%rowtype;
   v_new boolean;
-  v_name text := nullif(trim(save_qualification_type.name), '');
-  v_holders text[] := array(select distinct h from unnest(save_qualification_type.holder_types) h where h is not null order by h);
+  v_name text := nullif(trim(upsert_qualification_type.name), '');
+  v_holders text[] := array(select distinct h from unnest(upsert_qualification_type.holder_types) h where h is not null order by h);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_qualification_type.tenant, 'qualifications.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_qualification_type.tenant, 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if save_qualification_type.key is null or save_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+  if upsert_qualification_type.key is null or upsert_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
     raise exception 'the key takes lowercase letters, digits, dots, dashes and underscores' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   if v_name is null or length(v_name) > 200 then
@@ -2331,10 +2331,10 @@ begin
   if 'asset' = any(v_holders) then
     raise exception 'asset holders need the assets block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.valid_for_months is not null and save_qualification_type.valid_for_months not between 1 and 240 then
+  if upsert_qualification_type.valid_for_months is not null and upsert_qualification_type.valid_for_months not between 1 and 240 then
     raise exception 'valid_for_months is between 1 and 240' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.course_id is not null then
+  if upsert_qualification_type.course_id is not null then
     raise exception 'course_id needs the courses block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   declare
@@ -2342,36 +2342,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_qualification_type.tenant, save_qualification_type.key;
+        using upsert_qualification_type.tenant, upsert_qualification_type.key;
     end if;
   end;
-  if save_qualification_type.type_id is null then
-    v_new := not exists (select 1 from "app_private"."qualification_types" x where x."tenant_id" = save_qualification_type.tenant and x."key" = save_qualification_type.key);
+  if upsert_qualification_type.type_id is null then
+    v_new := not exists (select 1 from "app_private"."qualification_types" x where x."tenant_id" = upsert_qualification_type.tenant and x."key" = upsert_qualification_type.key);
     insert into "app_private"."qualification_types" ("tenant_id", "key", "name", "description", "holder_types", "valid_for_months", "evidence_required", "course_id")
-    values (save_qualification_type.tenant, save_qualification_type.key, v_name, nullif(trim(save_qualification_type.description), ''), v_holders, save_qualification_type.valid_for_months, coalesce(save_qualification_type.evidence_required, false), save_qualification_type.course_id)
+    values (upsert_qualification_type.tenant, upsert_qualification_type.key, v_name, nullif(trim(upsert_qualification_type.description), ''), v_holders, upsert_qualification_type.valid_for_months, coalesce(upsert_qualification_type.evidence_required, false), upsert_qualification_type.course_id)
     on conflict ("tenant_id", "key") do update set
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
     returning * into v_row;
   else
     v_new := false;
     update "app_private"."qualification_types" x set
-      "key" = save_qualification_type.key,
+      "key" = upsert_qualification_type.key,
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
-    where x."id" = save_qualification_type.type_id and x."tenant_id" = save_qualification_type.tenant
+    where x."id" = upsert_qualification_type.type_id and x."tenant_id" = upsert_qualification_type.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
@@ -2393,8 +2393,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
-grant execute on function "app_private"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
+grant execute on function "app_private"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
 
 -- Archives a type: it takes no new holdings and leaves the gap report, and
 -- its holdings stay.
@@ -2724,7 +2724,7 @@ grant execute on function "app_private"."get_qualification_type"(uuid) to authen
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
 -- asset kind), segment (a segment of companies) or holder (one holder id).
-create or replace function "app_private"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
+create or replace function "app_private"."create_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language plpgsql
 security definer
@@ -2734,65 +2734,65 @@ as $$
 declare
   v_type "app_private"."qualification_types"%rowtype;
   v_row "app_private"."qualification_requirements"%rowtype;
-  v_value text := nullif(trim(add_qualification_requirement.target_value), '');
+  v_value text := nullif(trim(create_qualification_requirement.target_value), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_type from "app_private"."qualification_types" x where x."id" = add_qualification_requirement.type_id;
+  select * into v_type from "app_private"."qualification_types" x where x."id" = create_qualification_requirement.type_id;
   if not found then
     raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_type."tenant_id", 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if add_qualification_requirement.target_type is null or add_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
+  if create_qualification_requirement.target_type is null or create_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
     raise exception 'target_type is one of role, team, job_title, asset_kind, segment, holder' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
   if v_value is null or length(v_value) > 200 then
     raise exception 'a requirement needs a target value of at most 200 characters' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
-  if add_qualification_requirement.target_type = 'role' then
+  if create_qualification_requirement.target_type = 'role' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'role requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'team' then
+  if create_qualification_requirement.target_type = 'team' then
     raise exception 'team requirements need the teams block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'team requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'job_title' then
+  if create_qualification_requirement.target_type = 'job_title' then
     raise exception 'job_title requirements need the employees block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'job_title requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'asset_kind' then
+  if create_qualification_requirement.target_type = 'asset_kind' then
     raise exception 'asset_kind requirements need the assets block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('asset' = any(v_type."holder_types")) then
       raise exception 'asset_kind requirements apply to asset holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'segment' then
+  if create_qualification_requirement.target_type = 'segment' then
     raise exception 'segment requirements need the segments block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('company' = any(v_type."holder_types")) then
       raise exception 'segment requirements apply to company holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
   insert into "app_private"."qualification_requirements" ("tenant_id", "type_id", "target_type", "target_value")
-  values (v_type."tenant_id", v_type."id", add_qualification_requirement.target_type, v_value)
+  values (v_type."tenant_id", v_type."id", create_qualification_requirement.target_type, v_value)
   on conflict ("type_id", "target_type", "target_value") do nothing;
   select * into v_row from "app_private"."qualification_requirements" x
-  where x."type_id" = v_type."id" and x."target_type" = add_qualification_requirement.target_type and x."target_value" = v_value;
+  where x."type_id" = v_type."id" and x."target_type" = create_qualification_requirement.target_type and x."target_value" = v_value;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "app_private"."add_qualification_requirement"(uuid, text, text) from public, anon;
-grant execute on function "app_private"."add_qualification_requirement"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."create_qualification_requirement"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."create_qualification_requirement"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "app_private"."remove_qualification_requirement"(requirement_id uuid)
+create or replace function "app_private"."delete_qualification_requirement"(requirement_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -2805,7 +2805,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."qualification_requirements" x where x."id" = remove_qualification_requirement.requirement_id;
+  select * into v_row from "app_private"."qualification_requirements" x where x."id" = delete_qualification_requirement.requirement_id;
   if not found then
     raise exception 'requirement not found' using errcode = 'P0002', hint = 'QUALIFICATION_REQUIREMENT_NOT_FOUND';
   end if;
@@ -2816,8 +2816,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "app_private"."remove_qualification_requirement"(uuid) from public, anon;
-grant execute on function "app_private"."remove_qualification_requirement"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_qualification_requirement"(uuid) from public, anon;
+grant execute on function "app_private"."delete_qualification_requirement"(uuid) to authenticated, service_role;
 
 create or replace function "app_private"."list_qualification_requirements"(type_id uuid)
 returns jsonb
@@ -3214,7 +3214,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:e3dc8fe9e159f3c4e88ec6d62134e215321f4c0823e2fd8f5bc70df8276e349e
+-- @bsb-hash sha256:b35a62d637e5a9eb9efa1a21cbbcbc7d590afa5b2e422d321ab9f325906b0f54
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3311,7 +3311,7 @@ create policy bsb_qualifications_read on "better_supabase"."qualifications"
 -- a type with the same key is updated (and unarchived). valid_for_months
 -- sets how long a holding lasts (null: it never expires); course_id grants
 -- the type when a member earns that course's certificate.
-create or replace function "better_supabase"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function "better_supabase"."upsert_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3321,16 +3321,16 @@ as $$
 declare
   v_row "better_supabase"."qualification_types"%rowtype;
   v_new boolean;
-  v_name text := nullif(trim(save_qualification_type.name), '');
-  v_holders text[] := array(select distinct h from unnest(save_qualification_type.holder_types) h where h is not null order by h);
+  v_name text := nullif(trim(upsert_qualification_type.name), '');
+  v_holders text[] := array(select distinct h from unnest(upsert_qualification_type.holder_types) h where h is not null order by h);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_qualification_type.tenant, 'qualifications.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_qualification_type.tenant, 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if save_qualification_type.key is null or save_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+  if upsert_qualification_type.key is null or upsert_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
     raise exception 'the key takes lowercase letters, digits, dots, dashes and underscores' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   if v_name is null or length(v_name) > 200 then
@@ -3345,10 +3345,10 @@ begin
   if 'asset' = any(v_holders) then
     raise exception 'asset holders need the assets block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.valid_for_months is not null and save_qualification_type.valid_for_months not between 1 and 240 then
+  if upsert_qualification_type.valid_for_months is not null and upsert_qualification_type.valid_for_months not between 1 and 240 then
     raise exception 'valid_for_months is between 1 and 240' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.course_id is not null then
+  if upsert_qualification_type.course_id is not null then
     raise exception 'course_id needs the courses block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   declare
@@ -3356,36 +3356,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_qualification_type.tenant, save_qualification_type.key;
+        using upsert_qualification_type.tenant, upsert_qualification_type.key;
     end if;
   end;
-  if save_qualification_type.type_id is null then
-    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = save_qualification_type.tenant and x."key" = save_qualification_type.key);
+  if upsert_qualification_type.type_id is null then
+    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = upsert_qualification_type.tenant and x."key" = upsert_qualification_type.key);
     insert into "better_supabase"."qualification_types" ("tenant_id", "key", "name", "description", "holder_types", "valid_for_months", "evidence_required", "course_id")
-    values (save_qualification_type.tenant, save_qualification_type.key, v_name, nullif(trim(save_qualification_type.description), ''), v_holders, save_qualification_type.valid_for_months, coalesce(save_qualification_type.evidence_required, false), save_qualification_type.course_id)
+    values (upsert_qualification_type.tenant, upsert_qualification_type.key, v_name, nullif(trim(upsert_qualification_type.description), ''), v_holders, upsert_qualification_type.valid_for_months, coalesce(upsert_qualification_type.evidence_required, false), upsert_qualification_type.course_id)
     on conflict ("tenant_id", "key") do update set
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
     returning * into v_row;
   else
     v_new := false;
     update "better_supabase"."qualification_types" x set
-      "key" = save_qualification_type.key,
+      "key" = upsert_qualification_type.key,
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
-    where x."id" = save_qualification_type.type_id and x."tenant_id" = save_qualification_type.tenant
+    where x."id" = upsert_qualification_type.type_id and x."tenant_id" = upsert_qualification_type.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
@@ -3407,8 +3407,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
 
 -- Archives a type: it takes no new holdings and leaves the gap report, and
 -- its holdings stay.
@@ -3738,7 +3738,7 @@ grant execute on function "better_supabase"."get_qualification_type"(uuid) to au
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
 -- asset kind), segment (a segment of companies) or holder (one holder id).
-create or replace function "better_supabase"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
+create or replace function "better_supabase"."create_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language plpgsql
 security definer
@@ -3748,65 +3748,65 @@ as $$
 declare
   v_type "better_supabase"."qualification_types"%rowtype;
   v_row "better_supabase"."qualification_requirements"%rowtype;
-  v_value text := nullif(trim(add_qualification_requirement.target_value), '');
+  v_value text := nullif(trim(create_qualification_requirement.target_value), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_type from "better_supabase"."qualification_types" x where x."id" = add_qualification_requirement.type_id;
+  select * into v_type from "better_supabase"."qualification_types" x where x."id" = create_qualification_requirement.type_id;
   if not found then
     raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_type."tenant_id", 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if add_qualification_requirement.target_type is null or add_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
+  if create_qualification_requirement.target_type is null or create_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
     raise exception 'target_type is one of role, team, job_title, asset_kind, segment, holder' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
   if v_value is null or length(v_value) > 200 then
     raise exception 'a requirement needs a target value of at most 200 characters' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
-  if add_qualification_requirement.target_type = 'role' then
+  if create_qualification_requirement.target_type = 'role' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'role requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'team' then
+  if create_qualification_requirement.target_type = 'team' then
     raise exception 'team requirements need the teams block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'team requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'job_title' then
+  if create_qualification_requirement.target_type = 'job_title' then
     raise exception 'job_title requirements need the employees block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'job_title requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'asset_kind' then
+  if create_qualification_requirement.target_type = 'asset_kind' then
     raise exception 'asset_kind requirements need the assets block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('asset' = any(v_type."holder_types")) then
       raise exception 'asset_kind requirements apply to asset holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'segment' then
+  if create_qualification_requirement.target_type = 'segment' then
     raise exception 'segment requirements need the segments block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('company' = any(v_type."holder_types")) then
       raise exception 'segment requirements apply to company holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
   insert into "better_supabase"."qualification_requirements" ("tenant_id", "type_id", "target_type", "target_value")
-  values (v_type."tenant_id", v_type."id", add_qualification_requirement.target_type, v_value)
+  values (v_type."tenant_id", v_type."id", create_qualification_requirement.target_type, v_value)
   on conflict ("type_id", "target_type", "target_value") do nothing;
   select * into v_row from "better_supabase"."qualification_requirements" x
-  where x."type_id" = v_type."id" and x."target_type" = add_qualification_requirement.target_type and x."target_value" = v_value;
+  where x."type_id" = v_type."id" and x."target_type" = create_qualification_requirement.target_type and x."target_value" = v_value;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_qualification_requirement"(requirement_id uuid)
+create or replace function "better_supabase"."delete_qualification_requirement"(requirement_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -3819,7 +3819,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = remove_qualification_requirement.requirement_id;
+  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = delete_qualification_requirement.requirement_id;
   if not found then
     raise exception 'requirement not found' using errcode = 'P0002', hint = 'QUALIFICATION_REQUIREMENT_NOT_FOUND';
   end if;
@@ -3830,8 +3830,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_qualification_requirement"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_qualification_requirement"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_qualification_requirement"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_qualification_requirement"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_qualification_requirements"(type_id uuid)
 returns jsonb
@@ -4215,14 +4215,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as r
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function "api"."upsert_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_qualification_type"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
-grant execute on function "api"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_qualification_type"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
+grant execute on function "api"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."archive_qualification_type"(type_id uuid)
 returns jsonb
@@ -4272,23 +4272,23 @@ as $$ select "better_supabase"."get_qualification_type"($1) $$;
 revoke execute on function "api"."get_qualification_type"(uuid) from public, anon;
 grant execute on function "api"."get_qualification_type"(uuid) to authenticated, service_role;
 
-create or replace function "api"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
+create or replace function "api"."create_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_qualification_requirement"($1, $2, $3) $$;
-revoke execute on function "api"."add_qualification_requirement"(uuid, text, text) from public, anon;
-grant execute on function "api"."add_qualification_requirement"(uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_qualification_requirement"($1, $2, $3) $$;
+revoke execute on function "api"."create_qualification_requirement"(uuid, text, text) from public, anon;
+grant execute on function "api"."create_qualification_requirement"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "api"."remove_qualification_requirement"(requirement_id uuid)
+create or replace function "api"."delete_qualification_requirement"(requirement_id uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_qualification_requirement"($1) $$;
-revoke execute on function "api"."remove_qualification_requirement"(uuid) from public, anon;
-grant execute on function "api"."remove_qualification_requirement"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_qualification_requirement"($1) $$;
+revoke execute on function "api"."delete_qualification_requirement"(uuid) from public, anon;
+grant execute on function "api"."delete_qualification_requirement"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_qualification_requirements"(type_id uuid)
 returns jsonb
@@ -4374,7 +4374,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:b60044653e8ff078e6871f848ceb9f4ce81394318db3b63016063d5522328c28
+-- @bsb-hash sha256:cd3f2b0d949595fe6e7987d19fe35c82da94950a1d12bb8e50f07dc19331a0ca
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4455,7 +4455,7 @@ create policy bsb_qualifications_read on "better_supabase"."qualifications"
 -- a type with the same key is updated (and unarchived). valid_for_months
 -- sets how long a holding lasts (null: it never expires); course_id grants
 -- the type when a member earns that course's certificate.
-create or replace function "better_supabase"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function "better_supabase"."upsert_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4465,16 +4465,16 @@ as $$
 declare
   v_row "better_supabase"."qualification_types"%rowtype;
   v_new boolean;
-  v_name text := nullif(trim(save_qualification_type.name), '');
-  v_holders text[] := array(select distinct h from unnest(save_qualification_type.holder_types) h where h is not null order by h);
+  v_name text := nullif(trim(upsert_qualification_type.name), '');
+  v_holders text[] := array(select distinct h from unnest(upsert_qualification_type.holder_types) h where h is not null order by h);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_qualification_type.tenant, 'qualifications.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_qualification_type.tenant, 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if save_qualification_type.key is null or save_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+  if upsert_qualification_type.key is null or upsert_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
     raise exception 'the key takes lowercase letters, digits, dots, dashes and underscores' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   if v_name is null or length(v_name) > 200 then
@@ -4489,10 +4489,10 @@ begin
   if 'asset' = any(v_holders) then
     raise exception 'asset holders need the assets block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.valid_for_months is not null and save_qualification_type.valid_for_months not between 1 and 240 then
+  if upsert_qualification_type.valid_for_months is not null and upsert_qualification_type.valid_for_months not between 1 and 240 then
     raise exception 'valid_for_months is between 1 and 240' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.course_id is not null then
+  if upsert_qualification_type.course_id is not null then
     raise exception 'course_id needs the courses block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   declare
@@ -4500,36 +4500,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_qualification_type.tenant, save_qualification_type.key;
+        using upsert_qualification_type.tenant, upsert_qualification_type.key;
     end if;
   end;
-  if save_qualification_type.type_id is null then
-    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = save_qualification_type.tenant and x."key" = save_qualification_type.key);
+  if upsert_qualification_type.type_id is null then
+    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."tenant_id" = upsert_qualification_type.tenant and x."key" = upsert_qualification_type.key);
     insert into "better_supabase"."qualification_types" ("tenant_id", "key", "name", "description", "holder_types", "valid_for_months", "evidence_required", "course_id")
-    values (save_qualification_type.tenant, save_qualification_type.key, v_name, nullif(trim(save_qualification_type.description), ''), v_holders, save_qualification_type.valid_for_months, coalesce(save_qualification_type.evidence_required, false), save_qualification_type.course_id)
+    values (upsert_qualification_type.tenant, upsert_qualification_type.key, v_name, nullif(trim(upsert_qualification_type.description), ''), v_holders, upsert_qualification_type.valid_for_months, coalesce(upsert_qualification_type.evidence_required, false), upsert_qualification_type.course_id)
     on conflict ("tenant_id", "key") do update set
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
     returning * into v_row;
   else
     v_new := false;
     update "better_supabase"."qualification_types" x set
-      "key" = save_qualification_type.key,
+      "key" = upsert_qualification_type.key,
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
-    where x."id" = save_qualification_type.type_id and x."tenant_id" = save_qualification_type.tenant
+    where x."id" = upsert_qualification_type.type_id and x."tenant_id" = upsert_qualification_type.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
@@ -4551,8 +4551,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
 
 -- Archives a type: it takes no new holdings and leaves the gap report, and
 -- its holdings stay.
@@ -4882,7 +4882,7 @@ grant execute on function "better_supabase"."get_qualification_type"(uuid) to au
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
 -- asset kind), segment (a segment of companies) or holder (one holder id).
-create or replace function "better_supabase"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
+create or replace function "better_supabase"."create_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language plpgsql
 security definer
@@ -4892,65 +4892,65 @@ as $$
 declare
   v_type "better_supabase"."qualification_types"%rowtype;
   v_row "better_supabase"."qualification_requirements"%rowtype;
-  v_value text := nullif(trim(add_qualification_requirement.target_value), '');
+  v_value text := nullif(trim(create_qualification_requirement.target_value), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_type from "better_supabase"."qualification_types" x where x."id" = add_qualification_requirement.type_id;
+  select * into v_type from "better_supabase"."qualification_types" x where x."id" = create_qualification_requirement.type_id;
   if not found then
     raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_type."tenant_id", 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if add_qualification_requirement.target_type is null or add_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
+  if create_qualification_requirement.target_type is null or create_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
     raise exception 'target_type is one of role, team, job_title, asset_kind, segment, holder' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
   if v_value is null or length(v_value) > 200 then
     raise exception 'a requirement needs a target value of at most 200 characters' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
-  if add_qualification_requirement.target_type = 'role' then
+  if create_qualification_requirement.target_type = 'role' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'role requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'team' then
+  if create_qualification_requirement.target_type = 'team' then
     raise exception 'team requirements need the teams block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'team requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'job_title' then
+  if create_qualification_requirement.target_type = 'job_title' then
     raise exception 'job_title requirements need the employees block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'job_title requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'asset_kind' then
+  if create_qualification_requirement.target_type = 'asset_kind' then
     raise exception 'asset_kind requirements need the assets block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('asset' = any(v_type."holder_types")) then
       raise exception 'asset_kind requirements apply to asset holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'segment' then
+  if create_qualification_requirement.target_type = 'segment' then
     raise exception 'segment requirements need the segments block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('company' = any(v_type."holder_types")) then
       raise exception 'segment requirements apply to company holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
   insert into "better_supabase"."qualification_requirements" ("tenant_id", "type_id", "target_type", "target_value")
-  values (v_type."tenant_id", v_type."id", add_qualification_requirement.target_type, v_value)
+  values (v_type."tenant_id", v_type."id", create_qualification_requirement.target_type, v_value)
   on conflict ("type_id", "target_type", "target_value") do nothing;
   select * into v_row from "better_supabase"."qualification_requirements" x
-  where x."type_id" = v_type."id" and x."target_type" = add_qualification_requirement.target_type and x."target_value" = v_value;
+  where x."type_id" = v_type."id" and x."target_type" = create_qualification_requirement.target_type and x."target_value" = v_value;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_qualification_requirement"(requirement_id uuid)
+create or replace function "better_supabase"."delete_qualification_requirement"(requirement_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -4963,7 +4963,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = remove_qualification_requirement.requirement_id;
+  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = delete_qualification_requirement.requirement_id;
   if not found then
     raise exception 'requirement not found' using errcode = 'P0002', hint = 'QUALIFICATION_REQUIREMENT_NOT_FOUND';
   end if;
@@ -4974,8 +4974,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_qualification_requirement"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_qualification_requirement"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_qualification_requirement"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_qualification_requirement"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_qualification_requirements"(type_id uuid)
 returns jsonb
@@ -5372,7 +5372,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:2e4f88bea909c37f7ea474db77e2dc251e0f5810a631c835db283a89ecc5cbb8
+-- @bsb-hash sha256:89863126cee4c41fd00f24b0729df443f46fe47cc0a87b8a91e2068b359b88a6
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5469,7 +5469,7 @@ create policy bsb_qualifications_read on "better_supabase"."qualifications"
 -- a type with the same key is updated (and unarchived). valid_for_months
 -- sets how long a holding lasts (null: it never expires); course_id grants
 -- the type when a member earns that course's certificate.
-create or replace function "better_supabase"."save_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
+create or replace function "better_supabase"."upsert_qualification_type"(tenant uuid, key text, name text, holder_types text[], valid_for_months integer default null, evidence_required boolean default false, course_id uuid default null, description text default null, type_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5479,16 +5479,16 @@ as $$
 declare
   v_row "better_supabase"."qualification_types"%rowtype;
   v_new boolean;
-  v_name text := nullif(trim(save_qualification_type.name), '');
-  v_holders text[] := array(select distinct h from unnest(save_qualification_type.holder_types) h where h is not null order by h);
+  v_name text := nullif(trim(upsert_qualification_type.name), '');
+  v_holders text[] := array(select distinct h from unnest(upsert_qualification_type.holder_types) h where h is not null order by h);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_qualification_type.tenant, 'qualifications.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_qualification_type.tenant, 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if save_qualification_type.key is null or save_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
+  if upsert_qualification_type.key is null or upsert_qualification_type.key !~ '^[a-z0-9][a-z0-9_.-]{0,62}$' then
     raise exception 'the key takes lowercase letters, digits, dots, dashes and underscores' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   if v_name is null or length(v_name) > 200 then
@@ -5503,10 +5503,10 @@ begin
   if 'asset' = any(v_holders) then
     raise exception 'asset holders need the assets block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.valid_for_months is not null and save_qualification_type.valid_for_months not between 1 and 240 then
+  if upsert_qualification_type.valid_for_months is not null and upsert_qualification_type.valid_for_months not between 1 and 240 then
     raise exception 'valid_for_months is between 1 and 240' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
-  if save_qualification_type.course_id is not null then
+  if upsert_qualification_type.course_id is not null then
     raise exception 'course_id needs the courses block' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
   end if;
   declare
@@ -5514,36 +5514,36 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text)', v_hook::oid::regproc)
-        using save_qualification_type.tenant, save_qualification_type.key;
+        using upsert_qualification_type.tenant, upsert_qualification_type.key;
     end if;
   end;
-  if save_qualification_type.type_id is null then
-    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."org_id" = save_qualification_type.tenant and x."key" = save_qualification_type.key);
+  if upsert_qualification_type.type_id is null then
+    v_new := not exists (select 1 from "better_supabase"."qualification_types" x where x."org_id" = upsert_qualification_type.tenant and x."key" = upsert_qualification_type.key);
     insert into "better_supabase"."qualification_types" ("org_id", "key", "name", "description", "holder_types", "valid_for_months", "evidence_required", "course_id")
-    values (save_qualification_type.tenant, save_qualification_type.key, v_name, nullif(trim(save_qualification_type.description), ''), v_holders, save_qualification_type.valid_for_months, coalesce(save_qualification_type.evidence_required, false), save_qualification_type.course_id)
+    values (upsert_qualification_type.tenant, upsert_qualification_type.key, v_name, nullif(trim(upsert_qualification_type.description), ''), v_holders, upsert_qualification_type.valid_for_months, coalesce(upsert_qualification_type.evidence_required, false), upsert_qualification_type.course_id)
     on conflict ("org_id", "key") do update set
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
     returning * into v_row;
   else
     v_new := false;
     update "better_supabase"."qualification_types" x set
-      "key" = save_qualification_type.key,
+      "key" = upsert_qualification_type.key,
       "name" = v_name,
-      "description" = nullif(trim(save_qualification_type.description), ''),
+      "description" = nullif(trim(upsert_qualification_type.description), ''),
       "holder_types" = v_holders,
-      "valid_for_months" = save_qualification_type.valid_for_months,
-      "evidence_required" = coalesce(save_qualification_type.evidence_required, false),
-      "course_id" = save_qualification_type.course_id,
+      "valid_for_months" = upsert_qualification_type.valid_for_months,
+      "evidence_required" = coalesce(upsert_qualification_type.evidence_required, false),
+      "course_id" = upsert_qualification_type.course_id,
       "archived_at" = null,
       "updated_at" = now()
-    where x."id" = save_qualification_type.type_id and x."org_id" = save_qualification_type.tenant
+    where x."id" = upsert_qualification_type.type_id and x."org_id" = upsert_qualification_type.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
@@ -5565,8 +5565,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_qualification_type"(uuid, text, text, text[], integer, boolean, uuid, text, uuid) to authenticated, service_role;
 
 -- Archives a type: it takes no new holdings and leaves the gap report, and
 -- its holdings stay.
@@ -5896,7 +5896,7 @@ grant execute on function "better_supabase"."get_qualification_type"(uuid) to au
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
 -- asset kind), segment (a segment of companies) or holder (one holder id).
-create or replace function "better_supabase"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
+create or replace function "better_supabase"."create_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language plpgsql
 security definer
@@ -5906,65 +5906,65 @@ as $$
 declare
   v_type "better_supabase"."qualification_types"%rowtype;
   v_row "better_supabase"."qualification_requirements"%rowtype;
-  v_value text := nullif(trim(add_qualification_requirement.target_value), '');
+  v_value text := nullif(trim(create_qualification_requirement.target_value), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_type from "better_supabase"."qualification_types" x where x."id" = add_qualification_requirement.type_id;
+  select * into v_type from "better_supabase"."qualification_types" x where x."id" = create_qualification_requirement.type_id;
   if not found then
     raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_type."org_id", 'qualifications.manage'), false)) then
     raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
   end if;
-  if add_qualification_requirement.target_type is null or add_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
+  if create_qualification_requirement.target_type is null or create_qualification_requirement.target_type not in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder') then
     raise exception 'target_type is one of role, team, job_title, asset_kind, segment, holder' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
   if v_value is null or length(v_value) > 200 then
     raise exception 'a requirement needs a target value of at most 200 characters' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
   end if;
-  if add_qualification_requirement.target_type = 'role' then
+  if create_qualification_requirement.target_type = 'role' then
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'role requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'team' then
+  if create_qualification_requirement.target_type = 'team' then
     raise exception 'team requirements need the teams block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'team requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'job_title' then
+  if create_qualification_requirement.target_type = 'job_title' then
     raise exception 'job_title requirements need the employees block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('member' = any(v_type."holder_types")) then
       raise exception 'job_title requirements apply to member holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'asset_kind' then
+  if create_qualification_requirement.target_type = 'asset_kind' then
     raise exception 'asset_kind requirements need the assets block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('asset' = any(v_type."holder_types")) then
       raise exception 'asset_kind requirements apply to asset holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
-  if add_qualification_requirement.target_type = 'segment' then
+  if create_qualification_requirement.target_type = 'segment' then
     raise exception 'segment requirements need the segments block' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     if not ('company' = any(v_type."holder_types")) then
       raise exception 'segment requirements apply to company holders' using errcode = '22023', hint = 'QUALIFICATION_REQUIREMENT_INVALID';
     end if;
   end if;
   insert into "better_supabase"."qualification_requirements" ("org_id", "type_id", "target_type", "target_value")
-  values (v_type."org_id", v_type."id", add_qualification_requirement.target_type, v_value)
+  values (v_type."org_id", v_type."id", create_qualification_requirement.target_type, v_value)
   on conflict ("type_id", "target_type", "target_value") do nothing;
   select * into v_row from "better_supabase"."qualification_requirements" x
-  where x."type_id" = v_type."id" and x."target_type" = add_qualification_requirement.target_type and x."target_value" = v_value;
+  where x."type_id" = v_type."id" and x."target_type" = create_qualification_requirement.target_type and x."target_value" = v_value;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."add_qualification_requirement"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."create_qualification_requirement"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_qualification_requirement"(requirement_id uuid)
+create or replace function "better_supabase"."delete_qualification_requirement"(requirement_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -5977,7 +5977,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = remove_qualification_requirement.requirement_id;
+  select * into v_row from "better_supabase"."qualification_requirements" x where x."id" = delete_qualification_requirement.requirement_id;
   if not found then
     raise exception 'requirement not found' using errcode = 'P0002', hint = 'QUALIFICATION_REQUIREMENT_NOT_FOUND';
   end if;
@@ -5988,8 +5988,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'qualificationTypeId', v_row."type_id", 'targetType', v_row."target_type", 'targetValue', v_row."target_value", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_qualification_requirement"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_qualification_requirement"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_qualification_requirement"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_qualification_requirement"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_qualification_requirements"(type_id uuid)
 returns jsonb

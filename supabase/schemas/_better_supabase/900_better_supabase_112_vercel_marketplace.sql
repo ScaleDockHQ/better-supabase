@@ -1,6 +1,6 @@
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:d1a129cafa46304725c8d88ced13099c3e5e8f500df7779fef2ac527d7e32bf4
+-- @bsb-hash sha256:b5f828408ddd8ee45d3ca5eeaa5d93ac15dfa18ecb4eaf4d42d4777b127a2d66
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -183,7 +183,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function "better_supabase"."remove_marketplace_installation"(configuration_id text)
+create or replace function "better_supabase"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -196,7 +196,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   update "better_supabase"."marketplace_installations" x set "status" = 'removed', "removed_at" = coalesce(x."removed_at", now())
-  where x."configuration_id" = remove_marketplace_installation.configuration_id
+  where x."configuration_id" = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row."id" is null then
     return null;
@@ -629,8 +629,8 @@ revoke execute on function "better_supabase"."upsert_marketplace_installation"(t
 grant execute on function "better_supabase"."upsert_marketplace_installation"(text, text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."marketplace_installation"(text) to service_role;
-revoke execute on function "better_supabase"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "better_supabase"."remove_marketplace_installation"(text) to service_role;
+revoke execute on function "better_supabase"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."delete_marketplace_installation"(text) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_resource"(text, text, text, text, text, jsonb) from public, anon, authenticated;
@@ -687,14 +687,14 @@ as $$ select "better_supabase"."marketplace_installation"($1) $$;
 revoke execute on function "api"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "api"."marketplace_installation"(text) to service_role;
 
-create or replace function "api"."remove_marketplace_installation"(configuration_id text)
+create or replace function "api"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_marketplace_installation"($1) $$;
-revoke execute on function "api"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "api"."remove_marketplace_installation"(text) to service_role;
+as $$ select "better_supabase"."delete_marketplace_installation"($1) $$;
+revoke execute on function "api"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "api"."delete_marketplace_installation"(text) to service_role;
 
 create or replace function "api"."upsert_marketplace_plan"(id text, name text, kind text default 'subscription', details jsonb default '{}'::jsonb)
 returns jsonb

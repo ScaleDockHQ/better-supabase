@@ -160,9 +160,9 @@ describe("createAutomations", () => {
         args["id"] === "r1" ? row() : null,
       set_rule_enabled: row(),
       rank_rule: row(),
-      remove_rule: true,
+      delete_rule: true,
       reset_default_rule: row(),
-      save_rule: row(),
+      upsert_rule: row(),
     });
 
     const automations = createAutomations({

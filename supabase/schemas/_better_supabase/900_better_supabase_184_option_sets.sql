@@ -1,6 +1,6 @@
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:11f08a36a24733593fa642630c6c9819423488f72ea760195090e7824693cf6f
+-- @bsb-hash sha256:0677257513d2ea5c9e97eb44abc0651036365768a423078b53fe5228dae03e8b
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -520,49 +520,49 @@ grant execute on function "better_supabase"."ensure_option_set"(uuid, text, text
 
 -- Creates an option set (option_set null) or renames one. Returns it with its
 -- items. A set made the default replaces the field's previous default.
-create or replace function "better_supabase"."save_option_set"(tenant uuid, option_set uuid, subject_type text, field text, key text, name text, scope_id text default null, is_default boolean default false)
+create or replace function "better_supabase"."upsert_option_set"(tenant uuid, option_set uuid, subject_type text, field text, key text, name text, scope_id text default null, is_default boolean default false)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_set uuid := save_option_set.option_set;
-  v_tenant uuid := save_option_set.tenant;
-  v_type text := save_option_set.subject_type;
-  v_field text := save_option_set.field;
-  v_created boolean := save_option_set.option_set is null;
+  v_set uuid := upsert_option_set.option_set;
+  v_tenant uuid := upsert_option_set.tenant;
+  v_type text := upsert_option_set.subject_type;
+  v_field text := upsert_option_set.field;
+  v_created boolean := upsert_option_set.option_set is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_option_set.tenant, 'option_sets.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_option_set.tenant, 'option_sets.manage'), false)) then
     raise exception 'not allowed to manage option sets' using errcode = '42501', hint = 'OPTION_SET_FORBIDDEN';
   end if;
-  if not (save_option_set.subject_type || '.' || save_option_set.field = any ('{work_item.priority}'::text[])) then
+  if not (upsert_option_set.subject_type || '.' || upsert_option_set.field = any ('{work_item.priority}'::text[])) then
     raise exception 'this field has no option set binding' using errcode = '22023', hint = 'OPTION_SET_FIELD_UNKNOWN';
   end if;
-  if coalesce(save_option_set.is_default, false) then
+  if coalesce(upsert_option_set.is_default, false) then
     update "better_supabase"."option_sets" x set "is_default" = false
-    where x."tenant_id" = save_option_set.tenant and x."subject_type" = save_option_set.subject_type
-      and x."field" = save_option_set.field
-      and x."scope_id" is not distinct from save_option_set.scope_id and x."is_default"
-      and x."id" is distinct from save_option_set.option_set;
+    where x."tenant_id" = upsert_option_set.tenant and x."subject_type" = upsert_option_set.subject_type
+      and x."field" = upsert_option_set.field
+      and x."scope_id" is not distinct from upsert_option_set.scope_id and x."is_default"
+      and x."id" is distinct from upsert_option_set.option_set;
   end if;
   begin
     if v_created then
       insert into "better_supabase"."option_sets" ("tenant_id", "subject_type", "field", "scope_id", "key", "name", "is_default")
-      values (save_option_set.tenant, save_option_set.subject_type, save_option_set.field, save_option_set.scope_id, save_option_set.key, save_option_set.name,
-        coalesce(save_option_set.is_default, false) or not exists (
-          select 1 from "better_supabase"."option_sets" x where x."tenant_id" = save_option_set.tenant and x."subject_type" = save_option_set.subject_type
-            and x."field" = save_option_set.field
-            and x."scope_id" is not distinct from save_option_set.scope_id and x."archived_at" is null))
+      values (upsert_option_set.tenant, upsert_option_set.subject_type, upsert_option_set.field, upsert_option_set.scope_id, upsert_option_set.key, upsert_option_set.name,
+        coalesce(upsert_option_set.is_default, false) or not exists (
+          select 1 from "better_supabase"."option_sets" x where x."tenant_id" = upsert_option_set.tenant and x."subject_type" = upsert_option_set.subject_type
+            and x."field" = upsert_option_set.field
+            and x."scope_id" is not distinct from upsert_option_set.scope_id and x."archived_at" is null))
       returning "id" into v_set;
     else
-      update "better_supabase"."option_sets" x set "key" = save_option_set.key, "name" = save_option_set.name,
-        "is_default" = coalesce(save_option_set.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_option_set.option_set and x."tenant_id" = save_option_set.tenant
-        and x."subject_type" = save_option_set.subject_type and x."field" = save_option_set.field;
+      update "better_supabase"."option_sets" x set "key" = upsert_option_set.key, "name" = upsert_option_set.name,
+        "is_default" = coalesce(upsert_option_set.is_default, x."is_default"), "updated_at" = now()
+      where x."id" = upsert_option_set.option_set and x."tenant_id" = upsert_option_set.tenant
+        and x."subject_type" = upsert_option_set.subject_type and x."field" = upsert_option_set.field;
       if not found then
         raise exception 'option set not found' using errcode = 'P0002', hint = 'OPTION_SET_NOT_FOUND';
       end if;
@@ -571,26 +571,26 @@ begin
     raise exception 'another option set of this field has this key' using errcode = '23505', hint = 'OPTION_SET_KEY_TAKEN';
   end;
   if v_created then
-    perform "better_supabase".emit_event('option_set.created', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', save_option_set.key), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
+    perform "better_supabase".emit_event('option_set.created', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', upsert_option_set.key), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
   perform better_supabase.audit_event(
     event_type => 'option_set.created',
     category => 'configuration',
     target_type => 'option_set',
     record_id => v_set::text,
-    summary => 'created option set ' || save_option_set.name,
+    summary => 'created option set ' || upsert_option_set.name,
     tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', save_option_set.key)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', upsert_option_set.key)
   );
   else
-    perform "better_supabase".emit_event('option_set.updated', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', save_option_set.key), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
+    perform "better_supabase".emit_event('option_set.updated', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', upsert_option_set.key), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
   perform better_supabase.audit_event(
     event_type => 'option_set.updated',
     category => 'configuration',
     target_type => 'option_set',
     record_id => v_set::text,
-    summary => 'updated option set ' || save_option_set.name,
+    summary => 'updated option set ' || upsert_option_set.name,
     tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', save_option_set.key)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', upsert_option_set.key)
   );
   end if;
   return (select to_jsonb(y) || jsonb_build_object('items', coalesce((
@@ -600,13 +600,13 @@ begin
     ), '[]'::jsonb)) from "better_supabase"."option_sets" y where y."id" = v_set);
 end;
 $$;
-revoke execute on function "better_supabase"."save_option_set"(uuid, uuid, text, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_option_set"(uuid, uuid, text, text, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_option_set"(uuid, uuid, text, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_option_set"(uuid, uuid, text, text, text, text, text, boolean) to authenticated, service_role;
 
 -- Creates an item at the end of a set (item null) or changes one. The level
 -- must lie within the bounds of the field's binding; records on the item take
 -- the new level.
-create or replace function "better_supabase"."save_option_set_item"(option_set uuid, item uuid, key text, label text, level integer, color text default null, icon text default null, description text default null)
+create or replace function "better_supabase"."upsert_option_set_item"(option_set uuid, item uuid, key text, label text, level integer, color text default null, icon text default null, description text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -618,14 +618,14 @@ declare
   v_field text;
   v_min integer;
   v_max integer;
-  v_set uuid := save_option_set_item.option_set;
-  v_item uuid := save_option_set_item.item;
+  v_set uuid := upsert_option_set_item.option_set;
+  v_item uuid := upsert_option_set_item.item;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."subject_type", x."field" into v_tenant, v_type, v_field
-  from "better_supabase"."option_sets" x where x."id" = save_option_set_item.option_set and x."archived_at" is null;
+  from "better_supabase"."option_sets" x where x."id" = upsert_option_set_item.option_set and x."archived_at" is null;
   if v_tenant is null then
     raise exception 'option set not found' using errcode = 'P0002', hint = 'OPTION_SET_NOT_FOUND';
   end if;
@@ -638,30 +638,30 @@ begin
     else
       raise exception 'this field has no option set binding' using errcode = '22023', hint = 'OPTION_SET_FIELD_UNKNOWN';
     end if;
-  if save_option_set_item.level is null or save_option_set_item.level < v_min or save_option_set_item.level > v_max then
+  if upsert_option_set_item.level is null or upsert_option_set_item.level < v_min or upsert_option_set_item.level > v_max then
     raise exception 'the level is outside the bounds of this field' using errcode = '22023', hint = 'OPTION_SET_LEVEL_INVALID';
   end if;
   begin
     if v_item is null then
       insert into "better_supabase"."option_set_items" ("tenant_id", "option_set_id", "key", "label", "level", "color", "icon", "description", "rank")
-      values (v_tenant, save_option_set_item.option_set, save_option_set_item.key, save_option_set_item.label, save_option_set_item.level,
-        save_option_set_item.color, save_option_set_item.icon, save_option_set_item.description,
+      values (v_tenant, upsert_option_set_item.option_set, upsert_option_set_item.key, upsert_option_set_item.label, upsert_option_set_item.level,
+        upsert_option_set_item.color, upsert_option_set_item.icon, upsert_option_set_item.description,
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set)) then (select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set), length(substring((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set), length(substring((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = save_option_set_item.option_set) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set)) then (select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set), length(substring((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set), length(substring((select max(x."rank" collate "C") from "better_supabase"."option_set_items" x where x."option_set_id" = upsert_option_set_item.option_set) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_item;
     else
-      update "better_supabase"."option_set_items" x set "key" = save_option_set_item.key, "label" = save_option_set_item.label,
-        "level" = save_option_set_item.level, "color" = save_option_set_item.color, "icon" = save_option_set_item.icon,
-        "description" = save_option_set_item.description, "updated_at" = now()
-      where x."id" = v_item and x."option_set_id" = save_option_set_item.option_set;
+      update "better_supabase"."option_set_items" x set "key" = upsert_option_set_item.key, "label" = upsert_option_set_item.label,
+        "level" = upsert_option_set_item.level, "color" = upsert_option_set_item.color, "icon" = upsert_option_set_item.icon,
+        "description" = upsert_option_set_item.description, "updated_at" = now()
+      where x."id" = v_item and x."option_set_id" = upsert_option_set_item.option_set;
       if not found then
         raise exception 'item not found' using errcode = 'P0002', hint = 'OPTION_SET_ITEM_NOT_FOUND';
       end if;
           if v_type = 'work_item' and v_field = 'priority' then
-      update "better_supabase"."work_items" r set "priority" = save_option_set_item.level
+      update "better_supabase"."work_items" r set "priority" = upsert_option_set_item.level
       where r."priority_option_id" = v_item;
     else
       null;
@@ -670,34 +670,34 @@ begin
   exception when unique_violation then
     raise exception 'another item of this set has this key' using errcode = '23505', hint = 'OPTION_SET_ITEM_KEY_TAKEN';
   end;
-  if save_option_set_item.item is null then
-    perform "better_supabase".emit_event('option_set_item.created', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', save_option_set_item.key, 'level', save_option_set_item.level), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
+  if upsert_option_set_item.item is null then
+    perform "better_supabase".emit_event('option_set_item.created', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', upsert_option_set_item.key, 'level', upsert_option_set_item.level), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
   perform better_supabase.audit_event(
     event_type => 'option_set_item.created',
     category => 'configuration',
     target_type => 'option_set_item',
     record_id => v_item::text,
-    summary => 'created option set item ' || save_option_set_item.label,
+    summary => 'created option set item ' || upsert_option_set_item.label,
     tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', save_option_set_item.key, 'level', save_option_set_item.level)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', upsert_option_set_item.key, 'level', upsert_option_set_item.level)
   );
   else
-    perform "better_supabase".emit_event('option_set_item.updated', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', save_option_set_item.key, 'level', save_option_set_item.level), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
+    perform "better_supabase".emit_event('option_set_item.updated', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', upsert_option_set_item.key, 'level', upsert_option_set_item.level), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
   perform better_supabase.audit_event(
     event_type => 'option_set_item.updated',
     category => 'configuration',
     target_type => 'option_set_item',
     record_id => v_item::text,
-    summary => 'updated option set item ' || save_option_set_item.label,
+    summary => 'updated option set item ' || upsert_option_set_item.label,
     tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', save_option_set_item.key, 'level', save_option_set_item.level)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', upsert_option_set_item.key, 'level', upsert_option_set_item.level)
   );
   end if;
   return (select to_jsonb(x) from "better_supabase"."option_set_items" x where x."id" = v_item);
 end;
 $$;
-revoke execute on function "better_supabase"."save_option_set_item"(uuid, uuid, text, text, integer, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_option_set_item"(uuid, uuid, text, text, integer, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_option_set_item"(uuid, uuid, text, text, integer, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_option_set_item"(uuid, uuid, text, text, integer, text, text, text) to authenticated, service_role;
 
 -- Moves an item to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_option_set_item"(item uuid, rank text)
@@ -938,23 +938,23 @@ as $$ select "better_supabase"."ensure_option_set"($1, $2, $3, $4) $$;
 revoke execute on function "api"."ensure_option_set"(uuid, text, text, text) from public, anon;
 grant execute on function "api"."ensure_option_set"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "api"."save_option_set"(tenant uuid, option_set uuid, subject_type text, field text, key text, name text, scope_id text default null, is_default boolean default false)
+create or replace function "api"."upsert_option_set"(tenant uuid, option_set uuid, subject_type text, field text, key text, name text, scope_id text default null, is_default boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_option_set"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_option_set"(uuid, uuid, text, text, text, text, text, boolean) from public, anon;
-grant execute on function "api"."save_option_set"(uuid, uuid, text, text, text, text, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_option_set"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_option_set"(uuid, uuid, text, text, text, text, text, boolean) from public, anon;
+grant execute on function "api"."upsert_option_set"(uuid, uuid, text, text, text, text, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_option_set_item"(option_set uuid, item uuid, key text, label text, level integer, color text default null, icon text default null, description text default null)
+create or replace function "api"."upsert_option_set_item"(option_set uuid, item uuid, key text, label text, level integer, color text default null, icon text default null, description text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_option_set_item"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_option_set_item"(uuid, uuid, text, text, integer, text, text, text) from public, anon;
-grant execute on function "api"."save_option_set_item"(uuid, uuid, text, text, integer, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_option_set_item"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_option_set_item"(uuid, uuid, text, text, integer, text, text, text) from public, anon;
+grant execute on function "api"."upsert_option_set_item"(uuid, uuid, text, text, integer, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."rank_option_set_item"(item uuid, rank text)
 returns boolean

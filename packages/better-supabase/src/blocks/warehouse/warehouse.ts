@@ -829,9 +829,9 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
     savePutawayRule: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_putaway_rule",
+          "upsert_putaway_rule",
           { tenant: organizationId, input: definedOf(input) },
-          (value) => ruleOf(value, "save_putaway_rule"),
+          (value) => ruleOf(value, "upsert_putaway_rule"),
         ),
       ),
     deletePutawayRule: (ruleId) =>
@@ -864,10 +864,10 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
     saveBinSlot: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_bin_slot",
+          "upsert_bin_slot",
           { tenant: organizationId, input: definedOf(input) },
           (value) => {
-            const row = recordOf(value, "save_bin_slot");
+            const row = recordOf(value, "upsert_bin_slot");
 
             return {
               binId: textOf(row["binId"]),
@@ -880,10 +880,10 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
     saveVariantSize: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_variant_size",
+          "upsert_variant_size",
           { tenant: organizationId, input: definedOf(input) },
           (value) => {
-            const row = recordOf(value, "save_variant_size");
+            const row = recordOf(value, "upsert_variant_size");
 
             return {
               variantId: textOf(row["variantId"]),

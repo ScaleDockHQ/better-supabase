@@ -40,7 +40,7 @@ function fakeTransport(results: Readonly<Record<string, unknown>>) {
 
 describe("subjects members", () => {
   it("adds a user with dates and reads the row back", async () => {
-    const fake = fakeTransport({ add_subject_member: MEMBER });
+    const fake = fakeTransport({ create_subject_member: MEMBER });
     const { members } = createSubjects({ transport: fake.transport });
 
     const member = await members
@@ -56,7 +56,7 @@ describe("subjects members", () => {
 
     expect(fake.calls).toEqual([
       {
-        fn: "add_subject_member",
+        fn: "create_subject_member",
         args: {
           subject_type: "patient",
           subject_id: "p1",

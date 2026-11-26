@@ -145,8 +145,8 @@ begin
   insert into auth.users (id, email) values ('${ADA}', 'ada@example.com'), ('${BOB}', 'bob@example.com');
   insert into better_supabase.memberships (organization_id, user_id, role)
     values ('${TENANT}', '${ADA}', 'member'), ('${TENANT}', '${BOB}', 'member');
-  v_first := better_supabase.save_shift('${TENANT}', '2030-03-04T08:00:00Z', '2030-03-04T16:00:00Z', null, null, 30, 1);
-  v_second := better_supabase.save_shift('${TENANT}', '2030-03-04T12:00:00Z', '2030-03-04T20:00:00Z');
+  v_first := better_supabase.upsert_shift('${TENANT}', '2030-03-04T08:00:00Z', '2030-03-04T16:00:00Z', null, null, 30, 1);
+  v_second := better_supabase.upsert_shift('${TENANT}', '2030-03-04T12:00:00Z', '2030-03-04T20:00:00Z');
   if (select count(*) from public.rota_shifts) <> 2 or (select break_minutes from public.rota_shifts where id = (v_first ->> 'id')::uuid) <> 30 then
     raise exception 'shifts %', v_first;
   end if;

@@ -176,12 +176,12 @@ ${taxReturns(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_tax_code",
+      name: "upsert_tax_code",
       args: ["{id}", "jsonb", "uuid"],
       returns: "jsonb",
     },
     {
-      name: "save_tax_rate",
+      name: "upsert_tax_rate",
       args: ["{id}", "uuid", "integer", "date", "date"],
       returns: "jsonb",
     },

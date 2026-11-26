@@ -113,7 +113,7 @@ describe("workflow editor definitions and versions", () => {
   });
 
   it("saves a draft with an input schema", async () => {
-    const { transport, calls } = fake({ save_workflow_draft: () => VERSION });
+    const { transport, calls } = fake({ upsert_workflow_draft: () => VERSION });
     const builder = createWorkflowEditor({ transport });
 
     await builder.versions
@@ -384,7 +384,7 @@ describe("workflow editor credentials", () => {
 
   it("returns the error when the provider fails to revoke", async () => {
     const { transport } = fake({
-      remove_workflow_credential: () => CREDENTIAL,
+      delete_workflow_credential: () => CREDENTIAL,
     });
 
     const builder = createWorkflowEditor({

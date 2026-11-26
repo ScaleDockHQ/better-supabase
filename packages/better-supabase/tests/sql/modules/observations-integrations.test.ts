@@ -64,7 +64,7 @@ const SETUP = `${SERVICE}
   insert into better_supabase.memberships (organization_id, user_id, role)
   values ('${TENANT}', '${ADA}', 'admin'), ('${TENANT}', '${BOB}', 'member');
   insert into public.patients (id, organization_id, name) values ('${PATIENT}', '${TENANT}', 'Pat');
-  perform better_supabase.add_subject_member('patient', '${PATIENT}', '${ADA}', null, 'lead');`;
+  perform better_supabase.create_subject_member('patient', '${PATIENT}', '${ADA}', null, 'lead');`;
 
 const refused = (call: string, hint: string): string => `begin
     perform ${call};
@@ -198,7 +198,7 @@ begin
   if jsonb_array_length(v_list) <> 0 then
     raise exception 'a member off the record team read its observations';
   end if;
-  ${refused(`better_supabase.save_observation_definition('${TENANT}', 'mews', '{"title": "MEWS", "valueType": "integer"}')`, "OBSERVATION_FORBIDDEN")}
+  ${refused(`better_supabase.upsert_observation_definition('${TENANT}', 'mews', '{"title": "MEWS", "valueType": "integer"}')`, "OBSERVATION_FORBIDDEN")}
 
   ${SERVICE}
   v_ingest := better_supabase.ingest_observations('${TENANT}', jsonb_build_array(

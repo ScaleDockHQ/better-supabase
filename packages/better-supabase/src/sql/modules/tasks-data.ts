@@ -4,9 +4,9 @@ import { booksAccounting } from "../accounting-sources-sql.ts";
 
 /**
  * The data step that gives every existing project its value of accounting's
- * `project` dimension. `save_project` syncs a value on each save, so a project
- * written before accounting booked tasks had none until its next save. It
- * creates the dimension when it is missing and updates names, so running it
+ * `project` dimension. `upsert_project` syncs a value on each save, so a
+ * project written before accounting booked tasks had none until its next save.
+ * It creates the dimension when it is missing and updates names, so running it
  * again changes nothing.
  */
 export function backfillProjectDimensions(ctx: BlockSqlContext): string {

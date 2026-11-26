@@ -586,19 +586,19 @@ export function manageFunctions(
 
   const stageInsert = present(names, "stages", [
     ["tenant", "v_tenant"],
-    ["pipeline", "save_pipeline_stage.pipeline"],
-    ["key", "save_pipeline_stage.key"],
-    ["name", "save_pipeline_stage.name"],
+    ["pipeline", "upsert_pipeline_stage.pipeline"],
+    ["key", "upsert_pipeline_stage.key"],
+    ["name", "upsert_pipeline_stage.name"],
     [
       "category",
-      ctx.cast("stages", "category", "save_pipeline_stage.category"),
+      ctx.cast("stages", "category", "upsert_pipeline_stage.category"),
     ],
     ["outcome", ctx.cast("stages", "outcome", "v_outcome")],
-    ["probability", "save_pipeline_stage.probability"],
-    ["rottingAfterDays", "save_pipeline_stage.rotting_after_days"],
-    ["wipLimit", "save_pipeline_stage.wip_limit"],
-    ["color", "save_pipeline_stage.color"],
-    ["icon", "save_pipeline_stage.icon"],
+    ["probability", "upsert_pipeline_stage.probability"],
+    ["rottingAfterDays", "upsert_pipeline_stage.rotting_after_days"],
+    ["wipLimit", "upsert_pipeline_stage.wip_limit"],
+    ["color", "upsert_pipeline_stage.color"],
+    ["icon", "upsert_pipeline_stage.icon"],
   ]);
 
   const guard = (
@@ -611,7 +611,7 @@ export function manageFunctions(
     "v_subject_type",
     bindings,
     (binding) =>
-      `      v_outcome := ${outcomeCase(binding, "save_pipeline_stage.category")};`,
+      `      v_outcome := ${outcomeCase(binding, "upsert_pipeline_stage.category")};`,
     fail(
       "PIPELINE_SUBJECT_UNKNOWN",
       "this subject type has no pipeline binding",
@@ -706,58 +706,58 @@ ${userGrant(`${fn("set_pipeline_transitions")}(uuid, jsonb)`)}
   return `
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
-${extraFieldsArg(names.extras).drop(fn("save_pipeline"), `${ctx.idType}, uuid, text, text, text, text, boolean`)}
-create or replace function ${fn("save_pipeline")}(tenant ${ctx.idType}, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean${extraFieldsArg(names.extras).param})
+${extraFieldsArg(names.extras).drop(fn("upsert_pipeline"), `${ctx.idType}, uuid, text, text, text, text, boolean`)}
+create or replace function ${fn("upsert_pipeline")}(tenant ${ctx.idType}, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean${extraFieldsArg(names.extras).param})
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
+  v_pipeline uuid := upsert_pipeline.pipeline;
+  v_created boolean := upsert_pipeline.pipeline is null;
 begin
-  ${guard("save_pipeline.tenant")}
-  if not (save_pipeline.subject_type = any (${sqlString(`{${bindings.map((binding) => binding.type).join(",")}}`)}::text[])) then
+  ${guard("upsert_pipeline.tenant")}
+  if not (upsert_pipeline.subject_type = any (${sqlString(`{${bindings.map((binding) => binding.type).join(",")}}`)}::text[])) then
     ${fail("PIPELINE_SUBJECT_UNKNOWN", "this subject type has no pipeline binding", "22023")}
   end if;
   ${ctx.hook("before_pipeline_save", [
-    [ctx.idType, "save_pipeline.tenant"],
-    ["uuid", "save_pipeline.pipeline"],
-    ["text", "save_pipeline.subject_type"],
-    ["text", "save_pipeline.key"],
+    [ctx.idType, "upsert_pipeline.tenant"],
+    ["uuid", "upsert_pipeline.pipeline"],
+    ["text", "upsert_pipeline.subject_type"],
+    ["text", "upsert_pipeline.key"],
   ])}
-  if coalesce(save_pipeline.is_default, false) then
+  if coalesce(upsert_pipeline.is_default, false) then
     update ${t("pipelines")} x set ${p("isDefault")} = false
-    where x.${p("tenant")} = save_pipeline.tenant and x.${p("subjectType")} = save_pipeline.subject_type
-      and x.${p("scope")} is not distinct from save_pipeline.scope_id and x.${p("isDefault")}
-      and x.${p("id")} is distinct from save_pipeline.pipeline;
+    where x.${p("tenant")} = upsert_pipeline.tenant and x.${p("subjectType")} = upsert_pipeline.subject_type
+      and x.${p("scope")} is not distinct from upsert_pipeline.scope_id and x.${p("isDefault")}
+      and x.${p("id")} is distinct from upsert_pipeline.pipeline;
   end if;
   begin
     if v_created then
       insert into ${t("pipelines")} (${p("tenant")}, ${p("subjectType")}, ${p("scope")}, ${p("key")}, ${p("name")}, ${p("isDefault")}, ${p("rank")})
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from ${t("pipelines")} x where x.${p("tenant")} = save_pipeline.tenant and x.${p("subjectType")} = save_pipeline.subject_type
-            and x.${p("scope")} is not distinct from save_pipeline.scope_id and x.${p("archivedAt")} is null),
-        ${rankAfter(`(select max(x.${p("rank")} collate "C") from ${t("pipelines")} x where x.${p("tenant")} = save_pipeline.tenant and x.${p("subjectType")} = save_pipeline.subject_type)`)})
+      values (upsert_pipeline.tenant, upsert_pipeline.subject_type, upsert_pipeline.scope_id, upsert_pipeline.key, upsert_pipeline.name,
+        coalesce(upsert_pipeline.is_default, false) or not exists (
+          select 1 from ${t("pipelines")} x where x.${p("tenant")} = upsert_pipeline.tenant and x.${p("subjectType")} = upsert_pipeline.subject_type
+            and x.${p("scope")} is not distinct from upsert_pipeline.scope_id and x.${p("archivedAt")} is null),
+        ${rankAfter(`(select max(x.${p("rank")} collate "C") from ${t("pipelines")} x where x.${p("tenant")} = upsert_pipeline.tenant and x.${p("subjectType")} = upsert_pipeline.subject_type)`)})
       returning ${p("id")} into v_pipeline;
     else
-      update ${t("pipelines")} x set ${p("key")} = save_pipeline.key, ${p("name")} = save_pipeline.name,
-        ${p("isDefault")} = coalesce(save_pipeline.is_default, x.${p("isDefault")})${touched(names, "pipelines")}
-      where x.${p("id")} = save_pipeline.pipeline and x.${p("tenant")} = save_pipeline.tenant
-        and x.${p("subjectType")} = save_pipeline.subject_type;
+      update ${t("pipelines")} x set ${p("key")} = upsert_pipeline.key, ${p("name")} = upsert_pipeline.name,
+        ${p("isDefault")} = coalesce(upsert_pipeline.is_default, x.${p("isDefault")})${touched(names, "pipelines")}
+      where x.${p("id")} = upsert_pipeline.pipeline and x.${p("tenant")} = upsert_pipeline.tenant
+        and x.${p("subjectType")} = upsert_pipeline.subject_type;
       if not found then
         ${fail("PIPELINE_NOT_FOUND", "pipeline not found", "P0002")}
       end if;
     end if;
   exception when unique_violation then
     ${fail("PIPELINE_KEY_TAKEN", "another pipeline of this type has this key", "23505")}
-  end;${writeExtraColumns(t("pipelines"), names.extras, "save_pipeline.fields", `x.${p("id")} = v_pipeline`)}
+  end;${writeExtraColumns(t("pipelines"), names.extras, "upsert_pipeline.fields", `x.${p("id")} = v_pipeline`)}
   if v_created then
-    ${configured("pipeline.created", "jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)", "'pipelines/' || v_pipeline::text", "save_pipeline.tenant::text", "'created pipeline ' || save_pipeline.name")}
+    ${configured("pipeline.created", "jsonb_build_object('organizationId', upsert_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', upsert_pipeline.subject_type, 'key', upsert_pipeline.key)", "'pipelines/' || v_pipeline::text", "upsert_pipeline.tenant::text", "'created pipeline ' || upsert_pipeline.name")}
   else
-    ${configured("pipeline.updated", "jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)", "'pipelines/' || v_pipeline::text", "save_pipeline.tenant::text", "'updated pipeline ' || save_pipeline.name")}
+    ${configured("pipeline.updated", "jsonb_build_object('organizationId', upsert_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', upsert_pipeline.subject_type, 'key', upsert_pipeline.key)", "'pipelines/' || v_pipeline::text", "upsert_pipeline.tenant::text", "'updated pipeline ' || upsert_pipeline.name")}
   end if;
   ${ctx.hook("after_pipeline_save", [
     ["uuid", "v_pipeline"],
@@ -766,7 +766,7 @@ begin
   return (select ${names.json("pipelines", "x")}${pipelineFields(names, "x")} from ${t("pipelines")} x where x.${p("id")} = v_pipeline);
 end;
 $$;
-${userGrant(`${fn("save_pipeline")}(${ctx.idType}, uuid, text, text, text, text, boolean${extraFieldsArg(names.extras).type})`)}
+${userGrant(`${fn("upsert_pipeline")}(${ctx.idType}, uuid, text, text, text, text, boolean${extraFieldsArg(names.extras).type})`)}
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function ${fn("archive_pipeline")}(pipeline uuid)
@@ -827,8 +827,8 @@ ${userGrant(`${fn("restore_pipeline")}(uuid)`)}
 
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
-drop function if exists ${fn("save_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text);
-create or replace function ${fn("save_pipeline_stage")}(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+drop function if exists ${fn("upsert_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text);
+create or replace function ${fn("upsert_pipeline_stage")}(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -838,12 +838,12 @@ declare
   v_tenant ${ctx.idType};
   v_subject_type text;
   v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
+  v_stage uuid := upsert_pipeline_stage.stage;
+  v_pipeline uuid := upsert_pipeline_stage.pipeline;
   v_used boolean;
 begin
   select x.${p("tenant")}, x.${p("subjectType")} into v_tenant, v_subject_type
-  from ${t("pipelines")} x where x.${p("id")} = save_pipeline_stage.pipeline and x.${p("archivedAt")} is null;
+  from ${t("pipelines")} x where x.${p("id")} = upsert_pipeline_stage.pipeline and x.${p("archivedAt")} is null;
   if v_tenant is null then
     ${fail("PIPELINE_NOT_FOUND", "pipeline not found", "P0002")}
   end if;
@@ -853,16 +853,16 @@ begin
     ${fail("PIPELINE_CATEGORY_UNKNOWN", "this subject type has no such category", "22023")}
   end if;
   ${ctx.hook("before_pipeline_stage_save", [
-    ["uuid", "save_pipeline_stage.pipeline"],
-    ["uuid", "save_pipeline_stage.stage"],
-    ["text", "save_pipeline_stage.key"],
-    ["text", "save_pipeline_stage.category"],
+    ["uuid", "upsert_pipeline_stage.pipeline"],
+    ["uuid", "upsert_pipeline_stage.stage"],
+    ["text", "upsert_pipeline_stage.key"],
+    ["text", "upsert_pipeline_stage.category"],
   ])}
   begin
     if v_stage is null then
       insert into ${t("stages")} (${columnsOf(names, "stages", stageInsert)}, ${s("rank")})
       values (${valuesOf(stageInsert)},
-        ${rankAfter(`(select max(x.${s("rank")} collate "C") from ${t("stages")} x where x.${s("pipeline")} = save_pipeline_stage.pipeline)`)})
+        ${rankAfter(`(select max(x.${s("rank")} collate "C") from ${t("stages")} x where x.${s("pipeline")} = upsert_pipeline_stage.pipeline)`)})
       returning ${s("id")} into v_stage;
     else
       -- A stage holding records keeps its outcome, so won stays won.
@@ -876,7 +876,7 @@ begin
         .filter(([column]) => column !== "tenant" && column !== "pipeline")
         .map(([column, value]) => `${s(column)} = ${value}`)
         .join(", ")}${touched(names, "stages")}
-      where x.${s("id")} = v_stage and x.${s("pipeline")} = save_pipeline_stage.pipeline;
+      where x.${s("id")} = v_stage and x.${s("pipeline")} = upsert_pipeline_stage.pipeline;
       if not found then
         ${fail("PIPELINE_STAGE_NOT_FOUND", "stage not found", "P0002")}
       end if;
@@ -884,12 +884,12 @@ begin
   exception when unique_violation then
     ${fail("PIPELINE_STAGE_KEY_TAKEN", "another stage of this pipeline has this key", "23505")}
   end;
-  ${createdOrUpdated("save_pipeline_stage.stage is null", (verb) => configured(`pipeline_stage.${verb}`, "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)", "'pipelines/' || v_pipeline::text", "v_tenant::text", `'${verb} stage ' || save_pipeline_stage.name`))}
+  ${createdOrUpdated("upsert_pipeline_stage.stage is null", (verb) => configured(`pipeline_stage.${verb}`, "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', upsert_pipeline_stage.key, 'category', upsert_pipeline_stage.category)", "'pipelines/' || v_pipeline::text", "v_tenant::text", `'${verb} stage ' || upsert_pipeline_stage.name`))}
   ${ctx.hook("after_pipeline_stage_save", [["uuid", "v_stage"]])}
   return (select ${names.json("stages", "x")} from ${t("stages")} x where x.${s("id")} = v_stage);
 end;
 $$;
-${userGrant(`${fn("save_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text, text)`)}
+${userGrant(`${fn("upsert_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text, text)`)}
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function ${fn("rank_pipeline_stage")}(stage uuid, rank text)

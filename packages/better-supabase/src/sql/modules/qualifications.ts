@@ -326,7 +326,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_qualification_type",
+      name: "upsert_qualification_type",
       args: [
         "{id}",
         "text",
@@ -353,12 +353,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "get_qualification_type", args: ["uuid"], returns: "jsonb" },
     {
-      name: "add_qualification_requirement",
+      name: "create_qualification_requirement",
       args: ["uuid", "text", "text"],
       returns: "jsonb",
     },
     {
-      name: "remove_qualification_requirement",
+      name: "delete_qualification_requirement",
       args: ["uuid"],
       returns: "jsonb",
     },

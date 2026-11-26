@@ -36,7 +36,7 @@ describe("agents module", () => {
     const sql = body();
 
     for (const name of [
-      "save_agent",
+      "upsert_agent",
       "publish_agent",
       "purge_agent",
       "get_agent",

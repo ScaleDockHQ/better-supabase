@@ -27,7 +27,7 @@ const CASES: readonly {
   {
     module: "hiring",
     table: "jobs",
-    writes: [`"region" = case when save_job.attrs -> 'fields' ? 'region'`],
+    writes: [`"region" = case when upsert_job.attrs -> 'fields' ? 'region'`],
     reads: [
       `jsonb_build_object('fields', jsonb_build_object('region', v_job."region"))`,
     ],
@@ -53,7 +53,7 @@ const CASES: readonly {
   {
     module: "inventory",
     table: "locations",
-    writes: [`"region" = case when save_location.fields ? 'region'`],
+    writes: [`"region" = case when upsert_location.fields ? 'region'`],
     reads: [
       `jsonb_build_object('fields', jsonb_build_object('region', x."region"))`,
     ],

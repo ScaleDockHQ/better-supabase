@@ -248,7 +248,7 @@ declare
 begin
   ${as(ALICE)}
   v_private := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', 'user', '${ALICE}', '{"visibility": "private", "description": "Mine"}') ->> 'id')::uuid;
-  v_series := (better_supabase.save_calendar_event(v_private, '{"title": "Run", "visibility": "private", "startsAt": "2026-03-02T07:00:00Z", "endsAt": "2026-03-02T08:00:00Z", "rrule": "FREQ=WEEKLY;COUNT=2", "rdates": ["2026-03-04T07:00:00Z"]}') ->> 'id')::uuid;
+  v_series := (better_supabase.upsert_calendar_event(v_private, '{"title": "Run", "visibility": "private", "startsAt": "2026-03-02T07:00:00Z", "endsAt": "2026-03-02T08:00:00Z", "rrule": "FREQ=WEEKLY;COUNT=2", "rdates": ["2026-03-04T07:00:00Z"]}') ->> 'id')::uuid;
   if (select cardinality(rdates) from better_supabase.calendar_events where id = v_series) <> 1 then
     raise exception 'rdates %', (select to_jsonb(e) from better_supabase.calendar_events e where id = v_series);
   end if;
@@ -317,7 +317,7 @@ begin
     raise exception 'details %', (select to_jsonb(c) from public.calendars c where id = v_team);
   end if;
   begin
-    perform better_supabase.save_calendar_event(v_private, '{"title": "Peek", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T10:00:00Z"}');
+    perform better_supabase.upsert_calendar_event(v_private, '{"title": "Peek", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T10:00:00Z"}');
     raise exception 'a manager wrote to a private calendar';
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -325,7 +325,7 @@ begin
   end;
 
   ${as(ALICE)}
-  v_saved := better_supabase.save_calendar_event(v_private, '{"title": "Therapy", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T10:00:00Z", "rrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=4", "exdates": ["2026-03-09T09:00:00Z"], "rdates": ["2026-03-05T09:00:00Z"]}');
+  v_saved := better_supabase.upsert_calendar_event(v_private, '{"title": "Therapy", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T10:00:00Z", "rrule": "FREQ=WEEKLY;BYDAY=MO;COUNT=4", "exdates": ["2026-03-09T09:00:00Z"], "rdates": ["2026-03-05T09:00:00Z"]}');
   v_series := (v_saved ->> 'id')::uuid;
   if (select frequency::text || '/' || occurrences || '/' || weekdays::text from public.event_rules where event_id = v_series) <> 'weekly/4/{MO}' then
     raise exception 'rule %', (select jsonb_agg(r) from public.event_rules r);
@@ -360,7 +360,7 @@ begin
     or not exists (select 1 from jsonb_array_elements(v_feed -> 0 -> 'attendees') x where x ->> 'role' = 'chair' and x ->> 'userId' = '${BOB}') then
     raise exception 'attendees %', v_feed -> 0 -> 'attendees';
   end if;
-  if not better_supabase.remove_calendar_attendee(v_attendee) then
+  if not better_supabase.delete_calendar_attendee(v_attendee) then
     raise exception 'remove by id';
   end if;
 
@@ -368,7 +368,7 @@ begin
   if better_supabase.calendar_access(v_private, '${BOB}', 'read') then
     raise exception 'bob reads alice''s private calendar';
   end if;
-  v_secret := (better_supabase.save_calendar_event(v_team, '{"title": "Interview", "visibility": "private", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}') ->> 'id')::uuid;
+  v_secret := (better_supabase.upsert_calendar_event(v_team, '{"title": "Interview", "visibility": "private", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}') ->> 'id')::uuid;
   if (select visibility::text || '/' || owner_id::text from public.events where id = v_secret) <> 'secret/${BOB}' then
     raise exception 'secret %', (select to_jsonb(e) from public.events e where id = v_secret);
   end if;
@@ -475,7 +475,7 @@ begin
   if not better_supabase.calendar_access(v_private, '${BOB}', 'private') then
     raise exception 'an editor grant does not see private events';
   end if;
-  perform better_supabase.save_calendar_event(v_private, '{"title": "Booked by Bob", "startsAt": "2026-03-04T09:00:00Z", "endsAt": "2026-03-04T10:00:00Z"}');
+  perform better_supabase.upsert_calendar_event(v_private, '{"title": "Booked by Bob", "startsAt": "2026-03-04T09:00:00Z", "endsAt": "2026-03-04T10:00:00Z"}');
   begin
     perform better_supabase.update_calendar(v_private, '{"name": "Bob was here"}');
     raise exception 'an editor managed the calendar';
@@ -568,7 +568,7 @@ declare
 begin
   ${as(OWNER)}
   v_calendar := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', 'user', '${OWNER}') ->> 'id')::uuid;
-  v_event := (better_supabase.save_calendar_event(v_calendar, jsonb_build_object('title', 'Standup', 'startsAt', now() + interval '1 day', 'endsAt', now() + interval '1 day 1 hour')) ->> 'id')::uuid;
+  v_event := (better_supabase.upsert_calendar_event(v_calendar, jsonb_build_object('title', 'Standup', 'startsAt', now() + interval '1 day', 'endsAt', now() + interval '1 day 1 hour')) ->> 'id')::uuid;
   insert into public.event_alarms (tenant_id, event_id, user_id, minutes_before, action) values ('${TENANT}', v_event, null, 15, 'display'), ('${TENANT}', v_event, '${OWNER}', 60, 'email'), ('${TENANT}', v_event, '${ALICE}', 5, 'display');
   v_token := better_supabase.create_share_link('${TENANT}', 'calendar', v_calendar::text, 'view') ->> 'token';
   ${ANON}
@@ -663,15 +663,15 @@ declare
 begin
   ${as(ALICE)}
   v_calendar := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', 'user', '${ALICE}', '{"visibility": "shared"}') ->> 'id')::uuid;
-  ${expectHint(`perform better_supabase.save_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}')`, "CALENDAR_FORBIDDEN")}
+  ${expectHint(`perform better_supabase.upsert_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}')`, "CALENDAR_FORBIDDEN")}
   insert into public.test_keys values ('${ALICE}', '${TENANT}', 'calendar.create');
-  v_event := (better_supabase.save_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}') ->> 'id')::uuid;
-  v_synced := (better_supabase.save_calendar_event(v_calendar, '{"title": "Synced", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}') ->> 'id')::uuid;
+  v_event := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Standup", "startsAt": "2026-03-02T09:00:00Z", "endsAt": "2026-03-02T09:15:00Z"}') ->> 'id')::uuid;
+  v_synced := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Synced", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}') ->> 'id')::uuid;
   update public.events set source = 'google' where id = v_synced;
-  perform better_supabase.save_calendar_event(v_calendar, jsonb_build_object('id', v_event, 'title', 'Daily standup'));
+  perform better_supabase.upsert_calendar_event(v_calendar, jsonb_build_object('id', v_event, 'title', 'Daily standup'));
   ${expectHint("perform better_supabase.purge_calendar_event(v_event)", "CALENDAR_FORBIDDEN")}
   insert into public.test_keys values ('${ALICE}', '${TENANT}', 'calendar.delete');
-  ${expectHint(`perform better_supabase.save_calendar_event(v_calendar, jsonb_build_object('id', v_synced, 'title', 'Renamed'))`, "CALENDAR_EVENT_READ_ONLY")}
+  ${expectHint(`perform better_supabase.upsert_calendar_event(v_calendar, jsonb_build_object('id', v_synced, 'title', 'Renamed'))`, "CALENDAR_EVENT_READ_ONLY")}
   ${expectHint("perform better_supabase.purge_calendar_event(v_synced)", "CALENDAR_EVENT_READ_ONLY")}
   perform better_supabase.purge_calendar_event(v_event);
   perform better_supabase.create_share_link('${TENANT}', 'calendar', v_calendar::text, 'view');
@@ -769,9 +769,9 @@ declare
 begin
   ${as(ALICE)}
   v_calendar := (better_supabase.create_calendar('${TENANT}', 'Alice', 'UTC', null, '${ALICE}', null) ->> 'id')::uuid;
-  v_weekly := (better_supabase.save_calendar_event(v_calendar, '{"title": "Gym", "startsAt": "2026-03-02T07:00:00Z", "endsAt": "2026-03-02T08:00:00Z", "rrule": "FREQ=WEEKLY;BYDAY=MO,WE"}') ->> 'id')::uuid;
-  v_ordinal := (better_supabase.save_calendar_event(v_calendar, '{"title": "Board", "startsAt": "2026-03-10T09:00:00Z", "endsAt": "2026-03-10T10:00:00Z", "rrule": "FREQ=MONTHLY;BYDAY=2TU"}') ->> 'id')::uuid;
-  v_day := (better_supabase.save_calendar_event(v_calendar, '{"title": "Rent", "startsAt": "2026-03-15T09:00:00Z", "endsAt": "2026-03-15T10:00:00Z", "rrule": "FREQ=MONTHLY;BYMONTHDAY=15"}') ->> 'id')::uuid;
+  v_weekly := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Gym", "startsAt": "2026-03-02T07:00:00Z", "endsAt": "2026-03-02T08:00:00Z", "rrule": "FREQ=WEEKLY;BYDAY=MO,WE"}') ->> 'id')::uuid;
+  v_ordinal := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Board", "startsAt": "2026-03-10T09:00:00Z", "endsAt": "2026-03-10T10:00:00Z", "rrule": "FREQ=MONTHLY;BYDAY=2TU"}') ->> 'id')::uuid;
+  v_day := (better_supabase.upsert_calendar_event(v_calendar, '{"title": "Rent", "startsAt": "2026-03-15T09:00:00Z", "endsAt": "2026-03-15T10:00:00Z", "rrule": "FREQ=MONTHLY;BYMONTHDAY=15"}') ->> 'id')::uuid;
   if (select weekdays::text from public.event_rules where event_id = v_weekly) <> '{mo,we}'
     or (select month_ordinal || month_weekday from public.event_rules where event_id = v_ordinal) <> '2tu'
     or (select weekdays from public.event_rules where event_id = v_ordinal) is not null

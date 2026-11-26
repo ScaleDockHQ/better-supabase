@@ -304,7 +304,7 @@ export function accountingLedger(call: BlockCall): AccountingLedger {
       ),
     saveOpeningBalances: ({ organizationId, fiscalYear, balances }) =>
       call(
-        "save_accounting_opening_balances",
+        "upsert_accounting_opening_balances",
         {
           tenant: organizationId,
           fiscal_year: fiscalYear,
@@ -312,9 +312,9 @@ export function accountingLedger(call: BlockCall): AccountingLedger {
         },
         (value) =>
           recordsOf(
-            recordOf(value, "save_accounting_opening_balances")["balances"] ??
+            recordOf(value, "upsert_accounting_opening_balances")["balances"] ??
               [],
-            "save_accounting_opening_balances",
+            "upsert_accounting_opening_balances",
           ).map(openingOf),
       ),
     openingBalances: ({ organizationId, fiscalYear }) =>

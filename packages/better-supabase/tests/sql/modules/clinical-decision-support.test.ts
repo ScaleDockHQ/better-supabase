@@ -58,7 +58,7 @@ describe("clinical-decision-support module", () => {
     const [contract] = customContracts(["clinical-decision-support"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "save_care_rule",
+        "upsert_care_rule",
         "evaluate_care_rules",
         "decide_care_alert",
       ]),

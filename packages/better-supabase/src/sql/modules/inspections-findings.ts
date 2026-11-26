@@ -198,7 +198,7 @@ export function inspectionFindingFunctions(ctx: BlockSqlContext): string {
 -- Adds a finding to an inspection in progress or reporting, as its lead or an
 -- auditor. type is one of options.findingTypes; control_id names the
 -- compliance control it concerns, which the inspection then assesses.
-create or replace function ${fn("add_inspection_finding")}(inspection_id uuid, type text, title text, description text default null, clause text default null, control_id uuid default null, evidence text default null)
+create or replace function ${fn("create_inspection_finding")}(inspection_id uuid, type text, title text, description text default null, clause text default null, control_id uuid default null, evidence text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -208,11 +208,11 @@ as $$
 declare
   v_inspection ${inspections};
   v_row ${findings};
-  v_type text := add_inspection_finding.type;
-  v_title text := trim(add_inspection_finding.title);
+  v_type text := create_inspection_finding.type;
+  v_title text := trim(create_inspection_finding.title);
   v_number integer;
 begin
-  select * into v_inspection from ${inspections} x where x.${i("id")} = add_inspection_finding.inspection_id for update;
+  select * into v_inspection from ${inspections} x where x.${i("id")} = create_inspection_finding.inspection_id for update;
   if not found then
     ${q.missing}
   end if;
@@ -222,25 +222,25 @@ begin
   if v_inspection.${i("status")} not in ('in_progress', 'reporting') then
     ${FINDINGS_CLOSED}
   end if;
-  ${typeCheck}${textCheck((column) => `add_inspection_finding.${column}`)}
-  ${controlCheck(q, `v_inspection.${i("tenant")}`, "add_inspection_finding.control_id")}
+  ${typeCheck}${textCheck((column) => `create_inspection_finding.${column}`)}
+  ${controlCheck(q, `v_inspection.${i("tenant")}`, "create_inspection_finding.control_id")}
   ${ctx.hook("before_inspection_finding_create", [
-    ["uuid", "add_inspection_finding.inspection_id"],
+    ["uuid", "create_inspection_finding.inspection_id"],
     [
       "jsonb",
-      "jsonb_build_object('type', add_inspection_finding.type, 'title', add_inspection_finding.title, 'controlId', add_inspection_finding.control_id)",
+      "jsonb_build_object('type', create_inspection_finding.type, 'title', create_inspection_finding.title, 'controlId', create_inspection_finding.control_id)",
     ],
   ])}
   select coalesce(max(y.${f("number")}), 0) + 1 into v_number from ${findings} y where y.${f("inspection")} = v_inspection.${i("id")};
   insert into ${findings} (${f("tenant")}, ${f("inspection")}, ${f("number")}, ${f("type")}, ${f("title")}${texts.map((column) => `, ${f(column)}`).join("")}, ${f("control")}${createdBy ? `, ${f("createdBy")}` : ""})
-  values (v_inspection.${i("tenant")}, v_inspection.${i("id")}, v_number, v_type, v_title${texts.map((column) => `, nullif(trim(add_inspection_finding.${column}), '')`).join("")}, add_inspection_finding.control_id${createdBy ? ", auth.uid()" : ""})
+  values (v_inspection.${i("tenant")}, v_inspection.${i("id")}, v_number, v_type, v_title${texts.map((column) => `, nullif(trim(create_inspection_finding.${column}), '')`).join("")}, create_inspection_finding.control_id${createdBy ? ", auth.uid()" : ""})
   returning * into v_row;${assessesLink(q, `v_row.${f("tenant")}`, `v_row.${f("inspection")}`, `v_row.${f("control")}`)}
   ${q.recordFinding("inspection_finding.created", "v_row", "finding added")}
   ${ctx.hook("after_inspection_finding_create", [["uuid", `v_row.${f("id")}`]])}
   return ${findingJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_inspection_finding")}(uuid, text, text, text, text, uuid, text)`)}
+${userGrant(`${fn("create_inspection_finding")}(uuid, text, text, text, text, uuid, text)`)}
 
 -- Changes a finding's type, title, description, clause, controlId or evidence.
 create or replace function ${fn("update_inspection_finding")}(finding_id uuid, changes jsonb)

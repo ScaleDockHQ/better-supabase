@@ -48,7 +48,7 @@ select throws_ok(
   'a file still uploading is not a recording'
 );
 select throws_ok(
-  $$select better_supabase.save_activity_transcript(
+  $$select better_supabase.upsert_activity_transcript(
     (current_setting('test.recording')::jsonb ->> 'id')::uuid,
     '[{"startMs": 500, "endMs": 100, "text": "Backwards"}]', '{}')$$,
   '22023',
@@ -56,7 +56,7 @@ select throws_ok(
   'a segment that ends before it starts is refused'
 );
 select is(
-  (better_supabase.save_activity_transcript(
+  (better_supabase.upsert_activity_transcript(
     (current_setting('test.recording')::jsonb ->> 'id')::uuid,
     '[{"speaker": "Rep", "startMs": 0, "endMs": 3000, "text": "Thanks for joining."},
       {"speaker": "Buyer", "startMs": 3000, "endMs": 8000, "text": "Send the proposal.", "confidence": 0.8}]',
@@ -71,7 +71,7 @@ select is(
   'the transcript pages by position'
 );
 select is(
-  better_supabase.save_activity_notes(
+  better_supabase.upsert_activity_notes(
     '00000000-0000-4000-8000-00000000d001',
     '{"summary": "They want a proposal.", "actionItems": [{"text": "Send the proposal"}], "model": "notes-test"}'
   ) ->> 'source',

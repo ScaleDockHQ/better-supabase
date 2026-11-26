@@ -135,14 +135,14 @@ export function shiftFunctions(ctx: BlockSqlContext): string {
 
   const templateSets = [
     `${t("name")} = v_name`,
-    `${t("team")} = save_shift_template.team_id`,
+    `${t("team")} = upsert_shift_template.team_id`,
     has("templates", "location")
-      ? `${t("location")} = save_shift_template.location_id`
+      ? `${t("location")} = upsert_shift_template.location_id`
       : "",
-    `${t("startsTime")} = save_shift_template.starts_time`,
-    `${t("endsTime")} = save_shift_template.ends_time`,
-    `${t("breakMinutes")} = coalesce(save_shift_template.break_minutes, 0)`,
-    `${t("headcount")} = coalesce(save_shift_template.headcount, 1)`,
+    `${t("startsTime")} = upsert_shift_template.starts_time`,
+    `${t("endsTime")} = upsert_shift_template.ends_time`,
+    `${t("breakMinutes")} = coalesce(upsert_shift_template.break_minutes, 0)`,
+    `${t("headcount")} = coalesce(upsert_shift_template.headcount, 1)`,
     `${t("requiredQualifications")} = v_required`,
     `${t("weekdays")} = v_weekdays`,
     has("templates", "updatedAt") ? `${t("updatedAt")} = now()` : "",
@@ -151,17 +151,17 @@ export function shiftFunctions(ctx: BlockSqlContext): string {
     .join(",\n      ");
 
   const shiftSets = [
-    `${s("startsAt")} = save_shift.starts_at`,
-    `${s("endsAt")} = save_shift.ends_at`,
-    `${s("team")} = save_shift.team_id`,
+    `${s("startsAt")} = upsert_shift.starts_at`,
+    `${s("endsAt")} = upsert_shift.ends_at`,
+    `${s("team")} = upsert_shift.team_id`,
     has("shifts", "location")
-      ? `${s("location")} = save_shift.location_id`
+      ? `${s("location")} = upsert_shift.location_id`
       : "",
-    `${s("breakMinutes")} = coalesce(save_shift.break_minutes, 0)`,
-    `${s("headcount")} = coalesce(save_shift.headcount, 1)`,
+    `${s("breakMinutes")} = coalesce(upsert_shift.break_minutes, 0)`,
+    `${s("headcount")} = coalesce(upsert_shift.headcount, 1)`,
     `${s("requiredQualifications")} = v_required`,
     has("shifts", "note")
-      ? `${s("note")} = nullif(trim(save_shift.note), '')`
+      ? `${s("note")} = nullif(trim(upsert_shift.note), '')`
       : "",
     has("shifts", "updatedAt") ? `${s("updatedAt")} = now()` : "",
   ]
@@ -211,7 +211,7 @@ export function shiftFunctions(ctx: BlockSqlContext): string {
 -- Creates a shift template, or changes one (template_id). An end at or before
 -- the start runs into the next day. weekdays are ISO weekdays (1 is Monday)
 -- generate_shifts creates shifts on.
-create or replace function ${fn("save_shift_template")}(tenant ${idType}, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id ${team} default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
+create or replace function ${fn("upsert_shift_template")}(tenant ${idType}, name text, starts_time time, ends_time time, weekdays integer[] default '{1,2,3,4,5}', team_id ${team} default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', template_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -220,38 +220,38 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${templates}%rowtype;
-  v_name text := nullif(trim(save_shift_template.name), '');
-  v_required text[] := ${required("save_shift_template.required_qualifications")};
-  v_weekdays integer[] := array(select distinct d from unnest(coalesce(save_shift_template.weekdays, '{}')) d where d is not null order by d);
+  v_name text := nullif(trim(upsert_shift_template.name), '');
+  v_required text[] := ${required("upsert_shift_template.required_qualifications")};
+  v_weekdays integer[] := array(select distinct d from unnest(coalesce(upsert_shift_template.weekdays, '{}')) d where d is not null order by d);
 begin
-  if not ${allowed("save_shift_template.tenant", write)} then
+  if not ${allowed("upsert_shift_template.tenant", write)} then
     ${forbidden("not allowed to plan shifts")}
   end if;
   if v_name is null or length(v_name) > 200 then
     ${invalid("a shift template needs a name of at most 200 characters")}
   end if;
-  if save_shift_template.starts_time is null or save_shift_template.ends_time is null then
+  if upsert_shift_template.starts_time is null or upsert_shift_template.ends_time is null then
     ${invalid("a shift template needs a start and an end time")}
   end if;
   if not (v_weekdays <@ array[1, 2, 3, 4, 5, 6, 7]) then
     ${invalid("weekdays are 1 (Monday) to 7 (Sunday)")}
   end if;
-  if coalesce(save_shift_template.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift_template.break_minutes, 0) not between 0 and 720 then
     ${invalid("break_minutes is between 0 and 720")}
   end if;
-  if coalesce(save_shift_template.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift_template.headcount, 1) not between 1 and 500 then
     ${invalid("headcount is between 1 and 500")}
   end if;
-  ${refChecks("templates", "save_shift_template")}
-  if save_shift_template.template_id is null then
+  ${refChecks("templates", "upsert_shift_template")}
+  if upsert_shift_template.template_id is null then
     insert into ${templates} (${t("tenant")}, ${t("name")}, ${t("team")}${insertCol("templates", "location")}, ${t("startsTime")}, ${t("endsTime")}, ${t("breakMinutes")}, ${t("headcount")}, ${t("requiredQualifications")}, ${t("weekdays")})
-    values (save_shift_template.tenant, v_name, save_shift_template.team_id${insertVal("templates", "location", "save_shift_template.location_id")}, save_shift_template.starts_time, save_shift_template.ends_time, coalesce(save_shift_template.break_minutes, 0), coalesce(save_shift_template.headcount, 1), v_required, v_weekdays)
+    values (upsert_shift_template.tenant, v_name, upsert_shift_template.team_id${insertVal("templates", "location", "upsert_shift_template.location_id")}, upsert_shift_template.starts_time, upsert_shift_template.ends_time, coalesce(upsert_shift_template.break_minutes, 0), coalesce(upsert_shift_template.headcount, 1), v_required, v_weekdays)
     returning * into v_row;
   else
     update ${templates} x set
       ${templateSets},
       ${t("archivedAt")} = null
-    where x.${t("id")} = save_shift_template.template_id and x.${t("tenant")} = save_shift_template.tenant
+    where x.${t("id")} = upsert_shift_template.template_id and x.${t("tenant")} = upsert_shift_template.tenant
     returning x.* into v_row;
     if not found then
       ${templateNotFound}
@@ -260,7 +260,7 @@ begin
   return ${templateJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_shift_template")}(${idType}, text, time, time, integer[], ${team}, uuid, integer, integer, text[], uuid)`)}
+${userGrant(`${fn("upsert_shift_template")}(${idType}, text, time, time, integer[], ${team}, uuid, integer, integer, text[], uuid)`)}
 
 -- Archives a template: generate_shifts no longer takes it; its shifts stay.
 create or replace function ${fn("archive_shift_template")}(template_id uuid)
@@ -383,8 +383,8 @@ ${userGrant(`${fn("generate_shifts")}(${idType}, uuid, date, date)`)}
 -- Creates a draft shift, or changes one (shift_id). Changing the times moves
 -- its assignments with it; a move that overlaps another shift of an assigned
 -- member is refused.
-${extra.drop(fn("save_shift"), `${idType}, timestamptz, timestamptz, ${team}, uuid, integer, integer, text[], text, uuid`)}
-create or replace function ${fn("save_shift")}(tenant ${idType}, starts_at timestamptz, ends_at timestamptz, team_id ${team} default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null${extra.param})
+${extra.drop(fn("upsert_shift"), `${idType}, timestamptz, timestamptz, ${team}, uuid, integer, integer, text[], text, uuid`)}
+create or replace function ${fn("upsert_shift")}(tenant ${idType}, starts_at timestamptz, ends_at timestamptz, team_id ${team} default null, location_id uuid default null, break_minutes integer default 0, headcount integer default 1, required_qualifications text[] default '{}', note text default null, shift_id uuid default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -393,39 +393,39 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${shifts}%rowtype;
-  v_required text[] := ${required("save_shift.required_qualifications")};
+  v_required text[] := ${required("upsert_shift.required_qualifications")};
 begin
-  if not ${allowed("save_shift.tenant", write)} then
+  if not ${allowed("upsert_shift.tenant", write)} then
     ${forbidden("not allowed to plan shifts")}
   end if;
-  if save_shift.starts_at is null or save_shift.ends_at is null or save_shift.ends_at <= save_shift.starts_at then
+  if upsert_shift.starts_at is null or upsert_shift.ends_at is null or upsert_shift.ends_at <= upsert_shift.starts_at then
     ${invalid("a shift ends after it starts")}
   end if;
-  if save_shift.ends_at - save_shift.starts_at > interval '24 hours' then
+  if upsert_shift.ends_at - upsert_shift.starts_at > interval '24 hours' then
     ${invalid("a shift lasts at most 24 hours")}
   end if;
-  if coalesce(save_shift.break_minutes, 0) not between 0 and 720 then
+  if coalesce(upsert_shift.break_minutes, 0) not between 0 and 720 then
     ${invalid("break_minutes is between 0 and 720")}
   end if;
-  if coalesce(save_shift.headcount, 1) not between 1 and 500 then
+  if coalesce(upsert_shift.headcount, 1) not between 1 and 500 then
     ${invalid("headcount is between 1 and 500")}
   end if;
-  if save_shift.note is not null and length(save_shift.note) > 2000 then
+  if upsert_shift.note is not null and length(upsert_shift.note) > 2000 then
     ${invalid("a note is at most 2000 characters")}
   end if;
-  ${refChecks("shifts", "save_shift")}
+  ${refChecks("shifts", "upsert_shift")}
   ${ctx.hook("before_shift_save", [
-    [idType, "save_shift.tenant"],
-    ["uuid", "save_shift.shift_id"],
+    [idType, "upsert_shift.tenant"],
+    ["uuid", "upsert_shift.shift_id"],
   ])}
-  if save_shift.shift_id is null then
+  if upsert_shift.shift_id is null then
     insert into ${shifts} (${s("tenant")}, ${s("team")}${insertCol("shifts", "location")}, ${s("startsAt")}, ${s("endsAt")}, ${s("breakMinutes")}, ${s("headcount")}, ${s("requiredQualifications")}${insertCol("shifts", "note")}${insertCol("shifts", "createdBy")})
-    values (save_shift.tenant, save_shift.team_id${insertVal("shifts", "location", "save_shift.location_id")}, save_shift.starts_at, save_shift.ends_at, coalesce(save_shift.break_minutes, 0), coalesce(save_shift.headcount, 1), v_required${insertVal("shifts", "note", "nullif(trim(save_shift.note), '')")}${insertVal("shifts", "createdBy", "(select auth.uid())")})
-    returning * into v_row;${writeExtraColumns(shifts, extras, "save_shift.fields", `x.${s("id")} = v_row.${s("id")}`, "v_row")}
+    values (upsert_shift.tenant, upsert_shift.team_id${insertVal("shifts", "location", "upsert_shift.location_id")}, upsert_shift.starts_at, upsert_shift.ends_at, coalesce(upsert_shift.break_minutes, 0), coalesce(upsert_shift.headcount, 1), v_required${insertVal("shifts", "note", "nullif(trim(upsert_shift.note), '')")}${insertVal("shifts", "createdBy", "(select auth.uid())")})
+    returning * into v_row;${writeExtraColumns(shifts, extras, "upsert_shift.fields", `x.${s("id")} = v_row.${s("id")}`, "v_row")}
     ${shiftEvent("shift.created", `, 'status', v_row.${s("status")}`, "Shift created")}
   else
     select * into v_row from ${shifts} x
-    where x.${s("id")} = save_shift.shift_id and x.${s("tenant")} = save_shift.tenant
+    where x.${s("id")} = upsert_shift.shift_id and x.${s("tenant")} = upsert_shift.tenant
     for update;
     if not found then
       ${shiftNotFound}
@@ -436,7 +436,7 @@ begin
     update ${shifts} x set
       ${shiftSets}
     where x.${s("id")} = v_row.${s("id")}
-    returning x.* into v_row;${writeExtraColumns(shifts, extras, "save_shift.fields", `x.${s("id")} = v_row.${s("id")}`, "v_row")}
+    returning x.* into v_row;${writeExtraColumns(shifts, extras, "upsert_shift.fields", `x.${s("id")} = v_row.${s("id")}`, "v_row")}
     begin
       update ${assignments} x set ${a("startsAt")} = v_row.${s("startsAt")}, ${a("endsAt")} = v_row.${s("endsAt")}${touch("assignments")}
       where x.${a("shift")} = v_row.${s("id")} and (x.${a("startsAt")} <> v_row.${s("startsAt")} or x.${a("endsAt")} <> v_row.${s("endsAt")});
@@ -448,7 +448,7 @@ begin
   return ${shiftJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_shift")}(${idType}, timestamptz, timestamptz, ${team}, uuid, integer, integer, text[], text, uuid${extra.type})`)}
+${userGrant(`${fn("upsert_shift")}(${idType}, timestamptz, timestamptz, ${team}, uuid, integer, integer, text[], text, uuid${extra.type})`)}
 
 -- Cancels a shift and releases its assignments. Assigned members are
 -- notified. Canceling one already canceled changes nothing.

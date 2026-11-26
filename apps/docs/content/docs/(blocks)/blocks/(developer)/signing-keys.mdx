@@ -71,7 +71,7 @@ one tenant's key never touches another's. A platform with one authorization
 server for every tenant uses the exported `PLATFORM_OWNER`
 (`{ type: "platform", id: "default" }`).
 
-An owner has at most one active key. `add_signing_key` takes an advisory
+An owner has at most one active key. `create_signing_key` takes an advisory
 lock per owner, so two rotations at once leave one active key.
 
 ## Sign

@@ -24,7 +24,7 @@ describe("recurring records", () => {
       /grant execute on function "better_supabase"\."claim_template_occurrence"\(uuid, timestamptz\) to service_role;/,
     );
     expect(sql).toMatch(
-      /grant execute on function "better_supabase"\."save_template_schedule"\([^)]*\) to authenticated, service_role;/,
+      /grant execute on function "better_supabase"\."upsert_template_schedule"\([^)]*\) to authenticated, service_role;/,
     );
     expect(sql).toContain(
       `create trigger "bsb_template_schedule_removed" after delete`,
@@ -42,7 +42,7 @@ describe("recurring records", () => {
       sqlOf(["reminders", "templates"], {
         modules: { templates: { tables: { schedules: null } } },
       }),
-    ).not.toContain("save_template_schedule");
+    ).not.toContain("upsert_template_schedule");
   });
 
   it("lists the schedule functions in the contract only with reminders", () => {

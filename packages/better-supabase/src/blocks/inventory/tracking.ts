@@ -357,7 +357,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
       ),
     saveBin: ({ locationId, input }) =>
       call(
-        "save_bin",
+        "upsert_bin",
         {
           location: locationId,
           bin: input.id ?? null,
@@ -367,7 +367,7 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
           active: input.active ?? null,
         },
         (value) => {
-          const row = recordOf(value, "save_bin");
+          const row = recordOf(value, "upsert_bin");
 
           return {
             id: textOf(row["id"]),
@@ -379,10 +379,10 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
       ),
     saveLot: ({ variantId, code, expiresOn }) =>
       call(
-        "save_lot",
+        "upsert_lot",
         { variant: variantId, code, expires_on: expiresOn ?? null },
         (value) => {
-          const row = recordOf(value, "save_lot");
+          const row = recordOf(value, "upsert_lot");
 
           return {
             id: textOf(row["id"]),

@@ -204,7 +204,7 @@ export function subjectMembers(call: BlockCall): SubjectMembers {
   return {
     add: ({ subject, member }) =>
       call(
-        "add_subject_member",
+        "create_subject_member",
         {
           subject_type: subject.type,
           subject_id: subject.id,

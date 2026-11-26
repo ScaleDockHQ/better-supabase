@@ -71,7 +71,7 @@ function purposeFunctions(ctx: BlockSqlContext, q: ConsentsSql): string {
 -- asks consent for, its lawful basis, whether it takes a signature and how many
 -- months a consent lasts. A null tenant saves a system purpose every
 -- organization uses, which takes the service role.
-create or replace function ${fn("save_consent_purpose")}(
+create or replace function ${fn("upsert_consent_purpose")}(
   tenant ${ctx.idType},
   key text,
   title text,
@@ -89,18 +89,18 @@ as $$
 #variable_conflict use_variable
 declare
   v_row ${purposes};
-  v_key text := lower(trim(save_consent_purpose.key));
-  v_title text := trim(save_consent_purpose.title);
-  v_version text := coalesce(nullif(trim(save_consent_purpose.version), ''), '1');
-  v_description text := nullif(trim(save_consent_purpose.description), '');
-  v_basis text := coalesce(save_consent_purpose.legal_basis, 'consent');
-  v_signature boolean := coalesce(save_consent_purpose.requires_signature, false);
+  v_key text := lower(trim(upsert_consent_purpose.key));
+  v_title text := trim(upsert_consent_purpose.title);
+  v_version text := coalesce(nullif(trim(upsert_consent_purpose.version), ''), '1');
+  v_description text := nullif(trim(upsert_consent_purpose.description), '');
+  v_basis text := coalesce(upsert_consent_purpose.legal_basis, 'consent');
+  v_signature boolean := coalesce(upsert_consent_purpose.requires_signature, false);
 begin
-  if save_consent_purpose.tenant is null then
+  if upsert_consent_purpose.tenant is null then
     if not ${SERVICE_CALLER} then
       ${q.forbidden("only the service role saves a system purpose")}
     end if;
-  elsif not ${q.allowed("save_consent_purpose.tenant", q.manage)} then
+  elsif not ${q.allowed("upsert_consent_purpose.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage consent purposes")}
   end if;
   if v_key is null or v_key !~ ${sqlString(PURPOSE_KEY)} then
@@ -118,11 +118,11 @@ begin
   if v_basis not in (${list(LEGAL_BASES)}) then
     ${invalid("legal_basis is one of consent, contract, legal_obligation, vital_interest, public_task and legitimate_interest")}
   end if;
-  if save_consent_purpose.valid_months is not null and save_consent_purpose.valid_months not between 1 and 1200 then
+  if upsert_consent_purpose.valid_months is not null and upsert_consent_purpose.valid_months not between 1 and 1200 then
     ${invalid("valid_months is between 1 and 1200")}
   end if;
   select * into v_row from ${purposes} x
-  where x.${p("tenant")} is not distinct from save_consent_purpose.tenant
+  where x.${p("tenant")} is not distinct from upsert_consent_purpose.tenant
     and x.${p("key")} = v_key and x.${p("version")} = v_version
   for update;
   if found then
@@ -133,20 +133,20 @@ begin
       ${p("title")} = v_title,${description}
       ${p("legalBasis")} = ${q.cast("purposes", "legalBasis", "v_basis")},
       ${p("requiresSignature")} = v_signature,${updated}
-      ${p("validMonths")} = save_consent_purpose.valid_months
+      ${p("validMonths")} = upsert_consent_purpose.valid_months
     where x.${p("id")} = v_row.${p("id")}
     returning * into v_row;
     ${q.recordPurpose("consent_purpose.updated", "v_row", "changed a consent purpose")}
   else
     insert into ${purposes} (${p("tenant")}, ${p("key")}, ${p("title")}, ${has("purposes", "description") ? `${p("description")}, ` : ""}${p("legalBasis")}, ${p("version")}, ${p("requiresSignature")}, ${p("validMonths")})
-    values (save_consent_purpose.tenant, v_key, v_title, ${has("purposes", "description") ? "v_description, " : ""}${q.cast("purposes", "legalBasis", "v_basis")}, v_version, v_signature, save_consent_purpose.valid_months)
+    values (upsert_consent_purpose.tenant, v_key, v_title, ${has("purposes", "description") ? "v_description, " : ""}${q.cast("purposes", "legalBasis", "v_basis")}, v_version, v_signature, upsert_consent_purpose.valid_months)
     returning * into v_row;
     ${q.recordPurpose("consent_purpose.created", "v_row", "created a consent purpose")}
   end if;
   return ${purposeJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_consent_purpose")}(${ctx.idType}, text, text, text, text, text, boolean, integer)`)}
+${userGrant(`${fn("upsert_consent_purpose")}(${ctx.idType}, text, text, text, text, text, boolean, integer)`)}
 
 -- Archives a purpose: no new consent can be recorded for it, and the consents
 -- already given stay as they are.

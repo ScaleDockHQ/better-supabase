@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:ab8f349977f31f1a5c815e3c207e72366dfbede2d2f43de187e5ba805f05299c
+-- @bsb-hash sha256:45c27607f049cb3c84ec72364153c8e429130b248c75513a677e0427f222a1c5
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -142,23 +142,23 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
 
-create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function "better_supabase"."upsert_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
+  v_pipeline uuid := upsert_pipeline.pipeline;
+  v_created boolean := upsert_pipeline.pipeline is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{}'::text[])) then
+  if not (upsert_pipeline.subject_type = any ('{}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -166,33 +166,33 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline.tenant, save_pipeline.pipeline, save_pipeline.subject_type, save_pipeline.key;
+        using upsert_pipeline.tenant, upsert_pipeline.pipeline, upsert_pipeline.subject_type, upsert_pipeline.key;
     end if;
   end;
-  if coalesce(save_pipeline.is_default, false) then
+  if coalesce(upsert_pipeline.is_default, false) then
     update "better_supabase"."pipelines" x set "is_default" = false
-    where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-      and x."scope_id" is not distinct from save_pipeline.scope_id and x."is_default"
-      and x."id" is distinct from save_pipeline.pipeline;
+    where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+      and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."is_default"
+      and x."id" is distinct from upsert_pipeline.pipeline;
   end if;
   begin
     if v_created then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default", "rank")
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-            and x."scope_id" is not distinct from save_pipeline.scope_id and x."archived_at" is null),
+      values (upsert_pipeline.tenant, upsert_pipeline.subject_type, upsert_pipeline.scope_id, upsert_pipeline.key, upsert_pipeline.name,
+        coalesce(upsert_pipeline.is_default, false) or not exists (
+          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+            and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."archived_at" is null),
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_pipeline;
     else
-      update "better_supabase"."pipelines" x set "key" = save_pipeline.key, "name" = save_pipeline.name,
-        "is_default" = coalesce(save_pipeline.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_pipeline.pipeline and x."tenant_id" = save_pipeline.tenant
-        and x."subject_type" = save_pipeline.subject_type;
+      update "better_supabase"."pipelines" x set "key" = upsert_pipeline.key, "name" = upsert_pipeline.name,
+        "is_default" = coalesce(upsert_pipeline.is_default, x."is_default"), "updated_at" = now()
+      where x."id" = upsert_pipeline.pipeline and x."tenant_id" = upsert_pipeline.tenant
+        and x."subject_type" = upsert_pipeline.subject_type;
       if not found then
         raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
       end if;
@@ -216,8 +216,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipelines" x where x."id" = v_pipeline);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function "better_supabase"."archive_pipeline"(pipeline uuid)
@@ -291,7 +291,7 @@ grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenti
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+create or replace function "better_supabase"."upsert_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -301,15 +301,15 @@ declare
   v_tenant uuid;
   v_subject_type text;
   v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
+  v_stage uuid := upsert_pipeline_stage.stage;
+  v_pipeline uuid := upsert_pipeline_stage.pipeline;
   v_used boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
-  from "better_supabase"."pipelines" x where x."id" = save_pipeline_stage.pipeline and x."archived_at" is null;
+  from "better_supabase"."pipelines" x where x."id" = upsert_pipeline_stage.pipeline and x."archived_at" is null;
   if v_tenant is null then
     raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
@@ -325,17 +325,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline_stage.pipeline, save_pipeline_stage.stage, save_pipeline_stage.key, save_pipeline_stage.category;
+        using upsert_pipeline_stage.pipeline, upsert_pipeline_stage.stage, upsert_pipeline_stage.key, upsert_pipeline_stage.category;
     end if;
   end;
   begin
     if v_stage is null then
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
+      values (v_tenant, upsert_pipeline_stage.pipeline, upsert_pipeline_stage.key, upsert_pipeline_stage.name, upsert_pipeline_stage.category, v_outcome, upsert_pipeline_stage.probability, upsert_pipeline_stage.rotting_after_days, upsert_pipeline_stage.wip_limit, upsert_pipeline_stage.color, upsert_pipeline_stage.icon,
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_stage;
     else
@@ -346,8 +346,8 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
-      where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
+      update "better_supabase"."pipeline_stages" x set "key" = upsert_pipeline_stage.key, "name" = upsert_pipeline_stage.name, "category" = upsert_pipeline_stage.category, "outcome" = v_outcome, "probability" = upsert_pipeline_stage.probability, "rotting_after_days" = upsert_pipeline_stage.rotting_after_days, "wip_limit" = upsert_pipeline_stage.wip_limit, "color" = upsert_pipeline_stage.color, "icon" = upsert_pipeline_stage.icon, "updated_at" = now()
+      where x."id" = v_stage and x."pipeline_id" = upsert_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
       end if;
@@ -355,7 +355,7 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  if save_pipeline_stage.stage is null then
+  if upsert_pipeline_stage.stage is null then
     null;
   else
     null;
@@ -371,8 +371,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -1072,7 +1072,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:576e107f0c125b461a203ecfe1e9e7792173d579d1bb39ad68ce6da25f8a03a0
+-- @bsb-hash sha256:80e4d85559850d0419f6a889c86f95b023f189127341a6760603e7dc3b6c2bad
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1798,23 +1798,23 @@ for each row execute function better_supabase.bsb_pipeline_case();
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
 
-create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function "better_supabase"."upsert_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
+  v_pipeline uuid := upsert_pipeline.pipeline;
+  v_created boolean := upsert_pipeline.pipeline is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{deal,task,application,case}'::text[])) then
+  if not (upsert_pipeline.subject_type = any ('{deal,task,application,case}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -1822,33 +1822,33 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline.tenant, save_pipeline.pipeline, save_pipeline.subject_type, save_pipeline.key;
+        using upsert_pipeline.tenant, upsert_pipeline.pipeline, upsert_pipeline.subject_type, upsert_pipeline.key;
     end if;
   end;
-  if coalesce(save_pipeline.is_default, false) then
+  if coalesce(upsert_pipeline.is_default, false) then
     update "better_supabase"."pipelines" x set "is_default" = false
-    where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-      and x."scope_id" is not distinct from save_pipeline.scope_id and x."is_default"
-      and x."id" is distinct from save_pipeline.pipeline;
+    where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+      and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."is_default"
+      and x."id" is distinct from upsert_pipeline.pipeline;
   end if;
   begin
     if v_created then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default", "rank")
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-            and x."scope_id" is not distinct from save_pipeline.scope_id and x."archived_at" is null),
+      values (upsert_pipeline.tenant, upsert_pipeline.subject_type, upsert_pipeline.scope_id, upsert_pipeline.key, upsert_pipeline.name,
+        coalesce(upsert_pipeline.is_default, false) or not exists (
+          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+            and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."archived_at" is null),
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_pipeline;
     else
-      update "better_supabase"."pipelines" x set "key" = save_pipeline.key, "name" = save_pipeline.name,
-        "is_default" = coalesce(save_pipeline.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_pipeline.pipeline and x."tenant_id" = save_pipeline.tenant
-        and x."subject_type" = save_pipeline.subject_type;
+      update "better_supabase"."pipelines" x set "key" = upsert_pipeline.key, "name" = upsert_pipeline.name,
+        "is_default" = coalesce(upsert_pipeline.is_default, x."is_default"), "updated_at" = now()
+      where x."id" = upsert_pipeline.pipeline and x."tenant_id" = upsert_pipeline.tenant
+        and x."subject_type" = upsert_pipeline.subject_type;
       if not found then
         raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
       end if;
@@ -1857,26 +1857,26 @@ begin
     raise exception 'another pipeline of this type has this key' using errcode = '23505', hint = 'PIPELINE_KEY_TAKEN';
   end;
   if v_created then
-    perform "better_supabase".emit_event('pipeline.created', jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key), 'pipelines/' || v_pipeline::text, (save_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
+    perform "better_supabase".emit_event('pipeline.created', jsonb_build_object('organizationId', upsert_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', upsert_pipeline.subject_type, 'key', upsert_pipeline.key), 'pipelines/' || v_pipeline::text, (upsert_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
     event_type => 'pipeline.created',
     category => 'configuration',
     target_type => 'pipeline',
     record_id => v_pipeline::text,
-    summary => 'created pipeline ' || save_pipeline.name,
-    tenant => (save_pipeline.tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)
+    summary => 'created pipeline ' || upsert_pipeline.name,
+    tenant => (upsert_pipeline.tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', upsert_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', upsert_pipeline.subject_type, 'key', upsert_pipeline.key)
   );
   else
-    perform "better_supabase".emit_event('pipeline.updated', jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key), 'pipelines/' || v_pipeline::text, (save_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
+    perform "better_supabase".emit_event('pipeline.updated', jsonb_build_object('organizationId', upsert_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', upsert_pipeline.subject_type, 'key', upsert_pipeline.key), 'pipelines/' || v_pipeline::text, (upsert_pipeline.tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
     event_type => 'pipeline.updated',
     category => 'configuration',
     target_type => 'pipeline',
     record_id => v_pipeline::text,
-    summary => 'updated pipeline ' || save_pipeline.name,
-    tenant => (save_pipeline.tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', save_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', save_pipeline.subject_type, 'key', save_pipeline.key)
+    summary => 'updated pipeline ' || upsert_pipeline.name,
+    tenant => (upsert_pipeline.tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', upsert_pipeline.tenant, 'pipelineId', v_pipeline, 'subjectType', upsert_pipeline.subject_type, 'key', upsert_pipeline.key)
   );
   end if;
   declare
@@ -1890,8 +1890,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipelines" x where x."id" = v_pipeline);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function "better_supabase"."archive_pipeline"(pipeline uuid)
@@ -1998,7 +1998,7 @@ grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenti
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+create or replace function "better_supabase"."upsert_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2008,15 +2008,15 @@ declare
   v_tenant uuid;
   v_subject_type text;
   v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
+  v_stage uuid := upsert_pipeline_stage.stage;
+  v_pipeline uuid := upsert_pipeline_stage.pipeline;
   v_used boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
-  from "better_supabase"."pipelines" x where x."id" = save_pipeline_stage.pipeline and x."archived_at" is null;
+  from "better_supabase"."pipelines" x where x."id" = upsert_pipeline_stage.pipeline and x."archived_at" is null;
   if v_tenant is null then
     raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
@@ -2025,13 +2025,13 @@ begin
   end if;
   case v_subject_type
     when 'deal' then
-      v_outcome := case save_pipeline_stage.category
+      v_outcome := case upsert_pipeline_stage.category
       when 'open' then 'open'
       when 'won' then 'success'
       when 'lost' then 'failure'
     end;
     when 'task' then
-      v_outcome := case save_pipeline_stage.category
+      v_outcome := case upsert_pipeline_stage.category
       when 'triage' then 'open'
       when 'backlog' then 'open'
       when 'unstarted' then 'open'
@@ -2040,14 +2040,14 @@ begin
       when 'canceled' then 'failure'
     end;
     when 'application' then
-      v_outcome := case save_pipeline_stage.category
+      v_outcome := case upsert_pipeline_stage.category
       when 'active' then 'open'
       when 'hired' then 'success'
       when 'rejected' then 'failure'
       when 'withdrawn' then 'failure'
     end;
     when 'case' then
-      v_outcome := case save_pipeline_stage.category
+      v_outcome := case upsert_pipeline_stage.category
       when 'open' then 'open'
       when 'closed' then 'success'
       when 'canceled' then 'failure'
@@ -2063,17 +2063,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline_stage.pipeline, save_pipeline_stage.stage, save_pipeline_stage.key, save_pipeline_stage.category;
+        using upsert_pipeline_stage.pipeline, upsert_pipeline_stage.stage, upsert_pipeline_stage.key, upsert_pipeline_stage.category;
     end if;
   end;
   begin
     if v_stage is null then
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
+      values (v_tenant, upsert_pipeline_stage.pipeline, upsert_pipeline_stage.key, upsert_pipeline_stage.name, upsert_pipeline_stage.category, v_outcome, upsert_pipeline_stage.probability, upsert_pipeline_stage.rotting_after_days, upsert_pipeline_stage.wip_limit, upsert_pipeline_stage.color, upsert_pipeline_stage.icon,
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_stage;
     else
@@ -2099,8 +2099,8 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
-      where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
+      update "better_supabase"."pipeline_stages" x set "key" = upsert_pipeline_stage.key, "name" = upsert_pipeline_stage.name, "category" = upsert_pipeline_stage.category, "outcome" = v_outcome, "probability" = upsert_pipeline_stage.probability, "rotting_after_days" = upsert_pipeline_stage.rotting_after_days, "wip_limit" = upsert_pipeline_stage.wip_limit, "color" = upsert_pipeline_stage.color, "icon" = upsert_pipeline_stage.icon, "updated_at" = now()
+      where x."id" = v_stage and x."pipeline_id" = upsert_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
       end if;
@@ -2108,27 +2108,27 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  if save_pipeline_stage.stage is null then
-    perform "better_supabase".emit_event('pipeline_stage.created', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+  if upsert_pipeline_stage.stage is null then
+    perform "better_supabase".emit_event('pipeline_stage.created', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', upsert_pipeline_stage.key, 'category', upsert_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
     event_type => 'pipeline_stage.created',
     category => 'configuration',
     target_type => 'pipeline',
     record_id => v_pipeline::text,
-    summary => 'created stage ' || save_pipeline_stage.name,
+    summary => 'created stage ' || upsert_pipeline_stage.name,
     tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', upsert_pipeline_stage.key, 'category', upsert_pipeline_stage.category)
   );
   else
-    perform "better_supabase".emit_event('pipeline_stage.updated', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+    perform "better_supabase".emit_event('pipeline_stage.updated', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', upsert_pipeline_stage.key, 'category', upsert_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
     event_type => 'pipeline_stage.updated',
     category => 'configuration',
     target_type => 'pipeline',
     record_id => v_pipeline::text,
-    summary => 'updated stage ' || save_pipeline_stage.name,
+    summary => 'updated stage ' || upsert_pipeline_stage.name,
     tenant => (v_tenant::text)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', upsert_pipeline_stage.key, 'category', upsert_pipeline_stage.category)
   );
   end if;
   declare
@@ -2142,8 +2142,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -3045,7 +3045,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:5803d7a09df70095bbc794d271df102e21d108bdd5b29a0d711d5a19a00d3997
+-- @bsb-hash sha256:eaac909fdada68997147248a8d3cb7bdf296b0dccb963fb2e482fb458646d395
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3191,23 +3191,23 @@ grant execute on function "app_private"."default_pipeline"(uuid, text, text) to 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
 
-create or replace function "app_private"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function "app_private"."upsert_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
+  v_pipeline uuid := upsert_pipeline.pipeline;
+  v_created boolean := upsert_pipeline.pipeline is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{}'::text[])) then
+  if not (upsert_pipeline.subject_type = any ('{}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -3215,33 +3215,33 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline.tenant, save_pipeline.pipeline, save_pipeline.subject_type, save_pipeline.key;
+        using upsert_pipeline.tenant, upsert_pipeline.pipeline, upsert_pipeline.subject_type, upsert_pipeline.key;
     end if;
   end;
-  if coalesce(save_pipeline.is_default, false) then
+  if coalesce(upsert_pipeline.is_default, false) then
     update "app_private"."pipelines" x set "is_default" = false
-    where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-      and x."scope_id" is not distinct from save_pipeline.scope_id and x."is_default"
-      and x."id" is distinct from save_pipeline.pipeline;
+    where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+      and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."is_default"
+      and x."id" is distinct from upsert_pipeline.pipeline;
   end if;
   begin
     if v_created then
       insert into "app_private"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default", "rank")
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-            and x."scope_id" is not distinct from save_pipeline.scope_id and x."archived_at" is null),
+      values (upsert_pipeline.tenant, upsert_pipeline.subject_type, upsert_pipeline.scope_id, upsert_pipeline.key, upsert_pipeline.name,
+        coalesce(upsert_pipeline.is_default, false) or not exists (
+          select 1 from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+            and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."archived_at" is null),
         case
-    when (select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type)) then (select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type)) then (select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_pipeline;
     else
-      update "app_private"."pipelines" x set "key" = save_pipeline.key, "name" = save_pipeline.name,
-        "is_default" = coalesce(save_pipeline.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_pipeline.pipeline and x."tenant_id" = save_pipeline.tenant
-        and x."subject_type" = save_pipeline.subject_type;
+      update "app_private"."pipelines" x set "key" = upsert_pipeline.key, "name" = upsert_pipeline.name,
+        "is_default" = coalesce(upsert_pipeline.is_default, x."is_default"), "updated_at" = now()
+      where x."id" = upsert_pipeline.pipeline and x."tenant_id" = upsert_pipeline.tenant
+        and x."subject_type" = upsert_pipeline.subject_type;
       if not found then
         raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
       end if;
@@ -3265,8 +3265,8 @@ begin
   return (select to_jsonb(x) from "app_private"."pipelines" x where x."id" = v_pipeline);
 end;
 $$;
-revoke execute on function "app_private"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "app_private"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "app_private"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function "app_private"."archive_pipeline"(pipeline uuid)
@@ -3340,7 +3340,7 @@ grant execute on function "app_private"."restore_pipeline"(uuid) to authenticate
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
-create or replace function "app_private"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+create or replace function "app_private"."upsert_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3350,15 +3350,15 @@ declare
   v_tenant uuid;
   v_subject_type text;
   v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
+  v_stage uuid := upsert_pipeline_stage.stage;
+  v_pipeline uuid := upsert_pipeline_stage.pipeline;
   v_used boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
-  from "app_private"."pipelines" x where x."id" = save_pipeline_stage.pipeline and x."archived_at" is null;
+  from "app_private"."pipelines" x where x."id" = upsert_pipeline_stage.pipeline and x."archived_at" is null;
   if v_tenant is null then
     raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
@@ -3374,17 +3374,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline_stage.pipeline, save_pipeline_stage.stage, save_pipeline_stage.key, save_pipeline_stage.category;
+        using upsert_pipeline_stage.pipeline, upsert_pipeline_stage.stage, upsert_pipeline_stage.key, upsert_pipeline_stage.category;
     end if;
   end;
   begin
     if v_stage is null then
       insert into "app_private"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
+      values (v_tenant, upsert_pipeline_stage.pipeline, upsert_pipeline_stage.key, upsert_pipeline_stage.name, upsert_pipeline_stage.category, v_outcome, upsert_pipeline_stage.probability, upsert_pipeline_stage.rotting_after_days, upsert_pipeline_stage.wip_limit, upsert_pipeline_stage.color, upsert_pipeline_stage.icon,
         case
-    when (select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
-    else left((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) || 'V'
+    else left((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "app_private"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_stage;
     else
@@ -3395,8 +3395,8 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "app_private"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
-      where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
+      update "app_private"."pipeline_stages" x set "key" = upsert_pipeline_stage.key, "name" = upsert_pipeline_stage.name, "category" = upsert_pipeline_stage.category, "outcome" = v_outcome, "probability" = upsert_pipeline_stage.probability, "rotting_after_days" = upsert_pipeline_stage.rotting_after_days, "wip_limit" = upsert_pipeline_stage.wip_limit, "color" = upsert_pipeline_stage.color, "icon" = upsert_pipeline_stage.icon, "updated_at" = now()
+      where x."id" = v_stage and x."pipeline_id" = upsert_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
       end if;
@@ -3404,7 +3404,7 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  if save_pipeline_stage.stage is null then
+  if upsert_pipeline_stage.stage is null then
     null;
   else
     null;
@@ -3420,8 +3420,8 @@ begin
   return (select to_jsonb(x) from "app_private"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
-grant execute on function "app_private"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "app_private"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "app_private"."rank_pipeline_stage"(stage uuid, rank text)
@@ -4121,7 +4121,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:70e5f37a17c63f9ae8c35420c242cdc871dd5dc16ca1aec090d10b7a65ca332c
+-- @bsb-hash sha256:7d80f66b3ccfe5588b2b57fb3a547efd5d53e6e0045b46503554725ac3512bb0
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4262,23 +4262,23 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
 
-create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function "better_supabase"."upsert_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
+  v_pipeline uuid := upsert_pipeline.pipeline;
+  v_created boolean := upsert_pipeline.pipeline is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{}'::text[])) then
+  if not (upsert_pipeline.subject_type = any ('{}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -4286,33 +4286,33 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline.tenant, save_pipeline.pipeline, save_pipeline.subject_type, save_pipeline.key;
+        using upsert_pipeline.tenant, upsert_pipeline.pipeline, upsert_pipeline.subject_type, upsert_pipeline.key;
     end if;
   end;
-  if coalesce(save_pipeline.is_default, false) then
+  if coalesce(upsert_pipeline.is_default, false) then
     update "better_supabase"."pipelines" x set "is_default" = false
-    where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-      and x."scope_id" is not distinct from save_pipeline.scope_id and x."is_default"
-      and x."id" is distinct from save_pipeline.pipeline;
+    where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+      and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."is_default"
+      and x."id" is distinct from upsert_pipeline.pipeline;
   end if;
   begin
     if v_created then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default", "rank")
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-            and x."scope_id" is not distinct from save_pipeline.scope_id and x."archived_at" is null),
+      values (upsert_pipeline.tenant, upsert_pipeline.subject_type, upsert_pipeline.scope_id, upsert_pipeline.key, upsert_pipeline.name,
+        coalesce(upsert_pipeline.is_default, false) or not exists (
+          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+            and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."archived_at" is null),
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_pipeline;
     else
-      update "better_supabase"."pipelines" x set "key" = save_pipeline.key, "name" = save_pipeline.name,
-        "is_default" = coalesce(save_pipeline.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_pipeline.pipeline and x."tenant_id" = save_pipeline.tenant
-        and x."subject_type" = save_pipeline.subject_type;
+      update "better_supabase"."pipelines" x set "key" = upsert_pipeline.key, "name" = upsert_pipeline.name,
+        "is_default" = coalesce(upsert_pipeline.is_default, x."is_default"), "updated_at" = now()
+      where x."id" = upsert_pipeline.pipeline and x."tenant_id" = upsert_pipeline.tenant
+        and x."subject_type" = upsert_pipeline.subject_type;
       if not found then
         raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
       end if;
@@ -4336,8 +4336,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipelines" x where x."id" = v_pipeline);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function "better_supabase"."archive_pipeline"(pipeline uuid)
@@ -4411,7 +4411,7 @@ grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenti
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+create or replace function "better_supabase"."upsert_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4421,15 +4421,15 @@ declare
   v_tenant uuid;
   v_subject_type text;
   v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
+  v_stage uuid := upsert_pipeline_stage.stage;
+  v_pipeline uuid := upsert_pipeline_stage.pipeline;
   v_used boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
-  from "better_supabase"."pipelines" x where x."id" = save_pipeline_stage.pipeline and x."archived_at" is null;
+  from "better_supabase"."pipelines" x where x."id" = upsert_pipeline_stage.pipeline and x."archived_at" is null;
   if v_tenant is null then
     raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
@@ -4445,17 +4445,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline_stage.pipeline, save_pipeline_stage.stage, save_pipeline_stage.key, save_pipeline_stage.category;
+        using upsert_pipeline_stage.pipeline, upsert_pipeline_stage.stage, upsert_pipeline_stage.key, upsert_pipeline_stage.category;
     end if;
   end;
   begin
     if v_stage is null then
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
+      values (v_tenant, upsert_pipeline_stage.pipeline, upsert_pipeline_stage.key, upsert_pipeline_stage.name, upsert_pipeline_stage.category, v_outcome, upsert_pipeline_stage.probability, upsert_pipeline_stage.rotting_after_days, upsert_pipeline_stage.wip_limit, upsert_pipeline_stage.color, upsert_pipeline_stage.icon,
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_stage;
     else
@@ -4466,8 +4466,8 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
-      where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
+      update "better_supabase"."pipeline_stages" x set "key" = upsert_pipeline_stage.key, "name" = upsert_pipeline_stage.name, "category" = upsert_pipeline_stage.category, "outcome" = v_outcome, "probability" = upsert_pipeline_stage.probability, "rotting_after_days" = upsert_pipeline_stage.rotting_after_days, "wip_limit" = upsert_pipeline_stage.wip_limit, "color" = upsert_pipeline_stage.color, "icon" = upsert_pipeline_stage.icon, "updated_at" = now()
+      where x."id" = v_stage and x."pipeline_id" = upsert_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
       end if;
@@ -4475,7 +4475,7 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  if save_pipeline_stage.stage is null then
+  if upsert_pipeline_stage.stage is null then
     null;
   else
     null;
@@ -4491,8 +4491,8 @@ begin
   return (select to_jsonb(x) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -5188,14 +5188,14 @@ as $$ select "better_supabase"."default_pipeline"($1, $2, $3) $$;
 revoke execute on function "api"."default_pipeline"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."default_pipeline"(uuid, text, text) to service_role;
 
-create or replace function "api"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function "api"."upsert_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_pipeline"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "api"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_pipeline"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "api"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "api"."archive_pipeline"(pipeline uuid)
 returns boolean
@@ -5215,14 +5215,14 @@ as $$ select "better_supabase"."restore_pipeline"($1) $$;
 revoke execute on function "api"."restore_pipeline"(uuid) from public, anon;
 grant execute on function "api"."restore_pipeline"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+create or replace function "api"."upsert_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_pipeline_stage"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
-revoke execute on function "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
-grant execute on function "api"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_pipeline_stage"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "api"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 create or replace function "api"."rank_pipeline_stage"(stage uuid, rank text)
 returns boolean
@@ -5337,7 +5337,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:f893064aa6097b7e2193437d70a6cbcd6259b0cc7c712dd7ec29a9fba40700de
+-- @bsb-hash sha256:0eec3008ed0333c7d7d3982ad724f918b6a8a3e096c0cede16e78a314cb68572
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5471,23 +5471,23 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
 
-create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function "better_supabase"."upsert_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
+  v_pipeline uuid := upsert_pipeline.pipeline;
+  v_created boolean := upsert_pipeline.pipeline is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{}'::text[])) then
+  if not (upsert_pipeline.subject_type = any ('{}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -5495,33 +5495,33 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline.tenant, save_pipeline.pipeline, save_pipeline.subject_type, save_pipeline.key;
+        using upsert_pipeline.tenant, upsert_pipeline.pipeline, upsert_pipeline.subject_type, upsert_pipeline.key;
     end if;
   end;
-  if coalesce(save_pipeline.is_default, false) then
+  if coalesce(upsert_pipeline.is_default, false) then
     update "better_supabase"."pipelines" x set "is_default" = false
-    where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-      and x."scope_id" is not distinct from save_pipeline.scope_id and x."is_default"
-      and x."id" is distinct from save_pipeline.pipeline;
+    where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+      and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."is_default"
+      and x."id" is distinct from upsert_pipeline.pipeline;
   end if;
   begin
     if v_created then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default", "rank")
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-            and x."scope_id" is not distinct from save_pipeline.scope_id and x."archived_at" is null),
+      values (upsert_pipeline.tenant, upsert_pipeline.subject_type, upsert_pipeline.scope_id, upsert_pipeline.key, upsert_pipeline.name,
+        coalesce(upsert_pipeline.is_default, false) or not exists (
+          select 1 from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+            and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."archived_at" is null),
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."tenant_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_pipeline;
     else
-      update "better_supabase"."pipelines" x set "key" = save_pipeline.key, "name" = save_pipeline.name,
-        "is_default" = coalesce(save_pipeline.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_pipeline.pipeline and x."tenant_id" = save_pipeline.tenant
-        and x."subject_type" = save_pipeline.subject_type;
+      update "better_supabase"."pipelines" x set "key" = upsert_pipeline.key, "name" = upsert_pipeline.name,
+        "is_default" = coalesce(upsert_pipeline.is_default, x."is_default"), "updated_at" = now()
+      where x."id" = upsert_pipeline.pipeline and x."tenant_id" = upsert_pipeline.tenant
+        and x."subject_type" = upsert_pipeline.subject_type;
       if not found then
         raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
       end if;
@@ -5545,8 +5545,8 @@ begin
   return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'subject_type', x."subject_type", 'scope_id', x."scope_id", 'key', x."key", 'name', x."name", 'rank', x."rank", 'is_default', x."is_default", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."pipelines" x where x."id" = v_pipeline);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function "better_supabase"."archive_pipeline"(pipeline uuid)
@@ -5620,7 +5620,7 @@ grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenti
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+create or replace function "better_supabase"."upsert_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5630,15 +5630,15 @@ declare
   v_tenant uuid;
   v_subject_type text;
   v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
+  v_stage uuid := upsert_pipeline_stage.stage;
+  v_pipeline uuid := upsert_pipeline_stage.pipeline;
   v_used boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
-  from "better_supabase"."pipelines" x where x."id" = save_pipeline_stage.pipeline and x."archived_at" is null;
+  from "better_supabase"."pipelines" x where x."id" = upsert_pipeline_stage.pipeline and x."archived_at" is null;
   if v_tenant is null then
     raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
@@ -5654,17 +5654,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline_stage.pipeline, save_pipeline_stage.stage, save_pipeline_stage.key, save_pipeline_stage.category;
+        using upsert_pipeline_stage.pipeline, upsert_pipeline_stage.stage, upsert_pipeline_stage.key, upsert_pipeline_stage.category;
     end if;
   end;
   begin
     if v_stage is null then
       insert into "better_supabase"."pipeline_stages" ("tenant_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, better_supabase.as_column_type(save_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
+      values (v_tenant, upsert_pipeline_stage.pipeline, upsert_pipeline_stage.key, upsert_pipeline_stage.name, better_supabase.as_column_type(upsert_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), upsert_pipeline_stage.probability, upsert_pipeline_stage.rotting_after_days, upsert_pipeline_stage.wip_limit, upsert_pipeline_stage.color, upsert_pipeline_stage.icon,
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_stage;
     else
@@ -5675,8 +5675,8 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = better_supabase.as_column_type(save_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), "outcome" = better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
-      where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
+      update "better_supabase"."pipeline_stages" x set "key" = upsert_pipeline_stage.key, "name" = upsert_pipeline_stage.name, "category" = better_supabase.as_column_type(upsert_pipeline_stage.category, (null::"better_supabase"."pipeline_stages")."category"), "outcome" = better_supabase.as_column_type(v_outcome, (null::"better_supabase"."pipeline_stages")."outcome"), "probability" = upsert_pipeline_stage.probability, "rotting_after_days" = upsert_pipeline_stage.rotting_after_days, "wip_limit" = upsert_pipeline_stage.wip_limit, "color" = upsert_pipeline_stage.color, "icon" = upsert_pipeline_stage.icon, "updated_at" = now()
+      where x."id" = v_stage and x."pipeline_id" = upsert_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
       end if;
@@ -5684,7 +5684,7 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  if save_pipeline_stage.stage is null then
+  if upsert_pipeline_stage.stage is null then
     null;
   else
     null;
@@ -5700,8 +5700,8 @@ begin
   return (select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'pipeline_id', x."pipeline_id", 'key', x."key", 'system_key', x."system_key", 'name', x."name", 'color', x."color", 'icon', x."icon", 'rank', x."rank", 'category', x."category", 'outcome', x."outcome", 'probability', x."probability", 'rotting_after_days', x."rotting_after_days", 'wip_limit', x."wip_limit", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)
@@ -6401,7 +6401,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:dab63ed70bef62649de51a0d1f860615ec8dfe539daa35af51e7cc9fb69bf3ed
+-- @bsb-hash sha256:b2e2c35a57ad33c1eef45c1266bb4639ddb9d85b6190c566c58515a6678bde68
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6542,23 +6542,23 @@ grant execute on function "better_supabase"."default_pipeline"(uuid, text, text)
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
 
-create or replace function "better_supabase"."save_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
+create or replace function "better_supabase"."upsert_pipeline"(tenant uuid, pipeline uuid, subject_type text, key text, name text, scope_id text, is_default boolean)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_pipeline uuid := save_pipeline.pipeline;
-  v_created boolean := save_pipeline.pipeline is null;
+  v_pipeline uuid := upsert_pipeline.pipeline;
+  v_created boolean := upsert_pipeline.pipeline is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{}'::text[])) then
+  if not (upsert_pipeline.subject_type = any ('{}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -6566,33 +6566,33 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline.tenant, save_pipeline.pipeline, save_pipeline.subject_type, save_pipeline.key;
+        using upsert_pipeline.tenant, upsert_pipeline.pipeline, upsert_pipeline.subject_type, upsert_pipeline.key;
     end if;
   end;
-  if coalesce(save_pipeline.is_default, false) then
+  if coalesce(upsert_pipeline.is_default, false) then
     update "better_supabase"."pipelines" x set "is_default" = false
-    where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-      and x."scope_id" is not distinct from save_pipeline.scope_id and x."is_default"
-      and x."id" is distinct from save_pipeline.pipeline;
+    where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+      and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."is_default"
+      and x."id" is distinct from upsert_pipeline.pipeline;
   end if;
   begin
     if v_created then
       insert into "better_supabase"."pipelines" ("org_id", "subject_type", "scope_id", "key", "name", "is_default", "rank")
-      values (save_pipeline.tenant, save_pipeline.subject_type, save_pipeline.scope_id, save_pipeline.key, save_pipeline.name,
-        coalesce(save_pipeline.is_default, false) or not exists (
-          select 1 from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type
-            and x."scope_id" is not distinct from save_pipeline.scope_id and x."archived_at" is null),
+      values (upsert_pipeline.tenant, upsert_pipeline.subject_type, upsert_pipeline.scope_id, upsert_pipeline.key, upsert_pipeline.name,
+        coalesce(upsert_pipeline.is_default, false) or not exists (
+          select 1 from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type
+            and x."scope_id" is not distinct from upsert_pipeline.scope_id and x."archived_at" is null),
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = save_pipeline.tenant and x."subject_type" = save_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipelines" x where x."org_id" = upsert_pipeline.tenant and x."subject_type" = upsert_pipeline.subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_pipeline;
     else
-      update "better_supabase"."pipelines" x set "key" = save_pipeline.key, "name" = save_pipeline.name,
-        "is_default" = coalesce(save_pipeline.is_default, x."is_default"), "updated_at" = now()
-      where x."id" = save_pipeline.pipeline and x."org_id" = save_pipeline.tenant
-        and x."subject_type" = save_pipeline.subject_type;
+      update "better_supabase"."pipelines" x set "key" = upsert_pipeline.key, "name" = upsert_pipeline.name,
+        "is_default" = coalesce(upsert_pipeline.is_default, x."is_default"), "updated_at" = now()
+      where x."id" = upsert_pipeline.pipeline and x."org_id" = upsert_pipeline.tenant
+        and x."subject_type" = upsert_pipeline.subject_type;
       if not found then
         raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
       end if;
@@ -6616,8 +6616,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) from "better_supabase"."pipelines" x where x."id" = v_pipeline);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline"(uuid, uuid, text, text, text, text, boolean) to authenticated, service_role;
 
 -- Archives a pipeline. Records still in it must move to another first.
 create or replace function "better_supabase"."archive_pipeline"(pipeline uuid)
@@ -6691,7 +6691,7 @@ grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenti
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
-create or replace function "better_supabase"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
+create or replace function "better_supabase"."upsert_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6701,15 +6701,15 @@ declare
   v_tenant uuid;
   v_subject_type text;
   v_outcome text;
-  v_stage uuid := save_pipeline_stage.stage;
-  v_pipeline uuid := save_pipeline_stage.pipeline;
+  v_stage uuid := upsert_pipeline_stage.stage;
+  v_pipeline uuid := upsert_pipeline_stage.pipeline;
   v_used boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."org_id", x."subject_type" into v_tenant, v_subject_type
-  from "better_supabase"."pipelines" x where x."id" = save_pipeline_stage.pipeline and x."archived_at" is null;
+  from "better_supabase"."pipelines" x where x."id" = upsert_pipeline_stage.pipeline and x."archived_at" is null;
   if v_tenant is null then
     raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
@@ -6725,17 +6725,17 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::text, $4::text)', v_hook::oid::regproc)
-        using save_pipeline_stage.pipeline, save_pipeline_stage.stage, save_pipeline_stage.key, save_pipeline_stage.category;
+        using upsert_pipeline_stage.pipeline, upsert_pipeline_stage.stage, upsert_pipeline_stage.key, upsert_pipeline_stage.category;
     end if;
   end;
   begin
     if v_stage is null then
       insert into "better_supabase"."pipeline_stages" ("org_id", "pipeline_id", "key", "name", "category", "outcome", "probability", "rotting_after_days", "wip_limit", "color", "icon", "rank")
-      values (v_tenant, save_pipeline_stage.pipeline, save_pipeline_stage.key, save_pipeline_stage.name, save_pipeline_stage.category, v_outcome, save_pipeline_stage.probability, save_pipeline_stage.rotting_after_days, save_pipeline_stage.wip_limit, save_pipeline_stage.color, save_pipeline_stage.icon,
+      values (v_tenant, upsert_pipeline_stage.pipeline, upsert_pipeline_stage.key, upsert_pipeline_stage.name, upsert_pipeline_stage.category, v_outcome, upsert_pipeline_stage.probability, upsert_pipeline_stage.rotting_after_days, upsert_pipeline_stage.wip_limit, upsert_pipeline_stage.color, upsert_pipeline_stage.icon,
         case
-    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = save_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline)) then (select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline), length(substring((select max(x."rank" collate "C") from "better_supabase"."pipeline_stages" x where x."pipeline_id" = upsert_pipeline_stage.pipeline) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
       returning "id" into v_stage;
     else
@@ -6746,8 +6746,8 @@ begin
           raise exception 'records are in this stage; its outcome can''t change' using errcode = '23503', hint = 'PIPELINE_STAGE_IN_USE';
         end if;
       end if;
-      update "better_supabase"."pipeline_stages" x set "key" = save_pipeline_stage.key, "name" = save_pipeline_stage.name, "category" = save_pipeline_stage.category, "outcome" = v_outcome, "probability" = save_pipeline_stage.probability, "rotting_after_days" = save_pipeline_stage.rotting_after_days, "wip_limit" = save_pipeline_stage.wip_limit, "color" = save_pipeline_stage.color, "icon" = save_pipeline_stage.icon, "updated_at" = now()
-      where x."id" = v_stage and x."pipeline_id" = save_pipeline_stage.pipeline;
+      update "better_supabase"."pipeline_stages" x set "key" = upsert_pipeline_stage.key, "name" = upsert_pipeline_stage.name, "category" = upsert_pipeline_stage.category, "outcome" = v_outcome, "probability" = upsert_pipeline_stage.probability, "rotting_after_days" = upsert_pipeline_stage.rotting_after_days, "wip_limit" = upsert_pipeline_stage.wip_limit, "color" = upsert_pipeline_stage.color, "icon" = upsert_pipeline_stage.icon, "updated_at" = now()
+      where x."id" = v_stage and x."pipeline_id" = upsert_pipeline_stage.pipeline;
       if not found then
         raise exception 'stage not found' using errcode = 'P0002', hint = 'PIPELINE_STAGE_NOT_FOUND';
       end if;
@@ -6755,7 +6755,7 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  if save_pipeline_stage.stage is null then
+  if upsert_pipeline_stage.stage is null then
     null;
   else
     null;
@@ -6771,8 +6771,8 @@ begin
   return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) from "better_supabase"."pipeline_stages" x where x."id" = v_stage);
 end;
 $$;
-revoke execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
-grant execute on function "better_supabase"."save_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_pipeline_stage"(uuid, uuid, text, text, text, integer, integer, integer, text, text) to authenticated, service_role;
 
 -- Moves a stage to a rank key the client computed with rankBetween.
 create or replace function "better_supabase"."rank_pipeline_stage"(stage uuid, rank text)

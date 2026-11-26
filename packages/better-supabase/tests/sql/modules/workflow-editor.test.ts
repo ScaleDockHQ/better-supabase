@@ -245,7 +245,7 @@ describe("workflow-editor module", () => {
 
   it("rejects a credential ref outside the credential's tenant", () => {
     expect(schemaOf(["workflow-editor"])).toContain(
-      "(save_workflow_credential.ref ->> 'tenant') is distinct from (save_workflow_credential.tenant)::text",
+      "(upsert_workflow_credential.ref ->> 'tenant') is distinct from (upsert_workflow_credential.tenant)::text",
     );
   });
 
@@ -260,7 +260,7 @@ describe("workflow-editor module", () => {
     const names = contract!.functions.map((fn) => fn.name);
 
     for (const name of [
-      "save_workflow_definition",
+      "upsert_workflow_definition",
       "publish_workflow_version",
       "workflow_start_target",
       "workflow_subject_start_target",

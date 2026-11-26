@@ -51,8 +51,9 @@ export type CalendarSqlOptions = {
   readonly ruleDialect?: CalendarRuleDialect;
   readonly readOnly?: CalendarReadOnly;
   /**
-   * Alarms per calendar (`calendar_default_alarms`) that `save_calendar_event`
-   * copies onto a new event that sets no `alarms`. Needs the alarms table.
+   * Alarms per calendar (`calendar_default_alarms`) that
+   * `upsert_calendar_event` copies onto a new event that sets no `alarms`.
+   * Needs the alarms table.
    */
   readonly defaultAlarms?: boolean;
   /**

@@ -140,7 +140,7 @@ export function createRetention(options: RetentionOptions): Retention {
       ),
     removePolicy: ({ kind, scope }) =>
       call(
-        "remove_retention_policy",
+        "delete_retention_policy",
         { kind, ...scoped(scope) },
         (value) => value === true,
       ),

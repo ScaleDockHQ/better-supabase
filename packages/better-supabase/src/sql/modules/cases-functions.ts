@@ -77,7 +77,7 @@ ${serviceGrant(`${fn("ensure_case_kinds")}(${idType})`)}
 
 -- Creates a kind or, with kind_id, changes one. The prefix starts the numbers
 -- of the kind's new cases; the flags set what case_close_blockers checks.
-create or replace function ${fn("save_case_kind")}(tenant ${idType}, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function ${fn("upsert_case_kind")}(tenant ${idType}, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -87,26 +87,26 @@ as $$
 declare
   v_row ${kinds};
 begin
-  if not ${q.allowed("save_case_kind.tenant", q.manage)} then
+  if not ${q.allowed("upsert_case_kind.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage case kinds")}
   end if;
-  if coalesce(save_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
+  if coalesce(upsert_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
     ${q.kindInvalid("key must be lowercase letters, digits and underscores")}
   end if;
-  if coalesce(length(trim(save_case_kind.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_case_kind.name)), 0) not between 1 and 200 then
     ${q.kindInvalid("name must be 1 to 200 characters")}
   end if;
-  if coalesce(save_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
+  if coalesce(upsert_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
     ${q.kindInvalid("prefix must be 1 to 6 capital letters")}
   end if;
-  if save_case_kind.effectiveness_after_days is not null and save_case_kind.effectiveness_after_days not between 1 and 365 then
+  if upsert_case_kind.effectiveness_after_days is not null and upsert_case_kind.effectiveness_after_days not between 1 and 365 then
     ${q.kindInvalid("effectiveness_after_days is a whole number from 1 to 365")}
   end if;
-  perform ${fn("ensure_case_kinds")}(save_case_kind.tenant);
-  if save_case_kind.kind_id is null then
+  perform ${fn("ensure_case_kinds")}(upsert_case_kind.tenant);
+  if upsert_case_kind.kind_id is null then
     insert into ${kinds} (${k("tenant")}, ${k("key")}, ${k("name")}, ${k("prefix")}, ${k("investigationForm")}, ${k("effectivenessForm")}, ${k("effectivenessAfterDays")}, ${k("requiresRootCause")}, ${k("requiresActions")}, ${k("requiresEffectiveness")}, ${k("requiresRevisions")})
-    values (save_case_kind.tenant, save_case_kind.key, trim(save_case_kind.name), save_case_kind.prefix, save_case_kind.investigation_form_id, save_case_kind.effectiveness_form_id, save_case_kind.effectiveness_after_days,
-      coalesce(save_case_kind.requires_root_cause, true), coalesce(save_case_kind.requires_actions, true), coalesce(save_case_kind.requires_effectiveness, false), coalesce(save_case_kind.requires_revisions, false))
+    values (upsert_case_kind.tenant, upsert_case_kind.key, trim(upsert_case_kind.name), upsert_case_kind.prefix, upsert_case_kind.investigation_form_id, upsert_case_kind.effectiveness_form_id, upsert_case_kind.effectiveness_after_days,
+      coalesce(upsert_case_kind.requires_root_cause, true), coalesce(upsert_case_kind.requires_actions, true), coalesce(upsert_case_kind.requires_effectiveness, false), coalesce(upsert_case_kind.requires_revisions, false))
     returning * into v_row;
     update ${kinds} x set ${k("pipeline")} = ${defaultPipeline}(v_row.${k("tenant")}, ${q.subject}, v_row.${k("id")}::text)
     where x.${k("id")} = v_row.${k("id")}
@@ -114,18 +114,18 @@ begin
     ${q.recordKind("case_kind.created", "v_row", "case kind created")}
   else
     update ${kinds} x set
-      ${k("key")} = save_case_kind.key,
-      ${k("name")} = trim(save_case_kind.name),
-      ${k("prefix")} = save_case_kind.prefix,
-      ${k("investigationForm")} = save_case_kind.investigation_form_id,
-      ${k("effectivenessForm")} = save_case_kind.effectiveness_form_id,
-      ${k("effectivenessAfterDays")} = save_case_kind.effectiveness_after_days,
-      ${k("requiresRootCause")} = coalesce(save_case_kind.requires_root_cause, true),
-      ${k("requiresActions")} = coalesce(save_case_kind.requires_actions, true),
-      ${k("requiresEffectiveness")} = coalesce(save_case_kind.requires_effectiveness, false),
-      ${k("requiresRevisions")} = coalesce(save_case_kind.requires_revisions, false),
+      ${k("key")} = upsert_case_kind.key,
+      ${k("name")} = trim(upsert_case_kind.name),
+      ${k("prefix")} = upsert_case_kind.prefix,
+      ${k("investigationForm")} = upsert_case_kind.investigation_form_id,
+      ${k("effectivenessForm")} = upsert_case_kind.effectiveness_form_id,
+      ${k("effectivenessAfterDays")} = upsert_case_kind.effectiveness_after_days,
+      ${k("requiresRootCause")} = coalesce(upsert_case_kind.requires_root_cause, true),
+      ${k("requiresActions")} = coalesce(upsert_case_kind.requires_actions, true),
+      ${k("requiresEffectiveness")} = coalesce(upsert_case_kind.requires_effectiveness, false),
+      ${k("requiresRevisions")} = coalesce(upsert_case_kind.requires_revisions, false),
       ${k("updatedAt")} = now()
-    where x.${k("id")} = save_case_kind.kind_id and x.${k("tenant")} = save_case_kind.tenant
+    where x.${k("id")} = upsert_case_kind.kind_id and x.${k("tenant")} = upsert_case_kind.tenant
     returning * into v_row;
     if not found then
       ${q.kindMissing}
@@ -137,7 +137,7 @@ exception when unique_violation then
   ${q.kindInvalid("another kind of this organization has this key")}
 end;
 $$;
-${userGrant(`${fn("save_case_kind")}(${signature})`)}
+${userGrant(`${fn("upsert_case_kind")}(${signature})`)}
 
 -- Archives a kind: its cases stay, and no new case opens with it.
 create or replace function ${fn("archive_case_kind")}(kind_id uuid)
@@ -764,7 +764,7 @@ $$;
 ${userGrant(`${fn("link_case_action")}(uuid, uuid, text, boolean)`)}
 
 -- Removes an action from its case; the work item stays.
-create or replace function ${fn("remove_case_action")}(action_id uuid)
+create or replace function ${fn("delete_case_action")}(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -775,7 +775,7 @@ declare
   v_action ${actions};
   v_row ${cases};
 begin
-  select * into v_action from ${actions} x where x.${a("id")} = remove_case_action.action_id;
+  select * into v_action from ${actions} x where x.${a("id")} = delete_case_action.action_id;
   if not found then
     ${fail("CASE_ACTION_NOT_FOUND", "no such case action", "P0002")}
   end if;
@@ -792,7 +792,7 @@ begin
   return ${caseJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("remove_case_action")}(uuid)`)}
+${userGrant(`${fn("delete_case_action")}(uuid)`)}
 `;
 }
 

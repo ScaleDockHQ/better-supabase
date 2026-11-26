@@ -142,7 +142,7 @@ export function shipmentsIntrastat(
     saveIntrastatLine: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_intrastat_line",
+          "upsert_intrastat_line",
           {
             tenant: organizationId,
             line: input.id ?? null,
@@ -159,7 +159,7 @@ export function shipmentsIntrastat(
             },
           },
           (value) => ({
-            id: textOf(recordOf(value, "save_intrastat_line")["id"]),
+            id: textOf(recordOf(value, "upsert_intrastat_line")["id"]),
           }),
         ),
       ),

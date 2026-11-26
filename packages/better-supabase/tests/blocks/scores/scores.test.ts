@@ -130,7 +130,7 @@ function fakeTransport(results: Record<string, unknown>) {
 describe("createScores", () => {
   it("saves, lists, reads and deletes models", async () => {
     const fake = fakeTransport({
-      save_score_model: MODEL,
+      upsert_score_model: MODEL,
       list_score_models: [MODEL, BARE_MODEL],
       get_score_model: {
         ...MODEL,
@@ -226,7 +226,7 @@ describe("createScores", () => {
     expect(await scores.purgeModel("m1").orThrow()).toBe(true);
     expect(fake.calls).toEqual([
       [
-        "save_score_model",
+        "upsert_score_model",
         {
           tenant: "org-1",
           model: { key: "lead", name: "Lead score", subjectType: "lead" },

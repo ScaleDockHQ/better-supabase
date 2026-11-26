@@ -120,7 +120,7 @@ select is(
   'the decision passes with an explicit status'
 );
 select isnt(
-  better_supabase.add_meeting_action_item(
+  better_supabase.create_meeting_action_item(
     (select id from ids where name = 'board'),
     '{"title": "Send the budget to the bank"}'::jsonb,
     array['00000000-0000-4000-8000-0000000000a2']::uuid[],

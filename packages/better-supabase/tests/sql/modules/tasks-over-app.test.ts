@@ -175,8 +175,8 @@ begin
   if jsonb_array_length(better_supabase.list_tasks('${TENANT}', '{"states": ["completed"]}'::jsonb, null, null, 50)) <> 1 then
     raise exception 'list_tasks missed the item';
   end if;
-  v_project := better_supabase.save_project('${TENANT}', null, '{"key": "OPS", "name": "Ops"}'::jsonb);
-  v_project := better_supabase.save_project('${TENANT}', (v_project ->> 'id')::uuid, '{"status": "active"}'::jsonb);
+  v_project := better_supabase.upsert_project('${TENANT}', null, '{"key": "OPS", "name": "Ops"}'::jsonb);
+  v_project := better_supabase.upsert_project('${TENANT}', (v_project ->> 'id')::uuid, '{"status": "active"}'::jsonb);
   if (select status from public.initiatives where code = 'OPS') <> 'active' then
     raise exception 'project %', v_project;
   end if;

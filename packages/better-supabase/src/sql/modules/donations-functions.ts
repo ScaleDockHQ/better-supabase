@@ -60,12 +60,12 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
   const set = (table: string, logical: string, value: string): string =>
     has(table, logical) ? `${ctx.col(table, logical)} = ${value}, ` : "";
 
-  // The fund columns save_donation_fund writes after kind, and their values.
+  // The fund columns upsert_donation_fund writes after kind, and their values.
   const fundWrites: readonly (readonly [string, string])[] = [
-    ["goal", "save_donation_fund.goal"],
-    ["currency", "save_donation_fund.currency"],
-    ["startsOn", "save_donation_fund.starts_on"],
-    ["endsOn", "save_donation_fund.ends_on"],
+    ["goal", "upsert_donation_fund.goal"],
+    ["currency", "upsert_donation_fund.currency"],
+    ["startsOn", "upsert_donation_fund.starts_on"],
+    ["endsOn", "upsert_donation_fund.ends_on"],
   ];
 
   const fundColumns = fundWrites.filter(([logical]) => has("funds", logical));
@@ -290,7 +290,7 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
 
   return `
 -- Creates or updates the fund or campaign with this key.
-create or replace function ${fn("save_donation_fund")}(tenant ${idType}, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
+create or replace function ${fn("upsert_donation_fund")}(tenant ${idType}, key text, name text, kind text default 'fund', goal bigint default null, currency text default null, starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -300,26 +300,26 @@ as $$
 declare
   v_row ${funds}%rowtype;
 begin
-  if not ${can("save_donation_fund.tenant", manage)} then
+  if not ${can("upsert_donation_fund.tenant", manage)} then
     ${forbidden("not allowed to manage donations")}
   end if;
-  if save_donation_fund.key is null or save_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_donation_fund.key is null or upsert_donation_fund.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     ${invalid("DONATION_FUND_INVALID", "a key is lowercase letters, digits and underscores")}
   end if;
-  if nullif(trim(save_donation_fund.name), '') is null then
+  if nullif(trim(upsert_donation_fund.name), '') is null then
     ${invalid("DONATION_FUND_INVALID", "a fund needs a name")}
   end if;
-  if coalesce(save_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
+  if coalesce(upsert_donation_fund.kind, 'fund') not in ('fund', 'campaign') then
     ${invalid("DONATION_FUND_INVALID", "kind is fund or campaign")}
   end if;
-  if save_donation_fund.goal is not null and (save_donation_fund.goal <= 0 or save_donation_fund.currency is null or save_donation_fund.currency !~ '^[A-Z]{3}$') then
+  if upsert_donation_fund.goal is not null and (upsert_donation_fund.goal <= 0 or upsert_donation_fund.currency is null or upsert_donation_fund.currency !~ '^[A-Z]{3}$') then
     ${invalid("DONATION_FUND_INVALID", "a goal is more than zero minor units of a three-letter currency")}
   end if;
-  if save_donation_fund.starts_on is not null and save_donation_fund.ends_on is not null and save_donation_fund.ends_on < save_donation_fund.starts_on then
+  if upsert_donation_fund.starts_on is not null and upsert_donation_fund.ends_on is not null and upsert_donation_fund.ends_on < upsert_donation_fund.starts_on then
     ${invalid("DONATION_FUND_INVALID", "ends_on is on or after starts_on")}
   end if;
   insert into ${funds} (${f("tenant")}, ${f("key")}, ${f("name")}, ${f("kind")}, ${fundColumns.map(([logical]) => f(logical)).join(", ")})
-  values (save_donation_fund.tenant, save_donation_fund.key, trim(save_donation_fund.name), ${ctx.cast("funds", "kind", "coalesce(save_donation_fund.kind, 'fund')")},
+  values (upsert_donation_fund.tenant, upsert_donation_fund.key, trim(upsert_donation_fund.name), ${ctx.cast("funds", "kind", "coalesce(upsert_donation_fund.kind, 'fund')")},
     ${fundValues.join(", ")})
   on conflict (${f("tenant")}, ${f("key")}) do update set
     ${f("name")} = excluded.${f("name")}, ${f("kind")} = excluded.${f("kind")}${has("funds", "goal") ? `, ${f("goal")} = excluded.${f("goal")}` : ""},
@@ -329,7 +329,7 @@ begin
   return ${fundJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_donation_fund")}(${idType}, text, text, text, bigint, text, date, date)`)}
+${userGrant(`${fn("upsert_donation_fund")}(${idType}, text, text, text, bigint, text, date, date)`)}
 
 create or replace function ${fn("archive_donation_fund")}(fund_id uuid)
 returns jsonb

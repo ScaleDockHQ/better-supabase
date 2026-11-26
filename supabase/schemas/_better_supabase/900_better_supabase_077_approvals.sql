@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:ac5ea1ac0e727655e37f6cae00ae7e027bc853ababe26b09c9a9e457f34029f3
+-- @bsb-hash sha256:e53ca0811e761c8b0a96858070983dc703632b1ad39db00070adbe7ec5660775
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -689,7 +689,7 @@ create policy bsb_approval_policies_read on "better_supabase"."approval_policies
 -- name, conditions, mode, steps, selfApproval, expiresIn, enabled }; keys
 -- left out keep their value. A tenant policy only adds to the options.policies
 -- floor for its subject type and action, so it can never loosen it.
-create or replace function "better_supabase"."save_approval_policy"(tenant uuid, policy jsonb)
+create or replace function "better_supabase"."upsert_approval_policy"(tenant uuid, policy jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -711,23 +711,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_approval_policy.tenant, 'approvals.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_approval_policy.tenant, 'approvals.manage'), false)) then
     raise exception 'managing approval policies needs approvals.manage' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_approval_policy.policy) is distinct from 'object' then
+  if jsonb_typeof(upsert_approval_policy.policy) is distinct from 'object' then
     raise exception 'policy must be an object' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
   end if;
-  if save_approval_policy.policy ? 'id' then
+  if upsert_approval_policy.policy ? 'id' then
     select * into v_old from "better_supabase"."approval_policies" x
-    where x."id" = (save_approval_policy.policy ->> 'id')::uuid and x."tenant_id" is not distinct from save_approval_policy.tenant
+    where x."id" = (upsert_approval_policy.policy ->> 'id')::uuid and x."tenant_id" is not distinct from upsert_approval_policy.tenant
     for update;
     if not found then
       raise exception 'approval policy not found' using errcode = 'P0002', hint = 'APPROVAL_POLICY_NOT_FOUND';
     end if;
   end if;
-  v_type := coalesce(save_approval_policy.policy ->> 'subjectType', v_old."subject_type");
-  v_action := coalesce(save_approval_policy.policy ->> 'action', v_old."action");
-  v_effect := case when save_approval_policy.policy ? 'effect' then nullif(save_approval_policy.policy ->> 'effect', '') else v_old."effect" end;
+  v_type := coalesce(upsert_approval_policy.policy ->> 'subjectType', v_old."subject_type");
+  v_action := coalesce(upsert_approval_policy.policy ->> 'action', v_old."action");
+  v_effect := case when upsert_approval_policy.policy ? 'effect' then nullif(upsert_approval_policy.policy ->> 'effect', '') else v_old."effect" end;
   if v_type is null or v_action is null or not (exists (
       select 1 from jsonb_array_elements('[{"subjectType":"*","action":"quote.send","effects":["money-movement"]},{"subjectType":"customer","action":"discount","effects":[]},{"subjectType":"customer","action":"refund","effects":[]},{"subjectType":"customer","action":"export","effects":[]},{"subjectType":"case","action":"close","effects":[]},{"subjectType":"drive_node","action":"approve","effects":[]},{"subjectType":"drive_node","action":"release","effects":[]},{"subjectType":"eve_tool_call","action":"add_note","effects":[]},{"subjectType":"workflow_run","action":"approve","effects":[]}]'::jsonb) f
       where (v_type = '*' or f.value ->> 'subjectType' in (v_type, '*'))
@@ -742,7 +742,7 @@ begin
     )) then
     raise exception 'a tenant policy tightens an options.policies entry, and there is none for this subject type, action and effect' using errcode = '22023', hint = 'APPROVAL_POLICY_UNKNOWN';
   end if;
-  v_conditions := case when save_approval_policy.policy ? 'conditions' then nullif(save_approval_policy.policy -> 'conditions', 'null'::jsonb) else v_old."conditions" end;
+  v_conditions := case when upsert_approval_policy.policy ? 'conditions' then nullif(upsert_approval_policy.policy -> 'conditions', 'null'::jsonb) else v_old."conditions" end;
   if v_conditions is not null then
     v_fields := "better_supabase"."rule_field_map"(v_type);
     if v_fields = '{}'::jsonb then
@@ -750,7 +750,7 @@ begin
     end if;
     perform "better_supabase"."rule_check"(v_conditions, v_fields, 1);
   end if;
-  v_steps := coalesce(save_approval_policy.policy -> 'steps', v_old."steps", '[]'::jsonb);
+  v_steps := coalesce(upsert_approval_policy.policy -> 'steps', v_old."steps", '[]'::jsonb);
   if jsonb_typeof(v_steps) <> 'array' or jsonb_array_length(v_steps) > 20 then
     raise exception 'steps must be a list of { approvers: { permission, role, team, users, manager, decider }, required, escalateAfter, escalateTo } objects' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
   end if;
@@ -789,29 +789,29 @@ begin
   v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
     then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) || '{"all": true}'::jsonb else s - 'all' end order by o), '[]'::jsonb)
     from jsonb_array_elements(v_steps) with ordinality e(s, o));
-  if coalesce(save_approval_policy.policy ->> 'mode', v_old."mode"::text, 'authorize') not in ('confirm', 'authorize') then
+  if coalesce(upsert_approval_policy.policy ->> 'mode', v_old."mode"::text, 'authorize') not in ('confirm', 'authorize') then
     raise exception 'mode must be confirm or authorize' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."approval_policies" ("tenant_id", "subject_type", "action", "name", "conditions", "effect", "mode", "steps", "self_approval", "expires_in", "enabled", "created_by", "description")
-    values (save_approval_policy.tenant, v_type, v_action, btrim(save_approval_policy.policy ->> 'name'), v_conditions, v_effect,
-      coalesce(save_approval_policy.policy ->> 'mode', 'authorize'), v_steps,
-      coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, false), (save_approval_policy.policy ->> 'expiresIn')::interval,
-      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true), auth.uid(), case when coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) ? 'description' then (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) -> 'description')))."description" else better_supabase.column_default('"better_supabase"."approval_policies"', 'description', (null::"better_supabase"."approval_policies")."description") end)
+    values (upsert_approval_policy.tenant, v_type, v_action, btrim(upsert_approval_policy.policy ->> 'name'), v_conditions, v_effect,
+      coalesce(upsert_approval_policy.policy ->> 'mode', 'authorize'), v_steps,
+      coalesce((upsert_approval_policy.policy ->> 'selfApproval')::boolean, false), (upsert_approval_policy.policy ->> 'expiresIn')::interval,
+      coalesce((upsert_approval_policy.policy ->> 'enabled')::boolean, true), auth.uid(), case when coalesce(upsert_approval_policy.policy -> 'fields', '{}'::jsonb) ? 'description' then (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', coalesce(upsert_approval_policy.policy -> 'fields', '{}'::jsonb) -> 'description')))."description" else better_supabase.column_default('"better_supabase"."approval_policies"', 'description', (null::"better_supabase"."approval_policies")."description") end)
     returning * into v_row;
   else
     update "better_supabase"."approval_policies" x set
       "subject_type" = v_type,
       "action" = v_action,
-      "name" = coalesce(btrim(save_approval_policy.policy ->> 'name'), x."name"),
+      "name" = coalesce(btrim(upsert_approval_policy.policy ->> 'name'), x."name"),
       "conditions" = v_conditions,
       "effect" = v_effect,
-      "mode" = coalesce(save_approval_policy.policy ->> 'mode', x."mode"),
+      "mode" = coalesce(upsert_approval_policy.policy ->> 'mode', x."mode"),
       "steps" = v_steps,
-      "self_approval" = coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, x."self_approval"),
-      "expires_in" = case when save_approval_policy.policy ? 'expiresIn' then (save_approval_policy.policy ->> 'expiresIn')::interval else x."expires_in" end,
-      "enabled" = coalesce((save_approval_policy.policy ->> 'enabled')::boolean, x."enabled"),
-      "updated_at" = now(), "description" = case when (save_approval_policy.policy -> 'fields') ? 'description' then (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', (save_approval_policy.policy -> 'fields') -> 'description')))."description" else x."description" end
+      "self_approval" = coalesce((upsert_approval_policy.policy ->> 'selfApproval')::boolean, x."self_approval"),
+      "expires_in" = case when upsert_approval_policy.policy ? 'expiresIn' then (upsert_approval_policy.policy ->> 'expiresIn')::interval else x."expires_in" end,
+      "enabled" = coalesce((upsert_approval_policy.policy ->> 'enabled')::boolean, x."enabled"),
+      "updated_at" = now(), "description" = case when (upsert_approval_policy.policy -> 'fields') ? 'description' then (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', (upsert_approval_policy.policy -> 'fields') -> 'description')))."description" else x."description" end
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
@@ -844,10 +844,10 @@ exception
     raise exception 'policy has an invalid name, mode, expiry or flag' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_approval_policy"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_approval_policy"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_approval_policy"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_approval_policy"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_approval_policy"(policy_id uuid)
+create or replace function "better_supabase"."delete_approval_policy"(policy_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -859,7 +859,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."approval_policies" x where x."id" = remove_approval_policy.policy_id;
+  select * into v_row from "better_supabase"."approval_policies" x where x."id" = delete_approval_policy.policy_id;
   if not found then
     return false;
   end if;
@@ -880,8 +880,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_approval_policy"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_approval_policy"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_approval_policy"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_approval_policy"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_approval_policies"(tenant uuid, subject_type text default null, page_size integer default 100)
 returns jsonb
@@ -3271,23 +3271,23 @@ as $$ select * from "better_supabase"."approval_eligible_ids"($1) $$;
 revoke execute on function "api"."approval_eligible_ids"(uuid) from public, anon;
 grant execute on function "api"."approval_eligible_ids"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_approval_policy"(tenant uuid, policy jsonb)
+create or replace function "api"."upsert_approval_policy"(tenant uuid, policy jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_approval_policy"($1, $2) $$;
-revoke execute on function "api"."save_approval_policy"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_approval_policy"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_approval_policy"($1, $2) $$;
+revoke execute on function "api"."upsert_approval_policy"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_approval_policy"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."remove_approval_policy"(policy_id uuid)
+create or replace function "api"."delete_approval_policy"(policy_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_approval_policy"($1) $$;
-revoke execute on function "api"."remove_approval_policy"(uuid) from public, anon;
-grant execute on function "api"."remove_approval_policy"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_approval_policy"($1) $$;
+revoke execute on function "api"."delete_approval_policy"(uuid) from public, anon;
+grant execute on function "api"."delete_approval_policy"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_approval_policies"(tenant uuid, subject_type text default null, page_size integer default 100)
 returns jsonb

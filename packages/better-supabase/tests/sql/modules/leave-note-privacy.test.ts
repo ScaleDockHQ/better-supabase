@@ -84,7 +84,7 @@ declare
   v_note text;
 begin
   ${as(CAROL)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   ${as(ALICE)}
   v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03', note => 'dentist') ->> 'id')::uuid;
   if better_supabase.list_leave_requests('${TENANT}') -> 0 ->> 'note' is distinct from 'dentist' then

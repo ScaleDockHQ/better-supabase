@@ -188,12 +188,12 @@ begin
     raise exception 'no terms %', (select row_to_json(b) from public.bills b where id = v_open);
   end if;
   perform better_supabase.record_invoice_payment(v_id, 5000, 'EUR', now(), 'bank', 'tx-1');
-  perform better_supabase.add_invoice_charge(v_id, 1500, 'EUR', 'Late fee');
+  perform better_supabase.create_invoice_charge(v_id, 1500, 'EUR', 'Late fee');
   v_charge := (select id from public.bill_charges where bill_id = v_id);
   if (select state from public.bills where id = v_id) <> 'partially_paid' then
     raise exception 'charged %', (select state from public.bills where id = v_id);
   end if;
-  v_invoice := better_supabase.remove_invoice_charge(v_charge);
+  v_invoice := better_supabase.delete_invoice_charge(v_charge);
   if (select state from public.bills where id = v_id) <> 'paid' or exists (select 1 from public.bill_charges) then
     raise exception 'removed %', v_invoice;
   end if;
@@ -409,7 +409,7 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_code := (better_supabase.save_tax_code('${TENANT}',
+  v_code := (better_supabase.upsert_tax_code('${TENANT}',
     '{"code": "VAT21", "name": "VAT 21%", "type": "sales", "rateBps": 2100}'::jsonb) ->> 'id')::uuid;
   v_id := (better_supabase.create_invoice('${TENANT}', '{"title": "Repair", "currency": "EUR"}'::jsonb,
     jsonb_build_array(jsonb_build_object('description', 'Part', 'quantity', 1, 'unitAmount', '10000',
@@ -725,7 +725,7 @@ begin
   if v_invoice ->> 'identifier' <> '2025-1' then
     raise exception 'numbered %', v_invoice;
   end if;
-  v_invoice := better_supabase.add_invoice_charge(v_id, 4000, 'EUR', 'Collection costs', '{"kind": "collection"}');
+  v_invoice := better_supabase.create_invoice_charge(v_id, 4000, 'EUR', 'Collection costs', '{"kind": "collection"}');
   if (v_invoice ->> 'balance')::bigint <> 6427 or (v_invoice ->> 'charged_total')::bigint <> 4000
     or v_invoice -> 'charges' -> 0 -> 'fields' ->> 'kind' <> 'collection' then
     raise exception 'charged %', v_invoice;
@@ -838,7 +838,7 @@ $$;`,
       "issue_invoice",
       "record_invoice_payment",
       "credit_invoice",
-      "add_invoice_charge",
+      "create_invoice_charge",
     ]) {
       expect(body(name)).toContain("'invoices.write'");
     }

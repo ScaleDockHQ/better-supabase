@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:224ed33cc33255ebdf2fc1314c435b31835e405c4ea8b4209bc7edee16f34449
+-- @bsb-hash sha256:0acb154bab3cae4f0a98a3ba38d0a3aaf8c426a2a60cc71ebaebb9dd593388a6
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -882,14 +882,14 @@ grant execute on function "better_supabase"."activity_transcript"(uuid, integer,
 -- startMs, endMs, text, confidence }] in order, attrs { language,
 -- durationSeconds, model }. The service role (a transcription job) and
 -- whoever may edit the activity may save one.
-create or replace function "better_supabase"."save_activity_transcript"(recording uuid, segments jsonb, attrs jsonb)
+create or replace function "better_supabase"."upsert_activity_transcript"(recording uuid, segments jsonb, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_recording uuid := save_activity_transcript.recording;
+  v_recording uuid := upsert_activity_transcript.recording;
   v_activity uuid;
   v_tenant uuid;
   v_type text;
@@ -909,11 +909,11 @@ begin
   if v_activity is null then
     raise exception 'no such recording you can edit' using errcode = 'P0002', hint = 'ACTIVITY_RECORDING_NOT_FOUND';
   end if;
-  if jsonb_typeof(save_activity_transcript.segments) is distinct from 'array'
-    or jsonb_array_length(save_activity_transcript.segments) > 20000 then
+  if jsonb_typeof(upsert_activity_transcript.segments) is distinct from 'array'
+    or jsonb_array_length(upsert_activity_transcript.segments) > 20000 then
     raise exception 'segments must be a list of at most 20000 { startMs, endMs, text }' using errcode = '22023', hint = 'ACTIVITY_TRANSCRIPT_INVALID';
   end if;
-  for v_item, v_position in select value, ordinality from jsonb_array_elements(save_activity_transcript.segments) with ordinality loop
+  for v_item, v_position in select value, ordinality from jsonb_array_elements(upsert_activity_transcript.segments) with ordinality loop
     if jsonb_typeof(v_item) is distinct from 'object'
       or jsonb_typeof(v_item -> 'text') is distinct from 'string'
       or jsonb_typeof(v_item -> 'startMs') is distinct from 'number'
@@ -927,23 +927,23 @@ begin
   delete from "better_supabase"."activity_transcript_segments" sx where sx."recording_id" = v_recording;
   insert into "better_supabase"."activity_transcript_segments" ("recording_id", "tenant_id", "position", "speaker", "speaker_id", "starts_ms", "ends_ms", "text", "confidence")
   select v_recording, v_tenant, i.ordinality::integer, nullif(i.value ->> 'speaker', ''), nullif(i.value ->> 'speakerUserId', '')::uuid, round((i.value ->> 'startMs')::numeric)::integer, round((i.value ->> 'endMs')::numeric)::integer, i.value ->> 'text', (i.value ->> 'confidence')::real
-  from jsonb_array_elements(save_activity_transcript.segments) with ordinality i;
+  from jsonb_array_elements(upsert_activity_transcript.segments) with ordinality i;
   update "better_supabase"."activity_recordings" rx set
     "status" = 'transcribed',
     "error" = null,
-    "language" = coalesce(nullif(save_activity_transcript.attrs ->> 'language', ''), rx."language"),
-    "duration_seconds" = coalesce((save_activity_transcript.attrs ->> 'durationSeconds')::integer, rx."duration_seconds"),
-    "model" = coalesce(nullif(save_activity_transcript.attrs ->> 'model', ''), rx."model"),
+    "language" = coalesce(nullif(upsert_activity_transcript.attrs ->> 'language', ''), rx."language"),
+    "duration_seconds" = coalesce((upsert_activity_transcript.attrs ->> 'durationSeconds')::integer, rx."duration_seconds"),
+    "model" = coalesce(nullif(upsert_activity_transcript.attrs ->> 'model', ''), rx."model"),
     "transcribed_at" = now()
   where rx."id" = v_recording;
   v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = v_activity), '[]'::jsonb);
   v_first := v_subjects -> 0;
-  perform "better_supabase".emit_event('activity.transcribed', jsonb_build_object('organizationId', v_tenant, 'activityId', v_activity, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects, 'recordingId', v_recording), 'activities/' || v_activity::text, (v_tenant::text)::text, 'activity.transcribed:' || v_recording::text || ':' || md5(save_activity_transcript.segments::text), 'better-supabase/activities');
+  perform "better_supabase".emit_event('activity.transcribed', jsonb_build_object('organizationId', v_tenant, 'activityId', v_activity, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects, 'recordingId', v_recording), 'activities/' || v_activity::text, (v_tenant::text)::text, 'activity.transcribed:' || v_recording::text || ':' || md5(upsert_activity_transcript.segments::text), 'better-supabase/activities');
   return (select jsonb_build_object('id', rx."id", 'organizationId', rx."tenant_id", 'activityId', rx."activity_id", 'fileId', rx."file_id", 'filename', rx."filename", 'mediaType', rx."media_type", 'status', rx."status", 'language', rx."language", 'durationSeconds', rx."duration_seconds", 'error', rx."error", 'model', rx."model", 'segmentCount', (select count(*)::integer from "better_supabase"."activity_transcript_segments" sc where sc."recording_id" = rx."id"), 'createdBy', rx."created_by", 'createdAt', rx."created_at", 'transcribedAt', rx."transcribed_at") from "better_supabase"."activity_recordings" rx where rx."id" = v_recording);
 end;
 $$;
-revoke execute on function "better_supabase"."save_activity_transcript"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_activity_transcript"(uuid, jsonb, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_activity_transcript"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_activity_transcript"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 -- Marks a recording failed with the transcriber's error. Service only.
 create or replace function "better_supabase"."fail_activity_recording"(recording uuid, error text)
@@ -988,7 +988,7 @@ grant execute on function "better_supabase"."pending_activity_recordings"(intege
 -- ownerId, dueAt }], model, source }. Replaces earlier notes. Each action item
 -- becomes a task through the tasks block, unless the activity already has a
 -- task with that title; without the tasks block action items are refused.
-create or replace function "better_supabase"."save_activity_notes"(activity uuid, notes jsonb)
+create or replace function "better_supabase"."upsert_activity_notes"(activity uuid, notes jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -997,8 +997,8 @@ as $$
 declare
   v_tenant uuid;
   v_type text;
-  v_summary text := nullif(trim(save_activity_notes.notes ->> 'summary'), '');
-  v_items jsonb := coalesce(save_activity_notes.notes -> 'actionItems', '[]'::jsonb);
+  v_summary text := nullif(trim(upsert_activity_notes.notes ->> 'summary'), '');
+  v_items jsonb := coalesce(upsert_activity_notes.notes -> 'actionItems', '[]'::jsonb);
   v_subjects jsonb;
   v_first jsonb;
   v_item jsonb;
@@ -1008,7 +1008,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type" into v_tenant, v_type
-  from "better_supabase"."activities" x where x."id" = save_activity_notes.activity and ((auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is null);
+  from "better_supabase"."activities" x where x."id" = upsert_activity_notes.activity and ((auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is null);
   if v_tenant is null then
     raise exception 'no such activity you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
   end if;
@@ -1022,14 +1022,14 @@ begin
     raise exception 'actionItems must be a list of { text }' using errcode = '22023', hint = 'ACTIVITY_NOTES_INVALID';
   end if;
   insert into "better_supabase"."activity_notes" ("activity_id", "tenant_id", "summary", "model", "source", "created_by")
-  values (save_activity_notes.activity, v_tenant, v_summary, nullif(save_activity_notes.notes ->> 'model', ''), case when save_activity_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
+  values (upsert_activity_notes.activity, v_tenant, v_summary, nullif(upsert_activity_notes.notes ->> 'model', ''), case when upsert_activity_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
   on conflict ("activity_id") do update set
     "summary" = excluded."summary",
     "model" = excluded."model", "source" = excluded."source", "updated_at" = now();
   for v_item in select i.value from jsonb_array_elements(v_items) i loop
     if not exists (
       select 1 from "better_supabase"."activity_note_actions" ax join "better_supabase"."work_items" k on k."id" = ax."task_id"
-      where ax."activity_id" = save_activity_notes.activity and k."title" = left(btrim(v_item ->> 'text'), 500)
+      where ax."activity_id" = upsert_activity_notes.activity and k."title" = left(btrim(v_item ->> 'text'), 500)
     ) then
       v_task := ("better_supabase"."create_work_item"(
         v_tenant,
@@ -1037,17 +1037,17 @@ begin
         case when nullif(v_item ->> 'ownerId', '') is null then '{}'::uuid[] else array[(v_item ->> 'ownerId')::uuid] end
       ) ->> 'id')::uuid;
       insert into "better_supabase"."activity_note_actions" ("tenant_id", "activity_id", "task_id")
-      values (v_tenant, save_activity_notes.activity, v_task);
+      values (v_tenant, upsert_activity_notes.activity, v_task);
     end if;
   end loop;
-  v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = save_activity_notes.activity), '[]'::jsonb);
+  v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = upsert_activity_notes.activity), '[]'::jsonb);
   v_first := v_subjects -> 0;
-  perform "better_supabase".emit_event('activity.summarized', jsonb_build_object('organizationId', v_tenant, 'activityId', save_activity_notes.activity, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'activities/' || save_activity_notes.activity::text, (v_tenant::text)::text, 'activity.summarized:' || save_activity_notes.activity::text || ':' || md5(save_activity_notes.notes::text), 'better-supabase/activities');
-  return (select jsonb_build_object('activityId', nx."activity_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionTaskIds', coalesce((select jsonb_agg(ax."task_id" order by ax."created_at", ax."id") from "better_supabase"."activity_note_actions" ax where ax."activity_id" = nx."activity_id"), '[]'::jsonb), 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."activity_notes" nx where nx."activity_id" = save_activity_notes.activity);
+  perform "better_supabase".emit_event('activity.summarized', jsonb_build_object('organizationId', v_tenant, 'activityId', upsert_activity_notes.activity, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'activities/' || upsert_activity_notes.activity::text, (v_tenant::text)::text, 'activity.summarized:' || upsert_activity_notes.activity::text || ':' || md5(upsert_activity_notes.notes::text), 'better-supabase/activities');
+  return (select jsonb_build_object('activityId', nx."activity_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionTaskIds', coalesce((select jsonb_agg(ax."task_id" order by ax."created_at", ax."id") from "better_supabase"."activity_note_actions" ax where ax."activity_id" = nx."activity_id"), '[]'::jsonb), 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."activity_notes" nx where nx."activity_id" = upsert_activity_notes.activity);
 end;
 $$;
-revoke execute on function "better_supabase"."save_activity_notes"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_activity_notes"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_activity_notes"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_activity_notes"(uuid, jsonb) to authenticated, service_role;
 
 -- An activity with the transcripts of its recordings in order, for a note
 -- taker: { activity, segments: [{ recordingId, position, ... }] }. Null
@@ -1449,14 +1449,14 @@ as $$ select "better_supabase"."activity_transcript"($1, $2, $3) $$;
 revoke execute on function "api"."activity_transcript"(uuid, integer, integer) from public, anon;
 grant execute on function "api"."activity_transcript"(uuid, integer, integer) to authenticated, service_role;
 
-create or replace function "api"."save_activity_transcript"(recording uuid, segments jsonb, attrs jsonb)
+create or replace function "api"."upsert_activity_transcript"(recording uuid, segments jsonb, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_activity_transcript"($1, $2, $3) $$;
-revoke execute on function "api"."save_activity_transcript"(uuid, jsonb, jsonb) from public, anon;
-grant execute on function "api"."save_activity_transcript"(uuid, jsonb, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_activity_transcript"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_activity_transcript"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "api"."upsert_activity_transcript"(uuid, jsonb, jsonb) to authenticated, service_role;
 
 create or replace function "api"."fail_activity_recording"(recording uuid, error text)
 returns boolean
@@ -1477,14 +1477,14 @@ as $$ select "better_supabase"."pending_activity_recordings"($1) $$;
 revoke execute on function "api"."pending_activity_recordings"(integer) from public, anon, authenticated;
 grant execute on function "api"."pending_activity_recordings"(integer) to service_role;
 
-create or replace function "api"."save_activity_notes"(activity uuid, notes jsonb)
+create or replace function "api"."upsert_activity_notes"(activity uuid, notes jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_activity_notes"($1, $2) $$;
-revoke execute on function "api"."save_activity_notes"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_activity_notes"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_activity_notes"($1, $2) $$;
+revoke execute on function "api"."upsert_activity_notes"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_activity_notes"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."activity_with_transcripts"(activity uuid)
 returns jsonb

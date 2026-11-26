@@ -139,7 +139,7 @@ export function inboxDrafts(
       );
 
   return {
-    upsert: write("save_inbox_draft"),
+    upsert: write("upsert_inbox_draft"),
     suggest: write("suggest_inbox_draft"),
     list: (conversationId) =>
       call(

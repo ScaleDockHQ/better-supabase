@@ -171,7 +171,7 @@ function build(ctx: BlockSqlContext): string {
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_commission_plan",
+      name: "upsert_commission_plan",
       args: ["{id}", "text", "text", "integer", "jsonb", "uuid", "boolean"],
       returns: "jsonb",
     },

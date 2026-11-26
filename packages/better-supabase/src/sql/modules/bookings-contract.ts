@@ -10,7 +10,7 @@ export function contract(
 ): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_booking_resource",
+      name: "upsert_booking_resource",
       args: ["{id}", "jsonb"],
       returns: "jsonb",
     },
@@ -20,12 +20,16 @@ export function contract(
       returns: "integer",
     },
     {
-      name: "add_booking_exception",
+      name: "create_booking_exception",
       args: ["uuid", "timestamptz", "timestamptz", "boolean", "text"],
       returns: "jsonb",
     },
     { name: "delete_booking_exception", args: ["uuid"], returns: "boolean" },
-    { name: "save_booking_service", args: ["{id}", "jsonb"], returns: "jsonb" },
+    {
+      name: "upsert_booking_service",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "available_slots",
       args: ["uuid", "timestamptz", "timestamptz", "text", "uuid"],

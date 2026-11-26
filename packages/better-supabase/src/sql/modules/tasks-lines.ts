@@ -207,21 +207,21 @@ ${
   spec
     ? save(
         "specification",
-        "save_task_specification_line",
+        "upsert_task_specification_line",
         "line_id",
         ["description", "quantity", "unit", "estimate"],
         [
-          "nullif(btrim(save_task_specification_line.attrs ->> 'description'), '')",
-          "nullif(save_task_specification_line.attrs ->> 'quantity', '')::numeric",
-          "nullif(btrim(save_task_specification_line.attrs ->> 'unit'), '')",
-          "nullif(save_task_specification_line.attrs ->> 'estimate', '')::numeric",
+          "nullif(btrim(upsert_task_specification_line.attrs ->> 'description'), '')",
+          "nullif(upsert_task_specification_line.attrs ->> 'quantity', '')::numeric",
+          "nullif(btrim(upsert_task_specification_line.attrs ->> 'unit'), '')",
+          "nullif(upsert_task_specification_line.attrs ->> 'estimate', '')::numeric",
         ],
         [
-          `${c("specification", "description")} = coalesce(nullif(btrim(save_task_specification_line.attrs ->> 'description'), ''), ${c("specification", "description")})`,
-          `${c("specification", "quantity")} = coalesce(nullif(save_task_specification_line.attrs ->> 'quantity', '')::numeric, ${c("specification", "quantity")})`,
-          `${c("specification", "unit")} = case when save_task_specification_line.attrs ? 'unit' then nullif(btrim(save_task_specification_line.attrs ->> 'unit'), '') else ${c("specification", "unit")} end`,
-          `${c("specification", "estimate")} = case when save_task_specification_line.attrs ? 'estimate' then nullif(save_task_specification_line.attrs ->> 'estimate', '')::numeric else ${c("specification", "estimate")} end`,
-          `${c("specification", "rank")} = coalesce(nullif(save_task_specification_line.attrs ->> 'rank', ''), ${c("specification", "rank")})`,
+          `${c("specification", "description")} = coalesce(nullif(btrim(upsert_task_specification_line.attrs ->> 'description'), ''), ${c("specification", "description")})`,
+          `${c("specification", "quantity")} = coalesce(nullif(upsert_task_specification_line.attrs ->> 'quantity', '')::numeric, ${c("specification", "quantity")})`,
+          `${c("specification", "unit")} = case when upsert_task_specification_line.attrs ? 'unit' then nullif(btrim(upsert_task_specification_line.attrs ->> 'unit'), '') else ${c("specification", "unit")} end`,
+          `${c("specification", "estimate")} = case when upsert_task_specification_line.attrs ? 'estimate' then nullif(upsert_task_specification_line.attrs ->> 'estimate', '')::numeric else ${c("specification", "estimate")} end`,
+          `${c("specification", "rank")} = coalesce(nullif(upsert_task_specification_line.attrs ->> 'rank', ''), ${c("specification", "rank")})`,
         ],
       )
     : ""
@@ -231,19 +231,19 @@ ${
   materials
     ? save(
         "materials",
-        "save_task_material_line",
+        "upsert_task_material_line",
         "line_id",
         ["variant", "quantity", "unit"],
         [
-          "nullif(save_task_material_line.attrs ->> 'variantId', '')::uuid",
-          "nullif(save_task_material_line.attrs ->> 'quantity', '')::numeric",
-          "nullif(btrim(save_task_material_line.attrs ->> 'unit'), '')",
+          "nullif(upsert_task_material_line.attrs ->> 'variantId', '')::uuid",
+          "nullif(upsert_task_material_line.attrs ->> 'quantity', '')::numeric",
+          "nullif(btrim(upsert_task_material_line.attrs ->> 'unit'), '')",
         ],
         [
-          `${c("materials", "variant")} = coalesce(nullif(save_task_material_line.attrs ->> 'variantId', '')::uuid, ${c("materials", "variant")})`,
-          `${c("materials", "quantity")} = coalesce(nullif(save_task_material_line.attrs ->> 'quantity', '')::numeric, ${c("materials", "quantity")})`,
-          `${c("materials", "unit")} = case when save_task_material_line.attrs ? 'unit' then nullif(btrim(save_task_material_line.attrs ->> 'unit'), '') else ${c("materials", "unit")} end`,
-          `${c("materials", "rank")} = coalesce(nullif(save_task_material_line.attrs ->> 'rank', ''), ${c("materials", "rank")})`,
+          `${c("materials", "variant")} = coalesce(nullif(upsert_task_material_line.attrs ->> 'variantId', '')::uuid, ${c("materials", "variant")})`,
+          `${c("materials", "quantity")} = coalesce(nullif(upsert_task_material_line.attrs ->> 'quantity', '')::numeric, ${c("materials", "quantity")})`,
+          `${c("materials", "unit")} = case when upsert_task_material_line.attrs ? 'unit' then nullif(btrim(upsert_task_material_line.attrs ->> 'unit'), '') else ${c("materials", "unit")} end`,
+          `${c("materials", "rank")} = coalesce(nullif(upsert_task_material_line.attrs ->> 'rank', ''), ${c("materials", "rank")})`,
         ],
       )
     : ""
@@ -259,7 +259,7 @@ export function taskLinesContract(
     ...(ctx.hasTable("specification")
       ? [
           {
-            name: "save_task_specification_line",
+            name: "upsert_task_specification_line",
             args: ["uuid", "uuid", "jsonb"],
             returns: "jsonb",
           },
@@ -269,7 +269,7 @@ export function taskLinesContract(
     ...(ctx.hasTable("materials")
       ? [
           {
-            name: "save_task_material_line",
+            name: "upsert_task_material_line",
             args: ["uuid", "uuid", "jsonb"],
             returns: "jsonb",
           },

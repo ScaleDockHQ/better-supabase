@@ -88,7 +88,7 @@ select set_config(
   true
 );
 set local role authenticated;
-select better_supabase.add_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
+select better_supabase.create_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
   '00000000-0000-4000-8000-0000000000a2', role => 'member');
 
 reset role;
@@ -112,7 +112,7 @@ select set_config(
   true
 );
 set local role authenticated;
-select better_supabase.add_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
+select better_supabase.create_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
   '00000000-0000-4000-8000-0000000000a2', role => 'lead');
 
 reset role;

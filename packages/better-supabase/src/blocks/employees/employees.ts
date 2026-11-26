@@ -429,7 +429,7 @@ const argsOf = (input: object): Record<string, unknown> =>
   );
 
 /**
- * A contract as `add_employee_contract` reads it: the salary as text and its
+ * A contract as `create_employee_contract` reads it: the salary as text and its
  * currency.
  */
 function contractArgs(input: ContractInput): Record<string, unknown> {
@@ -804,7 +804,7 @@ export function createEmployees<
       ),
     savePrivateDetails: ({ employeeId, input }) =>
       call(
-        "save_employee_private_details",
+        "upsert_employee_private_details",
         {
           employee: employeeId,
           attrs: argsOf({
@@ -826,7 +826,7 @@ export function createEmployees<
       ),
     addContract: ({ employeeId, input }) =>
       call(
-        "add_employee_contract",
+        "create_employee_contract",
         { employee: employeeId, attrs: contractArgs(input) },
         contractOf,
       ),

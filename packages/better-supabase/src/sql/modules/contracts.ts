@@ -397,7 +397,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_contract_obligation",
+      name: "upsert_contract_obligation",
       args: ["uuid", "text", "date", "uuid", "text", "uuid"],
       returns: "jsonb",
     },

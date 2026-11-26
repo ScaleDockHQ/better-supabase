@@ -1,6 +1,6 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:590afe2840b500e890d4d71d9a0e859327ae8b5919aa5aef3cb281d0ac3bf61b
+-- @bsb-hash sha256:48b9a02b05d05296a223bd0efbdc9ecb9fa74ac06c30603e34f6ddff1b7c9c8e
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -153,7 +153,7 @@ create policy bsb_inspection_findings_read on "better_supabase"."inspection_find
 
 -- Creates an audit programme for a period or, with program_id, changes one.
 -- A new programme starts as a draft; a closed one takes no changes.
-create or replace function "better_supabase"."save_inspection_program"(tenant uuid, name text, period_start date, period_end date, owner_id uuid default null, notes text default null, program_id uuid default null)
+create or replace function "better_supabase"."upsert_inspection_program"(tenant uuid, name text, period_start date, period_end date, owner_id uuid default null, notes text default null, program_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -166,22 +166,22 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_inspection_program.tenant is not null and coalesce(better_supabase.can('tenant', save_inspection_program.tenant, 'inspections.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_inspection_program.tenant is not null and coalesce(better_supabase.can('tenant', upsert_inspection_program.tenant, 'inspections.manage'), false))) then
     raise exception 'not allowed to manage audit programmes' using errcode = '42501', hint = 'INSPECTION_FORBIDDEN';
   end if;
-  if coalesce(length(trim(save_inspection_program.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_inspection_program.name)), 0) not between 1 and 200 then
     raise exception 'a programme needs a name of 1 to 200 characters' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if save_inspection_program.period_start is null or save_inspection_program.period_end is null
-    or save_inspection_program.period_end < save_inspection_program.period_start then
+  if upsert_inspection_program.period_start is null or upsert_inspection_program.period_end is null
+    or upsert_inspection_program.period_end < upsert_inspection_program.period_start then
     raise exception 'a programme needs a period that ends on or after its start' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if length(save_inspection_program.notes) > 10000 then
+  if length(upsert_inspection_program.notes) > 10000 then
     raise exception 'notes is at most 10000 characters' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if save_inspection_program.program_id is null then
+  if upsert_inspection_program.program_id is null then
     insert into "better_supabase"."inspection_programs" ("tenant_id", "name", "period_start", "period_end", "owner_id", "notes")
-    values (save_inspection_program.tenant, trim(save_inspection_program.name), save_inspection_program.period_start, save_inspection_program.period_end, save_inspection_program.owner_id, nullif(trim(save_inspection_program.notes), ''))
+    values (upsert_inspection_program.tenant, trim(upsert_inspection_program.name), upsert_inspection_program.period_start, upsert_inspection_program.period_end, upsert_inspection_program.owner_id, nullif(trim(upsert_inspection_program.notes), ''))
     returning * into v_row;
     perform "better_supabase".emit_event('inspection_program.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'name', v_row."name", 'status', v_row."status"), 'inspection-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/inspections');
   perform better_supabase.audit_event(
@@ -196,7 +196,7 @@ begin
   );
   else
     select * into v_row from "better_supabase"."inspection_programs" x
-    where x."id" = save_inspection_program.program_id and x."tenant_id" = save_inspection_program.tenant
+    where x."id" = upsert_inspection_program.program_id and x."tenant_id" = upsert_inspection_program.tenant
     for update;
     if not found then
       raise exception 'no such audit programme in this organization' using errcode = 'P0002', hint = 'INSPECTION_PROGRAM_NOT_FOUND';
@@ -205,11 +205,11 @@ begin
       raise exception 'the programme is closed' using errcode = '22023', hint = 'INSPECTION_INVALID';
     end if;
     update "better_supabase"."inspection_programs" x set
-      "name" = trim(save_inspection_program.name),
-      "period_start" = save_inspection_program.period_start,
-      "period_end" = save_inspection_program.period_end,
-      "owner_id" = save_inspection_program.owner_id,
-      "notes" = nullif(trim(save_inspection_program.notes), ''),
+      "name" = trim(upsert_inspection_program.name),
+      "period_start" = upsert_inspection_program.period_start,
+      "period_end" = upsert_inspection_program.period_end,
+      "owner_id" = upsert_inspection_program.owner_id,
+      "notes" = nullif(trim(upsert_inspection_program.notes), ''),
       "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -228,8 +228,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'ownerId', v_row."owner_id", 'status', v_row."status", 'notes', v_row."notes", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_inspection_program"(uuid, text, date, date, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_inspection_program"(uuid, text, date, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_inspection_program"(uuid, text, date, date, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_inspection_program"(uuid, text, date, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Approves a draft programme.
 create or replace function "better_supabase"."approve_inspection_program"(program_id uuid)
@@ -749,7 +749,7 @@ grant execute on function "better_supabase"."start_inspection"(uuid) to authenti
 
 -- Saves the answers of the checklist of an inspection in progress, as its
 -- lead or an auditor, as a draft or (draft false) submitted and validated.
-create or replace function "better_supabase"."save_inspection_checklist"(inspection_id uuid, answers jsonb, draft boolean default true)
+create or replace function "better_supabase"."upsert_inspection_checklist"(inspection_id uuid, answers jsonb, draft boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -760,7 +760,7 @@ declare
   v_row "better_supabase"."inspections";
   v_respondent uuid;
 begin
-  select * into v_row from "better_supabase"."inspections" x where x."id" = save_inspection_checklist.inspection_id for update;
+  select * into v_row from "better_supabase"."inspections" x where x."id" = upsert_inspection_checklist.inspection_id for update;
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
@@ -775,12 +775,12 @@ begin
   end if;
   select x."respondent_id" into v_respondent from "better_supabase"."form_submissions" x
   where x."id" = v_row."checklist_submission_id";
-  return "better_supabase"."form_submission_save"(v_row."checklist_form_id", save_inspection_checklist.answers, 'inspection', v_row."id"::text,
-    v_respondent, 'member', coalesce(save_inspection_checklist.draft, true), v_row."checklist_submission_id");
+  return "better_supabase"."form_submission_save"(v_row."checklist_form_id", upsert_inspection_checklist.answers, 'inspection', v_row."id"::text,
+    v_respondent, 'member', coalesce(upsert_inspection_checklist.draft, true), v_row."checklist_submission_id");
 end;
 $$;
-revoke execute on function "better_supabase"."save_inspection_checklist"(uuid, jsonb, boolean) from public, anon;
-grant execute on function "better_supabase"."save_inspection_checklist"(uuid, jsonb, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_inspection_checklist"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_inspection_checklist"(uuid, jsonb, boolean) to authenticated, service_role;
 
 -- Ends the fieldwork of an inspection in progress as its lead: the checklist,
 -- when there is one, is submitted. The inspection moves to reporting.
@@ -962,7 +962,7 @@ grant execute on function "better_supabase"."cancel_inspection"(uuid, text) to a
 -- Adds a finding to an inspection in progress or reporting, as its lead or an
 -- auditor. type is one of options.findingTypes; control_id names the
 -- compliance control it concerns, which the inspection then assesses.
-create or replace function "better_supabase"."add_inspection_finding"(inspection_id uuid, type text, title text, description text default null, clause text default null, control_id uuid default null, evidence text default null)
+create or replace function "better_supabase"."create_inspection_finding"(inspection_id uuid, type text, title text, description text default null, clause text default null, control_id uuid default null, evidence text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -972,14 +972,14 @@ as $$
 declare
   v_inspection "better_supabase"."inspections";
   v_row "better_supabase"."inspection_findings";
-  v_type text := add_inspection_finding.type;
-  v_title text := trim(add_inspection_finding.title);
+  v_type text := create_inspection_finding.type;
+  v_title text := trim(create_inspection_finding.title);
   v_number integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_inspection from "better_supabase"."inspections" x where x."id" = add_inspection_finding.inspection_id for update;
+  select * into v_inspection from "better_supabase"."inspections" x where x."id" = create_inspection_finding.inspection_id for update;
   if not found then
     raise exception 'no such inspection' using errcode = 'P0002', hint = 'INSPECTION_NOT_FOUND';
   end if;
@@ -995,18 +995,18 @@ begin
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a finding needs a title of 1 to 300 characters' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if length(add_inspection_finding.description) > 10000 then
+  if length(create_inspection_finding.description) > 10000 then
     raise exception 'description is at most 10000 characters' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if length(add_inspection_finding.clause) > 200 then
+  if length(create_inspection_finding.clause) > 200 then
     raise exception 'clause is at most 200 characters' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if length(add_inspection_finding.evidence) > 10000 then
+  if length(create_inspection_finding.evidence) > 10000 then
     raise exception 'evidence is at most 10000 characters' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if add_inspection_finding.control_id is not null and not exists (
+  if create_inspection_finding.control_id is not null and not exists (
     select 1 from "better_supabase"."controls" y
-    where y."id" = add_inspection_finding.control_id and y."tenant_id"::text = v_inspection."tenant_id"::text
+    where y."id" = create_inspection_finding.control_id and y."tenant_id"::text = v_inspection."tenant_id"::text
   ) then
     raise exception 'the control is not a control of this organization' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
@@ -1015,12 +1015,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using add_inspection_finding.inspection_id, jsonb_build_object('type', add_inspection_finding.type, 'title', add_inspection_finding.title, 'controlId', add_inspection_finding.control_id);
+        using create_inspection_finding.inspection_id, jsonb_build_object('type', create_inspection_finding.type, 'title', create_inspection_finding.title, 'controlId', create_inspection_finding.control_id);
     end if;
   end;
   select coalesce(max(y."number"), 0) + 1 into v_number from "better_supabase"."inspection_findings" y where y."inspection_id" = v_inspection."id";
   insert into "better_supabase"."inspection_findings" ("tenant_id", "inspection_id", "number", "type", "title", "description", "clause", "evidence", "control_id", "created_by")
-  values (v_inspection."tenant_id", v_inspection."id", v_number, v_type, v_title, nullif(trim(add_inspection_finding.description), ''), nullif(trim(add_inspection_finding.clause), ''), nullif(trim(add_inspection_finding.evidence), ''), add_inspection_finding.control_id, auth.uid())
+  values (v_inspection."tenant_id", v_inspection."id", v_number, v_type, v_title, nullif(trim(create_inspection_finding.description), ''), nullif(trim(create_inspection_finding.clause), ''), nullif(trim(create_inspection_finding.evidence), ''), create_inspection_finding.control_id, auth.uid())
   returning * into v_row;
   if v_row."control_id" is not null then
     insert into "better_supabase"."relations" ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id", "created_by")
@@ -1053,8 +1053,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'inspectionId', v_row."inspection_id", 'number', v_row."number", 'type', v_row."type", 'title', v_row."title", 'description', v_row."description", 'clause', v_row."clause", 'controlId', v_row."control_id", 'evidence', v_row."evidence", 'caseId', v_row."case_id", 'needsCase', v_row."type" = any (array['major_nonconformity', 'minor_nonconformity']::text[]), 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_inspection_finding"(uuid, text, text, text, text, uuid, text) from public, anon;
-grant execute on function "better_supabase"."add_inspection_finding"(uuid, text, text, text, text, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_inspection_finding"(uuid, text, text, text, text, uuid, text) from public, anon;
+grant execute on function "better_supabase"."create_inspection_finding"(uuid, text, text, text, text, uuid, text) to authenticated, service_role;
 
 -- Changes a finding's type, title, description, clause, controlId or evidence.
 create or replace function "better_supabase"."update_inspection_finding"(finding_id uuid, changes jsonb)
@@ -1869,14 +1869,14 @@ as $$ select "better_supabase"."inspection_role"($1) $$;
 revoke execute on function "api"."inspection_role"(uuid) from public, anon;
 grant execute on function "api"."inspection_role"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_inspection_program"(tenant uuid, name text, period_start date, period_end date, owner_id uuid default null, notes text default null, program_id uuid default null)
+create or replace function "api"."upsert_inspection_program"(tenant uuid, name text, period_start date, period_end date, owner_id uuid default null, notes text default null, program_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_inspection_program"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_inspection_program"(uuid, text, date, date, uuid, text, uuid) from public, anon;
-grant execute on function "api"."save_inspection_program"(uuid, text, date, date, uuid, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_inspection_program"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_inspection_program"(uuid, text, date, date, uuid, text, uuid) from public, anon;
+grant execute on function "api"."upsert_inspection_program"(uuid, text, date, date, uuid, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."approve_inspection_program"(program_id uuid)
 returns jsonb
@@ -1960,14 +1960,14 @@ as $$ select "better_supabase"."start_inspection"($1) $$;
 revoke execute on function "api"."start_inspection"(uuid) from public, anon;
 grant execute on function "api"."start_inspection"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_inspection_checklist"(inspection_id uuid, answers jsonb, draft boolean default true)
+create or replace function "api"."upsert_inspection_checklist"(inspection_id uuid, answers jsonb, draft boolean default true)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_inspection_checklist"($1, $2, $3) $$;
-revoke execute on function "api"."save_inspection_checklist"(uuid, jsonb, boolean) from public, anon;
-grant execute on function "api"."save_inspection_checklist"(uuid, jsonb, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_inspection_checklist"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_inspection_checklist"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "api"."upsert_inspection_checklist"(uuid, jsonb, boolean) to authenticated, service_role;
 
 create or replace function "api"."complete_inspection"(inspection_id uuid, summary text default null)
 returns jsonb
@@ -1996,14 +1996,14 @@ as $$ select "better_supabase"."cancel_inspection"($1, $2) $$;
 revoke execute on function "api"."cancel_inspection"(uuid, text) from public, anon;
 grant execute on function "api"."cancel_inspection"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."add_inspection_finding"(inspection_id uuid, type text, title text, description text default null, clause text default null, control_id uuid default null, evidence text default null)
+create or replace function "api"."create_inspection_finding"(inspection_id uuid, type text, title text, description text default null, clause text default null, control_id uuid default null, evidence text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_inspection_finding"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."add_inspection_finding"(uuid, text, text, text, text, uuid, text) from public, anon;
-grant execute on function "api"."add_inspection_finding"(uuid, text, text, text, text, uuid, text) to authenticated, service_role;
+as $$ select "better_supabase"."create_inspection_finding"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."create_inspection_finding"(uuid, text, text, text, text, uuid, text) from public, anon;
+grant execute on function "api"."create_inspection_finding"(uuid, text, text, text, text, uuid, text) to authenticated, service_role;
 
 create or replace function "api"."update_inspection_finding"(finding_id uuid, changes jsonb)
 returns jsonb

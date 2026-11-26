@@ -259,7 +259,7 @@ export function orderKitchen(call: BlockCall): OrderKitchen {
   return {
     saveStation: ({ organizationId, input, stationId }) =>
       call(
-        "save_kitchen_station",
+        "upsert_kitchen_station",
         {
           tenant: organizationId,
           station: stationId ?? null,

@@ -843,7 +843,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           { name: "page_projects", args: ["{id}", "jsonb"], returns: "jsonb" },
           { name: "get_project", args: ["uuid"], returns: "jsonb" },
           {
-            name: "save_project",
+            name: "upsert_project",
             args: ["{id}", "uuid", "jsonb"],
             returns: "jsonb",
           },
@@ -852,7 +852,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(ctx.hasTable("iterations")
       ? [
           {
-            name: "save_iteration",
+            name: "upsert_iteration",
             args: ["{id}", "uuid", "jsonb"],
             returns: "jsonb",
           },

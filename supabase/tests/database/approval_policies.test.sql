@@ -43,7 +43,7 @@ select throws_ok(
   'request_approval refuses a request that needs nothing'
 );
 select throws_ok(
-  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
     '{"subjectType":"customer","action":"refund","name":"Large refunds","steps":[{"approvers":{"permission":"approvals.manage"}}]}')$$,
   '42501',
   null,
@@ -60,28 +60,28 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
     '{"subjectType":"customer","action":"merge","name":"No floor","steps":[]}')$$,
   '22023',
   null,
   'a tenant policy needs a config floor for its subject type and action'
 );
 select throws_ok(
-  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
     '{"subjectType":"customer","action":"refund","name":"Bad","steps":[{"approvers":{}}]}')$$,
   '22023',
   null,
   'a step must name an approver'
 );
 select throws_ok(
-  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
     '{"subjectType":"customer","action":"refund","name":"Bad","mode":"skip","steps":[]}')$$,
   '22023',
   null,
   'an unknown mode is refused'
 );
 select throws_ok(
-  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
     '{"subjectType":"customer","action":"refund","name":"Bad","steps":[{"approvers":{"users":[
       "00000000-0000-4000-8000-0000000000a1","00000000-0000-4000-8000-0000000000a2"]},"required":3}]}')$$,
   '22023',
@@ -90,7 +90,7 @@ select throws_ok(
 );
 
 insert into ids
-select 'both', (api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+select 'both', (api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
   '{"subjectType":"customer","action":"refund","name":"Both owners","enabled":false,
     "steps":[{"approvers":{"users":["00000000-0000-4000-8000-0000000000a1",
       "00000000-0000-4000-8000-0000000000a2"]},"required":"all"}]}') ->> 'id')::uuid;
@@ -101,10 +101,10 @@ select is(
   '2'::jsonb,
   'required "all" on a list of users saves as their count'
 );
-select api.remove_approval_policy((select id from ids where name = 'both'));
+select api.delete_approval_policy((select id from ids where name = 'both'));
 
 insert into ids
-select 'large', (api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+select 'large', (api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
   '{"subjectType":"customer","action":"refund","name":"Large refunds","expiresIn":"P2D",
     "conditions":{"id":"root","type":"group","combinator":"and","rules":[
       {"id":"r1","type":"rule","path":["amount"],"operator":"gt","value":100}]},
@@ -131,7 +131,7 @@ select is(
   'another tenant reads no tenant policies'
 );
 select throws_ok(
-  format($$select api.remove_approval_policy(%L)$$, (select id from ids where name = 'large')),
+  format($$select api.delete_approval_policy(%L)$$, (select id from ids where name = 'large')),
   '42501',
   null,
   'another tenant cannot remove a tenant policy'
@@ -311,7 +311,7 @@ select set_config(
   true
 );
 set local role authenticated;
-select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+select api.upsert_approval_policy('00000000-0000-4000-8000-000000000001',
   '{"subjectType":"customer","action":"export","name":"Exports need an admin","mode":"authorize",
     "steps":[{"approvers":{"permission":"approvals.manage"}}]}');
 

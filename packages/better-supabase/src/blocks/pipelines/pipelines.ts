@@ -475,7 +475,7 @@ export function createPipelines<
     upsert: ({ organizationId, input }) =>
       writeFields(fields, input.fields, (checked) =>
         call(
-          "save_pipeline",
+          "upsert_pipeline",
           {
             tenant: organizationId,
             pipeline: input.id ?? null,
@@ -572,7 +572,7 @@ export function createPipelines<
       ),
     saveStage: ({ pipelineId, input }) =>
       call(
-        "save_pipeline_stage",
+        "upsert_pipeline_stage",
         {
           pipeline: pipelineId,
           stage: input.id ?? null,

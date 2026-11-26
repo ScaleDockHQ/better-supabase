@@ -225,7 +225,7 @@ ${postTriggers(ctx)}`;
 
 function contract(): readonly BlockSqlContractFunction[] {
   return [
-    { name: "save_post_board", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "upsert_post_board", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "list_post_boards", args: ["{id}", "boolean"], returns: "jsonb" },
     { name: "create_post", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "update_post", args: ["uuid", "jsonb"], returns: "jsonb" },

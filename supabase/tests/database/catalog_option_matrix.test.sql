@@ -8,7 +8,7 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Matrix Tee', 'matrix-tee', null, 'physical', null) ->> 'id', true);
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Matrix Tee', 'matrix-tee', null, 'physical', null) ->> 'id', true);
 select set_config('t.matrix', better_supabase.set_product_options(current_setting('t.product')::uuid, '[{"name": "Size", "values": ["S", "M"]}, {"name": "Colour", "values": ["Red"]}]')::text, true);
 
 select is(

@@ -87,7 +87,7 @@ describe("createCases", () => {
 
   it("saves, archives and lists kinds", async () => {
     const t = fieldsTransport({
-      save_case_kind: () => KIND,
+      upsert_case_kind: () => KIND,
       archive_case_kind: () => ({ ...KIND, archivedAt: AT }),
       list_case_kinds: () => [KIND],
     });
@@ -106,7 +106,7 @@ describe("createCases", () => {
     expect(listed).toHaveLength(1);
     expect(t.calls).toEqual([
       [
-        "save_case_kind",
+        "upsert_case_kind",
         {
           tenant: "org-1",
           key: "complaint",
@@ -198,7 +198,7 @@ describe("createCases", () => {
       record_case_root_cause: () => CASE,
       create_case_action: () => ({ actionId: "a1", taskId: "t1" }),
       link_case_action: () => ({ actionId: "a2", taskId: "t2" }),
-      remove_case_action: () => CASE,
+      delete_case_action: () => CASE,
       record_case_effectiveness: () => CASE,
       case_close_blockers: () => ["CASE_ACTIONS_OPEN"],
       close_case: () => BARE,
@@ -270,7 +270,7 @@ describe("createCases", () => {
         "link_case_action",
         { case_id: "c1", task_id: "t2", type: "containment", required: false },
       ],
-      ["remove_case_action", { action_id: "a2" }],
+      ["delete_case_action", { action_id: "a2" }],
       [
         "record_case_effectiveness",
         {

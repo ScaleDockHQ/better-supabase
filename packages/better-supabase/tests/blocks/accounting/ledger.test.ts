@@ -53,7 +53,7 @@ describe("accounting ledger client", () => {
 
   it("saves, lists and posts opening balances", async () => {
     const t = fieldsTransport({
-      save_accounting_opening_balances: () => ({ balances: [OPENING] }),
+      upsert_accounting_opening_balances: () => ({ balances: [OPENING] }),
       list_accounting_opening_balances: () => ({
         organizationId: "org-1",
         fiscalYear: 2026,
@@ -97,7 +97,7 @@ describe("accounting ledger client", () => {
     expect(listed.balances).toHaveLength(2);
     expect(entry.status).toBe("posted");
     expect(t.calls[0]).toEqual([
-      "save_accounting_opening_balances",
+      "upsert_accounting_opening_balances",
       {
         tenant: "org-1",
         fiscal_year: 2026,
@@ -249,7 +249,7 @@ describe("accounting ledger client", () => {
           },
         ],
       }),
-      save_accounting_opening_balances: () => ({}),
+      upsert_accounting_opening_balances: () => ({}),
       post_accounting_opening_balances: () => ({
         id: "e1",
         organizationId: "org-1",

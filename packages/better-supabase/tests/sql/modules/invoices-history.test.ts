@@ -127,13 +127,13 @@ begin
 
   v_charged := ${issued("Charged")};
   perform better_supabase.record_invoice_payment(v_charged, 10000, 'EUR', now(), 'bank', 'tx-2');
-  v_charge := (better_supabase.add_invoice_charge(v_charged, 500, 'EUR', 'Late fee', actor => ${ACTOR}) -> 'charges' -> 0 ->> 'id')::uuid;
+  v_charge := (better_supabase.create_invoice_charge(v_charged, 500, 'EUR', 'Late fee', actor => ${ACTOR}) -> 'charges' -> 0 ->> 'id')::uuid;
   select * into v_row from better_supabase.status_history where subject_id = v_charged::text and from_status = 'paid';
   if v_row.actor_name is distinct from 'Sam' or v_row.reason is not null then
     raise exception 'charge %', row_to_json(v_row);
   end if;
   if v_charge is not null then
-    perform better_supabase.remove_invoice_charge(v_charge, '{"name": "Rita"}'::jsonb);
+    perform better_supabase.delete_invoice_charge(v_charge, '{"name": "Rita"}'::jsonb);
     if (select actor_name from better_supabase.status_history where subject_id = v_charged::text and from_status = 'partially_paid') is distinct from 'Rita' then
       raise exception 'charge removal %', (select jsonb_agg(h) from better_supabase.status_history h where subject_id = v_charged::text);
     end if;

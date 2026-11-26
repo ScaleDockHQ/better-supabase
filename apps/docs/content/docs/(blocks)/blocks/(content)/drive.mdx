@@ -217,7 +217,7 @@ const pending = await drive
 
 The users who hold the top role on the node, on a folder above it or on its drive approve the request; without one, the holders of `subjects.manage` do. On approval the drive adds a node grant marked as an access request, with the read role for `read`, the comment role for `comment` and the write role for `write`, that ends with the request (7 days unless the request names a duration). Ending the request, or `expire_access_grants()`, removes that grant and never touches a grant someone shared by hand. A client built without `recordAccess` returns `invalid_request` with the hint `DRIVE_ACCESS_REQUESTS_CLIENT`. Over your own grant table, map a boolean `accessRequest` column and `expiresAt` in `blocks.drive.columns.grants`; without them, rendering the SQL fails with an error that names them.
 
-An approved request changes the node's grants, not its record team. Adding someone to the node's team with `add_subject_member` lets them read the node's comments and attachments, but not the node itself: share the node for that.
+An approved request changes the node's grants, not its record team. Adding someone to the node's team with `create_subject_member` lets them read the node's comments and attachments, but not the node itself: share the node for that.
 
 ## Ownership and offboarding
 

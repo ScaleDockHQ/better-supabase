@@ -420,42 +420,42 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const policySet = (
     [
-      ["name", `coalesce(save_sla_policy.attrs ->> 'name', x.${p("name")})`],
+      ["name", `coalesce(upsert_sla_policy.attrs ->> 'name', x.${p("name")})`],
       [
         "priority",
-        `case when save_sla_policy.attrs ? 'priority' then save_sla_policy.attrs ->> 'priority' else x.${p("priority")} end`,
+        `case when upsert_sla_policy.attrs ? 'priority' then upsert_sla_policy.attrs ->> 'priority' else x.${p("priority")} end`,
       ],
       [
         "firstResponse",
-        `case when save_sla_policy.attrs ? 'firstResponseMinutes' then (save_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x.${p("firstResponse")} end`,
+        `case when upsert_sla_policy.attrs ? 'firstResponseMinutes' then (upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer else x.${p("firstResponse")} end`,
       ],
       [
         "nextResponse",
-        `case when save_sla_policy.attrs ? 'nextResponseMinutes' then (save_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x.${p("nextResponse")} end`,
+        `case when upsert_sla_policy.attrs ? 'nextResponseMinutes' then (upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer else x.${p("nextResponse")} end`,
       ],
       [
         "resolution",
-        `case when save_sla_policy.attrs ? 'resolutionMinutes' then (save_sla_policy.attrs ->> 'resolutionMinutes')::integer else x.${p("resolution")} end`,
+        `case when upsert_sla_policy.attrs ? 'resolutionMinutes' then (upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer else x.${p("resolution")} end`,
       ],
       [
         "warnPercent",
         () =>
-          `coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, x.${p("warnPercent")})`,
+          `coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, x.${p("warnPercent")})`,
       ],
       [
         "businessHours",
         () =>
-          `coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, x.${p("businessHours")})`,
+          `coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, x.${p("businessHours")})`,
       ],
       [
         "escalations",
         () =>
-          `case when save_sla_policy.attrs ? 'escalations' then coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x.${p("escalations")} end`,
+          `case when upsert_sla_policy.attrs ? 'escalations' then coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb) else x.${p("escalations")} end`,
       ],
       [
         "archivedAt",
         () =>
-          `case when coalesce((save_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x.${p("archivedAt")}, now()) else x.${p("archivedAt")} end`,
+          `case when coalesce((upsert_sla_policy.attrs ->> 'archived')::boolean, false) then coalesce(x.${p("archivedAt")}, now()) else x.${p("archivedAt")} end`,
       ],
       ["updatedAt", () => "now()"],
     ] as const
@@ -468,33 +468,33 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const policyInsert = (
     [
-      ["tenant", "save_sla_policy.tenant"],
-      ["subjectType", "save_sla_policy.attrs ->> 'subjectType'"],
-      ["name", "save_sla_policy.attrs ->> 'name'"],
-      ["priority", "save_sla_policy.attrs ->> 'priority'"],
+      ["tenant", "upsert_sla_policy.tenant"],
+      ["subjectType", "upsert_sla_policy.attrs ->> 'subjectType'"],
+      ["name", "upsert_sla_policy.attrs ->> 'name'"],
+      ["priority", "upsert_sla_policy.attrs ->> 'priority'"],
       [
         "firstResponse",
-        "(save_sla_policy.attrs ->> 'firstResponseMinutes')::integer",
+        "(upsert_sla_policy.attrs ->> 'firstResponseMinutes')::integer",
       ],
       [
         "nextResponse",
-        "(save_sla_policy.attrs ->> 'nextResponseMinutes')::integer",
+        "(upsert_sla_policy.attrs ->> 'nextResponseMinutes')::integer",
       ],
       [
         "resolution",
-        "(save_sla_policy.attrs ->> 'resolutionMinutes')::integer",
+        "(upsert_sla_policy.attrs ->> 'resolutionMinutes')::integer",
       ],
       [
         "warnPercent",
-        "coalesce((save_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80)",
+        "coalesce((upsert_sla_policy.attrs ->> 'warnAtPercent')::smallint, 80)",
       ],
       [
         "businessHours",
-        "coalesce((save_sla_policy.attrs ->> 'businessHours')::boolean, false)",
+        "coalesce((upsert_sla_policy.attrs ->> 'businessHours')::boolean, false)",
       ],
       [
         "escalations",
-        "coalesce(nullif(save_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb)",
+        "coalesce(nullif(upsert_sla_policy.attrs -> 'escalations', 'null'::jsonb), '[]'::jsonb)",
       ],
     ] as const
   ).filter(([logical]) => policyHas(logical));
@@ -675,31 +675,31 @@ grant execute on function ${fn("sla_due_at")}(timestamptz, integer, boolean) to 
 -- Creates or changes a policy: name, subjectType, priority (null for every
 -- priority), firstResponseMinutes, nextResponseMinutes, resolutionMinutes,
 -- warnAtPercent, businessHours, archived.
-create or replace function ${fn("save_sla_policy")}(tenant ${ctx.idType}, policy uuid, attrs jsonb)
+create or replace function ${fn("upsert_sla_policy")}(tenant ${ctx.idType}, policy uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_sla_policy.policy;
+  v_id uuid := upsert_sla_policy.policy;
 begin
-  if not (${service} or ${ctx.scope.can("save_sla_policy.tenant", manage)}) then
+  if not (${service} or ${ctx.scope.can("upsert_sla_policy.tenant", manage)}) then
     ${fail("SLA_FORBIDDEN", "not allowed to manage service levels")}
   end if;${
     unsupported.length === 0
       ? ""
       : `
-  if save_sla_policy.attrs ?| array[${unsupported.join(", ")}] then
+  if upsert_sla_policy.attrs ?| array[${unsupported.join(", ")}] then
     ${fail("SLA_POLICY_UNSUPPORTED", "this policies table doesn't keep every attribute passed", "0A000")}
   end if;`
   }
   ${
     policyHas("escalations")
-      ? `if save_sla_policy.attrs ? 'escalations' and save_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
-    jsonb_typeof(save_sla_policy.attrs -> 'escalations') <> 'array'
+      ? `if upsert_sla_policy.attrs ? 'escalations' and upsert_sla_policy.attrs -> 'escalations' <> 'null'::jsonb and (
+    jsonb_typeof(upsert_sla_policy.attrs -> 'escalations') <> 'array'
     or exists (
-      select 1 from jsonb_array_elements(save_sla_policy.attrs -> 'escalations') s
+      select 1 from jsonb_array_elements(upsert_sla_policy.attrs -> 'escalations') s
       where jsonb_typeof(s) <> 'object'
         or not coalesce(case when s ->> 'at' ~ '^[0-9]{1,3}$' then (s ->> 'at')::integer between 1 and 500 end, false)
         or coalesce(s ->> 'action', '') not in ('notify', 'reassign', 'page')
@@ -718,7 +718,7 @@ begin
     else
       update ${t("policies")} x set
         ${policySet.join(",\n        ")}
-      where x.${p("id")} = v_id and x.${p("tenant")} = save_sla_policy.tenant;
+      where x.${p("id")} = v_id and x.${p("tenant")} = upsert_sla_policy.tenant;
       if not found then
         ${fail("SLA_POLICY_NOT_FOUND", "policy not found", "P0002")}
       end if;
@@ -727,11 +727,11 @@ begin
     ${fail("SLA_POLICY_TAKEN", "another active policy covers this record type and priority", "23505")}
   when check_violation or not_null_violation or invalid_text_representation then
     ${fail("SLA_POLICY_INVALID", "a policy needs a name, a record type and positive minutes", "22023")}
-  end;${writeExtraColumns(t("policies"), extras, "(save_sla_policy.attrs -> 'fields')", `x.${p("id")} = v_id`)}
+  end;${writeExtraColumns(t("policies"), extras, "(upsert_sla_policy.attrs -> 'fields')", `x.${p("id")} = v_id`)}
   return (select ${withExtraFields("to_jsonb(x)", "x", extras)} from ${t("policies")} x where x.${p("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_sla_policy")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_sla_policy")}(${ctx.idType}, uuid, jsonb)`)}
 
 -- Starts a record's clocks from the policy for its type and priority (the
 -- exact priority first, then the policy without one). Starting again, as
@@ -930,7 +930,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "timestamptz",
     },
     {
-      name: "save_sla_policy",
+      name: "upsert_sla_policy",
       args: ["{id}", "uuid", "jsonb"],
       returns: "jsonb",
     },

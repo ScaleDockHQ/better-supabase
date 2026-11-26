@@ -557,7 +557,7 @@ and leaves `byDay` empty; reads turn them back into `BYDAY=2TU`.
 `columns.attendees.subjectType`, `subjectId`, `organizer` and `optional` add a
 record attendee and its flags. `set_calendar_attendee(event_id, attendee)`
 updates the matching row or inserts one, so your table needs no unique
-constraint, and returns its `id`; `remove_calendar_attendee(attendee_id)`
+constraint, and returns its `id`; `delete_calendar_attendee(attendee_id)`
 removes one. The old signatures keep working.
 
 ```ts

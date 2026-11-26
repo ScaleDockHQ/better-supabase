@@ -783,7 +783,7 @@ export function createExpenses<
 
       return tenant().andThen((organizationId) =>
         call(
-          "save_expense_category",
+          "upsert_expense_category",
           {
             tenant: organizationId,
             key: input.key,
@@ -795,7 +795,7 @@ export function createExpenses<
               : null,
             ...(input.fields === undefined ? {} : { fields: input.fields }),
           },
-          category("save_expense_category"),
+          category("upsert_expense_category"),
         ),
       );
     },
@@ -849,7 +849,7 @@ export function createExpenses<
         ),
     addLine: ({ reportId, line: input }) =>
       call(
-        "add_expense_line",
+        "create_expense_line",
         {
           report_id: reportId,
           category_id: input.categoryId,
@@ -860,7 +860,7 @@ export function createExpenses<
           dimensions: input.dimensions ?? null,
           currency: input.amount.currency,
         },
-        line("add_expense_line"),
+        line("create_expense_line"),
       ),
     updateLine: ({ lineId, update }) =>
       call(
@@ -879,9 +879,9 @@ export function createExpenses<
       ),
     removeLine: (lineId) =>
       call(
-        "remove_expense_line",
+        "delete_expense_line",
         { line_id: lineId },
-        report("remove_expense_line"),
+        report("delete_expense_line"),
       ).andThen(fields.row),
     check: (reportId) =>
       call("check_expense_report", { report_id: reportId }, (value) =>

@@ -39,8 +39,8 @@ export interface InvoiceNames
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];
   /**
-   * The columns your schema files add, which `add_invoice_charge` writes from
-   * `fields`.
+   * The columns your schema files add, which `create_invoice_charge` writes
+   * from `fields`.
    */
   readonly chargeExtras: readonly ExtraColumn[];
   /** `options.totals: "app"`: the app keeps the totals, the block reads them. */

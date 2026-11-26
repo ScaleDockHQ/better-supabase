@@ -62,7 +62,7 @@ describe("hiring block", () => {
 
   it("saves jobs and applies candidates", async () => {
     const t = transport({
-      save_job: () => ({
+      upsert_job: () => ({
         id: "j1",
         title: "Engineer",
         team_id: null,

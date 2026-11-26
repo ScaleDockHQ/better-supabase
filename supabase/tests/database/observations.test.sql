@@ -54,7 +54,7 @@ select throws_ok(
   'a record of another organization is refused'
 );
 select is(
-  (better_supabase.save_observation_definition('00000000-0000-4000-8000-000000000001', 'mews',
+  (better_supabase.upsert_observation_definition('00000000-0000-4000-8000-000000000001', 'mews',
     '{"title":"MEWS","valueType":"integer","validLow":0,"validHigh":14,"criticalHigh":7}') ->> 'system')::boolean,
   false,
   'the owner saves an organization definition'
@@ -88,7 +88,7 @@ select lives_ok(
   'a member records an observation'
 );
 select throws_ok(
-  $$select better_supabase.save_observation_definition('00000000-0000-4000-8000-000000000001', 'pews', '{"title":"PEWS","valueType":"integer"}')$$,
+  $$select better_supabase.upsert_observation_definition('00000000-0000-4000-8000-000000000001', 'pews', '{"title":"PEWS","valueType":"integer"}')$$,
   '42501',
   null,
   'a member cannot manage definitions'

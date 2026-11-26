@@ -66,7 +66,7 @@ const MERGED = {
 describe("createPosts", () => {
   it("manages boards", async () => {
     const { transport, call } = fakeTransport({
-      save_post_board: BOARD,
+      upsert_post_board: BOARD,
       list_post_boards: [
         { ...BOARD, description: "All ideas", archivedAt: AT, createdBy: null },
       ],
@@ -93,7 +93,7 @@ describe("createPosts", () => {
     expect(board.archivedAt).toBeUndefined();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
-      "save_post_board",
+      "upsert_post_board",
       {
         tenant: "org",
         board: { key: "ideas", name: "Ideas", kind: "feedback" },

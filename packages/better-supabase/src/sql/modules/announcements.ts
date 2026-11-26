@@ -106,7 +106,7 @@ const NAMES: BlockSqlNames = {
 
 const TOPIC = /^[A-Za-z0-9_.:-]{1,100}$/;
 
-/** The columns save_announcement writes on a new row. */
+/** The columns upsert_announcement writes on a new row. */
 const COLUMNS = [
   "id",
   "title",
@@ -124,7 +124,7 @@ const COLUMNS = [
   "updatedAt",
 ] as const;
 
-/** The columns save_announcement may change on an existing row. */
+/** The columns upsert_announcement may change on an existing row. */
 const EDITABLE = [
   "title",
   "body",
@@ -458,7 +458,7 @@ $$;
 
 -- Creates an announcement (id null) or changes one. fields holds the
 -- columns to set; the others keep their value or default.
-create or replace function ${fn("save_announcement")}(id uuid, fields jsonb)
+create or replace function ${fn("upsert_announcement")}(id uuid, fields jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -470,22 +470,22 @@ begin
   if not ${staff} then
     ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
   end if;
-  if save_announcement.id is null then
+  if upsert_announcement.id is null then
     v_row := jsonb_populate_record(null::${a}, jsonb_build_object(
       ${defaults}
-    ) || save_announcement.fields);${touch}
+    ) || upsert_announcement.fields);${touch}
     ${insertRow}
   else
-    select * into v_row from ${a} x where x.${ca("id")} = save_announcement.id for update;
+    select * into v_row from ${a} x where x.${ca("id")} = upsert_announcement.id for update;
     if v_row.${ca("id")} is null then
-      ${raise("No announcement %", "P0002", "ANNOUNCEMENT_NOT_FOUND", "save_announcement.id")}
+      ${raise("No announcement %", "P0002", "ANNOUNCEMENT_NOT_FOUND", "upsert_announcement.id")}
     end if;
-    v_row := jsonb_populate_record(v_row, save_announcement.fields${fixed});${touch}
+    v_row := jsonb_populate_record(v_row, upsert_announcement.fields${fixed});${touch}
     update ${a} x set (${editable.join(", ")}) = (${editable.map((c) => `v_row.${c}`).join(", ")})
     where x.${ca("id")} = v_row.${ca("id")}
     returning * into v_row;
   end if;
-  ${createdOrUpdated("save_announcement.id is null", (verb) => announcementEvent(`announcement.${verb}`, `v_row.${ca("id")}`))}
+  ${createdOrUpdated("upsert_announcement.id is null", (verb) => announcementEvent(`announcement.${verb}`, `v_row.${ca("id")}`))}
   return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
 end;
 $$;
@@ -585,14 +585,14 @@ $$;
 revoke execute on function ${fn("active_announcements")}(${id}) from public, anon;
 revoke execute on function ${fn("dismiss_announcement")}(uuid) from public, anon;
 revoke execute on function ${fn("list_announcements")}(${archivable ? "boolean" : ""}) from public, anon;
-revoke execute on function ${fn("save_announcement")}(uuid, jsonb) from public, anon;
+revoke execute on function ${fn("upsert_announcement")}(uuid, jsonb) from public, anon;
 revoke execute on function ${fn("page_announcements")}(jsonb) from public, anon;
 revoke execute on function ${fn("get_announcement")}(uuid) from public, anon;
 ${archivable ? `revoke execute on function ${fn("archive_announcement")}(uuid) from public, anon;\nrevoke execute on function ${fn("restore_announcement")}(uuid) from public, anon;\n` : ""}revoke execute on function ${fn("purge_announcement")}(uuid) from public, anon;
 grant execute on function ${fn("active_announcements")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("dismiss_announcement")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("list_announcements")}(${archivable ? "boolean" : ""}) to authenticated, service_role;
-grant execute on function ${fn("save_announcement")}(uuid, jsonb) to authenticated, service_role;
+grant execute on function ${fn("upsert_announcement")}(uuid, jsonb) to authenticated, service_role;
 ${archivable ? `grant execute on function ${fn("archive_announcement")}(uuid) to authenticated, service_role;\ngrant execute on function ${fn("restore_announcement")}(uuid) to authenticated, service_role;\n` : ""}grant execute on function ${fn("purge_announcement")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("page_announcements")}(jsonb) to authenticated, service_role;
 grant execute on function ${fn("get_announcement")}(uuid) to authenticated, service_role;`;
@@ -611,7 +611,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "page_announcements", args: ["jsonb"], returns: "jsonb" },
     { name: "get_announcement", args: ["uuid"], returns: "jsonb" },
-    { name: "save_announcement", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "upsert_announcement", args: ["uuid", "jsonb"], returns: "jsonb" },
     ...(archivable
       ? [
           { name: "archive_announcement", args: ["uuid"], returns: "jsonb" },

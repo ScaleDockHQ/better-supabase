@@ -99,7 +99,7 @@ $$;
 -- { accountId | accountCode, partyId?, amount } with amount as signed minor
 -- units of the functional currency (a debit balance is positive). Each row
 -- replaces the row of its account and party, carried rows included.
-create or replace function ${fn("save_accounting_opening_balances")}(tenant ${idType}, fiscal_year integer, balances jsonb)
+create or replace function ${fn("upsert_accounting_opening_balances")}(tenant ${idType}, fiscal_year integer, balances jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -111,34 +111,34 @@ declare
   v_account uuid;
   v_ids uuid[] := '{}';
 begin
-  if not ${allowed("save_accounting_opening_balances.tenant", sql.manage)} then
+  if not ${allowed("upsert_accounting_opening_balances.tenant", sql.manage)} then
     ${sql.forbidden("ACCOUNTING_OPENING", "not allowed to manage the chart of accounts")}
   end if;
-  if jsonb_typeof(save_accounting_opening_balances.balances) is distinct from 'array' then
+  if jsonb_typeof(upsert_accounting_opening_balances.balances) is distinct from 'array' then
     ${sql.invalid("ACCOUNTING_OPENING", "balances is an array")}
   end if;
-  for v_row in select e.value from jsonb_array_elements(save_accounting_opening_balances.balances) e loop
+  for v_row in select e.value from jsonb_array_elements(upsert_accounting_opening_balances.balances) e loop
     if jsonb_typeof(v_row.value) is distinct from 'object' or coalesce(v_row.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$' then
       ${sql.invalid("ACCOUNTING_OPENING", "every balance is an object with an integer amount")}
     end if;
     begin
       v_account := coalesce(
         nullif(v_row.value ->> 'accountId', '')::uuid,
-        (select y.${a("id")} from ${accounts} y where y.${a("tenant")} = save_accounting_opening_balances.tenant and y.${a("code")} = v_row.value ->> 'accountCode')
+        (select y.${a("id")} from ${accounts} y where y.${a("tenant")} = upsert_accounting_opening_balances.tenant and y.${a("code")} = v_row.value ->> 'accountCode')
       );
-      v_ids := v_ids || ${fn("accounting_opening_write")}(save_accounting_opening_balances.tenant, save_accounting_opening_balances.fiscal_year,
+      v_ids := v_ids || ${fn("accounting_opening_write")}(upsert_accounting_opening_balances.tenant, upsert_accounting_opening_balances.fiscal_year,
         v_account, nullif(v_row.value ->> 'partyId', '')::uuid, (v_row.value ->> 'amount')::bigint);
     exception
       when invalid_text_representation then
         ${sql.invalid("ACCOUNTING_OPENING", "accountId and partyId are uuids")}
     end;
   end loop;
-  return jsonb_build_object('organizationId', save_accounting_opening_balances.tenant, 'fiscalYear', save_accounting_opening_balances.fiscal_year,
+  return jsonb_build_object('organizationId', upsert_accounting_opening_balances.tenant, 'fiscalYear', upsert_accounting_opening_balances.fiscal_year,
     'balances', (select coalesce(jsonb_agg(${openingJson("y")} order by y.${o("account")}, y.${o("party")}), '[]'::jsonb)
       from ${openings} y where y.${o("id")} = any (v_ids)));
 end;
 $$;
-${userGrant(`${fn("save_accounting_opening_balances")}(${idType}, integer, jsonb)`)}
+${userGrant(`${fn("upsert_accounting_opening_balances")}(${idType}, integer, jsonb)`)}
 
 -- A fiscal year's opening balances, imported and carried, with their total
 -- (zero when the books balance).
@@ -381,7 +381,7 @@ export function accountingImportFunctions(ctx: BlockSqlContext): string {
 
   return `
 -- The import target of the accounting_account entity: item.data is the input
--- of save_accounting_account, with parentCode for the parent by code.
+-- of upsert_accounting_account, with parentCode for the parent by code.
 create or replace function ${fn("import_accounting_account")}(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql
@@ -400,7 +400,7 @@ begin${dataCheck("import_accounting_account", "an account")}
     if coalesce(nullif(v_data ->> 'parentId', ''), nullif(v_data ->> 'parentCode', '')) is not null and v_parent is null then
       ${invalid("the parent account isn't an account of the organization; import parents first")}
     end if;
-    v_row := ${fn("save_accounting_account")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
+    v_row := ${fn("upsert_accounting_account")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', nullif(v_data ->> 'subtype', ''),
       v_parent, nullif(v_data ->> 'currency', ''), coalesce((v_data ->> 'reconcilable')::boolean, false),
       import_accounting_account.subject_id::uuid, nullif(v_data ->> 'normalSide', ''), nullif(v_data ->> 'defaultTaxCodeId', '')::uuid,
       coalesce((v_data ->> 'active')::boolean, true));
@@ -414,7 +414,7 @@ $$;
 ${serviceGrant(`${fn("import_accounting_account")}(uuid, jsonb, text)`)}
 
 -- The import target of the accounting_journal entity: item.data is the input
--- of save_accounting_journal, with defaultAccountCode, contraAccountCode and
+-- of upsert_accounting_journal, with defaultAccountCode, contraAccountCode and
 -- bankAccountCode for accounts by code.
 create or replace function ${fn("import_accounting_journal")}(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -444,7 +444,7 @@ begin${dataCheck("import_accounting_journal", "a journal")}
     or (coalesce(nullif(v_data ->> 'bankAccountId', ''), nullif(v_data ->> 'bankAccountCode', '')) is not null and v_bank is null) then
     ${invalid("an account of the journal isn't an account of the organization; import accounts first")}
   end if;
-  v_row := ${fn("save_accounting_journal")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
+  v_row := ${fn("upsert_accounting_journal")}(v_tenant, v_data ->> 'code', v_data ->> 'name', v_data ->> 'type', v_default,
     nullif(v_data ->> 'currency', ''), import_accounting_journal.subject_id::uuid, v_contra, v_bank);
   return jsonb_build_object('subjectId', v_row ->> 'id', 'updatedAt', v_row ->> 'updatedAt');
 end;
@@ -486,7 +486,7 @@ ${serviceGrant(`${fn("ensure_import_periods")}(${idType}, date, integer, boolean
 
 -- The import target of the accounting_entry entity: item.data is { journalCode
 -- | journalId, entryDate, memo?, reference?, post?, lines: [{ accountCode |
--- accountId, debit, credit, ... }] } with the amounts of save_accounting_entry.
+-- accountId, debit, credit, ... }] } with the amounts of upsert_accounting_entry.
 -- The lines must balance, or the item is reported as an error and nothing is
 -- written. The entry posts unless post is false; in import mode it may land in
 -- a closed period, never in a locked one.
@@ -533,7 +533,7 @@ begin${dataCheck("import_accounting_entry", "an entry")}
   perform ${fn("ensure_import_periods")}(v_tenant, (v_data ->> 'entryDate')::date,
     coalesce((import_accounting_entry.item -> 'options' -> 'fiscalYear' ->> 'startMonth')::integer, 1),
     coalesce((import_accounting_entry.item -> 'options' ->> 'closeHistorical')::boolean, false));
-  v_row := ${fn("save_accounting_entry")}(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
+  v_row := ${fn("upsert_accounting_entry")}(v_journal, (v_data ->> 'entryDate')::date, v_lines, nullif(v_data ->> 'memo', ''), nullif(v_data ->> 'reference', ''),
     null, null, import_accounting_entry.subject_id::uuid);
   if coalesce((v_data ->> 'post')::boolean, true) then
     v_row := ${fn("post_accounting_entry")}((v_row ->> 'id')::uuid);

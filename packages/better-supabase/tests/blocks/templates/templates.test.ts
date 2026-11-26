@@ -130,9 +130,9 @@ describe("templates client", () => {
 
   it("checks settings and bodies against the type's schemas", async () => {
     const fake = transport({
-      save_template: () => TEMPLATE,
+      upsert_template: () => TEMPLATE,
       template_get: () => ({ ...TEMPLATE, published: VERSION, draft: null }),
-      save_template_draft: () => ({
+      upsert_template_draft: () => ({
         ...VERSION,
         version: 2,
         publishedAt: null,
@@ -164,7 +164,7 @@ describe("templates client", () => {
 
     expect(draft.publishedAt).toBeUndefined();
     expect(fake.calls.at(-1)).toEqual([
-      "save_template_draft",
+      "upsert_template_draft",
       { template_id: "t1", body: { tasks: ["A"] } },
     ]);
   });
@@ -355,7 +355,7 @@ describe("templates client", () => {
     };
 
     const fake = transport({
-      remove_template: () => true,
+      delete_template: () => true,
       set_default_template: () => true,
       fork_template: () => ({ ...TEMPLATE, id: "t2" }),
       publish_template_version: () => VERSION,
@@ -406,7 +406,7 @@ describe("templates client", () => {
     });
 
     expect(fake.calls.map(([fn, args]) => [fn, args])).toEqual([
-      ["remove_template", { template_id: "t1" }],
+      ["delete_template", { template_id: "t1" }],
       ["set_default_template", { template_id: "t1", on_default: true }],
       ["fork_template", { source: "s1", tenant: "o" }],
       ["publish_template_version", { template_id: "t1" }],

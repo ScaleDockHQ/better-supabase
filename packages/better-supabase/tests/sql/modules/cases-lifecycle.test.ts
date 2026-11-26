@@ -160,7 +160,7 @@ declare
   v_hint text;
 begin
   ${SERVICE}
-  v_kind := better_supabase.save_case_kind('${TENANT}', 'audit_nc', 'Audit nonconformity', 'ANC', null, null, 30, true, true, true, false, null);
+  v_kind := better_supabase.upsert_case_kind('${TENANT}', 'audit_nc', 'Audit nonconformity', 'ANC', null, null, 30, true, true, true, false, null);
   v_id := (better_supabase.open_case('${TENANT}', 'audit_nc', 'Missing record', null, null, 'internal', null, null, null, null) ->> 'id')::uuid;
   if (select number from better_supabase.cases where id = v_id) not like 'ANC-%' then
     raise exception 'number %', (select number from better_supabase.cases where id = v_id);

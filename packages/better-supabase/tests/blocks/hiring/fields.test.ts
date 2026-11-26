@@ -13,7 +13,7 @@ const JOB = {
 
 describe("hiring fields", () => {
   it("sends the job's extra fields under fields and parses them back", async () => {
-    const t = fieldsTransport({ save_job: () => JOB });
+    const t = fieldsTransport({ upsert_job: () => JOB });
 
     const hiring = createHiring({
       transport: t,
@@ -34,7 +34,7 @@ describe("hiring fields", () => {
   });
 
   it("refuses a bad field before the call", async () => {
-    const t = fieldsTransport({ save_job: () => JOB });
+    const t = fieldsTransport({ upsert_job: () => JOB });
 
     const hiring = createHiring({
       transport: t,
@@ -52,7 +52,7 @@ describe("hiring fields", () => {
   });
 
   it("returns empty fields without extra columns", async () => {
-    const t = fieldsTransport({ save_job: () => ({ ...JOB, fields: null }) });
+    const t = fieldsTransport({ upsert_job: () => ({ ...JOB, fields: null }) });
 
     const job = await createHiring({ transport: t })
       .saveJob({ organizationId: "o", job: { title: "Engineer" } })

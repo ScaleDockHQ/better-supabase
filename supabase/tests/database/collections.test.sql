@@ -16,7 +16,7 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.party', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Collections customer"}') ->> 'id', true);
+select set_config('t.party', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Collections customer"}') ->> 'id', true);
 
 create temporary table t_invoices (n int primary key, id uuid) on commit drop;
 grant all on t_invoices to authenticated, service_role;

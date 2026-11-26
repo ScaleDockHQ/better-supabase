@@ -12,10 +12,10 @@ $$;
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
-select set_config('t.p', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Shirt', 'shirt-y2g', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.p')::uuid, null, 'SHIRT-Y2G', null, 'Shirt', null, null, true, false, null) ->> 'id', true);
+select set_config('t.p', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Shirt', 'shirt-y2g', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.p')::uuid, null, 'SHIRT-Y2G', null, 'Shirt', null, null, true, false, null) ->> 'id', true);
 select better_supabase.set_product_status(current_setting('t.p')::uuid, 'active');
-select set_config('t.c', better_supabase.save_catalog_channel('00000000-0000-4000-8000-000000000001', null, 'web-y2g', 'Web', 'EUR', null, true) ->> 'id', true);
+select set_config('t.c', better_supabase.upsert_catalog_channel('00000000-0000-4000-8000-000000000001', null, 'web-y2g', 'Web', 'EUR', null, true) ->> 'id', true);
 select better_supabase.set_channel_listing(current_setting('t.c')::uuid, array[current_setting('t.p')::uuid], true);
 
 select is(

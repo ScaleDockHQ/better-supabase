@@ -112,7 +112,7 @@ describe("createExpenses", () => {
     };
 
     const fake = fakeTransport({
-      save_expense_category: CATEGORY,
+      upsert_expense_category: CATEGORY,
       archive_expense_category: plain,
       restore_expense_category: plain,
       list_expense_categories: [CATEGORY, plain],
@@ -161,7 +161,7 @@ describe("createExpenses", () => {
     expect(listed).toHaveLength(2);
     expect(fake.calls).toEqual([
       [
-        "save_expense_category",
+        "upsert_expense_category",
         {
           tenant: "org-1",
           key: "travel",
@@ -172,7 +172,7 @@ describe("createExpenses", () => {
         },
       ],
       [
-        "save_expense_category",
+        "upsert_expense_category",
         {
           tenant: "org-1",
           key: "meals",
@@ -183,7 +183,7 @@ describe("createExpenses", () => {
         },
       ],
       [
-        "save_expense_category",
+        "upsert_expense_category",
         {
           tenant: "org-1",
           key: "misc",
@@ -223,7 +223,7 @@ describe("createExpenses", () => {
 
   it("writes and reads a category's extra columns", async () => {
     const fake = fakeTransport({
-      save_expense_category: { ...CATEGORY, fields: { gl_code: "4100" } },
+      upsert_expense_category: { ...CATEGORY, fields: { gl_code: "4100" } },
     });
 
     const saved = await createExpenses({
@@ -246,9 +246,9 @@ describe("createExpenses", () => {
 
     const fake = fakeTransport({
       create_expense_report: DRAFT,
-      add_expense_line: LINE,
+      create_expense_line: LINE,
       update_expense_line: bare,
-      remove_expense_line: DRAFT,
+      delete_expense_line: DRAFT,
     });
 
     const expenses = createExpenses({
@@ -332,7 +332,7 @@ describe("createExpenses", () => {
         },
       ],
       [
-        "add_expense_line",
+        "create_expense_line",
         {
           report_id: "rep-1",
           category_id: CATEGORY_ID,
@@ -345,7 +345,7 @@ describe("createExpenses", () => {
         },
       ],
       [
-        "add_expense_line",
+        "create_expense_line",
         {
           report_id: "rep-1",
           category_id: CATEGORY_ID,
@@ -383,7 +383,7 @@ describe("createExpenses", () => {
           currency: null,
         },
       ],
-      ["remove_expense_line", { line_id: "line-1" }],
+      ["delete_expense_line", { line_id: "line-1" }],
     ]);
   });
 

@@ -224,11 +224,11 @@ describe("createCarePlans", () => {
 
   it("builds the tree of problems, goals and actions", async () => {
     const t = fieldsTransport({
-      add_care_plan_problem: () => PROBLEM,
+      create_care_plan_problem: () => PROBLEM,
       update_care_plan_problem: () => ({ ...PROBLEM, status: "resolved" }),
-      add_care_plan_goal: () => GOAL,
+      create_care_plan_goal: () => GOAL,
       update_care_plan_goal: () => ({ ...GOAL, actions: undefined }),
-      add_care_plan_action: () => ACTION,
+      create_care_plan_action: () => ACTION,
       update_care_plan_action: () => BARE_ACTION,
     });
 
@@ -272,7 +272,7 @@ describe("createCarePlans", () => {
     expect(goal.actions).toEqual([]);
     expect(t.calls).toEqual([
       [
-        "add_care_plan_problem",
+        "create_care_plan_problem",
         { plan_id: "p1", input: { title: "Risk of falls" } },
       ],
       [
@@ -280,7 +280,7 @@ describe("createCarePlans", () => {
         { problem_id: "pr1", changes: { status: "resolved" } },
       ],
       [
-        "add_care_plan_goal",
+        "create_care_plan_goal",
         {
           problem_id: "pr1",
           input: { title: "Sleeps safely", targetOn: "2027-01-01" },
@@ -291,7 +291,7 @@ describe("createCarePlans", () => {
         { goal_id: "g1", changes: { status: "in_progress" } },
       ],
       [
-        "add_care_plan_action",
+        "create_care_plan_action",
         {
           goal_id: "g1",
           input: {

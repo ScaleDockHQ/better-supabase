@@ -9,9 +9,9 @@ const plain = (qualified: string): string => qualified.replaceAll('"', "");
 /**
  * The import targets of templates and text blocks (ADR 0141): one template per
  * (document type, name, legal entity, language) slot and one text block per
- * (key, legal entity, language), written through `save_document_template` and
- * `save_document_text_block` so the same checks apply. A legal entity is named
- * by its `legalEntityId` or its `legalEntity` code.
+ * (key, legal entity, language), written through `upsert_document_template` and
+ * `upsert_document_text_block` so the same checks apply. A legal entity is
+ * named by its `legalEntityId` or its `legalEntity` code.
  */
 export function documentTemplateImportFunctions(ctx: BlockSqlContext): string {
   const templates = ctx.table("templates");
@@ -57,7 +57,7 @@ begin
   if jsonb_typeof(v_data) is distinct from 'object' then
     ${invalid("a template item is an object")}
   end if;${entityLookup}
-  v_saved := ${fn("save_document_template")}(v_tenant, v_data ->> 'documentType', v_data ->> 'body', v_data ->> 'language',
+  v_saved := ${fn("upsert_document_template")}(v_tenant, v_data ->> 'documentType', v_data ->> 'body', v_data ->> 'language',
     coalesce(nullif(v_data ->> 'name', ''), 'default'), v_entity, coalesce((v_data ->> 'active')::boolean, true));
   return jsonb_build_object('subjectId', v_saved ->> 'id', 'updatedAt', v_saved -> 'updatedAt');
 end;
@@ -80,7 +80,7 @@ begin
   if jsonb_typeof(v_data) is distinct from 'object' then
     ${invalid("a text block item is an object")}
   end if;${entityLookup}
-  v_saved := ${fn("save_document_text_block")}(v_tenant, v_data ->> 'key', v_data ->> 'body', v_data ->> 'language', v_entity);
+  v_saved := ${fn("upsert_document_text_block")}(v_tenant, v_data ->> 'key', v_data ->> 'body', v_data ->> 'language', v_entity);
   return jsonb_build_object('subjectId', v_saved ->> 'id', 'updatedAt', v_saved -> 'updatedAt');
 end;
 $$;

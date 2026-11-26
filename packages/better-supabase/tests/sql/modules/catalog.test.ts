@@ -133,8 +133,8 @@ describe("catalog module", () => {
     expect(unnamedChecks(sql)).not.toContain(
       'create table if not exists "public"',
     );
-    expect(unnamedChecks(sql)).not.toContain("save_product_option");
-    expect(unnamedChecks(sql)).not.toContain("save_category");
+    expect(unnamedChecks(sql)).not.toContain("upsert_product_option");
+    expect(unnamedChecks(sql)).not.toContain("upsert_category");
     expect(unnamedChecks(sql)).not.toContain("publish_storefront");
     expect(unnamedChecks(sql)).toContain("this catalog has no price lists");
     expect(unnamedChecks(sql)).toContain(
@@ -143,7 +143,7 @@ describe("catalog module", () => {
     expect(unnamedChecks(sql)).toContain(
       'create table "better_supabase"."catalog_channels"',
     );
-    expect(unnamedChecks(sql)).toContain("save_catalog_channel");
+    expect(unnamedChecks(sql)).toContain("upsert_catalog_channel");
   });
 
   it("adds channels with listings and a price per channel", () => {
@@ -155,7 +155,7 @@ describe("catalog module", () => {
       'create table "better_supabase"."catalog_channel_products"',
     );
     expect(unnamedChecks(sql)).toContain(
-      'create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)',
+      'create or replace function "better_supabase"."upsert_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)',
     );
     expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."set_channel_listing"(channel uuid, products uuid[], listed boolean)',
@@ -221,13 +221,13 @@ describe("catalog module", () => {
       'references "better_supabase"."attachments"',
     );
     expect(unnamedChecks(sql)).toContain(
-      'create or replace function "better_supabase"."add_product_media"',
+      'create or replace function "better_supabase"."create_product_media"',
     );
     expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."reorder_product_media"(product uuid, media uuid[])',
     );
     expect(unnamedChecks(sql)).toContain(
-      'create or replace function "better_supabase"."remove_product_media"(media uuid)',
+      'create or replace function "better_supabase"."delete_product_media"(media uuid)',
     );
     expect(unnamedChecks(sql)).toContain("CATALOG_MEDIA_ATTACHMENT_NOT_FOUND");
   });
@@ -266,7 +266,7 @@ describe("catalog module", () => {
     }
 
     expect(unnamedChecks(sql)).toContain(
-      'create or replace function "better_supabase"."save_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)',
+      'create or replace function "better_supabase"."upsert_product_identifier"(tenant uuid, variant uuid, type text, value text, party uuid default null)',
     );
     expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."promote_supplier_item"(item uuid, sku text default null)',
