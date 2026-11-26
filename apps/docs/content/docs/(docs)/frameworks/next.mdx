@@ -820,6 +820,33 @@ export const createNote = bsb.action(
 );
 ```
 
+#### Rules every action shares
+
+`createNext({ actions })` holds what each action would repeat (ADR 1256).
+`envelope(outcome)` returns fields merged into every outcome, such as a
+translated `message`, and each action's return type carries them. `guard`
+runs before an action's own `guard`. `from(value)` settles a value the library
+does not know, such as a `better-result` `Result`.
+
+```ts
+export const bsb = createNext(betterSupabase, {
+  actions: {
+    envelope: (outcome) => ({
+      message: outcome.ok ? "Saved" : translate(outcome.error),
+    }),
+    guard: (tenant, ctx) =>
+      ctx.auth.kind === "user" && isReadOnly(ctx) ? readOnlyError : undefined,
+  },
+});
+```
+
+On the client, render `ActionDefaultsProvider` from `better-supabase/react` in a
+Client Component with `onSuccess` and `onError` callbacks. `useAction`,
+`useOptimisticAction` and `useActionForm` call them with the whole outcome when
+the call has no callback of its own, so a toast needs no `startTransition`
+block. `defineTags(["customers"])` returns `tags.customers(tenant)`, one tag
+function that a reader's `tags` option and an action's `tags` both use.
+
 ## The app's own context
 
 `bsb.withContext((session, base) => ({ ... }))` returns `cached`, `getAccess` and `action` that hand back the app's context merged into the library's. The factory runs once per request and tenant, from the session the library already read. It may be async: each call awaits it, and concurrent calls on one context share a single run.

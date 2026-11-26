@@ -32,6 +32,7 @@ import type {
   BetterNext,
   CachedOptions,
   CacheScope,
+  NextActions,
   NextOptions,
   ScopeOptions,
 } from "./types.ts";
@@ -49,7 +50,7 @@ import { isReadSet, readSetTables } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
 import { isFunctionSpec, isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
-import { byteSizeOf, EMPTY_STATS } from "../core/stats.ts";
+import { byteSizeOf } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
 import { ACCOUNT_PARTS } from "../server/account-parts.ts";
 import { adapterBase } from "../server/adapter-base.ts";
@@ -81,7 +82,12 @@ import {
   validateBound,
   withReadSetTables,
 } from "./action-bound.ts";
-import { applyActionEffects } from "./action-effects.ts";
+import {
+  adoptValue,
+  applyActionEffects,
+  finishOutcome,
+  firstRefusal,
+} from "./action-effects.ts";
 import { applyCacheTags } from "./cache-tags.ts";
 import {
   invalidateAll,
@@ -93,7 +99,7 @@ import {
   tagCallCollectors,
 } from "./cache.ts";
 import { timeFirst } from "./cold-start.ts";
-import { debugRefusal, logActionStats, requestIdOf } from "./collector.ts";
+import { debugRoute, logActionStats, requestIdOf } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import { applyCacheEntry, awaitStage, endBootstrap } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
@@ -135,13 +141,15 @@ export function createNext<
   A extends AnyAuthorizer<V> | undefined = undefined,
   B = unknown,
   V extends AuthzVersionCache = AuthzVersionCache,
+  Ex = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: NextOptions & {
     readonly authorizer?: A;
     readonly versions?: V;
+    readonly actions?: NextActions<Ex>;
   } = {},
-): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D> {
+): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D, Ex> {
   const createStarted = performance.now();
 
   // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
@@ -968,36 +976,13 @@ export function createNext<
 
     waitUntil,
 
-    debugRoute() {
-      return (request) => {
-        const id = new URL(request.url).searchParams.get("id");
-
-        if (!collector || !id) {
-          return Promise.resolve(debugRefusal(collector !== undefined));
-        }
-
-        // A render served entirely from cache entries records nothing: it made
-        // no calls. A fill records on the request that started it, remote
-        // fills through bsb.remote() included, raw ctx.supabase calls too.
-        const stats = collector.get(id) ?? EMPTY_STATS;
-
-        return Promise.resolve(
-          Response.json(stats, {
-            headers: {
-              [statsHeader]: statsValue(stats),
-              "cache-control": "no-store",
-            },
-          }),
-        );
-      };
-    },
+    debugRoute: () => debugRoute(collector, statsHeader, statsValue),
 
     action(actionOptions, fn, mapData) {
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
 
-      // SAFETY: `result` keeps the data type.
-      const mapped = async (o: Out): Promise<Out> =>
-        ((await actionOptions.result?.(o)) ?? o) as Out;
+      const mapped = (o: Out): Promise<Out> =>
+        finishOutcome(o, actionOptions.result, options.actions?.envelope);
 
       const run = async (...args: unknown[]) => {
         const input = args.at(-1);
@@ -1064,7 +1049,11 @@ export function createNext<
           return mapped({ ok: false, data: null, error: caller });
         }
 
-        const refused = await actionOptions.guard?.(tenant, ctx);
+        const refused = await firstRefusal(
+          [options.actions?.guard, actionOptions.guard],
+          tenant,
+          ctx,
+        );
 
         if (refused) {
           return mapped({ ok: false, data: null, error: refused });
@@ -1075,11 +1064,14 @@ export function createNext<
         try {
           // SAFETY: parsed is the validated input, or the raw input when the
           // action has no schema; requireTenant refused a missing tenant.
-          settled = await recording.settleIn("action", () =>
-            fn(
-              parsed as never,
-              withExtra(ctx, caller) as never,
-              bound as never,
+          settled = await recording.settleIn("action", async () =>
+            adoptValue(
+              options.actions?.from,
+              await fn(
+                parsed as never,
+                withExtra(ctx, caller) as never,
+                bound as never,
+              ),
             ),
           );
         } finally {
@@ -1274,5 +1266,5 @@ export function createNext<
 
   // SAFETY: the contexts differ only in `supabase`, which the server builds as SupabaseClient<D>
   // from the same BetterSupabase<…, D>; its untyped default is the same client.
-  return next as BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D>;
+  return next as BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D, Ex>;
 }

@@ -965,6 +965,7 @@
   },
   "./react": {
     "values": [
+      "ActionDefaultsProvider",
       "BetterSupabaseProvider",
       "blockListStatus",
       "blockRealtimeRefetch",
@@ -1022,9 +1023,11 @@
       "useUpload"
     ],
     "types": [
+      "ActionDefaults",
       "ActionForm",
       "ActionHandle",
       "ActionInputOf",
+      "ActionOutcome",
       "ActionResultOf",
       "AuthHookOptions",
       "AuthSession",
@@ -1920,6 +1923,7 @@
       "bindingTag",
       "createNext",
       "defineAction",
+      "defineTags",
       "invalidateBinding",
       "isSessionSnapshot",
       "issuedAtOf",
@@ -1988,6 +1992,7 @@
       "LiveCountSeed",
       "MembershipClaim",
       "MfaVerification",
+      "NextActions",
       "NextCacheOptions",
       "NextCookieWrite",
       "NextDebugOptions",
@@ -2045,6 +2050,7 @@
       "SupportStarted",
       "SupportStartRequest",
       "SupportView",
+      "TableTagFunctions",
       "TagOptions",
       "TenantRecord",
       "TenantRef",

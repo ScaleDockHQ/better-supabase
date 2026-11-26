@@ -31,6 +31,7 @@ import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createUploadConnector } from "../../src/powersync/connector.ts";
 import { powersyncEngine } from "../../src/powersync/index.ts";
 import {
+  ActionDefaultsProvider,
   useAction,
   useActionForm,
   useOptimisticAction,
@@ -1222,6 +1223,56 @@ describe("useOptimisticAction", () => {
     expect(view.result.optimistic).toBe(true);
     expect(view.result.confirmed).toBe(false);
     expect(view.result.data).toEqual({ id: "a" });
+  });
+});
+
+describe("ActionDefaultsProvider", () => {
+  const failing = () =>
+    Promise.resolve({
+      ok: false,
+      data: null,
+      error: dbError("forbidden", "No"),
+      message: "Translated",
+    } as const);
+
+  const render = (own?: { onError: () => void }) => {
+    const app = vi.fn();
+
+    const view = renderHook(
+      () => {
+        void ActionDefaultsProvider({
+          value: { onError: app },
+          children: null,
+        });
+
+        return useAction<undefined, string>(failing, own ?? {});
+      },
+      undefined,
+      null,
+    );
+
+    return { app, view };
+  };
+
+  it("runs the app default with the whole outcome", async () => {
+    const { app, view } = render();
+    await view.result.run(undefined);
+
+    expect(app).toHaveBeenCalledWith(
+      expect.objectContaining({ ok: false, message: "Translated" }),
+      undefined,
+    );
+    view.unmount();
+  });
+
+  it("leaves a call's own onError in charge", async () => {
+    const own = vi.fn();
+    const { app, view } = render({ onError: own });
+    await view.result.run(undefined);
+
+    expect(own).toHaveBeenCalledOnce();
+    expect(app).not.toHaveBeenCalled();
+    view.unmount();
   });
 });
 

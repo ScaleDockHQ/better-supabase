@@ -61,6 +61,38 @@ import type { RecordAt, RecordServer } from "./record.ts";
 import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
 import type { GateUser } from "./user.ts";
 
+/**
+ * App-wide settings of every `bsb.action` (ADR 1256). `Ex` is what `envelope`
+ * adds to each outcome.
+ */
+export interface NextActions<Ex = unknown> {
+  /**
+   * Fields merged into every outcome, success or error, after the action's own
+   * `result`: a translated `message`, `fieldErrors` or a `code`. The actions'
+   * return type carries them as `ActionResult<O> & Ex`.
+   */
+  readonly envelope?: (outcome: ActionResult<unknown>) => Ex | Promise<Ex>;
+  /**
+   * Runs before each action's own `guard`, for rules every action shares (a
+   * read-only support session, a suspended brand). Return an error to refuse.
+   */
+  readonly guard?: (
+    tenant: string | undefined,
+    ctx: Parameters<NonNullable<ActionOptions<undefined>["guard"]>>[1],
+  ) => DbError | undefined | Promise<DbError | undefined>;
+  /**
+   * Turns what a handler returned into a settled outcome, for a result type the
+   * library does not know (a `better-result` `Result`). Return `undefined` to
+   * leave the value to the default handling.
+   */
+  readonly from?: (
+    value: unknown,
+  ) =>
+    | { readonly ok: true; readonly data: unknown }
+    | { readonly ok: false; readonly error: DbError }
+    | undefined;
+}
+
 export interface NextOptions extends ServerOptions {
   /**
    * An existing server, such as the one `createHono` returned, so both
@@ -435,6 +467,8 @@ export interface BetterNext<
   V extends AuthzVersionCache = AuthzVersionCache,
   // oxlint-disable-next-line typescript/no-explicit-any -- as ServerContext
   D = any,
+  /** What `NextOptions.actions.envelope` adds to every action's outcome. */
+  Ex = unknown,
 > extends BetterServer<M, F, E, C, P, B, V> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
   proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
@@ -847,7 +881,7 @@ export interface BetterNext<
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
     map?: ActionMapper<Unwrapped<Awaited<T>>, O>,
-  ): (...args: BoundOptions<Bd, S>) => Promise<ActionResult<O>>;
+  ): (...args: BoundOptions<Bd, S>) => Promise<ActionResult<O> & Ex>;
   /**
    * A server action that calls one block method as the caller, with the same
    * guard, validation and authorize checks as `action`.
@@ -882,7 +916,7 @@ export interface BetterNext<
       >,
   ): (
     input: ActionInput<S>,
-  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>>>;
+  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>> & Ex>;
   /**
    * One record type's server binding (`defineRecordType`, which `gen` writes to
    * `records/<type>.ts`): `load` settles each block's binding for a record in a
