@@ -87,6 +87,99 @@ function setup(options: { staleTime?: number } = {}) {
   };
 }
 
+function verifyingClient(answer: { data: unknown; error: unknown }) {
+  let emit: Listener = () => undefined;
+  const signOut = vi.fn(async () => ({ error: null }));
+  const rpc = vi.fn(async () => answer);
+  const schemaOf = vi.fn(() => ({ rpc }));
+
+  const supabase = {
+    auth: {
+      onAuthStateChange: (callback: Listener) => {
+        emit = callback;
+
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      },
+      signOut,
+    },
+    schema: schemaOf,
+  };
+
+  return {
+    // SAFETY: bindClient reads auth, schema().rpc() and signOut from it.
+    supabase: supabase as unknown as SupabaseClient,
+    signOut,
+    rpc,
+    schemaOf,
+    emit: (value: Session | null) => {
+      emit("SIGNED_IN", value);
+    },
+  };
+}
+
+const flushTimers = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
+describe("bindClient verifySession", () => {
+  const signedIn = session(token({ sub: "u1", role: "authenticated" }), {
+    id: "u1",
+  });
+
+  it("signs out locally once the wrapper says the session ended", async () => {
+    const fake = verifyingClient({
+      data: { session_active: false },
+      error: null,
+    });
+
+    bindClient(betterSupabase, fake.supabase, {
+      verifySession: { rpc: "app" },
+    });
+
+    fake.emit(signedIn);
+    fake.emit(signedIn);
+    await flushTimers();
+    expect(fake.schemaOf).toHaveBeenCalledWith("api");
+    expect(fake.rpc).toHaveBeenCalledExactlyOnceWith("bootstrap_app", {
+      args: {},
+    });
+    expect(fake.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  it("keeps an active session, a failed call and an unverified client", async () => {
+    const active = verifyingClient({
+      data: { session_active: true },
+      error: null,
+    });
+
+    bindClient(betterSupabase, active.supabase, {
+      verifySession: { rpc: "app", schema: "app_api" },
+    });
+    active.emit(signedIn);
+
+    const failed = verifyingClient({ data: null, error: { message: "down" } });
+    bindClient(betterSupabase, failed.supabase, {
+      verifySession: { rpc: "app" },
+    });
+    failed.emit(signedIn);
+
+    const plain = verifyingClient({
+      data: { session_active: false },
+      error: null,
+    });
+
+    bindClient(betterSupabase, plain.supabase);
+    plain.emit(signedIn);
+
+    await flushTimers();
+    expect(active.schemaOf).toHaveBeenCalledWith("app_api");
+    expect(active.signOut).not.toHaveBeenCalled();
+    expect(failed.signOut).not.toHaveBeenCalled();
+    expect(plain.rpc).not.toHaveBeenCalled();
+  });
+});
+
 describe("bindClient without the auth module", () => {
   it("starts signed out and disposes without a subscription", () => {
     const supabase = {} as unknown as SupabaseClient;

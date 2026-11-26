@@ -69,6 +69,11 @@ The Expo example shows the unread count from `useNotifications` above its
 customer list (`src/lib/notifications.ts`), the same hook the Next.js
 example's header badge calls.
 
+`verifySession: { rpc: "app" }` asks the sessions block's `bootstrap_app`
+wrapper whether a session that signs in or loads from the keychain is still
+active, and signs out locally when the server ended it, so a revoked session
+stops the app before its access token expires. A failed call keeps the session.
+
 ## Sessions in the keychain
 
 `secureStorage(SecureStore)` stores the Supabase session with

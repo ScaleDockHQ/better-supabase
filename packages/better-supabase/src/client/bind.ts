@@ -135,6 +135,14 @@ export interface BindClientOptions {
    * there.
    */
   readonly engine?: DataEngine;
+  /**
+   * Asks the sessions block's `bootstrap_<rpc>` wrapper whether a session that
+   * signs in or loads from storage is still active, and signs out locally when
+   * it says no, so a session ended on the server stops the app before its
+   * access token expires. A failed call keeps the session. `schema` defaults to
+   * the one `gen` recorded for the wrapper, else `api`.
+   */
+  readonly verifySession?: { readonly rpc: string; readonly schema?: string };
 }
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
@@ -225,8 +233,44 @@ export function bindClient<
     snapshot = snapshotOf(null);
   }
 
+  const verify = async (): Promise<void> => {
+    const check = options.verifySession;
+
+    if (check === undefined) {
+      return;
+    }
+
+    const response: { readonly data: unknown; readonly error: unknown } =
+      await supabase
+        .schema(check.schema ?? betterSupabase.meta.bootstrap?.schema ?? "api")
+        .rpc(`bootstrap_${check.rpc}`, { args: {} });
+
+    const { data } = response;
+
+    if (
+      response.error === null &&
+      typeof data === "object" &&
+      data !== null &&
+      "session_active" in data &&
+      data.session_active === false
+    ) {
+      await supabase.auth.signOut({ scope: "local" });
+    }
+  };
+
   const onChange = (_event: unknown, session: Session | null): void => {
     const next = snapshotOf(session);
+
+    // Outside the auth callback: an Auth call awaited inside it stalls auth-js.
+    if (
+      next.status === "signed-in" &&
+      (snapshot.status !== "signed-in" ||
+        identityKey(next) !== identityKey(snapshot))
+    ) {
+      setTimeout(() => {
+        verify().catch(() => undefined);
+      }, 0);
+    }
 
     // A refresh only moves the time claims: keeping the snapshot keeps `db`
     // and spares every `useAuth` consumer a render once an hour.
