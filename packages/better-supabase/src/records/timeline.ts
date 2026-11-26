@@ -11,7 +11,7 @@ import type {
   BindingSource,
 } from "./bindings.ts";
 
-import { findBinding, loadBindings } from "./bindings.ts";
+import { findBinding, getBindingsWith } from "./bindings.ts";
 
 /** One entry of a record's timeline, with the binding it came from. */
 export interface TimelineEntry extends TimelineItem {
@@ -88,11 +88,11 @@ export function getTimeline<
   subject: RecordRef,
   options: LoadTimelineOptions<B, N> = {},
 ): Promise<Timeline> {
-  return loadTimeline(source, subject, options, (load) => load());
+  return getTimelineWith(source, subject, options, (load) => load());
 }
 
 /** `getTimeline`, with each binding's load run through `run`. */
-export async function loadTimeline<
+export async function getTimelineWith<
   B extends BindingBlocks,
   const N extends BindingName<B>,
 >(
@@ -104,7 +104,7 @@ export async function loadTimeline<
   // SAFETY: without `bindings` every timeline binding loads, which is `N` at
   // its default.
   const names = options.bindings ?? (timelineBindings(source.blocks) as N[]);
-  const loaded = await loadBindings(source, subject, names, options, run);
+  const loaded = await getBindingsWith(source, subject, names, options, run);
   const entries: TimelineEntry[] = [];
   const skipped: Record<string, Timeline["skipped"][string]> = {};
 

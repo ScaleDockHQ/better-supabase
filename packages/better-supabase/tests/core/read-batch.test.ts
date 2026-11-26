@@ -5,8 +5,8 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 import { blockCall } from "../../src/core/block-helpers.ts";
 import {
   READ_BATCH_LIMIT,
-  readBatch,
-  readBatchMemory,
+  batchReads,
+  createBatchMemory,
 } from "../../src/core/read-batch.ts";
 
 type Args = Readonly<Record<string, unknown>>;
@@ -47,10 +47,10 @@ const together = <T>(
   fns: readonly (() => Promise<T>)[],
 ): Promise<T[]> => Promise.all(fns.map((fn) => run(fn)));
 
-describe("readBatch", () => {
+describe("batchReads", () => {
   it("sends the first reads of every participant as one read_batch call", async () => {
     const inner = fakeInner();
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const results = await together(batch.run, [
       () => batch.transport.call("api", "tags_of", { id: "1" }),
@@ -70,7 +70,7 @@ describe("readBatch", () => {
 
   it("sends one call per schema, and a schema with one call goes direct", async () => {
     const inner = fakeInner();
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const results = await together(batch.run, [
       () => batch.transport.call("api", "a", {}),
@@ -85,7 +85,7 @@ describe("readBatch", () => {
 
   it("calls a single participant's read directly", async () => {
     const inner = fakeInner();
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     await expect(
       batch.run(() => batch.transport.call("api", "tags_of", {})),
@@ -95,7 +95,7 @@ describe("readBatch", () => {
 
   it("calls a read outside any participant directly", async () => {
     const inner = fakeInner();
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     await expect(batch.transport.call("api", "x", {})).resolves.toBe(
       "direct:x",
@@ -113,7 +113,7 @@ describe("readBatch", () => {
       call.fn === "tags_of" ? { error: raw } : { data: [] },
     );
 
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
     const call = blockCall(batch.transport, "api");
 
     const [tags, fields] = await together(batch.run, [
@@ -135,7 +135,7 @@ describe("readBatch", () => {
       call.fn === "volatile" ? { skipped: true } : { data: call.fn },
     );
 
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const results = await together(batch.run, [
       () => batch.transport.call("api", "stable", {}),
@@ -151,8 +151,8 @@ describe("readBatch", () => {
       call.fn === "volatile" ? { skipped: true } : { data: call.fn },
     );
 
-    const memory = readBatchMemory();
-    const first = readBatch(inner, memory);
+    const memory = createBatchMemory();
+    const first = batchReads(inner, memory);
 
     await together(first.run, [
       () => first.transport.call("api", "a", {}),
@@ -161,7 +161,7 @@ describe("readBatch", () => {
 
     inner.call.mockClear();
 
-    const second = readBatch(inner, memory);
+    const second = batchReads(inner, memory);
 
     const results = await together(second.run, [
       () => second.transport.call("api", "a", {}),
@@ -204,7 +204,7 @@ describe("readBatch", () => {
       }),
     };
 
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const done = together(batch.run, [
       () => batch.transport.call("api", "volatile", {}),
@@ -228,7 +228,7 @@ describe("readBatch", () => {
     });
 
     const inner = fakeInner(undefined, () => Promise.reject(missing));
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const first = await together(batch.run, [
       () => batch.transport.call("api", "a", {}),
@@ -259,7 +259,7 @@ describe("readBatch", () => {
       Promise.reject(Object.assign(new Error("timeout"), { code: "57014" })),
     );
 
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     await together(batch.run, [
       () => batch.transport.call("api", "a", {}),
@@ -282,7 +282,7 @@ describe("readBatch", () => {
 
   it("sends a participant's second, dependent read in the next flush", async () => {
     const inner = fakeInner();
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const results = await together(batch.run, [
       async () => {
@@ -328,7 +328,7 @@ describe("readBatch", () => {
 
   it("waits for a participant that hasn't read yet, and flushes once it finishes", async () => {
     const inner = fakeInner();
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const results = await together<unknown>(batch.run, [
       () => batch.transport.call("api", "a", {}),
@@ -340,7 +340,7 @@ describe("readBatch", () => {
 
   it(`splits a batch longer than ${String(READ_BATCH_LIMIT)} calls`, async () => {
     const inner = fakeInner();
-    const batch = readBatch(inner);
+    const batch = batchReads(inner);
 
     const count = READ_BATCH_LIMIT + 2;
 

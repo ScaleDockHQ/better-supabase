@@ -151,14 +151,14 @@ export function getBindings<
   names: readonly N[],
   options: LoadBindingsOptions<B, N> = {},
 ): Promise<LoadedBindings<B, N>> {
-  return loadBindings(source, subject, names, options, (load) => load());
+  return getBindingsWith(source, subject, names, options, (load) => load());
 }
 
-/** Runs one binding's load: `readBatch`'s `run`, so the loads share a batch. */
+/** Runs one binding's load: `batchReads`'s `run`, so the loads share a batch. */
 export type BindingRun = <T>(load: () => Promise<T>) => Promise<T>;
 
 /** `getBindings`, with each binding's load run through `run`. */
-export async function loadBindings<
+export async function getBindingsWith<
   B extends BindingBlocks,
   const N extends BindingName<B>,
 >(

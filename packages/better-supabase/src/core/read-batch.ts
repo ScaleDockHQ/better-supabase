@@ -18,7 +18,7 @@ interface Queued {
 }
 
 /**
- * What `readBatch` learned about the database, shared by the batches that pass
+ * What `batchReads` learned about the database, shared by the batches that pass
  * the same memory: the schemas without `read_batch`, and the functions it
  * skipped (a `volatile` read, for one), which then go direct from the start
  * instead of costing a second round trip.
@@ -29,7 +29,7 @@ export interface ReadBatchMemory {
 }
 
 /** An empty `ReadBatchMemory`. */
-export function readBatchMemory(): ReadBatchMemory {
+export function createBatchMemory(): ReadBatchMemory {
   return { missing: new Set(), skipped: new Set() };
 }
 
@@ -52,9 +52,9 @@ export interface ReadBatch {
  * flush. Entries the database skips, and every call when `read_batch` fails as
  * a whole, run on their own through `inner`.
  */
-export function readBatch(
+export function batchReads(
   inner: BlockTransport,
-  memory: ReadBatchMemory = readBatchMemory(),
+  memory: ReadBatchMemory = createBatchMemory(),
 ): ReadBatch {
   let active = 0;
   let inFlight = 0;

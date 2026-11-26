@@ -35,7 +35,7 @@ argument names cover the keys passed, and never itself. Any other call is
 skipped, not run. Each call runs in its own exception block, so one failure
 doesn't fail the batch.
 
-On the client, `readBatch` (`src/core/read-batch.ts`, internal) wraps the block
+On the client, `batchReads` (`src/core/read-batch.ts`, internal) wraps the block
 transport for one `get` or `timeline`. Every binding load is a participant; once
 each participant has queued a read or is waiting on one, the queue goes out as
 one `read_batch` call. A group of one goes direct. A data entry resolves, an

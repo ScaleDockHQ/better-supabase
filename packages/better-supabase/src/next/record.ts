@@ -39,7 +39,7 @@ import type * as RecordBlocks from "./record-blocks.ts";
 
 import { dbError } from "../core/errors.ts";
 import { err } from "../core/result.ts";
-import { loadBindings } from "../records/bindings.ts";
+import { getBindingsWith } from "../records/bindings.ts";
 import {
   bindingWrites,
   findBindingWrite,
@@ -50,7 +50,7 @@ import {
   recordWriteInput,
   runBindingWrite,
 } from "../records/record-type.ts";
-import { loadTimeline } from "../records/timeline.ts";
+import { getTimelineWith } from "../records/timeline.ts";
 import { isStorageApi } from "../storage/storage-api.ts";
 import { invalidateBinding, recordTag, bindingTag } from "./records.ts";
 
@@ -58,10 +58,7 @@ let recordBlocks: Promise<typeof RecordBlocks> | undefined;
 
 // Shared by every request in the process: a function `read_batch` skipped once
 // goes direct from then on, in the same round trip as the batch.
-const readBatchMemory: ReadBatchMemory = {
-  missing: new Set(),
-  skipped: new Set(),
-};
+const batchMemory: ReadBatchMemory = { missing: new Set(), skipped: new Set() };
 
 // The block clients load on the first record call, so a page without a record
 // doesn't evaluate them; they are a seventh of the ./next closure (ADR 1228).
@@ -219,15 +216,15 @@ async function clientsOf(
 }
 
 /**
- * The block clients over one `readBatch`, whose `run` each concurrent read
+ * The block clients over one `batchReads`, whose `run` each concurrent read
  * joins, so the reads go to the database as one `read_batch` call.
  */
 async function batchedClientsOf(
   feature: Pick<RecordType, "blocks" | "config">,
   ctx: RecordServerContext,
 ): Promise<{ readonly clients: Clients; readonly run: BindingRun }> {
-  const { dbTransport, readBatch } = await blocksOf();
-  const batch = readBatch(dbTransport(ctx.db), readBatchMemory);
+  const { dbTransport, batchReads } = await blocksOf();
+  const batch = batchReads(dbTransport(ctx.db), batchMemory);
 
   return {
     clients: await clientsOf(feature, ctx, batch.transport),
@@ -375,7 +372,7 @@ export function recordServer<
 
       const { clients, run } = await batchedClientsOf(feature, ctx);
 
-      const loaded = await loadBindings(
+      const loaded = await getBindingsWith(
         { blocks: feature.blocks, clients },
         subject,
         names,
@@ -414,7 +411,7 @@ export function recordServer<
 
       const { clients, run } = await batchedClientsOf(feature, ctx);
 
-      const timeline = await loadTimeline(
+      const timeline = await getTimelineWith(
         { blocks: feature.blocks, clients },
         recordSubject(feature, id),
         { ...options, can: ({ binding }) => readable.get(binding) ?? true },
