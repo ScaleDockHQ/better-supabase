@@ -75,23 +75,18 @@ export const requestLeave = bsb.action(
 );
 
 /** Cancels a pending request, or approved leave before it starts. */
-export const cancelLeave = bsb.action(
+export const cancelLeave = bsb.blockAction(
+  ({ db }) => db.leave,
+  "cancel",
   {
     input: v.object({ requestId: Id }),
     requireTenant: true,
     permission: "leave.request",
     tags: () => [tags.leave()],
     refresh: true,
+    args: ({ requestId }) => [requestId],
   },
-  async ({ requestId }, { db }) => {
-    const cancelled = await db.leave.cancel(requestId);
-
-    if (!cancelled.ok) {
-      return cancelled;
-    }
-
-    return ok({ status: cancelled.data.status });
-  },
+  (cancelled) => ({ status: cancelled.status }),
 );
 
 /** Approves or rejects a request through its approval. */

@@ -200,7 +200,9 @@ export const setWorkItemAssignee = bsb.action(
 );
 
 /** Creates a team, from the team picker's empty state. */
-export const createTeam = bsb.action(
+export const createTeam = bsb.blockAction(
+  ({ db }) => db.teams,
+  "create",
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
@@ -210,16 +212,9 @@ export const createTeam = bsb.action(
     tags: ({ tenant }) =>
       tenant === undefined ? [tags.work()] : [tags.work(), teamsTag(tenant)],
     refresh: true,
+    args: ({ name }, { tenant }) => [{ organizationId: tenant, name }],
   },
-  async ({ name }, { tenant, db }) => {
-    const created = await db.teams.create({ organizationId: tenant, name });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok(created.data.id);
-  },
+  (created) => created.id,
 );
 
 /** Saves the grid's filters and sort as one of the caller's views. */

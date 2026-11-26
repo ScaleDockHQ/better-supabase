@@ -196,7 +196,9 @@ export const createDefaultPipeline = bsb.action(
 );
 
 /** Creates a deal in a stage of the pipeline. */
-export const createDeal = bsb.action(
+export const createDeal = bsb.blockAction(
+  ({ db }) => db.deals,
+  "create",
   {
     input: v.object({
       name: Name,
@@ -210,52 +212,41 @@ export const createDeal = bsb.action(
     permission: "deals.write",
     tags: () => [tags.crm(), tags.customers()],
     refresh: true,
-  },
-  async (
-    { name, amount, currency, closeOn, pipelineId, stageId },
-    { tenant, db },
-  ) => {
-    const created = await db.deals.create({
-      organizationId: tenant,
-      input: {
-        name,
-        closeOn: Temporal.PlainDate.from(closeOn),
-        amount: parseMoney(amount, currency),
-        currency,
-        pipelineId,
-        stageId,
+    args: (
+      { name, amount, currency, closeOn, pipelineId, stageId },
+      { tenant },
+    ) => [
+      {
+        organizationId: tenant,
+        input: {
+          name,
+          closeOn: Temporal.PlainDate.from(closeOn),
+          amount: parseMoney(amount, currency),
+          currency,
+          pipelineId,
+          stageId,
+        },
       },
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok({ id: created.data.id, identifier: created.data.identifier });
+    ],
   },
+  (created) => ({ id: created.id, identifier: created.identifier }),
 );
 
 /** Moves a deal to another stage; the deals block checks the transition. */
-export const moveDeal = bsb.action(
+export const moveDeal = bsb.blockAction(
+  ({ db }) => db.deals,
+  "update",
   {
     input: v.object({ dealId: Id, stageId: Id }),
     requireTenant: true,
     permission: "deals.write",
     tags: () => [tags.crm(), tags.customers()],
     refresh: true,
+    args: ({ dealId, stageId }) => [
+      { changes: [{ dealId, field: "stageId", value: stageId }], strict: true },
+    ],
   },
-  async ({ dealId, stageId }, { db }) => {
-    const moved = await db.deals.update({
-      changes: [{ dealId, field: "stageId", value: stageId }],
-      strict: true,
-    });
-
-    if (!moved.ok) {
-      return moved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Creates a target for won deals in a period. */
@@ -307,26 +298,20 @@ export const createTarget = bsb.action(
 );
 
 /** Creates an empty draft quote; the builder adds its lines. */
-export const createQuote = bsb.action(
+export const createQuote = bsb.blockAction(
+  ({ db }) => db.quotes,
+  "create",
   {
     input: v.object({ title: Name, currency: Currency }),
     requireTenant: true,
     permission: "quotes.write",
     tags: () => [tags.crm(), tags.customers()],
     refresh: true,
+    args: ({ title, currency }, { tenant }) => [
+      { organizationId: tenant, input: { title, currency } },
+    ],
   },
-  async ({ title, currency }, { tenant, db }) => {
-    const created = await db.quotes.create({
-      organizationId: tenant,
-      input: { title, currency },
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok({ id: created.data.id });
-  },
+  (created) => ({ id: created.id }),
 );
 
 const QuoteLine = v.object({
@@ -338,7 +323,9 @@ const QuoteLine = v.object({
 });
 
 /** Replaces a draft's lines; the database computes the totals. */
-export const saveQuoteLines = bsb.action(
+export const saveQuoteLines = bsb.blockAction(
+  ({ db }) => db.quotes,
+  "setLines",
   {
     input: v.object({
       quoteId: Id,
@@ -349,29 +336,26 @@ export const saveQuoteLines = bsb.action(
     permission: "quotes.write",
     tags: () => [tags.crm(), tags.customers()],
     refresh: true,
+    args: ({ quoteId, currency, lines }) => [
+      {
+        quoteId,
+        lines: lines.map((line) => ({
+          description: line.description,
+          quantity: line.quantity,
+          unitAmount: parseMoney(line.unitAmount, currency),
+          discountBps: Math.round(line.discountPercent * 100),
+          taxRateBps: Math.round(line.taxPercent * 100),
+        })),
+      },
+    ],
   },
-  async ({ quoteId, currency, lines }, { db }) => {
-    const saved = await db.quotes.setLines({
-      quoteId,
-      lines: lines.map((line) => ({
-        description: line.description,
-        quantity: line.quantity,
-        unitAmount: parseMoney(line.unitAmount, currency),
-        discountBps: Math.round(line.discountPercent * 100),
-        taxRateBps: Math.round(line.taxPercent * 100),
-      })),
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(saved.data.total);
-  },
+  (saved) => saved.total,
 );
 
 /** Sends a draft for acceptance. */
-export const sendQuote = bsb.action(
+export const sendQuote = bsb.blockAction(
+  ({ db }) => db.quotes,
+  "send",
   {
     input: v.object({ quoteId: Id }),
     requireTenant: true,
@@ -379,19 +363,13 @@ export const sendQuote = bsb.action(
     tags: () => [tags.crm(), tags.customers()],
     refresh: true,
   },
-  async ({ quoteId }, { db }) => {
-    const sent = await db.quotes.send({ quoteId });
-
-    if (!sent.ok) {
-      return sent;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Records the customer's answer, taken by phone or email. */
-export const decideQuote = bsb.action(
+export const decideQuote = bsb.blockAction(
+  ({ db }) => db.quotes,
+  "decide",
   {
     input: v.object({
       quoteId: Id,
@@ -402,19 +380,13 @@ export const decideQuote = bsb.action(
     tags: () => [tags.crm(), tags.customers()],
     refresh: true,
   },
-  async ({ quoteId, decision }, { db }) => {
-    const decided = await db.quotes.decide({ quoteId, decision });
-
-    if (!decided.ok) {
-      return decided;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Starts a new draft revision and returns its id. */
-export const reviseQuote = bsb.action(
+export const reviseQuote = bsb.blockAction(
+  ({ db }) => db.quotes,
+  "revise",
   {
     input: v.object({ quoteId: Id }),
     requireTenant: true,
@@ -422,13 +394,5 @@ export const reviseQuote = bsb.action(
     tags: () => [tags.crm(), tags.customers()],
     refresh: true,
   },
-  async ({ quoteId }, { db }) => {
-    const revised = await db.quotes.revise({ quoteId });
-
-    if (!revised.ok) {
-      return revised;
-    }
-
-    return ok({ id: revised.data.id });
-  },
+  (revised) => ({ id: revised.id }),
 );

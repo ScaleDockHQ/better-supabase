@@ -48,7 +48,9 @@ export const openIncident = bsb.action(
 );
 
 /** Posts a status update to an open incident's timeline. */
-export const postIncidentUpdate = bsb.action(
+export const postIncidentUpdate = bsb.blockAction(
+  ({ db }) => db.incidents,
+  "postUpdate",
   {
     input: v.object({
       incidentId: Id,
@@ -59,23 +61,17 @@ export const postIncidentUpdate = bsb.action(
     permission: "incidents.write",
     tags: () => [tags.incidents()],
     refresh: true,
+    args: ({ incidentId, status, body }) => [
+      { incidentId, input: { status, body } },
+    ],
   },
-  async ({ incidentId, status, body }, { db }) => {
-    const posted = await db.incidents.postUpdate({
-      incidentId,
-      input: { status, body },
-    });
-
-    if (!posted.ok) {
-      return posted;
-    }
-
-    return ok(posted.data.id);
-  },
+  (posted) => posted.id,
 );
 
 /** Resolves an incident with a closing update. */
-export const resolveIncident = bsb.action(
+export const resolveIncident = bsb.blockAction(
+  ({ db }) => db.incidents,
+  "resolve",
   {
     input: v.object({ incidentId: Id, body: Text(2000) }),
     requireTenant: true,
@@ -83,13 +79,5 @@ export const resolveIncident = bsb.action(
     tags: () => [tags.incidents()],
     refresh: true,
   },
-  async ({ incidentId, body }, { db }) => {
-    const resolved = await db.incidents.resolve({ incidentId, body });
-
-    if (!resolved.ok) {
-      return resolved;
-    }
-
-    return ok(resolved.data.id);
-  },
+  (resolved) => resolved.id,
 );

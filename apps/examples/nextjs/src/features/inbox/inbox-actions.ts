@@ -219,28 +219,28 @@ export const loadMacros = bsb.action(
 );
 
 /** The caller's draft on the conversation and the AI drafts for the team. */
-export const loadDrafts = bsb.action(
-  { input: ConversationInput },
-  async ({ conversationId }, { db }) => {
-    const listed = await db.inbox.drafts.list(conversationId);
-
-    return listed.ok ? ok(listed.data.map(toDraftRow)) : listed;
-  },
+export const loadDrafts = bsb.blockAction(
+  ({ db }) => db.inbox.drafts,
+  "list",
+  { input: ConversationInput, args: ({ conversationId }) => [conversationId] },
+  (listed) => listed.map(toDraftRow),
 );
 
 /** Sends a draft as the caller, with the edited text. */
-export const sendDraft = bsb.action(
-  { input: v.object({ draftId: Id, body: Body }) },
-  async ({ draftId, body }, { db }) => {
-    const sent = await db.inbox.drafts.send({ draftId, edits: { body } });
-
-    return sent.ok ? ok(sent.data.id) : sent;
+export const sendDraft = bsb.blockAction(
+  ({ db }) => db.inbox.drafts,
+  "send",
+  {
+    input: v.object({ draftId: Id, body: Body }),
+    args: ({ draftId, body }) => [{ draftId, edits: { body } }],
   },
+  (sent) => sent.id,
 );
 
-export const discardDraft = bsb.action(
-  { input: v.object({ draftId: Id }) },
-  async ({ draftId }, { db }) => db.inbox.drafts.discard(draftId),
+export const discardDraft = bsb.blockAction(
+  ({ db }) => db.inbox.drafts,
+  "discard",
+  { input: v.object({ draftId: Id }), args: ({ draftId }) => [draftId] },
 );
 
 /**
@@ -286,31 +286,27 @@ export const loadThread = bsb.action(
 );
 
 /** One message, for the Realtime ping that names it. */
-export const loadMessage = bsb.action(
-  { input: v.object({ messageId: Id }) },
-  async ({ messageId }, { db }) => {
-    const message = await db.inbox.messages.get(messageId);
-
-    return message.ok
-      ? ok(message.data === null ? null : toMessageRow(message.data))
-      : message;
-  },
+export const loadMessage = bsb.blockAction(
+  ({ db }) => db.inbox.messages,
+  "get",
+  { input: v.object({ messageId: Id }), args: ({ messageId }) => [messageId] },
+  (message) => (message === null ? null : toMessageRow(message)),
 );
 
 /**
  * Keeps the unsent reply as the caller's draft on the conversation, so it
  * survives a reload; sending the reply leaves the draft to be replaced.
  */
-export const saveDraft = bsb.action(
-  { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
-  async ({ conversationId, body, note }, { db }) => {
-    const saved = await db.inbox.drafts.upsert({
-      conversationId,
-      input: { body, kind: note ? "note" : "message" },
-    });
-
-    return saved.ok ? ok(saved.data.id) : saved;
+export const saveDraft = bsb.blockAction(
+  ({ db }) => db.inbox.drafts,
+  "upsert",
+  {
+    input: v.object({ conversationId: Id, body: Body, note: v.boolean() }),
+    args: ({ conversationId, body, note }) => [
+      { conversationId, input: { body, kind: note ? "note" : "message" } },
+    ],
   },
+  (saved) => saved.id,
 );
 
 /** A reply to the contact, or with `note` an internal note only staff see. */
@@ -345,35 +341,35 @@ export const reply = bsb.action(
 );
 
 /** Returns a bot conversation to the bot, or pauses the bot. */
-export const setBotMode = bsb.action(
+export const setBotMode = bsb.blockAction(
+  ({ db }) => db.inbox.conversations,
+  "setBotMode",
   {
     input: v.object({
       conversationId: Id,
       mode: v.picklist(["bot", "human", "paused"]),
     }),
     permission: "inbox.assign",
+    args: ({ conversationId, mode }) => [
+      { conversationId, mode, reason: "set from the inbox" },
+    ],
   },
-  async ({ conversationId, mode }, { db }) => {
-    const changed = await db.inbox.conversations.setBotMode({
-      conversationId,
-      mode,
-      reason: "set from the inbox",
-    });
-
-    return changed.ok ? ok(changed.data.botMode) : changed;
-  },
+  (changed) => changed.botMode,
 );
 
-export const assign = bsb.action(
-  { input: v.object({ conversationId: Id, toMe: v.boolean() }) },
-  async ({ conversationId, toMe }, { auth, db }) => {
-    const assigned = await db.inbox.conversations.assign({
-      conversationId,
-      to: { assigneeId: toMe && auth.kind === "user" ? auth.user.id : null },
-    });
-
-    return assigned.ok ? ok(assigned.data.assigneeId) : assigned;
+export const assign = bsb.blockAction(
+  ({ db }) => db.inbox.conversations,
+  "assign",
+  {
+    input: v.object({ conversationId: Id, toMe: v.boolean() }),
+    args: ({ conversationId, toMe }, { auth }) => [
+      {
+        conversationId,
+        to: { assigneeId: toMe && auth.kind === "user" ? auth.user.id : null },
+      },
+    ],
   },
+  (assigned) => assigned.assigneeId,
 );
 
 /** The active teams of the organization, for the team queue. */
@@ -388,19 +384,17 @@ export const loadTeams = bsb.action(
 );
 
 /** Puts the conversation in a team's queue, or takes it out of one. */
-export const assignTeam = bsb.action(
+export const assignTeam = bsb.blockAction(
+  ({ db }) => db.inbox.conversations,
+  "assign",
   {
     input: v.object({ conversationId: Id, teamId: v.nullable(Id) }),
     permission: "inbox.assign",
+    args: ({ conversationId, teamId }) => [
+      { conversationId, to: { assigneeId: null, teamId } },
+    ],
   },
-  async ({ conversationId, teamId }, { db }) => {
-    const assigned = await db.inbox.conversations.assign({
-      conversationId,
-      to: { assigneeId: null, teamId },
-    });
-
-    return assigned.ok ? ok(assigned.data.teamId) : assigned;
-  },
+  (assigned) => assigned.teamId,
 );
 
 export const setStatus = bsb.action(
@@ -417,46 +411,46 @@ export const setStatus = bsb.action(
 );
 
 /** Hides the conversation until the time comes; then it opens again. */
-export const snooze = bsb.action(
-  { input: v.object({ conversationId: Id, until: Later }) },
-  async ({ conversationId, until }, { db }) => {
-    const changed = await db.inbox.conversations.snooze({
-      conversationId,
-      until: laterInstant(until),
-    });
-
-    return changed.ok ? ok(changed.data.status) : changed;
+export const snooze = bsb.blockAction(
+  ({ db }) => db.inbox.conversations,
+  "snooze",
+  {
+    input: v.object({ conversationId: Id, until: Later }),
+    args: ({ conversationId, until }) => [
+      { conversationId, until: laterInstant(until) },
+    ],
   },
+  (changed) => changed.status,
 );
 
 /** The caller's replies on the conversation that wait to go out. */
-export const loadScheduled = bsb.action(
-  { input: ConversationInput },
-  async ({ conversationId }, { db }) => {
-    const listed = await db.inbox.messages.scheduled(conversationId);
-
-    return listed.ok ? ok(listed.data.map(toScheduledRow)) : listed;
-  },
+export const loadScheduled = bsb.blockAction(
+  ({ db }) => db.inbox.messages,
+  "scheduled",
+  { input: ConversationInput, args: ({ conversationId }) => [conversationId] },
+  (listed) => listed.map(toScheduledRow),
 );
 
 /** A reply that goes out later, as the caller, when `publishDue` runs. */
-export const scheduleReply = bsb.action(
-  { input: v.object({ conversationId: Id, body: Body, at: Later }) },
-  async ({ conversationId, body, at }, { db }) => {
-    const scheduled = await db.inbox.messages.schedule({
-      conversationId,
-      input: { body },
-      at: laterInstant(at),
-    });
-
-    return scheduled.ok ? ok(scheduled.data.id) : scheduled;
+export const scheduleReply = bsb.blockAction(
+  ({ db }) => db.inbox.messages,
+  "schedule",
+  {
+    input: v.object({ conversationId: Id, body: Body, at: Later }),
+    args: ({ conversationId, body, at }) => [
+      { conversationId, input: { body }, at: laterInstant(at) },
+    ],
   },
+  (scheduled) => scheduled.id,
 );
 
-export const cancelScheduled = bsb.action(
-  { input: v.object({ scheduledId: Id }) },
-  async ({ scheduledId }, { db }) =>
-    db.inbox.messages.cancelScheduled(scheduledId),
+export const cancelScheduled = bsb.blockAction(
+  ({ db }) => db.inbox.messages,
+  "cancelScheduled",
+  {
+    input: v.object({ scheduledId: Id }),
+    args: ({ scheduledId }) => [scheduledId],
+  },
 );
 
 /**

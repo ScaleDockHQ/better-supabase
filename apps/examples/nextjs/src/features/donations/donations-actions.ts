@@ -48,21 +48,16 @@ export const recordGift = bsb.action(
 );
 
 /** Issues the numbered tax receipt for a posted gift. */
-export const issueReceipt = bsb.action(
+export const issueReceipt = bsb.blockAction(
+  ({ db }) => db.donations,
+  "issueGiftReceipt",
   {
     input: v.object({ giftId: Id }),
     requireTenant: true,
     permission: "donations.manage",
     tags: () => [tags.donations()],
     refresh: true,
+    args: ({ giftId }) => [giftId],
   },
-  async ({ giftId }, { db }) => {
-    const receipt = await db.donations.issueGiftReceipt(giftId);
-
-    if (!receipt.ok) {
-      return receipt;
-    }
-
-    return ok(receipt.data.number);
-  },
+  (receipt) => receipt.number,
 );

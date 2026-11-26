@@ -13,7 +13,9 @@ const Id = v.pipe(v.string(), v.uuid());
 const Comment = v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500)), "");
 
 /** Files a request under the customer policy for the action. */
-export const requestApproval = bsb.action(
+export const requestApproval = bsb.blockAction(
+  ({ db }) => db.approvals,
+  "request",
   {
     input: v.object({
       subjectId: Id,
@@ -24,19 +26,14 @@ export const requestApproval = bsb.action(
     permission: "approvals.request",
     tags: () => [tags.approvals(), tags.accessRequests()],
     refresh: true,
+    args: ({ subjectId, action, reason }) => [
+      {
+        subject: { type: APPROVAL_SUBJECT, id: subjectId },
+        input: { action, reason },
+      },
+    ],
   },
-  async ({ subjectId, action, reason }, { db }) => {
-    const requested = await db.approvals.request({
-      subject: { type: APPROVAL_SUBJECT, id: subjectId },
-      input: { action, reason },
-    });
-
-    if (!requested.ok) {
-      return requested;
-    }
-
-    return ok(requested.data.id);
-  },
+  (requested) => requested.id,
 );
 
 /**

@@ -49,7 +49,9 @@ function given<K extends string, V>(
 }
 
 /** Closes a deal as won. */
-export const winDeal = bsb.action(
+export const winDeal = bsb.blockAction(
+  ({ db }) => db.deals,
+  "win",
   {
     input: v.object({ dealId: Id, note: Optional }),
     requireTenant: true,
@@ -57,19 +59,13 @@ export const winDeal = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ dealId, note }, { db }) => {
-    const won = await db.deals.win({ dealId, note });
-
-    if (!won.ok) {
-      return won;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Opens a closed deal again in the first open stage. */
-export const reopenDeal = bsb.action(
+export const reopenDeal = bsb.blockAction(
+  ({ db }) => db.deals,
+  "reopen",
   {
     input: v.object({ dealId: Id }),
     requireTenant: true,
@@ -77,19 +73,13 @@ export const reopenDeal = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ dealId }, { db }) => {
-    const reopened = await db.deals.reopen({ dealId });
-
-    if (!reopened.ok) {
-      return reopened;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Snapshots the forecast of a period, so a later review compares weeks. */
-export const takeForecastSnapshot = bsb.action(
+export const takeForecastSnapshot = bsb.blockAction(
+  ({ db }) => db.forecasts,
+  "snapshot",
   {
     input: v.object({
       since: IsoDate,
@@ -101,29 +91,24 @@ export const takeForecastSnapshot = bsb.action(
     permission: "forecasts.snapshot",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ since, until, currency, target }, { tenant, db }) => {
-    const snapshot = await db.forecasts.snapshot({
-      organizationId: tenant,
-      period: {
-        since: Temporal.PlainDate.from(since),
-        until: Temporal.PlainDate.from(until),
-        currency,
-        ...given(
-          "target",
-          target !== undefined && v.is(Decimal, target)
-            ? parseMoney(target, currency)
-            : undefined,
-        ),
+    args: ({ since, until, currency, target }, { tenant }) => [
+      {
+        organizationId: tenant,
+        period: {
+          since: Temporal.PlainDate.from(since),
+          until: Temporal.PlainDate.from(until),
+          currency,
+          ...given(
+            "target",
+            target !== undefined && v.is(Decimal, target)
+              ? parseMoney(target, currency)
+              : undefined,
+          ),
+        },
       },
-    });
-
-    if (!snapshot.ok) {
-      return snapshot;
-    }
-
-    return ok({ id: snapshot.data.id });
+    ],
   },
+  (snapshot) => ({ id: snapshot.id }),
 );
 
 const LIFECYCLES = [
@@ -136,7 +121,9 @@ const LIFECYCLES = [
 ] as const;
 
 /** Saves a segment of companies in one lifecycle stage. */
-export const createSegment = bsb.action(
+export const createSegment = bsb.blockAction(
+  ({ db }) => db.segments,
+  "upsert",
   {
     input: v.object({
       name: Name,
@@ -147,80 +134,65 @@ export const createSegment = bsb.action(
     permission: "segments.write",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ name, description, lifecycle }, { tenant, db }) => {
-    const saved = await db.segments.upsert({
-      organizationId: tenant,
-      segment: {
-        name,
-        description: description ?? null,
-        subjectType: "company",
-        conditions: {
-          id: "root",
-          type: "group",
-          combinator: "and",
-          rules: [
-            {
-              id: "lifecycle",
-              type: "rule",
-              path: ["lifecycle"],
-              operator: "is",
-              value: lifecycle,
-            },
-          ],
+    args: ({ name, description, lifecycle }, { tenant }) => [
+      {
+        organizationId: tenant,
+        segment: {
+          name,
+          description: description ?? null,
+          subjectType: "company",
+          conditions: {
+            id: "root",
+            type: "group",
+            combinator: "and",
+            rules: [
+              {
+                id: "lifecycle",
+                type: "rule",
+                path: ["lifecycle"],
+                operator: "is",
+                value: lifecycle,
+              },
+            ],
+          },
         },
       },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ id: saved.data.id });
+    ],
   },
+  (saved) => ({ id: saved.id }),
 );
 
 /** Evaluates a segment now and stores who entered and left. */
-export const refreshSegment = bsb.action(
+export const refreshSegment = bsb.blockAction(
+  ({ db }) => db.segments,
+  "refresh",
   {
     input: v.object({ segmentId: Id }),
     requireTenant: true,
     permission: "segments.write",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ segmentId }, { db }) => {
-    const refreshed = await db.segments.refresh(segmentId);
-
-    if (!refreshed.ok) {
-      return refreshed;
-    }
-
-    return ok(refreshed.data);
+    args: ({ segmentId }) => [segmentId],
   },
 );
 
-export const deleteSegment = bsb.action(
+export const deleteSegment = bsb.blockAction(
+  ({ db }) => db.segments,
+  "remove",
   {
     input: v.object({ segmentId: Id }),
     requireTenant: true,
     permission: "segments.write",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ segmentId }, { db }) => {
-    const removed = await db.segments.remove(segmentId);
-
-    if (!removed.ok) {
-      return removed;
-    }
-
-    return ok(removed.data);
+    args: ({ segmentId }) => [segmentId],
   },
 );
 
 /** Creates a queue that picks an owner for new companies. */
-export const createQueue = bsb.action(
+export const createQueue = bsb.blockAction(
+  ({ db }) => db.assignment,
+  "saveQueue",
   {
     input: v.object({
       name: Name,
@@ -231,23 +203,17 @@ export const createQueue = bsb.action(
     permission: "assignment.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ name, subjectType, strategy }, { tenant }) => [
+      { organizationId: tenant, queue: { name, subjectType, strategy } },
+    ],
   },
-  async ({ name, subjectType, strategy }, { tenant, db }) => {
-    const saved = await db.assignment.saveQueue({
-      organizationId: tenant,
-      queue: { name, subjectType, strategy },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ id: saved.data.id });
-  },
+  (saved) => ({ id: saved.id }),
 );
 
 /** Replaces a queue's members, each with a weight and an active flag. */
-export const setQueueMembers = bsb.action(
+export const setQueueMembers = bsb.blockAction(
+  ({ db }) => db.assignment,
+  "setMembers",
   {
     input: v.object({
       queueId: Id,
@@ -260,41 +226,29 @@ export const setQueueMembers = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ queueId, members }, { db }) => {
-    const saved = await db.assignment.setMembers({ queueId, members });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
-export const setQueueEnabled = bsb.action(
+export const setQueueEnabled = bsb.blockAction(
+  ({ db }) => db.assignment,
+  "saveQueue",
   {
     input: v.object({ queueId: Id, enabled: v.boolean() }),
     requireTenant: true,
     permission: "assignment.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ queueId, enabled }, { tenant }) => [
+      { organizationId: tenant, queue: { id: queueId, enabled } },
+    ],
   },
-  async ({ queueId, enabled }, { tenant, db }) => {
-    const saved = await db.assignment.saveQueue({
-      organizationId: tenant,
-      queue: { id: queueId, enabled },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Creates a score model that gives points to companies in one lifecycle stage. */
-export const createScoreModel = bsb.action(
+export const createScoreModel = bsb.blockAction(
+  ({ db }) => db.scores,
+  "saveModel",
   {
     input: v.object({
       key: v.pipe(v.string(), v.trim(), v.regex(/^[a-z][a-z0-9_]{1,30}$/u)),
@@ -306,69 +260,61 @@ export const createScoreModel = bsb.action(
     permission: "scores.manage",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ key, name, lifecycle, points }, { db }) => {
-    const saved = await db.scores.saveModel({
-      key,
-      name,
-      subjectType: "company",
-      rules: [
-        {
-          id: lifecycle,
-          label: lifecycle,
-          points,
-          conditions: {
-            id: "root",
-            type: "group",
-            combinator: "and",
-            rules: [
-              {
-                id: "r1",
-                type: "rule",
-                path: ["lifecycle"],
-                operator: "is",
-                value: lifecycle,
-              },
-            ],
+    args: ({ key, name, lifecycle, points }) => [
+      {
+        key,
+        name,
+        subjectType: "company",
+        rules: [
+          {
+            id: lifecycle,
+            label: lifecycle,
+            points,
+            conditions: {
+              id: "root",
+              type: "group",
+              combinator: "and",
+              rules: [
+                {
+                  id: "r1",
+                  type: "rule",
+                  path: ["lifecycle"],
+                  operator: "is",
+                  value: lifecycle,
+                },
+              ],
+            },
           },
-        },
-      ],
-      bands: [
-        { label: "cold", min: 0 },
-        { label: "warm", min: Math.max(1, Math.ceil(points / 2)) },
-        { label: "hot", min: points },
-      ],
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ id: saved.data.id });
+        ],
+        bands: [
+          { label: "cold", min: 0 },
+          { label: "warm", min: Math.max(1, Math.ceil(points / 2)) },
+          { label: "hot", min: points },
+        ],
+      },
+    ],
   },
+  (saved) => ({ id: saved.id }),
 );
 
-export const setScoreModelEnabled = bsb.action(
+export const setScoreModelEnabled = bsb.blockAction(
+  ({ db }) => db.scores,
+  "saveModel",
   {
     input: v.object({ modelId: Id, enabled: v.boolean() }),
     requireTenant: true,
     permission: "scores.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ modelId, enabled }) => [{ id: modelId, enabled }],
   },
-  async ({ modelId, enabled }, { db }) => {
-    const saved = await db.scores.saveModel({ id: modelId, enabled });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Scores one company or person with the lead model and saves the result. */
-export const scoreRecord = bsb.action(
+export const scoreRecord = bsb.blockAction(
+  ({ db }) => db.leadScoring,
+  "score",
   {
     input: v.object({
       subjectType: v.picklist(["company", "person"]),
@@ -378,23 +324,17 @@ export const scoreRecord = bsb.action(
     permission: "scores.compute",
     tags: () => TAGS,
     refresh: true,
+    args: ({ subjectType, subjectId }) => [
+      { type: subjectType, id: subjectId },
+    ],
   },
-  async ({ subjectType, subjectId }, { db }) => {
-    const scored = await db.leadScoring.score({
-      type: subjectType,
-      id: subjectId,
-    });
-
-    if (!scored.ok) {
-      return scored;
-    }
-
-    return ok({ score: scored.data.score, band: scored.data.band ?? null });
-  },
+  (scored) => ({ score: scored.score, band: scored.band ?? null }),
 );
 
 /** Drafts a contract. */
-export const createContract = bsb.action(
+export const createContract = bsb.blockAction(
+  ({ db }) => db.contracts,
+  "create",
   {
     input: v.object({
       title: Name,
@@ -411,47 +351,44 @@ export const createContract = bsb.action(
     permission: "contracts.write",
     tags: () => TAGS,
     refresh: true,
-  },
-  async (
-    { title, value, currency, startsOn, endsOn, autoRenew },
-    { tenant, db },
-  ) => {
-    const created = await db.contracts.create({
-      organizationId: tenant,
-      input: {
-        title,
-        autoRenew,
-        ...given(
-          "value",
-          value !== undefined && v.is(Decimal, value)
-            ? parseMoney(value, currency)
-            : undefined,
-        ),
-        ...given(
-          "startsOn",
-          startsOn !== undefined && v.is(IsoDate, startsOn)
-            ? Temporal.PlainDate.from(startsOn)
-            : undefined,
-        ),
-        ...given(
-          "endsOn",
-          endsOn !== undefined && v.is(IsoDate, endsOn)
-            ? Temporal.PlainDate.from(endsOn)
-            : undefined,
-        ),
+    args: (
+      { title, value, currency, startsOn, endsOn, autoRenew },
+      { tenant },
+    ) => [
+      {
+        organizationId: tenant,
+        input: {
+          title,
+          autoRenew,
+          ...given(
+            "value",
+            value !== undefined && v.is(Decimal, value)
+              ? parseMoney(value, currency)
+              : undefined,
+          ),
+          ...given(
+            "startsOn",
+            startsOn !== undefined && v.is(IsoDate, startsOn)
+              ? Temporal.PlainDate.from(startsOn)
+              : undefined,
+          ),
+          ...given(
+            "endsOn",
+            endsOn !== undefined && v.is(IsoDate, endsOn)
+              ? Temporal.PlainDate.from(endsOn)
+              : undefined,
+          ),
+        },
       },
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok({ id: created.data.id });
+    ],
   },
+  (created) => ({ id: created.id }),
 );
 
 /** Moves a contract through review, activation and termination. */
-export const transitionContract = bsb.action(
+export const transitionContract = bsb.blockAction(
+  ({ db }) => db.contracts,
+  "transition",
   {
     input: v.object({
       contractId: Id,
@@ -469,48 +406,39 @@ export const transitionContract = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ contractId, action, reason }, { db }) => {
-    const moved = await db.contracts.transition({ contractId, action, reason });
-
-    if (!moved.ok) {
-      return moved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
-export const addObligation = bsb.action(
+export const addObligation = bsb.blockAction(
+  ({ db }) => db.contracts,
+  "saveObligation",
   {
     input: v.object({ contractId: Id, title: Name, dueOn: Optional }),
     requireTenant: true,
     permission: "contracts.write",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ contractId, title, dueOn }, { db }) => {
-    const saved = await db.contracts.saveObligation({
-      contractId,
-      input: {
-        title,
-        ...given(
-          "dueOn",
-          dueOn !== undefined && v.is(IsoDate, dueOn)
-            ? Temporal.PlainDate.from(dueOn)
-            : undefined,
-        ),
+    args: ({ contractId, title, dueOn }) => [
+      {
+        contractId,
+        input: {
+          title,
+          ...given(
+            "dueOn",
+            dueOn !== undefined && v.is(IsoDate, dueOn)
+              ? Temporal.PlainDate.from(dueOn)
+              : undefined,
+          ),
+        },
       },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
+    ],
   },
+  () => true,
 );
 
-export const setObligationStatus = bsb.action(
+export const setObligationStatus = bsb.blockAction(
+  ({ db }) => db.contracts,
+  "setObligationStatus",
   {
     input: v.object({
       obligationId: Id,
@@ -521,22 +449,13 @@ export const setObligationStatus = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ obligationId, status }, { db }) => {
-    const saved = await db.contracts.setObligationStatus({
-      obligationId,
-      status,
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** A flat-rate commission plan, in basis points of the sale. */
-export const createCommissionPlan = bsb.action(
+export const createCommissionPlan = bsb.blockAction(
+  ({ db }) => db.commissions,
+  "savePlan",
   {
     input: v.object({
       name: Name,
@@ -546,24 +465,17 @@ export const createCommissionPlan = bsb.action(
     permission: "commissions.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ name, rate }) => [
+      { name, kind: "flat", rateBps: Math.round(Number(rate) * 100) },
+    ],
   },
-  async ({ name, rate }, { db }) => {
-    const saved = await db.commissions.savePlan({
-      name,
-      kind: "flat",
-      rateBps: Math.round(Number(rate) * 100),
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ id: saved.data.id });
-  },
+  (saved) => ({ id: saved.id }),
 );
 
 /** Builds a seller's statement for a period from their accrued commissions. */
-export const buildCommissionStatement = bsb.action(
+export const buildCommissionStatement = bsb.blockAction(
+  ({ db }) => db.commissions,
+  "buildStatement",
   {
     input: v.object({
       sellerId: Id,
@@ -575,21 +487,16 @@ export const buildCommissionStatement = bsb.action(
     permission: "commissions.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ sellerId, currency, startsOn, endsOn }) => [
+      {
+        sellerId,
+        currency,
+        startsOn: Temporal.PlainDate.from(startsOn),
+        endsOn: Temporal.PlainDate.from(endsOn),
+      },
+    ],
   },
-  async ({ sellerId, currency, startsOn, endsOn }, { db }) => {
-    const built = await db.commissions.buildStatement({
-      sellerId,
-      currency,
-      startsOn: Temporal.PlainDate.from(startsOn),
-      endsOn: Temporal.PlainDate.from(endsOn),
-    });
-
-    if (!built.ok) {
-      return built;
-    }
-
-    return ok({ id: built.data.id });
-  },
+  (built) => ({ id: built.id }),
 );
 
 /** Finalizes an open statement, or pays a finalized one on the ledger. */
@@ -616,7 +523,9 @@ export const advanceStatement = bsb.action(
 );
 
 /** Creates a referral code for the caller. */
-export const createReferralCode = bsb.action(
+export const createReferralCode = bsb.blockAction(
+  ({ db }) => db.referrals,
+  "createCode",
   {
     input: v.object({
       maxUses: v.pipe(
@@ -634,22 +543,15 @@ export const createReferralCode = bsb.action(
     permission: "referrals.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ maxUses }) => [maxUses === undefined ? {} : { maxUses }],
   },
-  async ({ maxUses }, { db }) => {
-    const created = await db.referrals.createCode(
-      maxUses === undefined ? {} : { maxUses },
-    );
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok({ code: created.data.code });
-  },
+  (created) => ({ code: created.code }),
 );
 
 /** Sets the owner of up to 100 deals; a refused deal does not stop the others. */
-export const assignDealOwners = bsb.action(
+export const assignDealOwners = bsb.blockAction(
+  ({ db }) => db.deals,
+  "update",
   {
     input: v.object({
       ownerId: Id,
@@ -665,24 +567,18 @@ export const assignDealOwners = bsb.action(
     permission: "deals.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ ownerId, dealIds }) => [
+      {
+        changes: dealIds.map((dealId) => ({
+          dealId,
+          field: "ownerId",
+          value: ownerId,
+        })),
+      },
+    ],
   },
-  async ({ ownerId, dealIds }, { db }) => {
-    const changed = await db.deals.update({
-      changes: dealIds.map((dealId) => ({
-        dealId,
-        field: "ownerId",
-        value: ownerId,
-      })),
-    });
-
-    if (!changed.ok) {
-      return changed;
-    }
-
-    return ok({
-      assigned: new Set(changed.data.accepted.map((entry) => entry.dealId))
-        .size,
-      refused: new Set(changed.data.rejected.map((entry) => entry.dealId)).size,
-    });
-  },
+  (changed) => ({
+    assigned: new Set(changed.accepted.map((entry) => entry.dealId)).size,
+    refused: new Set(changed.rejected.map((entry) => entry.dealId)).size,
+  }),
 );

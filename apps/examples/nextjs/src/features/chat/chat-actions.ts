@@ -45,7 +45,9 @@ export const browseChannels = bsb.action(
   },
 );
 
-export const createChannel = bsb.action(
+export const createChannel = bsb.blockAction(
+  ({ db }) => db.channels,
+  "create",
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
@@ -54,22 +56,18 @@ export const createChannel = bsb.action(
     }),
     requireTenant: true,
     permission: "channels.create",
+    args: ({ name, topic, visibility }) => [
+      { name, visibility, topic: topic === "" ? undefined : topic },
+    ],
   },
-  async ({ name, topic, visibility }, { db }) => {
-    const created = await db.channels.create({
-      name,
-      visibility,
-      topic: topic === "" ? undefined : topic,
-    });
-
-    return created.ok ? ok(created.data.id) : created;
-  },
+  (created) => created.id,
 );
 
-export const joinChannel = bsb.action(
-  { input: v.object({ channelId: Id }), requireTenant: true },
-  async ({ channelId }, { db }) => db.channels.join(channelId),
-);
+export const joinChannel = bsb.blockAction(({ db }) => db.channels, "join", {
+  input: v.object({ channelId: Id }),
+  requireTenant: true,
+  args: ({ channelId }) => [channelId],
+});
 
 /**
  * The first half of a file on a message: a pending attachment on the

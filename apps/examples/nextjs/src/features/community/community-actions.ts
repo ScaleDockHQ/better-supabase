@@ -1,6 +1,5 @@
 "use server";
 
-import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { tags } from "@/lib/supabase/generated.tags";
@@ -9,7 +8,9 @@ import { bsb } from "@/lib/supabase/server";
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Opens the organization's feedback board. */
-export const createFeedbackBoard = bsb.action(
+export const createFeedbackBoard = bsb.blockAction(
+  ({ db }) => db.posts,
+  "saveBoard",
   {
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -18,24 +19,15 @@ export const createFeedbackBoard = bsb.action(
     permission: "posts.manage",
     tags: () => [tags.community()],
     refresh: true,
+    args: ({ name }) => [{ key: "feedback", name, kind: "feedback" }],
   },
-  async ({ name }, { db }) => {
-    const board = await db.posts.saveBoard({
-      key: "feedback",
-      name,
-      kind: "feedback",
-    });
-
-    if (!board.ok) {
-      return board;
-    }
-
-    return ok({ id: board.data.id });
-  },
+  (board) => ({ id: board.id }),
 );
 
 /** Posts an idea or a question on a board. */
-export const createPost = bsb.action(
+export const createPost = bsb.blockAction(
+  ({ db }) => db.posts,
+  "create",
   {
     input: v.object({
       boardId: Id,
@@ -46,34 +38,16 @@ export const createPost = bsb.action(
     permission: "posts.write",
     tags: () => [tags.community()],
     refresh: true,
+    args: ({ boardId, title, body }) => [{ boardId, input: { title, body } }],
   },
-  async ({ boardId, title, body }, { db }) => {
-    const post = await db.posts.create({ boardId, input: { title, body } });
-
-    if (!post.ok) {
-      return post;
-    }
-
-    return ok({ id: post.data.id, moderation: post.data.moderation });
-  },
+  (post) => ({ id: post.id, moderation: post.moderation }),
 );
 
 /** Sets the caller's vote: 1 up, 0 to clear. */
-export const voteOnPost = bsb.action(
-  {
-    input: v.object({ postId: Id, value: v.picklist([0, 1]) }),
-    requireTenant: true,
-    permission: "posts.read",
-    tags: () => [tags.community()],
-    refresh: true,
-  },
-  async ({ postId, value }, { db }) => {
-    const tally = await db.posts.vote({ postId, value });
-
-    if (!tally.ok) {
-      return tally;
-    }
-
-    return ok(tally.data);
-  },
-);
+export const voteOnPost = bsb.blockAction(({ db }) => db.posts, "vote", {
+  input: v.object({ postId: Id, value: v.picklist([0, 1]) }),
+  requireTenant: true,
+  permission: "posts.read",
+  tags: () => [tags.community()],
+  refresh: true,
+});

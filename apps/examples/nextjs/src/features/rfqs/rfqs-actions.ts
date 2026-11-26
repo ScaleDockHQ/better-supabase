@@ -114,45 +114,34 @@ export const addRfqLine = bsb.action(
   },
 );
 
-export const inviteSupplier = bsb.action(
+export const inviteSupplier = bsb.blockAction(
+  ({ db }) => db.rfqs,
+  "inviteSupplier",
   {
     input: v.object({ rfqId: Id, supplierId: Id }),
     requireTenant: true,
     permission: "rfqs.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ rfqId, supplierId }) => [
+      { rfqId, supplier: { type: "company", id: supplierId } },
+    ],
   },
-  async ({ rfqId, supplierId }, { db }) => {
-    const invited = await db.rfqs.inviteSupplier({
-      rfqId,
-      supplier: { type: "company", id: supplierId },
-    });
-
-    if (!invited.ok) {
-      return invited;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
-export const declineInvitation = bsb.action(
+export const declineInvitation = bsb.blockAction(
+  ({ db }) => db.rfqs,
+  "declineInvitation",
   {
     input: v.object({ invitationId: Id }),
     requireTenant: true,
     permission: "rfqs.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ invitationId }) => [invitationId],
   },
-  async ({ invitationId }, { db }) => {
-    const declined = await db.rfqs.declineInvitation(invitationId);
-
-    if (!declined.ok) {
-      return declined;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /** Sends a draft to its suppliers, or stops accepting quotes. */
@@ -178,7 +167,9 @@ export const transitionRfq = bsb.action(
   },
 );
 
-export const cancelRfq = bsb.action(
+export const cancelRfq = bsb.blockAction(
+  ({ db }) => db.rfqs,
+  "cancelRfq",
   {
     input: v.object({
       rfqId: Id,
@@ -189,15 +180,7 @@ export const cancelRfq = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ rfqId, reason }, { db }) => {
-    const cancelled = await db.rfqs.cancelRfq({ rfqId, reason });
-
-    if (!cancelled.ok) {
-      return cancelled;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /**
@@ -243,23 +226,18 @@ export const recordQuote = bsb.action(
   },
 );
 
-export const withdrawQuote = bsb.action(
+export const withdrawQuote = bsb.blockAction(
+  ({ db }) => db.rfqs,
+  "withdrawQuote",
   {
     input: v.object({ quoteId: Id }),
     requireTenant: true,
     permission: "rfqs.write",
     tags: () => TAGS,
     refresh: true,
+    args: ({ quoteId }) => [quoteId],
   },
-  async ({ quoteId }, { db }) => {
-    const withdrawn = await db.rfqs.withdrawQuote(quoteId);
-
-    if (!withdrawn.ok) {
-      return withdrawn;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /**

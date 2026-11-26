@@ -43,7 +43,9 @@ export const generateWorkOrders = bsb.action(
  * Creates a plan. A time plan repeats every N days, a meter plan every N units
  * of a meter, and a calendar plan follows an RRULE from its first date.
  */
-export const createPlan = bsb.action(
+export const createPlan = bsb.blockAction(
+  ({ db }) => db.maintenance,
+  "createPlan",
   {
     input: v.object({
       title: Name,
@@ -59,107 +61,83 @@ export const createPlan = bsb.action(
     permission: "maintenance.manage",
     tags: () => TAGS,
     refresh: true,
+    args: (input) => [
+      {
+        title: input.title,
+        kind: input.kind,
+        priority: input.priority,
+        ...given(
+          "everyDays",
+          input.kind === "time" ? Number(input.everyDays ?? "30") : undefined,
+        ),
+        ...given("meterId", input.kind === "meter" ? input.meterId : undefined),
+        ...given(
+          "everyValue",
+          input.kind === "meter" ? input.everyValue : undefined,
+        ),
+        ...given(
+          "rrule",
+          input.kind === "rrule" ? (input.rrule ?? "FREQ=MONTHLY") : undefined,
+        ),
+        ...given(
+          "dtstart",
+          input.kind === "rrule"
+            ? (instantOf(input.startsOn) ??
+                instantOf(new Date().toISOString().slice(0, 10)))
+            : undefined,
+        ),
+      },
+    ],
   },
-  async (input, { db }) => {
-    const created = await db.maintenance.createPlan({
-      title: input.title,
-      kind: input.kind,
-      priority: input.priority,
-      ...given(
-        "everyDays",
-        input.kind === "time" ? Number(input.everyDays ?? "30") : undefined,
-      ),
-      ...given("meterId", input.kind === "meter" ? input.meterId : undefined),
-      ...given(
-        "everyValue",
-        input.kind === "meter" ? input.everyValue : undefined,
-      ),
-      ...given(
-        "rrule",
-        input.kind === "rrule" ? (input.rrule ?? "FREQ=MONTHLY") : undefined,
-      ),
-      ...given(
-        "dtstart",
-        input.kind === "rrule"
-          ? (instantOf(input.startsOn) ??
-              instantOf(new Date().toISOString().slice(0, 10)))
-          : undefined,
-      ),
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok({ id: created.data.id });
-  },
+  (created) => ({ id: created.id }),
 );
 
 /** Pauses an active plan or resumes a paused one. */
-export const setPlanStatus = bsb.action(
+export const setPlanStatus = bsb.blockAction(
+  ({ db }) => db.maintenance,
+  "updatePlan",
   {
     input: v.object({ planId: Id, status: v.picklist(["active", "paused"]) }),
     requireTenant: true,
     permission: "maintenance.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ planId, status }) => [{ planId, change: { status } }],
   },
-  async ({ planId, status }, { db }) => {
-    const saved = await db.maintenance.updatePlan({
-      planId,
-      change: { status },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
-export const changePlanPriority = bsb.action(
+export const changePlanPriority = bsb.blockAction(
+  ({ db }) => db.maintenance,
+  "updatePlan",
   {
     input: v.object({ planId: Id, priority: Priority }),
     requireTenant: true,
     permission: "maintenance.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ planId, priority }) => [{ planId, change: { priority } }],
   },
-  async ({ planId, priority }, { db }) => {
-    const saved = await db.maintenance.updatePlan({
-      planId,
-      change: { priority },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
-export const deletePlan = bsb.action(
+export const deletePlan = bsb.blockAction(
+  ({ db }) => db.maintenance,
+  "purgePlan",
   {
     input: v.object({ planId: Id }),
     requireTenant: true,
     permission: "maintenance.manage",
     tags: () => TAGS,
     refresh: true,
+    args: ({ planId }) => [planId],
   },
-  async ({ planId }, { db }) => {
-    const removed = await db.maintenance.purgePlan(planId);
-
-    if (!removed.ok) {
-      return removed;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
-export const createMeter = bsb.action(
+export const createMeter = bsb.blockAction(
+  ({ db }) => db.maintenance,
+  "createMeter",
   {
     input: v.object({
       name: Name,
@@ -170,19 +148,13 @@ export const createMeter = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ name, unit }, { db }) => {
-    const created = await db.maintenance.createMeter({ name, unit });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok({ id: created.data.id });
-  },
+  (created) => ({ id: created.id }),
 );
 
 /** A meter reading never goes below the last one. */
-export const recordReading = bsb.action(
+export const recordReading = bsb.blockAction(
+  ({ db }) => db.maintenance,
+  "recordReading",
   {
     input: v.object({ meterId: Id, value: Decimal }),
     requireTenant: true,
@@ -190,15 +162,7 @@ export const recordReading = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ meterId, value }, { db }) => {
-    const saved = await db.maintenance.recordReading({ meterId, value });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 export const recordCalibration = bsb.action(

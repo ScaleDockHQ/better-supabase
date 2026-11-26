@@ -12,7 +12,9 @@ const Id = v.pipe(v.string(), v.uuid());
 const Text = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
 
 /** Saves a draft sequence with an email, a wait and a follow-up task. */
-export const createSampleSequence = bsb.action(
+export const createSampleSequence = bsb.blockAction(
+  ({ db }) => db.sequences,
+  "upsert",
   {
     input: v.object({
       name: Text,
@@ -24,28 +26,25 @@ export const createSampleSequence = bsb.action(
     permission: "sequences.manage",
     tags: () => [tags.sequences()],
     refresh: true,
+    args: ({ name, subject, text, task }) => [
+      {
+        key: `sample-${crypto.randomUUID().slice(0, 8)}`,
+        name,
+        steps: [
+          { id: "intro", kind: "email", subject, text },
+          { id: "wait", kind: "wait", minutes: 2 * 24 * 60 },
+          { id: "follow-up", kind: "task", title: task, dueInMinutes: 24 * 60 },
+        ],
+      },
+    ],
   },
-  async ({ name, subject, text, task }, { db }) => {
-    const saved = await db.sequences.upsert({
-      key: `sample-${crypto.randomUUID().slice(0, 8)}`,
-      name,
-      steps: [
-        { id: "intro", kind: "email", subject, text },
-        { id: "wait", kind: "wait", minutes: 2 * 24 * 60 },
-        { id: "follow-up", kind: "task", title: task, dueInMinutes: 24 * 60 },
-      ],
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ id: saved.data.id });
-  },
+  (saved) => ({ id: saved.id }),
 );
 
 /** Activates a sequence so it takes enrollments, or pauses every run. */
-export const setSequenceStatus = bsb.action(
+export const setSequenceStatus = bsb.blockAction(
+  ({ db }) => db.sequences,
+  "upsert",
   {
     input: v.object({
       sequenceId: Id,
@@ -55,16 +54,9 @@ export const setSequenceStatus = bsb.action(
     permission: "sequences.manage",
     tags: () => [tags.sequences()],
     refresh: true,
+    args: ({ sequenceId, status }) => [{ id: sequenceId, status }],
   },
-  async ({ sequenceId, status }, { db }) => {
-    const saved = await db.sequences.upsert({ id: sequenceId, status });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok({ status: saved.data.status });
-  },
+  (saved) => ({ status: saved.status }),
 );
 
 const StepInput = v.variant("kind", [

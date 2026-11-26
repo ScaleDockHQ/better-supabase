@@ -65,7 +65,9 @@ const Field = v.object({
 });
 
 /** Publishes the fields as the form's next version; a draft form opens. */
-export const publishForm = bsb.action(
+export const publishForm = bsb.blockAction(
+  ({ db }) => db.forms,
+  "publish",
   {
     input: v.object({
       formId: Id,
@@ -75,28 +77,23 @@ export const publishForm = bsb.action(
     permission: "forms.manage",
     tags: () => [tags.forms()],
     refresh: true,
-  },
-  async ({ formId, fields }, { db }) => {
-    const version = await db.forms.publish({
-      formId,
-      definition: {
-        steps: [
-          {
-            key: "main",
-            fields: fields.map(({ options, ...field }) =>
-              options === undefined ? field : { ...field, options },
-            ),
-          },
-        ],
+    args: ({ formId, fields }) => [
+      {
+        formId,
+        definition: {
+          steps: [
+            {
+              key: "main",
+              fields: fields.map(({ options, ...field }) =>
+                options === undefined ? field : { ...field, options },
+              ),
+            },
+          ],
+        },
       },
-    });
-
-    if (!version.ok) {
-      return version;
-    }
-
-    return ok({ number: version.data.number });
+    ],
   },
+  (version) => ({ number: version.number }),
 );
 
 const Answer = v.union([
@@ -107,7 +104,9 @@ const Answer = v.union([
 ]);
 
 /** Postgres validates the answers against the current version's schema. */
-export const submitForm = bsb.action(
+export const submitForm = bsb.blockAction(
+  ({ db }) => db.forms,
+  "submit",
   {
     input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
     requireTenant: true,
@@ -115,13 +114,5 @@ export const submitForm = bsb.action(
     tags: () => [tags.forms()],
     refresh: true,
   },
-  async ({ formId, answers }, { db }) => {
-    const submission = await db.forms.submit({ formId, answers });
-
-    if (!submission.ok) {
-      return submission;
-    }
-
-    return ok({ id: submission.data.id });
-  },
+  (submission) => ({ id: submission.id }),
 );

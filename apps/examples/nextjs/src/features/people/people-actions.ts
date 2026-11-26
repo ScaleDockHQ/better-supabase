@@ -200,7 +200,9 @@ export const logTime = bsb.action(
 );
 
 /** Starts the caller's timer on a project, stopping the one that runs. */
-export const startTimer = bsb.action(
+export const startTimer = bsb.blockAction(
+  ({ db }) => db.timeEntries,
+  "start",
   {
     input: v.object({
       project: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -209,57 +211,38 @@ export const startTimer = bsb.action(
     permission: "time_entries.track",
     tags: () => [tags.people()],
     refresh: true,
+    args: ({ project }) => [{ note: project }],
   },
-  async ({ project }, { db }) => {
-    const started = await db.timeEntries.start({ note: project });
-
-    if (!started.ok) {
-      return started;
-    }
-
-    return ok({ id: started.data.id });
-  },
+  (started) => ({ id: started.id }),
 );
 
-export const stopTimer = bsb.action(
+export const stopTimer = bsb.blockAction(
+  ({ db }) => db.timeEntries,
+  "stop",
   {
     input: v.object({}),
     requireTenant: true,
     permission: "time_entries.track",
     tags: () => [tags.people()],
     refresh: true,
+    args: (_) => [],
   },
-  async (_input, { db }) => {
-    const stopped = await db.timeEntries.stop();
-
-    if (!stopped.ok) {
-      return stopped;
-    }
-
-    return ok({ id: stopped.data.id });
-  },
+  (stopped) => ({ id: stopped.id }),
 );
 
 /** Sends the caller's week for approval; the block refuses while a timer runs. */
-export const submitTimesheet = bsb.action(
+export const submitTimesheet = bsb.blockAction(
+  ({ db }) => db.timeEntries,
+  "submit",
   {
     input: v.object({ week: PlainDate }),
     requireTenant: true,
     permission: "time_entries.track",
     tags: () => [tags.people()],
     refresh: true,
+    args: ({ week }) => [{ week: Temporal.PlainDate.from(week) }],
   },
-  async ({ week }, { db }) => {
-    const submitted = await db.timeEntries.submit({
-      week: Temporal.PlainDate.from(week),
-    });
-
-    if (!submitted.ok) {
-      return submitted;
-    }
-
-    return ok({ status: submitted.data.status });
-  },
+  (submitted) => ({ status: submitted.status }),
 );
 
 /** Opens a new opening that takes applications right away. */
@@ -292,27 +275,24 @@ export const createOpening = bsb.action(
 );
 
 /** Adds a customer as a candidate for an opening, in its first stage. */
-export const addCandidate = bsb.action(
+export const addCandidate = bsb.blockAction(
+  ({ db }) => db.hiring,
+  "apply",
   {
     input: v.object({ jobId: Id, candidateId: Id }),
     requireTenant: true,
     permission: "hiring.write",
     tags: () => [tags.people()],
     refresh: true,
+    args: ({ jobId, candidateId }) => [
+      {
+        jobId,
+        candidate: { type: "customer", id: candidateId },
+        source: "hiring-board",
+      },
+    ],
   },
-  async ({ jobId, candidateId }, { db }) => {
-    const applied = await db.hiring.apply({
-      jobId,
-      candidate: { type: "customer", id: candidateId },
-      source: "hiring-board",
-    });
-
-    if (!applied.ok) {
-      return applied;
-    }
-
-    return ok({ id: applied.data.id });
-  },
+  (applied) => ({ id: applied.id }),
 );
 
 /**

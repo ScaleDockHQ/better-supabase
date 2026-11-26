@@ -1,6 +1,5 @@
 "use server";
 
-import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { tags } from "@/lib/supabase/generated.tags";
@@ -10,7 +9,9 @@ import { bsb } from "@/lib/supabase/server";
  * Records a note as evidence on a control. With `evidenceTaskId` it answers
  * that task, so the task's due date moves one interval past today.
  */
-export const addControlEvidence = bsb.action(
+export const addControlEvidence = bsb.blockAction(
+  ({ db }) => db.compliance,
+  "addEvidence",
   {
     input: v.object({
       controlId: v.pipe(v.string(), v.uuid()),
@@ -21,17 +22,13 @@ export const addControlEvidence = bsb.action(
     permission: "compliance.collect",
     tags: () => [tags.compliance()],
     refresh: true,
+    args: ({ controlId, evidenceTaskId, note }) => [
+      {
+        controlId,
+        input:
+          evidenceTaskId === undefined ? { note } : { note, evidenceTaskId },
+      },
+    ],
   },
-  async ({ controlId, evidenceTaskId, note }, { db }) => {
-    const added = await db.compliance.addEvidence({
-      controlId,
-      input: evidenceTaskId === undefined ? { note } : { note, evidenceTaskId },
-    });
-
-    if (!added.ok) {
-      return added;
-    }
-
-    return ok({ id: added.data.id });
-  },
+  (added) => ({ id: added.id }),
 );

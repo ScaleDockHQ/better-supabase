@@ -91,30 +91,29 @@ export const createProduct = bsb.action(
 );
 
 /** The first stock location, so counts have somewhere to go. */
-export const createMainLocation = bsb.action(
+export const createMainLocation = bsb.blockAction(
+  ({ db }) => db.inventory,
+  "saveLocation",
   {
     input: v.object({}),
     requireTenant: true,
     permission: "inventory.manage",
     tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
     refresh: true,
+    args: (_, { tenant }) => [
+      {
+        organizationId: tenant,
+        input: { code: "MAIN", name: "Main warehouse" },
+      },
+    ],
   },
-  async (_input, { tenant, db }) => {
-    const saved = await db.inventory.saveLocation({
-      organizationId: tenant,
-      input: { code: "MAIN", name: "Main warehouse" },
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    return ok(saved.data.id);
-  },
+  (saved) => saved.id,
 );
 
 /** Adds or removes units at a location; a negative quantity removes them. */
-export const adjustStock = bsb.action(
+export const adjustStock = bsb.blockAction(
+  ({ db }) => db.inventory,
+  "adjustStock",
   {
     input: v.object({
       variantId: Id,
@@ -130,22 +129,17 @@ export const adjustStock = bsb.action(
     permission: "inventory.manage",
     tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
     refresh: true,
+    args: ({ variantId, locationId, quantity, reason, note }) => [
+      {
+        variantId,
+        locationId,
+        quantity,
+        reason,
+        note: note === "" ? undefined : note,
+      },
+    ],
   },
-  async ({ variantId, locationId, quantity, reason, note }, { db }) => {
-    const adjusted = await db.inventory.adjustStock({
-      variantId,
-      locationId,
-      quantity,
-      reason,
-      note: note === "" ? undefined : note,
-    });
-
-    if (!adjusted.ok) {
-      return adjusted;
-    }
-
-    return ok(adjusted.data.onHand);
-  },
+  (adjusted) => adjusted.onHand,
 );
 
 /**
@@ -153,7 +147,9 @@ export const adjustStock = bsb.action(
  * requisition opens an approval request; the approved ones become a purchase
  * order through `purchaseOrderFromRequisitions`.
  */
-export const requestPurchase = bsb.action(
+export const requestPurchase = bsb.blockAction(
+  ({ db }) => db.inventory,
+  "requestPurchase",
   {
     input: v.object({
       variantId: Id,
@@ -164,23 +160,18 @@ export const requestPurchase = bsb.action(
     permission: "inventory.read",
     tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
     refresh: true,
-  },
-  async ({ variantId, locationId, quantity }, { tenant, db }) => {
-    const requested = await db.inventory.requestPurchase({
-      organizationId: tenant,
-      input: {
-        locationId,
-        lines: [{ variantId, quantity }],
-        reason: "Restock below the reorder point",
+    args: ({ variantId, locationId, quantity }, { tenant }) => [
+      {
+        organizationId: tenant,
+        input: {
+          locationId,
+          lines: [{ variantId, quantity }],
+          reason: "Restock below the reorder point",
+        },
       },
-    });
-
-    if (!requested.ok) {
-      return requested;
-    }
-
-    return ok(requested.data.id);
+    ],
   },
+  (requested) => requested.id,
 );
 
 /**
@@ -472,22 +463,15 @@ export const applyPromotionCode = bsb.action(
   },
 );
 
-export const removePromotionCode = bsb.action(
+export const removePromotionCode = bsb.blockAction(
+  ({ db }) => db.promotions,
+  "removeCode",
   {
     input: v.object({ cartId: Id, code: Code }),
     requireTenant: true,
     permission: "orders.manage",
     tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
     refresh: true,
-  },
-  async ({ cartId, code }, { db }) => {
-    const removed = await db.promotions.removeCode({ cartId, code });
-
-    if (!removed.ok) {
-      return removed;
-    }
-
-    return ok(removed.data);
   },
 );
 

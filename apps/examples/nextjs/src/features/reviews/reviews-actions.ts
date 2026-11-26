@@ -9,23 +9,18 @@ import { bsb } from "@/lib/supabase/server";
 const Id = v.pipe(v.string(), v.uuid());
 
 /** Publishes a pending review on the storefront. */
-export const publishReview = bsb.action(
+export const publishReview = bsb.blockAction(
+  ({ db }) => db.reviews,
+  "publish",
   {
     input: v.object({ reviewId: Id }),
     requireTenant: true,
     permission: "reviews.manage",
     tags: () => [tags.reviews()],
     refresh: true,
+    args: ({ reviewId }) => [reviewId],
   },
-  async ({ reviewId }, { db }) => {
-    const published = await db.reviews.publish(reviewId);
-
-    if (!published.ok) {
-      return published;
-    }
-
-    return ok(published.data.id);
-  },
+  (published) => published.id,
 );
 
 /** Rejects a review with a reason the author sees, or sets the public reply. */

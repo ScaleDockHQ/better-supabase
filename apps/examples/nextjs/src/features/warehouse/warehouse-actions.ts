@@ -12,46 +12,35 @@ import { openOrderLines } from "./warehouse-queries";
 const TAGS = [tags.warehouse(), tags.shop(), tags.manufacturing()];
 
 /** Finishes a pick list: lines with less picked than asked for become short. */
-export const completePickList = bsb.action(
+export const completePickList = bsb.blockAction(
+  ({ db }) => db.warehouse,
+  "completePickList",
   {
     input: v.object({ pickListId: Id }),
     requireTenant: true,
     permission: "warehouse.pick",
     tags: () => TAGS,
     refresh: true,
+    args: ({ pickListId }) => [pickListId],
   },
-  async ({ pickListId }, { db }) => {
-    const done = await db.warehouse.completePickList(pickListId);
-
-    if (!done.ok) {
-      return done;
-    }
-
-    return ok({ status: done.data.status });
-  },
+  (done) => ({ status: done.status }),
 );
 
 /** Records what a picker found on one line. */
-export const recordPick = bsb.action(
+export const recordPick = bsb.blockAction(
+  ({ db }) => db.warehouse,
+  "recordPick",
   {
     input: v.object({ lineId: Id, quantity: Decimal }),
     requireTenant: true,
     permission: "warehouse.pick",
     tags: () => TAGS,
     refresh: true,
+    args: ({ lineId, quantity }) => [
+      { lineId, pick: { quantity: Number(quantity) } },
+    ],
   },
-  async ({ lineId, quantity }, { db }) => {
-    const picked = await db.warehouse.recordPick({
-      lineId,
-      pick: { quantity: Number(quantity) },
-    });
-
-    if (!picked.ok) {
-      return picked;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /**
@@ -104,7 +93,9 @@ export const optimizePickRoute = bsb.action(
   },
 );
 
-export const createPickWave = bsb.action(
+export const createPickWave = bsb.blockAction(
+  ({ db }) => db.warehouse,
+  "createPickWave",
   {
     input: v.object({ name: Name, locationId: Id }),
     requireTenant: true,
@@ -112,15 +103,7 @@ export const createPickWave = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async (input, { db }) => {
-    const wave = await db.warehouse.createPickWave(input);
-
-    if (!wave.ok) {
-      return wave;
-    }
-
-    return ok({ id: wave.data.id });
-  },
+  (wave) => ({ id: wave.id }),
 );
 
 /** Releases a draft wave or cancels a draft or released one. */
@@ -183,22 +166,16 @@ export const savePutawayRule = bsb.action(
   },
 );
 
-export const deletePutawayRule = bsb.action(
+export const deletePutawayRule = bsb.blockAction(
+  ({ db }) => db.warehouse,
+  "deletePutawayRule",
   {
     input: v.object({ ruleId: Id }),
     requireTenant: true,
     permission: "warehouse.manage",
     tags: () => TAGS,
     refresh: true,
-  },
-  async ({ ruleId }, { db }) => {
-    const removed = await db.warehouse.deletePutawayRule(ruleId);
-
-    if (!removed.ok) {
-      return removed;
-    }
-
-    return ok(removed.data);
+    args: ({ ruleId }) => [ruleId],
   },
 );
 
@@ -260,7 +237,9 @@ export const runCountPlans = bsb.action(
 );
 
 /** Posts a cycle count; one over the plan's variance limit needs `approve`. */
-export const postCycleCount = bsb.action(
+export const postCycleCount = bsb.blockAction(
+  ({ db }) => db.warehouse,
+  "postCycleCount",
   {
     input: v.object({ countId: Id, approve: v.optional(v.boolean(), false) }),
     requireTenant: true,
@@ -268,22 +247,16 @@ export const postCycleCount = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async ({ countId, approve }, { db }) => {
-    const posted = await db.warehouse.postCycleCount({ countId, approve });
-
-    if (!posted.ok) {
-      return posted;
-    }
-
-    return ok(true);
-  },
+  () => true,
 );
 
 /**
  * Holds stock of a variant for a document line; what isn't available waits on
  * backorder. A pick list is made from a document's open allocations (EX-1110).
  */
-export const createAllocation = bsb.action(
+export const createAllocation = bsb.blockAction(
+  ({ db }) => db.inventory,
+  "allocate",
   {
     input: v.object({
       variantId: Id,
@@ -296,30 +269,27 @@ export const createAllocation = bsb.action(
     permission: "inventory.reserve",
     tags: () => TAGS,
     refresh: true,
-  },
-  async (input, { tenant: organizationId, db }) => {
-    const allocated = await db.inventory.allocate({
-      organizationId,
-      input: {
-        variantId: input.variantId,
-        locationId: input.locationId,
-        quantity: Number(input.quantity),
-        documentType: input.documentType,
-        documentId: input.documentId,
-        lineId: crypto.randomUUID(),
+    args: (input, { tenant: organizationId }) => [
+      {
+        organizationId,
+        input: {
+          variantId: input.variantId,
+          locationId: input.locationId,
+          quantity: Number(input.quantity),
+          documentType: input.documentType,
+          documentId: input.documentId,
+          lineId: crypto.randomUUID(),
+        },
       },
-    });
-
-    if (!allocated.ok) {
-      return allocated;
-    }
-
-    return ok({ id: allocated.data.id });
+    ],
   },
+  (allocated) => ({ id: allocated.id }),
 );
 
 /** Makes a pick list from the open allocations of one document. */
-export const createPickList = bsb.action(
+export const createPickList = bsb.blockAction(
+  ({ db }) => db.warehouse,
+  "createPickList",
   {
     input: v.object({ locationId: Id, documentType: Name, documentId: Id }),
     requireTenant: true,
@@ -327,15 +297,7 @@ export const createPickList = bsb.action(
     tags: () => TAGS,
     refresh: true,
   },
-  async (input, { db }) => {
-    const list = await db.warehouse.createPickList(input);
-
-    if (!list.ok) {
-      return list;
-    }
-
-    return ok({ id: list.data.id });
-  },
+  (list) => ({ id: list.id }),
 );
 
 /**

@@ -890,7 +890,8 @@ export interface BetterNext<
   ): (...args: BoundOptions<Bd, S>) => Promise<ActionResult<O> & Ex>;
   /**
    * A server action that calls one block method as the caller, with the same
-   * guard, validation and authorize checks as `action`.
+   * guard, validation and authorize checks as `action`. `map` shapes the data
+   * it answers with, after `tags` saw the method's own data.
    *
    * ```ts
    * export const issueInvoice = bsb.blockAction(
@@ -901,6 +902,7 @@ export interface BetterNext<
    *     permission: permissions.invoices.write,
    *     args: ({ invoiceId }) => [invoiceId],
    *   },
+   *   (invoice) => ({ id: invoice.id }),
    * );
    * ```
    */
@@ -911,6 +913,7 @@ export interface BetterNext<
     const K extends string,
     S extends StandardSchemaV1 | undefined = undefined,
     R extends boolean = false,
+    O = BlockDataOf<Cl, K & BlockMethodName<Cl>>,
   >(
     client: (ctx: ServerContext<M, F, E, C, P, B, D>) => Cl,
     method: K & BlockMethodName<Cl>,
@@ -920,9 +923,8 @@ export interface BetterNext<
         BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
         ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>
       >,
-  ): (
-    input: ActionInput<S>,
-  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>> & Ex>;
+    map?: ActionMapper<BlockDataOf<Cl, K & BlockMethodName<Cl>>, O>,
+  ): (input: ActionInput<S>) => Promise<ActionResult<O> & Ex>;
   /**
    * One record type's server binding (`defineRecordType`, which `gen` writes to
    * `records/<type>.ts`): `load` settles each block's binding for a record in a

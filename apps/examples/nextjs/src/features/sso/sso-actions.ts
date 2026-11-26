@@ -47,41 +47,30 @@ const NO_ADMIN = dbError(
   { hint: "SSO_ADMIN_MISSING" },
 );
 
-export const addSsoDomain = bsb.action(
+export const addSsoDomain = bsb.blockAction(
+  ({ db }) => db.sso,
+  "addDomain",
   {
     input: v.object({ domain: DOMAIN }),
     requireTenant: true,
     permission: "sso.manage",
     tags: () => [tags.sso()],
     refresh: true,
+    args: ({ domain }, { tenant }) => [{ organizationId: tenant, domain }],
   },
-  async ({ domain }, { tenant, db }) => {
-    const added = await db.sso.addDomain({ organizationId: tenant, domain });
-
-    if (!added.ok) {
-      return added;
-    }
-
-    return ok(added.data.id);
-  },
+  (added) => added.id,
 );
 
-export const removeSsoDomain = bsb.action(
+export const removeSsoDomain = bsb.blockAction(
+  ({ db }) => db.sso,
+  "removeDomain",
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
     permission: "sso.manage",
     tags: () => [tags.sso()],
     refresh: true,
-  },
-  async ({ id }, { db }) => {
-    const removed = await db.sso.removeDomain(id);
-
-    if (!removed.ok) {
-      return removed;
-    }
-
-    return ok(removed.data);
+    args: ({ id }) => [id],
   },
 );
 

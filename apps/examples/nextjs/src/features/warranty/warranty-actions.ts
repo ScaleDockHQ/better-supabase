@@ -53,23 +53,18 @@ export const createClaim = bsb.action(
 );
 
 /** Moves a draft claim to submitted. */
-export const submitClaim = bsb.action(
+export const submitClaim = bsb.blockAction(
+  ({ db }) => db.warranty,
+  "submit",
   {
     input: v.object({ claimId: Id }),
     requireTenant: true,
     permission: "warranty.write",
     tags: () => [tags.warranty()],
     refresh: true,
+    args: ({ claimId }) => [claimId],
   },
-  async ({ claimId }, { db }) => {
-    const submitted = await db.warranty.submit(claimId);
-
-    if (!submitted.ok) {
-      return submitted;
-    }
-
-    return ok(submitted.data.id);
-  },
+  (submitted) => submitted.id,
 );
 
 /** Approves or denies a submitted claim, or closes a decided one. */

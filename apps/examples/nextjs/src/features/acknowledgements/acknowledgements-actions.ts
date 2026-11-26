@@ -1,6 +1,5 @@
 "use server";
 
-import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { tags } from "@/lib/supabase/generated.tags";
@@ -11,7 +10,9 @@ const RECORD_TYPE = /^[a-z][a-z0-9_]*$/;
 const Id = v.pipe(v.string(), v.minLength(1), v.maxLength(200));
 
 /** Acknowledges the version of a record the member read. */
-export const acknowledgeRecord = bsb.action(
+export const acknowledgeRecord = bsb.blockAction(
+  ({ db }) => db.acknowledgements,
+  "acknowledge",
   {
     input: v.object({
       type: v.pipe(v.string(), v.regex(RECORD_TYPE)),
@@ -22,17 +23,7 @@ export const acknowledgeRecord = bsb.action(
     permission: "acknowledgements.acknowledge",
     tags: () => [tags.acknowledgements()],
     refresh: true,
+    args: ({ type, id, versionId }) => [{ record: { type, id }, versionId }],
   },
-  async ({ type, id, versionId }, { db }) => {
-    const acknowledged = await db.acknowledgements.acknowledge({
-      record: { type, id },
-      versionId,
-    });
-
-    if (!acknowledged.ok) {
-      return acknowledged;
-    }
-
-    return ok({ id: acknowledged.data.id });
-  },
+  (acknowledged) => ({ id: acknowledged.id }),
 );

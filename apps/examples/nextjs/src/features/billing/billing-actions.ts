@@ -119,7 +119,9 @@ export const startCheckout = bsb.action(
 );
 
 /** A draft invoice with one line; it gets its number when it's issued. */
-export const createDraftInvoice = bsb.action(
+export const createDraftInvoice = bsb.blockAction(
+  ({ db }) => db.invoices,
+  "create",
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
@@ -133,30 +135,27 @@ export const createDraftInvoice = bsb.action(
     permission: "invoices.write",
     tags: () => [BILLING_TAG, tags.banking()],
     refresh: true,
+    args: ({ title, amount }, { tenant }) => [
+      {
+        organizationId: tenant,
+        input: { title, currency: SHOP_CURRENCY },
+        lines: [
+          {
+            description: title,
+            quantity: 1,
+            unitAmount: parseMoney(amount, SHOP_CURRENCY),
+          },
+        ],
+      },
+    ],
   },
-  async ({ title, amount }, { tenant, db }) => {
-    const created = await db.invoices.create({
-      organizationId: tenant,
-      input: { title, currency: SHOP_CURRENCY },
-      lines: [
-        {
-          description: title,
-          quantity: 1,
-          unitAmount: parseMoney(amount, SHOP_CURRENCY),
-        },
-      ],
-    });
-
-    if (!created.ok) {
-      return created;
-    }
-
-    return ok(created.data.id);
-  },
+  (created) => created.id,
 );
 
 /** Issues a draft: it gets its number, today's date and its due date. */
-export const issueInvoice = bsb.action(
+export const issueInvoice = bsb.blockAction(
+  ({ db }) => db.invoices,
+  "issue",
   {
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
@@ -164,15 +163,7 @@ export const issueInvoice = bsb.action(
     tags: () => [BILLING_TAG, tags.banking()],
     refresh: true,
   },
-  async ({ invoiceId }, { db }) => {
-    const issued = await db.invoices.issue({ invoiceId });
-
-    if (!issued.ok) {
-      return issued;
-    }
-
-    return ok(issued.data.status);
-  },
+  (issued) => issued.status,
 );
 
 /**
