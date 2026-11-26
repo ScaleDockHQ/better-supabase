@@ -633,6 +633,10 @@ export const workBulkStateArgs: v.GenericSchema<{ args: Json; subject_id: string
   tenant: v.pipe(v.string(), v.uuid()),
 }), v.title("work_bulk_state arguments"));
 
+export const clientNotesRevealResult: v.GenericSchema<({ birthDate: string | null; diagnosis: string | null; id: string | null })[]> = v.array(v.object({ birthDate: v.nullable(v.pipe(v.string(), v.isoDate())), diagnosis: v.nullable(v.string()), id: v.nullable(v.pipe(v.string(), v.uuid())) }));
+
+export const customerNoteCountsResult: v.GenericSchema<({ customerId: string | null; lastNoteAt: string | null; noteCount: number | null })[]> = v.array(v.object({ customerId: v.nullable(v.pipe(v.string(), v.uuid())), lastNoteAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())), noteCount: v.nullable(v.pipe(v.number(), v.integer())) }));
+
 export const importCustomerResult: v.GenericSchema<Json> = json;
 
 export const importCustomerBatchResult: v.GenericSchema<Json> = json;
@@ -641,10 +645,20 @@ export const importCustomerUpdatedAtResult: v.GenericSchema<string | null> = v.n
 
 export const islandCountsResult: v.GenericSchema<Json> = json;
 
+export const myOrganizationsResult: v.GenericSchema<({ id: string | null; lastUsedAt: string | null; name: string | null; plan: string | null; role: string | null; slug: string | null })[]> = v.array(v.object({ id: v.nullable(v.pipe(v.string(), v.uuid())), lastUsedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())), name: v.nullable(v.string()), plan: v.nullable(v.string()), role: v.nullable(v.string()), slug: v.nullable(v.string()) }));
+
+export const myProfileResult: v.GenericSchema<({ avatarPath: string | null; avatarUrl: string | null; email: string | null; fullName: string | null; username: string | null })[]> = v.array(v.object({ avatarPath: v.nullable(v.string()), avatarUrl: v.nullable(v.string()), email: v.nullable(v.string()), fullName: v.nullable(v.string()), username: v.nullable(v.string()) }));
+
+export const organizationInvitationsResult: v.GenericSchema<({ createdAt: string | null; email: string | null; expiresAt: string | null; id: string | null; invitedBy: string | null; role: string | null })[]> = v.array(v.object({ createdAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())), email: v.nullable(v.string()), expiresAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())), id: v.nullable(v.pipe(v.string(), v.uuid())), invitedBy: v.nullable(v.string()), role: v.nullable(v.string()) }));
+
+export const organizationMembersResult: v.GenericSchema<({ avatarPath: string | null; avatarUrl: string | null; email: string | null; fullName: string | null; joinedAt: string | null; role: string | null; userId: string | null })[]> = v.array(v.object({ avatarPath: v.nullable(v.string()), avatarUrl: v.nullable(v.string()), email: v.nullable(v.string()), fullName: v.nullable(v.string()), joinedAt: v.nullable(v.pipe(v.string(), v.isoTimestamp())), role: v.nullable(v.string()), userId: v.nullable(v.pipe(v.string(), v.uuid())) }));
+
 export const rsFinanceOverviewResult: v.GenericSchema<Json> = json;
 
 export const rsPipelineOverviewResult: v.GenericSchema<Json> = json;
 
 export const rsWorkspaceSummaryResult: v.GenericSchema<Json> = json;
+
+export const searchNotesScoresResult: v.GenericSchema<({ id: Json | null; score: number | null })[]> = v.array(v.object({ id: v.nullable(json), score: v.nullable(v.number()) }));
 
 export const shellBootstrapResult: v.GenericSchema<Json> = json;

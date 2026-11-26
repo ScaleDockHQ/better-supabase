@@ -1024,6 +1024,10 @@
               },
               "notNull": {
                 "type": "boolean"
+              },
+              "checks": {
+                "type": "array",
+                "items": { "type": "string" }
               }
             }
           }

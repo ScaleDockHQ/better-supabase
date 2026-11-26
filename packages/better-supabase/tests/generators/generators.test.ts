@@ -265,6 +265,14 @@ const input: GeneratorInput = {
         meta: column("meta", "jsonb", { json: true }),
         raw: column("raw", "jsonb", { json: true }),
         rec: column("rec", "record"),
+        address: column("address", "address", {
+          fields: {
+            city: column("city", "text", { nullable: true }),
+            lat: column("lat", "float8", { nullable: true }),
+          },
+        }),
+        geom: column("geom", "geometry"),
+        widget: column("widget", "widget"),
         total: column("total", "int4", { generated: true }),
         "odd-name": column("odd-name", "text"),
       }),
@@ -289,7 +297,22 @@ const input: GeneratorInput = {
   extras: { tables: [], buckets: [], realtime: [] },
   config,
   imports: { runtime: "better-supabase" },
-  model: { tables: [], enums: [], functions: [], blocks: [] },
+  model: {
+    tables: [],
+    enums: [],
+    functions: [
+      {
+        key: "place_at",
+        schema: "public",
+        args: [],
+        returns: "{ city: string | null }",
+        returnsSet: false,
+        volatility: "stable",
+        returnsFields: { city: { kind: "string", nullable: true } },
+      },
+    ],
+    blocks: [],
+  },
 };
 
 const json = {
@@ -330,6 +353,10 @@ describe("zod()", () => {
         "  payload: payloadSchema,",
         "  meta: z.custom<NonNullable<RowOf<'events'>['meta']>>((value) => value !== undefined),",
         "  rec: z.unknown(),",
+        "  address: z.object({ city: z.string().nullable(), lat: z.number().nullable() }),",
+        "  geom: z.json(),",
+        "  widget: z.unknown(),",
+        "export const placeAtResult: z.ZodType<{ city: string | null }> = z.object({ city: z.string().nullable() });",
         '  "odd-name": z.string(),',
         "  amount: z.number().nullable().exactOptional(),",
         "  flag: z.boolean().exactOptional(),",
@@ -410,6 +437,10 @@ describe("valibot()", () => {
         "  payload: payloadSchema,",
         "  meta: v.custom<NonNullable<RowOf<'events'>['meta']>>((value) => value !== undefined),",
         "  rec: v.unknown(),",
+        "  address: v.object({ city: v.nullable(v.string()), lat: v.nullable(v.number()) }),",
+        "  geom: json,",
+        "  widget: v.unknown(),",
+        "export const placeAtResult: v.GenericSchema<{ city: string | null }> = v.object({ city: v.nullable(v.string()) });",
         '  "odd-name": v.string(),',
         "  amount: v.exactOptional(v.nullable(v.number())),",
         "  paths: v.array((v.string() as unknown as v.GenericSchema<NonNullable<RowOf<'files'>['paths']>[number]>)),",
@@ -446,6 +477,21 @@ describe("jsonSchema()", () => {
       labels: { type: "array", items: { type: "string" } },
       payload: {},
       rec: {},
+      address: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          city: { type: ["string", "null"] },
+          lat: { type: ["number", "null"] },
+        },
+        required: ["city", "lat"],
+      },
+      geom: {},
+      widget: {},
+    });
+    expect(doc.$defs["placeAtResult"]).toMatchObject({
+      type: "object",
+      properties: { city: { type: ["string", "null"] } },
     });
   });
 });
@@ -474,12 +520,16 @@ describe("standardSchema()", () => {
         '    payload: { kind: "json", schema: payloadSchema },',
         '    meta: { kind: "custom" },',
         '    rec: { kind: "unknown" },',
+        '    address: { kind: "object", fields: {"city":{"kind":"string","nullable":true},"lat":{"kind":"number","nullable":true}} },',
+        '    geom: { kind: "json" },',
+        '    widget: { kind: "unknown" },',
         '    "odd-name": { kind: "string" },',
         '    paths: { kind: "string", array: true },',
         "  events: { insert: eventsInsert, update: eventsUpdate },",
       ]),
     );
     expect(file!.contents).not.toContain("eventViewInsert");
+    expect(file!.contents).not.toContain("placeAtResult");
   });
 
   it("matches toJsonSchema for every variant", async () => {

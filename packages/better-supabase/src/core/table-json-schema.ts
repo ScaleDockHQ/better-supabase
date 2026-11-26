@@ -44,22 +44,36 @@ export interface FieldOptions {
 /**
  * One column of a table schema. `custom` is a jsonb column with a TypeScript
  * type from the config and no schema: any value except `undefined` passes.
+ * `object` is a composite type, or a page and aggregate wrapper.
  */
-export type FieldSpec = (ScalarKind | { readonly kind: "custom" }) &
+export type FieldSpec = (
+  | ScalarKind
+  | { readonly kind: "custom" }
+  | {
+      readonly kind: "object";
+      readonly fields: Readonly<Record<string, FieldSpec>>;
+    }
+) &
   FieldOptions;
 
 export interface TableSchemaSpec {
   readonly title?: string;
   readonly description?: string;
   readonly fields: Readonly<Record<string, FieldSpec>>;
+  /**
+   * What to do with a key the schema does not name. `strip` (the default) drops
+   * it. `reject` fails the value, which catches a column that leaked into a
+   * payload.
+   */
+  readonly unknownKeys?: "strip" | "reject";
 }
 
 export type JsonSchema = Record<string, unknown>;
 
+type ScalarField = Exclude<FieldSpec, { readonly kind: "object" }>;
+
 /** JSON Schema for one scalar. Codec values are described by their wire form. */
-function scalarJsonSchema(
-  kind: ScalarKind | { readonly kind: "custom" },
-): JsonSchema {
+export function scalarJsonSchema(kind: ScalarField): JsonSchema {
   switch (kind.kind) {
     case "uuid": {
       return { type: "string", format: "uuid" };
@@ -161,7 +175,7 @@ const BOUND_KEYS = [
   "maxLength",
 ] as const;
 
-function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
+export function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
   const bounds: JsonSchema = {};
 
   for (const key of BOUND_KEYS) {
@@ -183,11 +197,6 @@ function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
   return field.readOnly ? { ...schema, readOnly: true } : schema;
 }
 
-/** The JSON Schema for one field, with its array, null, bounds and docs. */
-export function fieldJsonSchema(field: FieldSpec): JsonSchema {
-  return propertySchema(field, scalarJsonSchema(field));
-}
-
 /**
  * The JSON Schema object for a table shape. `nested` converts a typed jsonb
  * column's own schema; without it those columns accept any value.
@@ -201,7 +210,10 @@ export function tableJsonSchema(
 
   for (const [name, field] of Object.entries(spec.fields)) {
     const base =
-      (field.schema && nested?.(field.schema)) ?? scalarJsonSchema(field);
+      (field.schema && nested?.(field.schema)) ??
+      // SAFETY: `gen` expands composite fields before this runs. The runtime
+      // document has no object fields, and the cast is erased.
+      scalarJsonSchema(field as ScalarField);
 
     properties[name] = propertySchema(field, base);
 

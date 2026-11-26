@@ -7,6 +7,7 @@ import type {
 } from "../config/index.ts";
 import type { FieldSpec, ScalarKind } from "../core/table-json-schema.ts";
 
+import { columnKind } from "../core/column-kind.ts";
 import { entityNames } from "../core/entity-naming.ts";
 import {
   fieldDocs,
@@ -27,7 +28,7 @@ export interface ExtraSchema {
   readonly fields: Readonly<Record<string, FieldSpec>>;
 }
 
-/** What a function returns, when it is a table row or a scalar. */
+/** What a function returns, when it is a table row, a composite or a scalar. */
 export interface ResultSchema {
   /** Export name: `listTasksResult`. */
   readonly name: string;
@@ -38,7 +39,11 @@ export interface ResultSchema {
   readonly nullable: boolean;
   readonly of:
     | { readonly kind: "row"; readonly table: string }
-    | { readonly kind: "scalar"; readonly scalar: ScalarKind };
+    | { readonly kind: "scalar"; readonly scalar: ScalarKind }
+    | {
+        readonly kind: "fields";
+        readonly fields: Readonly<Record<string, FieldSpec>>;
+      };
 }
 
 export interface ExtraSchemas {
@@ -58,9 +63,6 @@ export interface FieldMeta {
   readonly minLength?: number;
   readonly maxLength?: number;
 }
-
-const INTEGER = new Set(["int2", "int4", "int8"]);
-const NUMBER = new Set(["float4", "float8", "numeric", "oid", "money"]);
 
 const KIND_SUFFIX: Readonly<Record<keyof GeneratorEntitySchemas, string>> = {
   input: "Input",
@@ -132,24 +134,8 @@ function typeScalar(
 
   const pg = pgType?.replace(/^_/, "");
 
-  if (pg === "uuid") {
-    return { kind: "uuid" };
-  }
-
-  if (pg !== undefined && INTEGER.has(pg) && tsType === "number") {
-    return { kind: "integer" };
-  }
-
-  if (pg === "timestamptz" && tsType === "string") {
-    return { kind: "datetime" };
-  }
-
-  if (pg === "date" && tsType === "string") {
-    return { kind: "date" };
-  }
-
-  if (pg !== undefined && NUMBER.has(pg) && tsType === "number") {
-    return { kind: "number" };
+  if (pg !== undefined) {
+    return columnKind({ db: "", type: pg });
   }
 
   switch (tsType) {
@@ -214,6 +200,16 @@ function resultSchema(
       set,
       nullable: !set,
       of: { kind: "row", table: row[1] },
+    };
+  }
+
+  if (fn.returnsFields) {
+    return {
+      name,
+      title,
+      set: fn.returnsSet,
+      nullable: !fn.returnsSet && fn.returns.endsWith(" | null"),
+      of: { kind: "fields", fields: fn.returnsFields },
     };
   }
 
@@ -319,15 +315,31 @@ export function extraSchemas(input: GeneratorInput): ExtraSchemas {
 }
 
 /** Every scalar kind the extra schemas use, for the Temporal guard import. */
+function scalarKinds(field: FieldSpec): ScalarKind["kind"][] {
+  if (field.kind === "object") {
+    return Object.values(field.fields).flatMap(scalarKinds);
+  }
+
+  if (field.kind === "custom") {
+    return [];
+  }
+
+  return [field.kind];
+}
+
 export function extraKinds(extras: ExtraSchemas): ScalarKind["kind"][] {
   return [
     ...extras.inputs.flatMap((schema) =>
-      Object.values(schema.fields).map((field) => field.kind),
+      Object.values(schema.fields).flatMap(scalarKinds),
     ),
     ...extras.results.flatMap((result) =>
-      result.of.kind === "scalar" ? [result.of.scalar.kind] : [],
+      result.of.kind === "scalar"
+        ? [result.of.scalar.kind]
+        : result.of.kind === "fields"
+          ? Object.values(result.of.fields).flatMap(scalarKinds)
+          : [],
     ),
-  ].filter((kind): kind is ScalarKind["kind"] => kind !== "custom");
+  ];
 }
 
 /** The TypeScript type a field validates to. */
@@ -388,6 +400,17 @@ function scalarType(spec: FieldSpec): string {
       return "unknown";
     }
 
+    case "object": {
+      const entries = Object.entries(spec.fields).map(
+        ([name, field]) =>
+          `${propertyKey(name)}${field.optional ? "?" : ""}: ${fieldType(field)}`,
+      );
+
+      return entries.length === 0
+        ? "Record<never, never>"
+        : `{ ${entries.join("; ")} }`;
+    }
+
     default: {
       const exhaustive: never = spec;
 
@@ -413,10 +436,16 @@ export function resultType(result: ResultSchema): string {
   const item =
     result.of.kind === "row"
       ? `RowOf<'${result.of.table}'>`
-      : fieldType({
-          ...result.of.scalar,
-          nullable: result.set && result.nullable,
-        });
+      : result.of.kind === "fields"
+        ? `${objectType({
+            name: result.name,
+            title: result.title,
+            fields: result.of.fields,
+          })}${result.set && result.nullable ? " | null" : ""}`
+        : fieldType({
+            ...result.of.scalar,
+            nullable: result.set && result.nullable,
+          });
 
   if (result.set) {
     return `${item.includes(" | ") ? `(${item})` : item}[]`;

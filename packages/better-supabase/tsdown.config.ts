@@ -296,6 +296,7 @@ const entries = [
   "realtime/index",
   "rate-limit/index",
   "recurrence/index",
+  "result-schema/index",
   "generators/index",
   "plugins/index",
   "generators/zod/index",

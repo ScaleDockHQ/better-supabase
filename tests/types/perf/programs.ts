@@ -443,3 +443,59 @@ ${subjects.join("\n")}
 });
 `;
 }
+
+/** A wide read set and a three-level include, plus the schema of the wide one. */
+export function readSetProgram(): string {
+  return `import { createSupabase } from "../../../../../packages/better-supabase/src/core/define.ts";
+import {
+  defineReadSet,
+  type ReadSetResult,
+} from "../../../../../packages/better-supabase/src/core/read-set.ts";
+import { resultSchema } from "../../../../../packages/better-supabase/src/result-schema/index.ts";
+import { schema } from "../../../../../packages/better-supabase/tests/fixtures/generated-camel.ts";
+
+const db = createSupabase(schema);
+
+const wide = defineReadSet(db, "wide", {}, (s) => ({
+  customers: s.customers.list(),
+  notes: s.notes.list(),
+  organizations: s.organizations.list(),
+  locations: s.locations.list(),
+  memberships: s.memberships.list(),
+  contacts: s.contacts.list(),
+  tags: s.tags.list(),
+  tasks: s.tasks.list(),
+}));
+
+const deep = defineReadSet(db, "deep", {}, (s) => ({
+  rows: s.customers.list({
+    select: ["id", "name"],
+    include: {
+      locations: {
+        include: {
+          organization: { include: { memberships: true } },
+        },
+      },
+    },
+  }),
+}));
+
+type Wide = ReadSetResult<typeof wide>;
+type Deep = ReadSetResult<typeof deep>;
+type Checked = NonNullable<
+  ReturnType<typeof resultSchema<typeof wide>>["~standard"]["types"]
+>["output"];
+
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+
+const _same: Equal<Checked, Wide> = true;
+const _nested: Deep["rows"][number]["locations"][number]["organization"]["memberships"] =
+  [];
+
+void _same;
+void _nested;
+`;
+}

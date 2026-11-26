@@ -79,10 +79,10 @@ export interface SnapshotExtras {
     Record<string, Readonly<Record<string, string>>>
   >;
   /**
-   * Domains that the read schemas' functions take or return, with their base
-   * type. Typegen leaves them `unknown`; `gen` types them by the base type, and
-   * a `returns table` column of a NOT NULL domain is never null. Absent when no
-   * function uses a domain.
+   * Domains that the read schemas' functions and columns use, with their base
+   * type. Typegen leaves a function domain `unknown`; `gen` types it by the
+   * base type, and a NOT NULL domain is never null. Absent when nothing uses a
+   * domain.
    */
   readonly domains?: readonly ExtrasDomain[];
   /**
@@ -102,6 +102,11 @@ export interface ExtrasDomain {
   readonly baseSchema: string;
   /** Declared `not null`. */
   readonly notNull: boolean;
+  /**
+   * `CHECK` constraints on the domain, as `pg_get_constraintdef` prints them.
+   * Absent in snapshots that predate column domains.
+   */
+  readonly checks?: readonly string[];
 }
 
 /** An `[auth.hook.<name>]` with a `pg-functions://` URI. */

@@ -37,6 +37,12 @@ import { toCatalog } from "../introspect/catalog.ts";
 import { restrictSchemas, tsTypeOf } from "../introspect/typegen.ts";
 import { moduleRefOf } from "../module-schemas.ts";
 import { commentMeta } from "./comment.ts";
+import {
+  columnFields,
+  columnResolution,
+  domainIndex,
+  recordUnmapped,
+} from "./composites.ts";
 import { bootstrapMeta, functionSharesMeta } from "./function-meta.ts";
 import { buildFunctions } from "./model-functions.ts";
 import {
@@ -356,6 +362,8 @@ function prepareCatalog(
     keyOf,
     warnings: [],
     notices: [],
+    unmapped: [],
+    domains: domainIndex(snapshot.extras.domains),
     tsType,
     jsonTypeFor,
     optionsOf,
@@ -481,8 +489,16 @@ function draftTables(ctx: ModelContext): DraftTable[] {
             : base;
 
       const readonly = column.generated || column.identity === "always";
+
+      const resolved = columnResolution(
+        column,
+        table,
+        ctx,
+        values !== undefined,
+      );
+
       const narrowed = column.nullable && checkedNotNull.has(column.name);
-      const nullable = column.nullable && !narrowed;
+      const nullable = column.nullable && !narrowed && !resolved.notNull;
 
       const filled =
         column.hasDefault ||
@@ -522,6 +538,7 @@ function draftTables(ctx: ModelContext): DraftTable[] {
         storage,
         insertable,
         updatable,
+        resolved,
       };
     });
 
@@ -734,7 +751,7 @@ function toTableModels(
       for (const column of columns) {
         const meta: {
           -readonly [K in keyof ColumnMeta]: ColumnMeta[K];
-        } = { db: column.db, type: column.snapshot.udt };
+        } = { db: column.db, type: column.resolved.type };
 
         if (column.nullable) {
           meta.nullable = true;
@@ -764,12 +781,24 @@ function toTableModels(
           meta.selectable = false;
         }
 
-        if (column.snapshot.isArray) {
+        if (column.resolved.array) {
           meta.array = true;
         }
 
-        if (column.json) {
+        if (
+          column.json ||
+          column.resolved.type === "json" ||
+          column.resolved.type === "jsonb"
+        ) {
           meta.json = true;
+        }
+
+        if (column.resolved.fields) {
+          meta.fields = column.resolved.fields;
+        }
+
+        if (column.resolved.bounds) {
+          Object.assign(meta, column.resolved.bounds);
         }
 
         if (column.values) {
@@ -1003,6 +1032,9 @@ function assembleMeta(
 export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
   const ctx = prepareCatalog(snapshot, config);
   const tables = draftTables(ctx);
+
+  recordUnmapped(ctx.unmapped, ctx.notices);
+
   ctx.warnings.push(...configWarnings(ctx));
   const relations = buildRelations(ctx, tables);
   const tableModels = toTableModels(ctx, tables, relations);
@@ -1083,6 +1115,9 @@ export function generatorModel(
       returns: fn.returns,
       returnsSet: fn.meta.returnsSet,
       volatility: fn.meta.volatility,
+      ...(fn.returnsFields
+        ? { returnsFields: columnFields(fn.returnsFields) }
+        : {}),
     })),
     blocks,
   });

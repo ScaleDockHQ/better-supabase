@@ -1,7 +1,12 @@
-import type { AppColumnType, ResolvedConfig } from "../../config/index.ts";
+import type {
+  AppColumnType,
+  ExtrasDomain,
+  ResolvedConfig,
+} from "../../config/index.ts";
 import type {
   Casing,
   Codec,
+  ColumnMeta,
   FunctionMeta,
   RelationMeta,
   TableMeta,
@@ -12,6 +17,7 @@ import type {
   CatalogColumn,
   CatalogTable,
 } from "../introspect/types.ts";
+import type { ResolvedColumnType } from "./composites.ts";
 
 import { toCamel } from "../../index.ts";
 
@@ -40,6 +46,8 @@ export interface ColumnModel {
   readonly updatable: boolean;
   /** `false` for an app table column with `access: "server"`. */
   readonly selectable?: false;
+  /** The type validators use: domain base, composite attributes, CHECK bounds. */
+  readonly resolved: ResolvedColumnType;
 }
 
 export interface RelationModel {
@@ -91,6 +99,11 @@ export interface FunctionModel {
     values: readonly string[] | undefined;
   }[];
   readonly returns: string;
+  /**
+   * Columns of a `returns table` result, or the attributes of a composite
+   * result. Generators turn these into a Result schema.
+   */
+  readonly returnsFields?: Readonly<Record<string, ColumnMeta>>;
 }
 
 export interface JsonImport {
@@ -120,6 +133,10 @@ export interface ModelContext {
   readonly warnings: string[];
   /** Informational lines, printed as they are, unlike the warnings. */
   readonly notices: string[];
+  /** Columns whose type `gen` could not map, as `schema.table.column (type)`. */
+  readonly unmapped: string[];
+  /** Domains from the snapshot, keyed by `schema.name`. */
+  readonly domains: ReadonlyMap<string, ExtrasDomain>;
   readonly tsType: (
     schema: string,
     format: string,

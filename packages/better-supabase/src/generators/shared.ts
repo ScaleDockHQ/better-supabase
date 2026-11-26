@@ -1,6 +1,8 @@
 import type { FieldSpec, ScalarKind } from "../core/table-json-schema.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
+import { columnKind, columnKinds } from "../core/column-kind.ts";
+
 export type { ScalarKind };
 
 /** What field planning reads: the metadata and the typed-jsonb config. */
@@ -11,68 +13,6 @@ export interface SchemaSource {
 }
 
 export type Variant = "Row" | "Insert" | "Update";
-
-const INTEGER = new Set(["int2", "int4", "int8"]);
-const NUMBER = new Set(["float4", "float8", "numeric", "oid", "money"]);
-
-// `timestamp` values have no offset, so they stay plain strings.
-const DATETIME = new Set(["timestamptz"]);
-
-function scalarKind(column: ColumnMeta): ScalarKind {
-  if (column.enum) {
-    return { kind: "enum", values: column.enum };
-  }
-
-  if (column.json) {
-    return { kind: "json" };
-  }
-
-  if (column.codec === "instant") {
-    return { kind: "instant" };
-  }
-
-  if (column.codec === "plainDateTime") {
-    return { kind: "plainDateTime" };
-  }
-
-  if (column.codec === "bigint") {
-    return { kind: "bigint" };
-  }
-
-  if (column.codec === "string") {
-    return { kind: "string" };
-  }
-
-  if (column.type === "uuid") {
-    return { kind: "uuid" };
-  }
-
-  if (INTEGER.has(column.type)) {
-    return { kind: "integer" };
-  }
-
-  if (NUMBER.has(column.type)) {
-    return { kind: "number" };
-  }
-
-  if (column.type === "bool") {
-    return { kind: "boolean" };
-  }
-
-  if (DATETIME.has(column.type)) {
-    return { kind: "datetime" };
-  }
-
-  if (column.type === "date") {
-    return { kind: "date" };
-  }
-
-  if (column.type === "record" || column.type === "void") {
-    return { kind: "unknown" };
-  }
-
-  return { kind: "string" };
-}
 
 export interface FieldPlan {
   readonly name: string;
@@ -142,7 +82,7 @@ export function fieldsFor(
     fields.push({
       name,
       column,
-      scalar: scalarKind(column),
+      scalar: columnKind(column),
       nullable: column.nullable === true,
       optional:
         variant === "Update" ||
@@ -190,10 +130,12 @@ export function temporalGuardImport(
         continue;
       }
 
-      const guard = TEMPORAL_GUARDS[plan.scalar.kind];
+      for (const scalar of columnKinds(plan.column)) {
+        const guard = TEMPORAL_GUARDS[scalar.kind];
 
-      if (guard) {
-        names.add(guard);
+        if (guard) {
+          names.add(guard);
+        }
       }
     }
   }
@@ -721,6 +663,40 @@ export function fieldDocs(
   };
 }
 
+const FIELD_BOUNDS = [
+  "minimum",
+  "exclusiveMinimum",
+  "maximum",
+  "exclusiveMaximum",
+  "minLength",
+  "maxLength",
+] as const satisfies readonly (keyof Bounds)[];
+
+/**
+ * A composite attribute, including nested composites. Domain bounds use the
+ * same `pick` as CHECK docs, so this does not carry a second copy of them.
+ */
+function fieldOf(column: ColumnMeta): FieldSpec {
+  const spec: FieldSpec = column.fields
+    ? {
+        kind: "object",
+        fields: Object.fromEntries(
+          Object.entries(column.fields).map(([name, child]) => [
+            name,
+            fieldOf(child),
+          ]),
+        ),
+      }
+    : columnKind(column);
+
+  return {
+    ...spec,
+    ...(column.nullable ? { nullable: true } : {}),
+    ...(column.array ? { array: true } : {}),
+    ...pick(column, FIELD_BOUNDS),
+  };
+}
+
 /**
  * A field as `tableSchema()` and `tableJsonSchema()` read it. A jsonb column
  * with a configured TypeScript type becomes `custom`; set `schema` on the
@@ -728,11 +704,16 @@ export function fieldDocs(
  */
 export function fieldSpec(plan: FieldPlan, docs: FieldDocs): FieldSpec {
   return {
-    ...(plan.customJson ? { kind: "custom" } : plan.scalar),
+    ...(plan.customJson
+      ? { kind: "custom" as const }
+      : plan.column.fields
+        ? fieldOf(plan.column)
+        : plan.scalar),
     ...(plan.nullable ? { nullable: true } : {}),
     ...(plan.optional ? { optional: true } : {}),
     ...(plan.column.array ? { array: true } : {}),
     ...(plan.managed ? { readOnly: true } : {}),
+    ...pick(plan.column, FIELD_BOUNDS),
     ...docs,
   };
 }

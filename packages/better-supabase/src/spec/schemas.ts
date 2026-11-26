@@ -3,7 +3,7 @@ import type { StandardJSONSchemaV1 } from "@standard-schema/spec";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { JsonSchema } from "./model.ts";
 
-import { toJsonSchema } from "../generators/json-schema.ts";
+import { tableJsonDefs } from "./table-json-defs.ts";
 
 /** `customer_tags` to `CustomerTags`. */
 export function pascal(value: string): string {
@@ -41,11 +41,7 @@ export function tableSchemas(
   let defs = byJson.get(key);
 
   if (!defs) {
-    // SAFETY: toJsonSchema always returns a $defs object of JSON schemas.
-    defs = toJsonSchema({ meta, config: { json } })["$defs"] as Record<
-      string,
-      JsonSchema
-    >;
+    defs = tableJsonDefs(meta, json);
     byJson.set(key, defs);
   }
 

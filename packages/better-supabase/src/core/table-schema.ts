@@ -132,8 +132,10 @@ function isJson(value: unknown): boolean {
   );
 }
 
+type ScalarField = Exclude<FieldSpec, { readonly kind: "object" }>;
+
 /** The issue message for a scalar, or `undefined` when the value passes. */
-function scalarIssue(field: FieldSpec, value: unknown): string | undefined {
+function scalarIssue(field: ScalarField, value: unknown): string | undefined {
   switch (field.kind) {
     case "uuid": {
       return typeof value === "string" && UUID.test(value)
@@ -288,7 +290,12 @@ function checkValue(
     return;
   }
 
-  const message = scalarIssue(field, value) ?? boundIssue(field, value);
+  const message =
+    scalarIssue(
+      // SAFETY: block schemas have no composite fields. The object walker checks those.
+      field as ScalarField,
+      value,
+    ) ?? boundIssue(field, value);
 
   if (message) {
     issues.push({ message, path: [...path] });

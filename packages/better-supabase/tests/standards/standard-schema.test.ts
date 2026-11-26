@@ -6,7 +6,7 @@ import type {
 import { describe, expect, it } from "vitest";
 
 import { validate } from "../../src/core/standard.ts";
-import { tableSchema } from "../../src/core/table-schema.ts";
+import { tableSchema } from "../../src/core/table-schema-object.ts";
 import { envSchema } from "../../src/env/index.ts";
 import { defineTool } from "../../src/mcp/index.ts";
 

@@ -258,6 +258,11 @@ export interface GeneratorFunction {
   readonly returns: string;
   readonly returnsSet: boolean;
   readonly volatility: "immutable" | "stable" | "volatile";
+  /**
+   * Fields of a composite result or an inline `returns table` result. Absent
+   * for a table row, a scalar and an overload `gen` skips.
+   */
+  readonly returnsFields?: Readonly<Record<string, FieldSpec>>;
 }
 
 /** JSON Schema (draft 2020-12) for one value. */

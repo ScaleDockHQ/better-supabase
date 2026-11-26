@@ -678,7 +678,27 @@ for the inputs of every installed entity block, next to the table schemas:
 Block schemas carry the names the config gives the entities, so with
 `work_item: "task"` the file has `taskInput` with a `taskId` field. An
 overloaded function gets no schema, because one schema can't pick a
-signature. Use them as action inputs or in forms.
+signature. A composite column and a composite function result become a nested
+object. A domain column uses the domain's base type, and a `not null` domain
+or a `VALUE IS NOT NULL` check drops `| null`. A simple `VALUE` comparison
+(`VALUE >= 0`) becomes the same bound a table CHECK does. `geometry` and
+`geography` are `json`, because PostgREST returns GeoJSON. A `returns table`
+function with no backing table gets a `Result` schema from its columns.
+A type `gen` does not know stays `unknown` (it used to be guessed as
+`string`), and `gen` prints one notice that names those columns. Map one in
+`gen.json`, or name the column in `standardSchema({ json })`. `text`,
+`varchar`, `citext`, ranges, `inet`, `interval` and the other types
+PostgREST returns as text stay strings. Use them as action inputs or in forms.
+
+## What gen does not generate
+
+Some payloads have no description in the catalog, so `gen` does not invent a
+schema for them:
+
+- Overloaded functions. One schema cannot pick a signature.
+- Realtime broadcast and presence payloads. The app defines them.
+- Edge Function inputs and outputs. Nothing in the database describes them.
+- pgmq, cron and vault payloads. They are untyped `jsonb`.
 
 ### Form metadata
 

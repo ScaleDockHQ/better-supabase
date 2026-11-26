@@ -1842,6 +1842,10 @@ export const workItemListFilter: z.ZodType<{ teamId?: string; projectId?: string
   limit: z.int().min(1).exactOptional(),
 }).meta({ title: "WorkItemListOptions" });
 
+export const clientNotesRevealResult: z.ZodType<({ birthDate: string | null; diagnosis: string | null; id: string | null })[]> = z.array(z.object({ birthDate: z.iso.date().nullable(), diagnosis: z.string().nullable(), id: z.guid().nullable() }));
+
+export const customerNoteCountsResult: z.ZodType<({ customerId: string | null; lastNoteAt: string | null; noteCount: bigint | null })[]> = z.array(z.object({ customerId: z.guid().nullable(), lastNoteAt: z.iso.datetime({ offset: true }).nullable(), noteCount: z.bigint().nullable() }));
+
 export const importCustomerResult: z.ZodType<Json> = z.json();
 
 export const importCustomerBatchResult: z.ZodType<Json> = z.json();
@@ -1850,10 +1854,20 @@ export const importCustomerUpdatedAtResult: z.ZodType<string | null> = z.iso.dat
 
 export const islandCountsResult: z.ZodType<Json> = z.json();
 
+export const myOrganizationsResult: z.ZodType<({ id: string | null; lastUsedAt: string | null; name: string | null; plan: string | null; role: string | null; slug: string | null })[]> = z.array(z.object({ id: z.guid().nullable(), lastUsedAt: z.iso.datetime({ offset: true }).nullable(), name: z.string().nullable(), plan: z.string().nullable(), role: z.string().nullable(), slug: z.string().nullable() }));
+
+export const myProfileResult: z.ZodType<({ avatarPath: string | null; avatarUrl: string | null; email: string | null; fullName: string | null; username: string | null })[]> = z.array(z.object({ avatarPath: z.string().nullable(), avatarUrl: z.string().nullable(), email: z.string().nullable(), fullName: z.string().nullable(), username: z.string().nullable() }));
+
+export const organizationInvitationsResult: z.ZodType<({ createdAt: string | null; email: string | null; expiresAt: string | null; id: string | null; invitedBy: string | null; role: string | null })[]> = z.array(z.object({ createdAt: z.iso.datetime({ offset: true }).nullable(), email: z.string().nullable(), expiresAt: z.iso.datetime({ offset: true }).nullable(), id: z.guid().nullable(), invitedBy: z.string().nullable(), role: z.string().nullable() }));
+
+export const organizationMembersResult: z.ZodType<({ avatarPath: string | null; avatarUrl: string | null; email: string | null; fullName: string | null; joinedAt: string | null; role: string | null; userId: string | null })[]> = z.array(z.object({ avatarPath: z.string().nullable(), avatarUrl: z.string().nullable(), email: z.string().nullable(), fullName: z.string().nullable(), joinedAt: z.iso.datetime({ offset: true }).nullable(), role: z.string().nullable(), userId: z.guid().nullable() }));
+
 export const rsFinanceOverviewResult: z.ZodType<Json> = z.json();
 
 export const rsPipelineOverviewResult: z.ZodType<Json> = z.json();
 
 export const rsWorkspaceSummaryResult: z.ZodType<Json> = z.json();
+
+export const searchNotesScoresResult: z.ZodType<({ id: Json | null; score: number | null })[]> = z.array(z.object({ id: z.json().nullable(), score: z.number().nullable() }));
 
 export const shellBootstrapResult: z.ZodType<Json> = z.json();

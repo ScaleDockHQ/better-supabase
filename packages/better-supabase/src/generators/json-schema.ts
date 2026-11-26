@@ -3,6 +3,7 @@ import type {
   Generator,
   GeneratorInput,
 } from "../config/index.ts";
+import type { FieldSpec } from "../core/table-json-schema.ts";
 import type { JsonSchemaTarget } from "./json-schema-target.ts";
 import type {
   DocsSource,
@@ -11,7 +12,7 @@ import type {
   ResultSchema,
 } from "./kit.ts";
 
-import { fieldJsonSchema, tableJsonSchema } from "../core/table-json-schema.ts";
+import { propertySchema, scalarJsonSchema } from "../core/table-json-schema.ts";
 import { forTarget } from "../core/table-schema.ts";
 import { VERSION } from "../core/version.ts";
 import { toDraft07 } from "./json-schema-target.ts";
@@ -86,6 +87,63 @@ function withDeprecated(
   };
 }
 
+type ObjectField = Extract<FieldSpec, { readonly kind: "object" }>;
+
+function objectJsonSchema(field: ObjectField): JsonSchema {
+  const properties: Record<string, JsonSchema> = {};
+  const required: string[] = [];
+
+  for (const [name, nested] of Object.entries(field.fields)) {
+    properties[name] = jsonField(nested);
+
+    if (!nested.optional) {
+      required.push(name);
+    }
+  }
+
+  return {
+    type: "object",
+    properties,
+    additionalProperties: false,
+    ...(required.length > 0 ? { required } : {}),
+  };
+}
+
+function documentTable(spec: {
+  readonly title?: string;
+  readonly description?: string;
+  readonly fields: Readonly<Record<string, FieldSpec>>;
+}): JsonSchema {
+  const properties: Record<string, JsonSchema> = {};
+  const required: string[] = [];
+
+  for (const [name, field] of Object.entries(spec.fields)) {
+    properties[name] = jsonField(field);
+
+    if (!field.optional) {
+      required.push(name);
+    }
+  }
+
+  return {
+    ...(spec.title === undefined ? {} : { title: spec.title }),
+    ...(spec.description === undefined
+      ? {}
+      : { description: spec.description }),
+    type: "object",
+    properties,
+    ...(required.length > 0 ? { required } : {}),
+    additionalProperties: false,
+  };
+}
+
+function jsonField(field: FieldSpec): JsonSchema {
+  const base =
+    field.kind === "object" ? objectJsonSchema(field) : scalarJsonSchema(field);
+
+  return propertySchema(field, base);
+}
+
 function resultJsonSchema(
   result: ResultSchema,
   defs: Readonly<Record<string, JsonSchema>>,
@@ -108,15 +166,27 @@ function resultJsonSchema(
     };
   }
 
+  if (result.of.kind === "fields") {
+    return {
+      title: result.title,
+      ...jsonField({
+        kind: "object",
+        fields: result.of.fields,
+        array: result.set,
+        nullable: result.nullable && !result.set,
+      }),
+    };
+  }
+
   return {
     title: result.title,
-    ...fieldJsonSchema({
+    ...jsonField({
       ...result.of.scalar,
       array: result.set,
       nullable: result.nullable && !result.set,
     }),
     ...(result.set && result.nullable
-      ? { items: fieldJsonSchema({ ...result.of.scalar, nullable: true }) }
+      ? { items: jsonField({ ...result.of.scalar, nullable: true }) }
       : {}),
   };
 }
@@ -169,7 +239,7 @@ export function toJsonSchema(
     for (const variant of variantsFor(table)) {
       const plans = fieldsFor(table, variant, input);
 
-      const schema = tableJsonSchema({
+      const schema = documentTable({
         ...(docs ? { title: variantTitle(docs, variant) } : {}),
         ...(description === undefined ? {} : { description }),
         fields: Object.fromEntries(
@@ -195,7 +265,7 @@ export function toJsonSchema(
   }
 
   for (const schema of extras.inputs) {
-    defs[schema.name] = tableJsonSchema({
+    defs[schema.name] = documentTable({
       title: schema.title,
       fields: schema.fields,
     });
