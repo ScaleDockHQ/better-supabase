@@ -234,42 +234,14 @@ export function bindClient<
     snapshot = snapshotOf(null);
   }
 
-  const verify = async (key: string | null): Promise<void> => {
-    const check = options.verifySession;
-
-    if (check === undefined) {
-      return;
-    }
-
-    const response: { readonly data: unknown; readonly error: unknown } =
-      await supabase
-        .schema(
-          check.schema ??
-            betterSupabase.meta.bootstrap?.schema ??
-            "better_supabase",
-        )
-        .rpc(`bootstrap_${check.rpc}`, { args: {} });
-
-    const { data } = response;
-
-    if (
-      response.error === null &&
-      typeof data === "object" &&
-      data !== null &&
-      "session_active" in data &&
-      data.session_active === false &&
-      snapshot.status === "signed-in" &&
-      identityKey(snapshot) === key
-    ) {
-      await supabase.auth.signOut({ scope: "local" });
-    }
-  };
-
   const onChange = (_event: unknown, session: Session | null): void => {
     const next = snapshotOf(session);
 
+    const check = options.verifySession;
+
     // Outside the auth callback: an Auth call awaited inside it stalls auth-js.
     if (
+      check !== undefined &&
       next.status === "signed-in" &&
       (snapshot.status !== "signed-in" ||
         identityKey(next) !== identityKey(snapshot))
@@ -277,7 +249,20 @@ export function bindClient<
       const key = identityKey(next);
 
       setTimeout(() => {
-        verify(key).catch(() => undefined);
+        import("./verify-session.ts")
+          .then(({ verifySession }) =>
+            verifySession(supabase, {
+              schema:
+                check.schema ??
+                betterSupabase.meta.bootstrap?.schema ??
+                "better_supabase",
+              rpc: check.rpc,
+              isCurrent: () =>
+                snapshot.status === "signed-in" &&
+                identityKey(snapshot) === key,
+            }),
+          )
+          .catch(() => undefined);
       }, 0);
     }
 

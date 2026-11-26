@@ -117,10 +117,15 @@ function verifyingClient(answer: { data: unknown; error: unknown }) {
   };
 }
 
-const flushTimers = () =>
-  new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
+const flushTimers = async () => {
+  await import("../../src/client/verify-session.ts");
+
+  for (let round = 0; round < 3; round += 1) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
+};
 
 describe("bindClient verifySession", () => {
   const signedIn = session(token({ sub: "u1", role: "authenticated" }), {
