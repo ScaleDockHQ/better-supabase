@@ -2,7 +2,7 @@
 -- signed-in user cannot name another user as the actor of an audited write.
 -- Only service_role may execute it; the audit functions call it as their owner.
 begin;
-select plan(7);
+select plan(8);
 
 select ok(
   not has_function_privilege('anon', 'better_supabase.acting_member()', 'execute'),
@@ -51,6 +51,11 @@ select results_eq(
   $$select actor_id::text from better_supabase.audit_events where event_type = 'test.service'$$,
   $$values ('00000000-0000-4000-8000-0000000000b1')$$,
   'a service write records the acting member'
+);
+select results_eq(
+  $$select actor_kind from better_supabase.audit_events where event_type = 'test.service'$$,
+  $$values ('user')$$,
+  'a service write for a member is recorded as a user act'
 );
 
 select set_config(
