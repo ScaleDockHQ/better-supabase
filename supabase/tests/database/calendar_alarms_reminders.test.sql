@@ -26,7 +26,7 @@ select set_config(
 );
 select set_config(
   'test.event',
-  api.save_calendar_event(
+  api.upsert_calendar_event(
     current_setting('test.calendar')::uuid,
     '{"title":"Review","startsAt":"2030-03-06T09:00:00Z","endsAt":"2030-03-06T10:00:00Z","alarms":[{"offsetMinutes":15},{"method":"email","at":"2030-03-05T18:00:00Z","summary":"Prepare","description":"Read the notes","repeat":2,"repeatMinutes":5}]}'
   ) ->> 'id',
@@ -52,7 +52,7 @@ select is(
 );
 select throws_like(
   format(
-    $$ select api.save_calendar_event(%L::uuid, %L::jsonb) $$,
+    $$ select api.upsert_calendar_event(%L::uuid, %L::jsonb) $$,
     current_setting('test.calendar'),
     jsonb_build_object('id', current_setting('test.event'), 'alarms', '[{"offsetMinutes":15,"at":"2030-03-05T18:00:00Z"}]'::jsonb)
   ),
@@ -68,11 +68,11 @@ select is(
 );
 
 select ok(
-  api.save_reminder('00000000-0000-4000-8000-000000000001', 'calendar_event', current_setting('test.event'), 0, '2030-03-06T07:30:00Z') ->> 'id' is not null,
+  api.upsert_reminder('00000000-0000-4000-8000-000000000001', 'calendar_event', current_setting('test.event'), 0, '2030-03-06T07:30:00Z') ->> 'id' is not null,
   'a member sets a one-time reminder on an event'
 );
 select throws_like(
-  $$ select api.save_reminder('00000000-0000-4000-8000-000000000001', 'calendar_event', '00000000-0000-4000-8000-00000000dead', 15) $$,
+  $$ select api.upsert_reminder('00000000-0000-4000-8000-000000000001', 'calendar_event', '00000000-0000-4000-8000-00000000dead', 15) $$,
   '%not found in this organization%',
   'a reminder on a missing record is refused'
 );

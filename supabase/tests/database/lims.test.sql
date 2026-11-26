@@ -30,7 +30,7 @@ select set_config('test.asset', better_supabase.create_asset(
   '00000000-0000-4000-8000-000000000001', 'laptop', 'Balance', tag => 'LAB-1') ->> 'id', true);
 select set_config('test.cold', better_supabase.create_asset(
   '00000000-0000-4000-8000-000000000001', 'laptop', 'Uncalibrated balance', tag => 'LAB-2') ->> 'id', true);
-select better_supabase.save_qualification_type(
+select better_supabase.upsert_qualification_type(
   '00000000-0000-4000-8000-000000000001', 'calibration', 'Calibration', array['asset'], valid_for_months => 12);
 select better_supabase.grant_qualification(
   '00000000-0000-4000-8000-000000000001', 'calibration', 'asset', current_setting('test.asset'),
@@ -38,13 +38,13 @@ select better_supabase.grant_qualification(
 
 select set_config(
   'test.method',
-  better_supabase.save_lims_method(
+  better_supabase.upsert_lims_method(
     '00000000-0000-4000-8000-000000000001',
     '{"key": "ph", "name": "pH", "lowerLimit": 6.5, "upperLimit": 7.5}'::jsonb) ->> 'id',
   true
 );
 select throws_ok(
-  $$select better_supabase.save_lims_method('00000000-0000-4000-8000-000000000001', '{"key": "bad", "name": "Bad", "lowerLimit": 9, "upperLimit": 1}'::jsonb)$$,
+  $$select better_supabase.upsert_lims_method('00000000-0000-4000-8000-000000000001', '{"key": "bad", "name": "Bad", "lowerLimit": 9, "upperLimit": 1}'::jsonb)$$,
   '22023',
   null,
   'the lower limit is at most the upper limit'

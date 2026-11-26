@@ -28,7 +28,7 @@ export interface ShareLinkRow {
 export async function getShareLinks(
   customerId: string,
 ): Promise<Loaded<readonly ShareLinkRow[]>> {
-  const { bindings } = await customerPage.load(customerId, {
+  const { bindings } = await customerPage.get(customerId, {
     bindings: ["shareLinks"],
   });
 
@@ -61,7 +61,7 @@ export interface VersionRow {
 export async function getVersions(
   customerId: string,
 ): Promise<Loaded<readonly VersionRow[]>> {
-  const { bindings } = await customerPage.load(customerId, {
+  const { bindings } = await customerPage.get(customerId, {
     bindings: ["versions"],
     options: { versions: { pageSize: 20 } },
   });
@@ -90,7 +90,7 @@ export interface SlaClockRow {
 export async function getSlaClocks(
   customerId: string,
 ): Promise<Loaded<readonly SlaClockRow[]>> {
-  const { bindings } = await customerPage.load(customerId, {
+  const { bindings } = await customerPage.get(customerId, {
     bindings: ["sla"],
   });
 

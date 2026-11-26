@@ -110,7 +110,7 @@ ${readPolicy("budgetLines", bl("tenant"))}
 -- archived) and, when lines is given, replaces its lines. Each line names an
 -- account (accountId or accountCode), a periodNumber, an amount and optional
 -- dimensions.
-create or replace function ${fn("save_accounting_budget")}(tenant ${idType}, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
+create or replace function ${fn("upsert_accounting_budget")}(tenant ${idType}, name text, fiscal_year integer, status text default null, lines jsonb default null, budget_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -121,38 +121,38 @@ declare
   v_row ${budgets}%rowtype;
   v_line record;
   v_account uuid;
-  v_created boolean := save_accounting_budget.budget_id is null;
+  v_created boolean := upsert_accounting_budget.budget_id is null;
 begin
-  if not ${sql.allowed("save_accounting_budget.tenant", sql.write)} then
+  if not ${sql.allowed("upsert_accounting_budget.tenant", sql.write)} then
     ${sql.forbidden("ACCOUNTING_BUDGET", "not allowed to write budgets")}
   end if;
-  if length(trim(coalesce(save_accounting_budget.name, ''))) not between 1 and 200
-    or coalesce(save_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
+  if length(trim(coalesce(upsert_accounting_budget.name, ''))) not between 1 and 200
+    or coalesce(upsert_accounting_budget.fiscal_year, 0) not between 1900 and 9999 then
     ${invalid("a budget needs a name of 1 to 200 characters and a fiscal year")}
   end if;
-  if coalesce(save_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
+  if coalesce(upsert_accounting_budget.status, 'draft') not in ('draft', 'approved', 'archived') then
     ${invalid("status must be draft, approved or archived")}
   end if;
-  if save_accounting_budget.lines is not null and jsonb_typeof(save_accounting_budget.lines) <> 'array' then
+  if upsert_accounting_budget.lines is not null and jsonb_typeof(upsert_accounting_budget.lines) <> 'array' then
     ${invalid("lines is an array")}
   end if;
   if v_created then
     insert into ${budgets} (${b("tenant")}, ${b("name")}, ${b("fiscalYear")}, ${b("status")}, ${b("createdBy")})
-    values (save_accounting_budget.tenant, trim(save_accounting_budget.name), save_accounting_budget.fiscal_year,
-      coalesce(save_accounting_budget.status, 'draft'), auth.uid())
+    values (upsert_accounting_budget.tenant, trim(upsert_accounting_budget.name), upsert_accounting_budget.fiscal_year,
+      coalesce(upsert_accounting_budget.status, 'draft'), auth.uid())
     returning * into v_row;
   else
-    update ${budgets} y set ${b("name")} = trim(save_accounting_budget.name), ${b("fiscalYear")} = save_accounting_budget.fiscal_year,
-      ${b("status")} = coalesce(save_accounting_budget.status, y.${b("status")}), ${b("updatedAt")} = now()
-    where y.${b("id")} = save_accounting_budget.budget_id and y.${b("tenant")} = save_accounting_budget.tenant
+    update ${budgets} y set ${b("name")} = trim(upsert_accounting_budget.name), ${b("fiscalYear")} = upsert_accounting_budget.fiscal_year,
+      ${b("status")} = coalesce(upsert_accounting_budget.status, y.${b("status")}), ${b("updatedAt")} = now()
+    where y.${b("id")} = upsert_accounting_budget.budget_id and y.${b("tenant")} = upsert_accounting_budget.tenant
     returning * into v_row;
     if not found then
       ${sql.notFound("ACCOUNTING_BUDGET", "budget not found")}
     end if;
   end if;
-  if save_accounting_budget.lines is not null then
+  if upsert_accounting_budget.lines is not null then
     delete from ${budgetLines} y where y.${bl("budget")} = v_row.${b("id")};
-    for v_line in select q.value from jsonb_array_elements(save_accounting_budget.lines) q loop
+    for v_line in select q.value from jsonb_array_elements(upsert_accounting_budget.lines) q loop
       if jsonb_typeof(v_line.value) is distinct from 'object'
         or coalesce(v_line.value ->> 'amount', '') !~ '^-?[0-9]{1,18}$'
         or coalesce(v_line.value ->> 'periodNumber', '') !~ '^([1-9]|1[0-2])$'
@@ -181,7 +181,7 @@ begin
   return ${budgetJson("v_row", true)};
 end;
 $$;
-${userGrant(`${fn("save_accounting_budget")}(${saveTypes})`)}
+${userGrant(`${fn("upsert_accounting_budget")}(${saveTypes})`)}
 
 create or replace function ${fn("get_accounting_budget")}(budget_id uuid)
 returns jsonb

@@ -700,7 +700,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     saveType: ({ organizationId, input }) =>
       call(
-        "save_leave_type",
+        "upsert_leave_type",
         {
           tenant: organizationId,
           key: input.key,
@@ -713,7 +713,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           color: input.color ?? null,
           ...optional("auto_approve", input.autoApprove),
         },
-        (value) => typeOf(value, "save_leave_type"),
+        (value) => typeOf(value, "upsert_leave_type"),
       ),
     archiveType: (typeId) =>
       call("archive_leave_type", { type_id: typeId }, (value) =>

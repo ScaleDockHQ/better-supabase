@@ -1,6 +1,6 @@
 -- better-supabase module: bulk-actions
 -- @bsb-block bulk-actions@1 managed
--- @bsb-hash sha256:f9bc4f740734e5fedde7c6be7931645d0ddddf13cf1ed6a9c92eada6866869ab
+-- @bsb-hash sha256:7ac5327f4db24225b8f5254aede8acf69616c6b53a2fce00f8e785f4350efcb2
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -55,7 +55,7 @@ begin
     when 'trash.trash' then
       perform "better_supabase"."trash"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);
     when 'collections.add' then
-      perform "better_supabase"."add_collection_entries"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);
+      perform "better_supabase"."create_collection_entries"((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);
     when 'work.setState' then
       perform "public"."work_bulk_state"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);
     else

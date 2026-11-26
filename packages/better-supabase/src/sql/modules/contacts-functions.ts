@@ -129,7 +129,7 @@ const FIELDS: Readonly<Record<Kind, readonly Field[]>> = {
 const SPEC = {
   company: {
     table: "companies",
-    fn: "save_company",
+    fn: "upsert_company",
     hook: "company",
     subject: "companies",
     idKey: "companyId",
@@ -137,7 +137,7 @@ const SPEC = {
   },
   person: {
     table: "people",
-    fn: "save_person",
+    fn: "upsert_person",
     hook: "person",
     subject: "persons",
     idKey: "personId",
@@ -717,7 +717,7 @@ end;
 $$;
 ${userGrant(`${fn("set_company_person")}(uuid, uuid, text, boolean)`)}
 
-create or replace function ${fn("remove_company_person")}(company uuid, person uuid)
+create or replace function ${fn("delete_company_person")}(company uuid, person uuid)
 returns boolean
 language plpgsql
 security definer
@@ -728,23 +728,23 @@ declare
   v_role text;
 begin
   select l.${li("tenant")}, ${role ? `l.${li("role")}` : "null"} into v_tenant, v_role from ${t("links")} l
-  where l.${li("company")} = remove_company_person.company and l.${li("person")} = remove_company_person.person;
+  where l.${li("company")} = delete_company_person.company and l.${li("person")} = delete_company_person.person;
   if v_tenant is null then
     return false;
   end if;
   ${guard(names.scope, "v_tenant", names.write, "PARTY_FORBIDDEN")}
-  delete from ${t("links")} l where l.${li("company")} = remove_company_person.company and l.${li("person")} = remove_company_person.person;
+  delete from ${t("links")} l where l.${li("company")} = delete_company_person.company and l.${li("person")} = delete_company_person.person;
   ${ctx.record({
     type: "company.person_unlinked",
-    payload: linkPayload("remove_company_person"),
-    subject: "'companies/' || remove_company_person.company::text",
+    payload: linkPayload("delete_company_person"),
+    subject: "'companies/' || delete_company_person.company::text",
     tenant: "v_tenant::text",
     audit: false,
   })}
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_company_person")}(uuid, uuid)`)}
+${userGrant(`${fn("delete_company_person")}(uuid, uuid)`)}
 ${mergeFunction(ctx, names, "company")}${mergeFunction(ctx, names, "person")}${listFunction(ctx, names, "company")}${listFunction(ctx, names, "person")}${pageFunction(ctx, names, "company")}${pageFunction(ctx, names, "person")}${getFunction(ctx, names, "company")}${getFunction(ctx, names, "person")}
 -- The people of a company with their role, primary contact first.
 create or replace function ${fn("company_people_of")}(company uuid)

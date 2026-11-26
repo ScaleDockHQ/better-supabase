@@ -113,7 +113,7 @@ describe("useCalendar", () => {
 
   it("saves an occurrence, a split and a cancellation, then loads again", async () => {
     rpc.results.set("list_calendar_events", [SERIES]);
-    rpc.results.set("save_calendar_event", {
+    rpc.results.set("upsert_calendar_event", {
       id: "o1",
       uid: "s1",
       created: true,
@@ -144,7 +144,7 @@ describe("useCalendar", () => {
     expect(await view.result.cancelOccurrence(second!)).toBe(true);
     expect(rpc.calls.map((call) => call.fn)).toEqual([
       "list_calendar_events",
-      "save_calendar_event",
+      "upsert_calendar_event",
       "list_calendar_events",
       "split_calendar_event",
       "list_calendar_events",

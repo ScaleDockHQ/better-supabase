@@ -86,7 +86,7 @@ describe("tasks over an app table with its own states", () => {
       .join("\n");
 
     expect(sql).not.toContain("work_item_checklist_items");
-    expect(sql).not.toContain("save_task_checklist_item");
+    expect(sql).not.toContain("upsert_task_checklist_item");
     expect(sql).toContain("'checklist', null");
   });
 

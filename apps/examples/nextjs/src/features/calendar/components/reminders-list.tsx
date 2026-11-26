@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { loadUpcomingReminders, settle } from "../calendar-queries";
+import { getUpcomingReminders, settle } from "../calendar-queries";
 import { CalendarLoadError } from "./calendar-load-error";
 import { monthWindow } from "./calendar-view";
 import { CreateEventDialog } from "./create-event-dialog";
@@ -46,7 +46,7 @@ export async function RemindersList({
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(() => loadUpcomingReminders(from.toString(), until.toString())),
+    settle(() => getUpcomingReminders(from.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "reminders.manage")) {

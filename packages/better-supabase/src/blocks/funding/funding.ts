@@ -914,7 +914,7 @@ export function createFunding<
       .args(input.fields)
       .andThen((checked) =>
         call(
-          "save_funding_award",
+          "upsert_funding_award",
           {
             tenant: organizationId,
             subject_type: subject.type,
@@ -922,14 +922,14 @@ export function createFunding<
             attrs: awardAttrs(input, checked),
             award_id: awardId,
           },
-          one("save_funding_award", awardOf),
+          one("upsert_funding_award", awardOf),
         ).andThen(fields.row),
       );
 
   const client: Funding<F> = {
     saveProduct: ({ organizationId, input }) =>
       call(
-        "save_funding_product",
+        "upsert_funding_product",
         {
           tenant: organizationId,
           code: input.code,
@@ -941,7 +941,7 @@ export function createFunding<
           valid_until: input.validUntil?.toString() ?? null,
           product_id: input.productId ?? null,
         },
-        one("save_funding_product", productOf),
+        one("upsert_funding_product", productOf),
       ),
     products: ({ organizationId, ...list }) =>
       call(

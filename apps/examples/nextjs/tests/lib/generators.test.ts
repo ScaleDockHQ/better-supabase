@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { factories } from "../../src/lib/supabase/generated.factories.ts";
 import {
   customersSearchParams,
-  loadCustomersSearchParams,
+  getCustomersSearchParams,
   serializeCustomersSearchParams,
 } from "../../src/lib/supabase/generated.nuqs.ts";
 import { customersInsert } from "../../src/lib/supabase/generated.zod.ts";
@@ -28,7 +28,7 @@ describe("first-party generators", () => {
 
     expect(url).toBe("/customers?status=active&limit=50");
     expect(
-      loadCustomersSearchParams(new URL(url, "https://app.test").searchParams),
+      getCustomersSearchParams(new URL(url, "https://app.test").searchParams),
     ).toMatchObject({ status: "active", limit: 50, direction: "asc" });
     expect(Object.keys(customersSearchParams)).toContain("cursor");
   });

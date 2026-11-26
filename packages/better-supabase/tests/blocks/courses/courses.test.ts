@@ -119,7 +119,7 @@ function fakeTransport(results: Record<string, unknown>) {
 describe("createCourses", () => {
   it("saves, lists and deletes courses with their fields", async () => {
     const fake = fakeTransport({
-      save_course: COURSE,
+      upsert_course: COURSE,
       list_courses: [
         COURSE,
         { ...COURSE, id: "c2", summary: "Intro", createdBy: null },
@@ -161,7 +161,7 @@ describe("createCourses", () => {
 
     expect(fake.calls).toEqual([
       [
-        "save_course",
+        "upsert_course",
         {
           tenant: "org-1",
           course: {
@@ -230,7 +230,7 @@ describe("createCourses", () => {
 
   it("saves a course without fields and with certificates off", async () => {
     const fake = fakeTransport({
-      save_course: { ...COURSE, certificate: false, fields: null },
+      upsert_course: { ...COURSE, certificate: false, fields: null },
     });
 
     const courses = createCourses({
@@ -252,7 +252,7 @@ describe("createCourses", () => {
 
   it("authors modules and lessons", async () => {
     const fake = fakeTransport({
-      save_course_module: {
+      upsert_course_module: {
         id: "m1",
         courseId: "c1",
         title: "Introduction",
@@ -261,7 +261,7 @@ describe("createCourses", () => {
         updatedAt: AT,
       },
       delete_course_module: false,
-      save_course_lesson: LESSON,
+      upsert_course_lesson: LESSON,
       delete_course_lesson: true,
     });
 
@@ -293,12 +293,12 @@ describe("createCourses", () => {
 
     expect(fake.calls).toEqual([
       [
-        "save_course_module",
+        "upsert_course_module",
         { course_id: "c1", module: { title: "Introduction" } },
       ],
       ["delete_course_module", { module_id: "m1" }],
       [
-        "save_course_lesson",
+        "upsert_course_lesson",
         {
           course_id: "c1",
           lesson: { moduleId: "m1", title: "Why it matters" },
@@ -596,7 +596,7 @@ describe("createCourses", () => {
     const courses = createCourses({
       transport: fakeTransport({
         enroll_in_course: { ...LEARNER, status: "paused" },
-        save_course_lesson: { ...LESSON, kind: "podcast" },
+        upsert_course_lesson: { ...LESSON, kind: "podcast" },
       }).transport,
     });
 
@@ -645,7 +645,7 @@ describe("courseLearnersBinding", () => {
     const subject = { type: "course", id: "c1" };
 
     const learners = await courseLearnersBinding
-      .load(courses, subject, undefined)
+      .get(courses, subject, undefined)
       .orThrow();
 
     expect(learners).toHaveLength(1);

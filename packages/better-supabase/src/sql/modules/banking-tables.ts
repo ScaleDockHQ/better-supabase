@@ -61,7 +61,7 @@ create table if not exists ${q.accounts} (
   ${a("id")} uuid primary key default gen_random_uuid(),
   ${a("tenant")} ${ctx.idType} not null,
   ${a("name")} text not null check (length(${a("name")}) between 1 and 200),
-  -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
+  -- Upper case without spaces; upsert_bank_account checks the ISO 13616 digits.
   ${a("iban")} text check (${a("iban")} is null or ${a("iban")} ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   ${a("bic")} text check (${a("bic")} is null or ${a("bic")} ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   ${a("currency")} char(3)${noCurrency ? "" : " not null"} check (${a("currency")} ~ '^[A-Z]{3}$'),

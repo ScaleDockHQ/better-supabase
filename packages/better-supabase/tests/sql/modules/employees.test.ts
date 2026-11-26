@@ -23,7 +23,7 @@ describe("employees module", () => {
     });
 
     expect(sql).toMatch(
-      /save_employee_private_details[\s\S]*'employees\.read_sensitive'[\s\S]*'people\.write'/u,
+      /upsert_employee_private_details[\s\S]*'employees\.read_sensitive'[\s\S]*'people\.write'/u,
     );
     expect(body(["employees"])).not.toContain("people.write");
   });
@@ -145,8 +145,8 @@ describe("employees module", () => {
       .map((fn) => fn.name);
 
     expect(names).toContain("employee_from_application");
-    expect(names).toContain("save_employee_private_details");
-    expect(names).toContain("add_employee_contract");
+    expect(names).toContain("upsert_employee_private_details");
+    expect(names).toContain("create_employee_contract");
   });
 
   it("denies contract overlaps and keeps reports on offboarding when asked", () => {

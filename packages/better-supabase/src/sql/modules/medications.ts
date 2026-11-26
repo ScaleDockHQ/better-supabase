@@ -395,7 +395,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_medication",
+      name: "upsert_medication",
       args: [
         "{id}",
         "text",

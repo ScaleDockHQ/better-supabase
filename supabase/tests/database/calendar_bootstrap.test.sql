@@ -21,7 +21,7 @@ select set_config(
 );
 select set_config(
   'test.event',
-  api.save_calendar_event(
+  api.upsert_calendar_event(
     current_setting('test.calendar')::uuid,
     '{"title":"Planning","startsAt":"2030-03-06T09:00:00Z","endsAt":"2030-03-06T10:00:00Z"}'
   ) ->> 'id',
@@ -29,13 +29,13 @@ select set_config(
 );
 select set_config(
   'test.later',
-  api.save_calendar_event(
+  api.upsert_calendar_event(
     current_setting('test.calendar')::uuid,
     '{"title":"Later","startsAt":"2030-05-06T09:00:00Z","endsAt":"2030-05-06T10:00:00Z"}'
   ) ->> 'id',
   true
 );
-select api.save_reminder('00000000-0000-4000-8000-000000000001', 'calendar_event', current_setting('test.event'), 15);
+select api.upsert_reminder('00000000-0000-4000-8000-000000000001', 'calendar_event', current_setting('test.event'), 15);
 
 select api.calendar_bootstrap(
   '00000000-0000-4000-8000-000000000001',

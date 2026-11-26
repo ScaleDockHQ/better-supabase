@@ -399,7 +399,7 @@ describe("billable-time block", () => {
       tenant: "org-1",
     });
 
-    await billableTimeBinding.load(time, CUSTOMER, undefined);
+    await billableTimeBinding.get(time, CUSTOMER, undefined);
     await billableTimeBinding.writes.setRate.run(time, CUSTOMER, {
       rate: money(1n, "EUR"),
     });

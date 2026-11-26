@@ -16,7 +16,7 @@ import {
   blockCall,
   isRecord,
   nullableText,
-  readBodyCapped,
+  getBodyCapped,
   recordOf,
   recordsOf,
   requiredInstant,
@@ -647,7 +647,7 @@ async function bodyOf(
   request: Request,
   limit: number,
 ): Promise<Record<string, unknown> | undefined> {
-  const text = await readBodyCapped(request, limit);
+  const text = await getBodyCapped(request, limit);
 
   if (text === undefined || text === "") {
     return undefined;

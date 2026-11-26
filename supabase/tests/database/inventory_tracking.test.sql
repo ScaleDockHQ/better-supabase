@@ -14,9 +14,9 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Flour', 'flour', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'FLOUR-KG', null, 'Flour', null, null, true, false, null) ->> 'id', true);
-select set_config('t.l', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH1', 'Warehouse', null, null) ->> 'id', true);
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Flour', 'flour', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'FLOUR-KG', null, 'Flour', null, null, true, false, null) ->> 'id', true);
+select set_config('t.l', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'WH1', 'Warehouse', null, null) ->> 'id', true);
 
 select is(
   (select jsonb_build_array(x ->> 'unit', x ->> 'scale', x ->> 'tracking', x ->> 'costing')
@@ -24,7 +24,7 @@ select is(
   '["kg", "3", "lot", "average"]'::jsonb,
   'a variant is tracked by the kilogram at scale 3, in lots, at average cost'
 );
-select set_config('t.hold', better_supabase.save_bin(current_setting('t.l')::uuid, null, 'HOLD', 'Quarantine', true, true) ->> 'id', true);
+select set_config('t.hold', better_supabase.upsert_bin(current_setting('t.l')::uuid, null, 'HOLD', 'Quarantine', true, true) ->> 'id', true);
 
 select is(
   (better_supabase.adjust_stock(current_setting('t.v')::uuid, current_setting('t.l')::uuid, 10.5, 'receipt', 'in',

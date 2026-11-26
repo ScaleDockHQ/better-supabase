@@ -73,7 +73,7 @@ export const commentsBinding: RecordBinding<
   CommentsWrites
 > = defineRecordBinding({
   permissions: { read: "read", write: "create" },
-  load: (client: Comments, subject, options?: ListCommentsOptions) =>
+  get: (client: Comments, subject, options?: ListCommentsOptions) =>
     client.list({ subject, ...options }),
   count: (client: Comments, subjects) => client.counts(subjects),
   copy: (client: Comments, from, to) => client.copy({ from, to }),

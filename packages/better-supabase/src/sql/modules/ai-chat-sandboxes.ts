@@ -114,7 +114,7 @@ export function harnessSandbox(
 }
 
 /**
- * What `save_ai_harness_session` runs for a `sandbox_id` field: a sandbox id
+ * What `upsert_ai_harness_session` runs for a `sandbox_id` field: a sandbox id
  * registers (or reuses) the session's sandbox, `null` marks its sandboxes
  * stopped. Runs with `v_chat` and `v_row` (the locked session) set.
  */

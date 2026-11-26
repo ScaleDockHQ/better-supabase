@@ -27,6 +27,7 @@ export const updateProfile = bsb.action(
     input: v.object({
       fullName: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(120)),
     }),
+    evictSession: true,
   },
   async ({ fullName }, { auth, db }) => {
     if (auth.kind !== "user") {
@@ -38,8 +39,6 @@ export const updateProfile = bsb.action(
     if (!updated.ok) {
       return updated;
     }
-
-    await refreshCaller(auth);
 
     return ok(true);
   },

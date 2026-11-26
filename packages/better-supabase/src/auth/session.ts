@@ -119,7 +119,7 @@ function countDecode(): void {
     });
 }
 
-async function readStored(
+async function getStored(
   cookies: readonly CookieRecord[],
   name: string,
 ): Promise<StoredSession | null> {
@@ -177,7 +177,7 @@ export function ssrSession(
   let read = key === "" ? undefined : parsed.get(key);
 
   if (read === undefined) {
-    read = readStored(cookies, cookieName);
+    read = getStored(cookies, cookieName);
     countDecode();
 
     if (key !== "") {

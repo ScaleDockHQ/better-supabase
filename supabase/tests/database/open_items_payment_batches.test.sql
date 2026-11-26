@@ -25,8 +25,8 @@ $$;
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, service_role;
 insert into ids values
-  ('supplier', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Open item supplier"}') ->> 'id')::uuid),
-  ('customer', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Open item customer"}') ->> 'id')::uuid);
+  ('supplier', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Open item supplier"}') ->> 'id')::uuid),
+  ('customer', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Open item customer"}') ->> 'id')::uuid);
 
 select set_config(
   'better_supabase.run',
@@ -216,7 +216,7 @@ select is(
 
 insert into ids values ('journal', (select id from better_supabase.accounting_journals
   where tenant_id = '00000000-0000-4000-8000-000000000001' and code = 'BNK'));
-insert into ids values ('account', (better_supabase.save_bank_account('00000000-0000-4000-8000-000000000001',
+insert into ids values ('account', (better_supabase.upsert_bank_account('00000000-0000-4000-8000-000000000001',
   jsonb_build_object('name', 'Main', 'iban', 'NL91ABNA0417164300', 'currency', 'EUR', 'journalId', (select id from ids where name = 'journal'))) ->> 'id')::uuid);
 
 select throws_ok(

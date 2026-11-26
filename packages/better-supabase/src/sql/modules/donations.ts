@@ -391,7 +391,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_donation_fund",
+      name: "upsert_donation_fund",
       args: ["{id}", "text", "text", "text", "bigint", "text", "date", "date"],
       returns: "jsonb",
     },

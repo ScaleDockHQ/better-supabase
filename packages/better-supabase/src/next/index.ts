@@ -49,6 +49,8 @@ export { requireAal, shouldCheckSession, STATS_URL_HEADER } from "./support.ts";
 
 export { tagFor, type TagOptions } from "../core/tags.ts";
 
+export { defineTags, type TableTagFunctions } from "./tag-functions.ts";
+
 export type {
   NextResourceHandler,
   NextResourceRoutes,
@@ -91,7 +93,14 @@ export type {
   NextCacheOptions,
   NextDebugOptions,
   NextOptions,
+  AuthScope,
   NextRootParams,
+  NextActions,
+  NextTenants,
+  ScopeCallOptions,
+  TenantRecord,
+  TenantRef,
+  TenantScope,
   PrivateCachedOptions,
   PublicCachedOptions,
   SessionHandle,

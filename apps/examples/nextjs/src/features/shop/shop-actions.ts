@@ -7,13 +7,11 @@ import { money, parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { SHOP_TAG } from "./shop-cache";
 import { SHOP_CURRENCY } from "./shop-currency";
 import { shopOrders } from "./shop-server";
 
@@ -46,8 +44,10 @@ export const createProduct = bsb.action(
     }),
     requireTenant: true,
     permission: "catalog.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ title, sku, price }, { tenant, db, auth }) => {
+  async ({ title, sku, price }, { tenant, db }) => {
     const { catalog } = db;
 
     const product = await catalog.createProduct({
@@ -86,16 +86,20 @@ export const createProduct = bsb.action(
       return activated;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
-
     return ok(product.data.id);
   },
 );
 
 /** The first stock location, so counts have somewhere to go. */
 export const createMainLocation = bsb.action(
-  { input: v.object({}), requireTenant: true, permission: "inventory.manage" },
-  async (_input, { tenant, db, auth }) => {
+  {
+    input: v.object({}),
+    requireTenant: true,
+    permission: "inventory.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
+  },
+  async (_input, { tenant, db }) => {
     const saved = await db.inventory.saveLocation({
       organizationId: tenant,
       input: { code: "MAIN", name: "Main warehouse" },
@@ -104,8 +108,6 @@ export const createMainLocation = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(saved.data.id);
   },
@@ -126,8 +128,10 @@ export const adjustStock = bsb.action(
     }),
     requireTenant: true,
     permission: "inventory.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ variantId, locationId, quantity, reason, note }, { db, auth }) => {
+  async ({ variantId, locationId, quantity, reason, note }, { db }) => {
     const adjusted = await db.inventory.adjustStock({
       variantId,
       locationId,
@@ -139,8 +143,6 @@ export const adjustStock = bsb.action(
     if (!adjusted.ok) {
       return adjusted;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(adjusted.data.onHand);
   },
@@ -160,8 +162,10 @@ export const requestPurchase = bsb.action(
     }),
     requireTenant: true,
     permission: "inventory.read",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ variantId, locationId, quantity }, { tenant, db, auth }) => {
+  async ({ variantId, locationId, quantity }, { tenant, db }) => {
     const requested = await db.inventory.requestPurchase({
       organizationId: tenant,
       input: {
@@ -174,8 +178,6 @@ export const requestPurchase = bsb.action(
     if (!requested.ok) {
       return requested;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(requested.data.id);
   },
@@ -193,8 +195,10 @@ export const createDraftOrder = bsb.action(
     }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ variantId, quantity }, { tenant, supabase, auth }) => {
+  async ({ variantId, quantity }, { tenant, supabase }) => {
     const orders = shopOrders(supabase);
 
     const cart = await orders.createCart({
@@ -216,8 +220,6 @@ export const createDraftOrder = bsb.action(
       return added;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
-
     return ok(cart.data.id);
   },
 );
@@ -228,15 +230,15 @@ export const placeOrder = bsb.action(
     input: v.object({ cartId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ cartId }, { supabase, auth }) => {
+  async ({ cartId }, { supabase }) => {
     const checkout = await shopOrders(supabase).checkout({ cartId });
 
     if (!checkout.ok) {
       return checkout;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(checkout.data.order.id);
   },
@@ -251,8 +253,10 @@ export const markOrderPaid = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ orderId }, { supabase, auth }) => {
+  async ({ orderId }, { supabase }) => {
     const orders = shopOrders(supabase);
     // Read as the caller first: the payment itself goes through the service role.
     const order = await orders.getOrder(orderId);
@@ -290,8 +294,6 @@ export const markOrderPaid = bsb.action(
       return recorded;
     }
 
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
-
     return ok(recorded.data.status);
   },
 );
@@ -302,8 +304,10 @@ export const cancelOrder = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ orderId }, { supabase, auth }) => {
+  async ({ orderId }, { supabase }) => {
     const cancelled = await shopOrders(supabase).cancelOrder({
       orderId,
       reason: "Cancelled from the shop",
@@ -312,8 +316,6 @@ export const cancelOrder = bsb.action(
     if (!cancelled.ok) {
       return cancelled;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(cancelled.data);
   },
@@ -325,15 +327,15 @@ export const confirmDraftOrder = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ orderId }, { supabase, auth }) => {
+  async ({ orderId }, { supabase }) => {
     const confirmed = await shopOrders(supabase).confirmDraft({ orderId });
 
     if (!confirmed.ok) {
       return confirmed;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(confirmed.data.status);
   },
@@ -345,8 +347,10 @@ export const holdOrder = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop()],
+    refresh: true,
   },
-  async ({ orderId }, { supabase, auth }) => {
+  async ({ orderId }, { supabase }) => {
     const held = await shopOrders(supabase).hold({
       orderId,
       reason: "Held from the shop",
@@ -355,8 +359,6 @@ export const holdOrder = bsb.action(
     if (!held.ok) {
       return held;
     }
-
-    await refreshCaller(auth, [SHOP_TAG]);
 
     return ok(held.data.status);
   },
@@ -368,15 +370,15 @@ export const releaseOrderHold = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop()],
+    refresh: true,
   },
-  async ({ orderId }, { supabase, auth }) => {
+  async ({ orderId }, { supabase }) => {
     const released = await shopOrders(supabase).releaseHold(orderId);
 
     if (!released.ok) {
       return released;
     }
-
-    await refreshCaller(auth, [SHOP_TAG]);
 
     return ok(released.data.status);
   },
@@ -388,15 +390,15 @@ export const fulfillOrder = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ orderId }, { supabase, auth }) => {
+  async ({ orderId }, { supabase }) => {
     const created = await shopOrders(supabase).createFulfillment({ orderId });
 
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(created.data.id);
   },
@@ -407,8 +409,10 @@ export const shipFulfillment = bsb.action(
     input: v.object({ fulfillmentId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ fulfillmentId }, { supabase, auth }) => {
+  async ({ fulfillmentId }, { supabase }) => {
     const shipped = await shopOrders(supabase).shipFulfillment({
       fulfillmentId,
     });
@@ -416,8 +420,6 @@ export const shipFulfillment = bsb.action(
     if (!shipped.ok) {
       return shipped;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(shipped.data);
   },
@@ -428,16 +430,16 @@ export const deliverFulfillment = bsb.action(
     input: v.object({ fulfillmentId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ fulfillmentId }, { supabase, auth }) => {
+  async ({ fulfillmentId }, { supabase }) => {
     const delivered =
       await shopOrders(supabase).deliverFulfillment(fulfillmentId);
 
     if (!delivered.ok) {
       return delivered;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(delivered.data);
   },
@@ -456,15 +458,15 @@ export const applyPromotionCode = bsb.action(
     input: v.object({ cartId: Id, code: Code }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ cartId, code }, { db, auth }) => {
+  async ({ cartId, code }, { db }) => {
     const applied = await db.promotions.applyCode({ cartId, code });
 
     if (!applied.ok) {
       return applied;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(code);
   },
@@ -475,15 +477,15 @@ export const removePromotionCode = bsb.action(
     input: v.object({ cartId: Id, code: Code }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ cartId, code }, { db, auth }) => {
+  async ({ cartId, code }, { db }) => {
     const removed = await db.promotions.removeCode({ cartId, code });
 
     if (!removed.ok) {
       return removed;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(removed.data);
   },
@@ -549,15 +551,15 @@ export const sendToKitchen = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     authorize: canPrepare,
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ orderId }, { supabase, auth }) => {
+  async ({ orderId }, { supabase }) => {
     const sent = await shopOrders(supabase).kitchen.send({ orderId });
 
     if (!sent.ok) {
       return sent;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(sent.data);
   },
@@ -576,8 +578,10 @@ export const bumpTicket = bsb.action(
     }),
     requireTenant: true,
     authorize: canPrepare,
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ orderId, state, stationId }, { supabase, auth }) => {
+  async ({ orderId, state, stationId }, { supabase }) => {
     const bumped = await shopOrders(supabase).kitchen.bump({
       orderId,
       state,
@@ -587,8 +591,6 @@ export const bumpTicket = bsb.action(
     if (!bumped.ok) {
       return bumped;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(bumped.data);
   },
@@ -600,15 +602,15 @@ export const setLineState = bsb.action(
     input: v.object({ lineId: Id, state: v.picklist(PREPARATION_STATES) }),
     requireTenant: true,
     authorize: canPrepare,
+    tags: () => [tags.shop(), tags.manufacturing(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ lineId, state }, { supabase, auth }) => {
+  async ({ lineId, state }, { supabase }) => {
     const line = await shopOrders(supabase).kitchen.setState({ lineId, state });
 
     if (!line.ok) {
       return line;
     }
-
-    await refreshCaller(auth, [SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG]);
 
     return ok(line.data.state);
   },
@@ -623,15 +625,15 @@ export const setProductStatus = bsb.action(
     }),
     requireTenant: true,
     permission: "catalog.manage",
+    tags: () => [tags.shop()],
+    refresh: true,
   },
-  async ({ productId, status }, { db, auth }) => {
+  async ({ productId, status }, { db }) => {
     const changed = await db.catalog.setProductStatus({ productId, status });
 
     if (!changed.ok) {
       return changed;
     }
-
-    await refreshCaller(auth, [SHOP_TAG]);
 
     return ok({ id: productId, status });
   },

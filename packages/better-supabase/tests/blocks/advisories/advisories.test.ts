@@ -87,7 +87,7 @@ function feedOf(overrides: Partial<VulnerabilityFeed> = {}): VulnerabilityFeed {
 describe("createAdvisories", () => {
   it("passes the tenant and snake_case arguments to the SQL functions", async () => {
     const { transport, call } = fakeTransport({
-      save_advisory_product: productRow,
+      upsert_advisory_product: productRow,
       list_advisory_products: [productRow],
     });
 
@@ -107,7 +107,7 @@ describe("createAdvisories", () => {
     expect(listed).toHaveLength(1);
     expect(call).toHaveBeenCalledWith(
       expect.any(String),
-      "save_advisory_product",
+      "upsert_advisory_product",
       expect.objectContaining({ tenant: "org", key: "acme-app" }),
     );
   });
@@ -153,7 +153,7 @@ describe("createAdvisories", () => {
 
   it("stores a CVSS 3.1 score computed from the vector", async () => {
     const { transport, call } = fakeTransport({
-      save_vulnerability: vulnerabilityRow,
+      upsert_vulnerability: vulnerabilityRow,
     });
 
     const advisories = createAdvisories({

@@ -14,18 +14,18 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.pa', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Valve A', 'valve-a-intrastat', null, 'physical', null) ->> 'id', true);
-select set_config('t.a', better_supabase.save_variant(current_setting('t.pa')::uuid, null, 'VALVE-A', null, 'Valve A', null, null, true, false, null) ->> 'id', true);
-select set_config('t.pb', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Valve B', 'valve-b-intrastat', null, 'physical', null) ->> 'id', true);
-select set_config('t.b', better_supabase.save_variant(current_setting('t.pb')::uuid, null, 'VALVE-B', null, 'Valve B', null, null, true, false, null) ->> 'id', true);
-select set_config('t.pc', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Valve C', 'valve-c-intrastat', null, 'physical', null) ->> 'id', true);
-select set_config('t.c', better_supabase.save_variant(current_setting('t.pc')::uuid, null, 'VALVE-C', null, 'Valve C', null, null, true, false, null) ->> 'id', true);
+select set_config('t.pa', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Valve A', 'valve-a-intrastat', null, 'physical', null) ->> 'id', true);
+select set_config('t.a', better_supabase.upsert_variant(current_setting('t.pa')::uuid, null, 'VALVE-A', null, 'Valve A', null, null, true, false, null) ->> 'id', true);
+select set_config('t.pb', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Valve B', 'valve-b-intrastat', null, 'physical', null) ->> 'id', true);
+select set_config('t.b', better_supabase.upsert_variant(current_setting('t.pb')::uuid, null, 'VALVE-B', null, 'Valve B', null, null, true, false, null) ->> 'id', true);
+select set_config('t.pc', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Valve C', 'valve-c-intrastat', null, 'physical', null) ->> 'id', true);
+select set_config('t.c', better_supabase.upsert_variant(current_setting('t.pc')::uuid, null, 'VALVE-C', null, 'Valve C', null, null, true, false, null) ->> 'id', true);
 select better_supabase.set_variant_trade_code(current_setting('t.a')::uuid, '84818099');
 select better_supabase.set_variant_trade_code(current_setting('t.c')::uuid, '84818099');
-select set_config('t.l', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'INTRA', 'Intrastat dock', null, null) ->> 'id', true);
-select set_config('t.supplier', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Intrastat supplier"}') ->> 'id', true);
+select set_config('t.l', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'INTRA', 'Intrastat dock', null, null) ->> 'id', true);
+select set_config('t.supplier', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Intrastat supplier"}') ->> 'id', true);
 
-select set_config('t.po', better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.l')::uuid, 'company',
+select set_config('t.po', better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.l')::uuid, 'company',
   current_setting('t.supplier'), 'EUR', null,
   jsonb_build_array(
     jsonb_build_object('variantId', current_setting('t.a'), 'quantity', 4, 'unitCost', '1000'),
@@ -76,7 +76,7 @@ select is(
 );
 
 -- A manual arrival line for variant A from Germany wins over the receipt line.
-select set_config('t.manual', better_supabase.save_intrastat_line('00000000-0000-4000-8000-000000000001', null, jsonb_build_object(
+select set_config('t.manual', better_supabase.upsert_intrastat_line('00000000-0000-4000-8000-000000000001', null, jsonb_build_object(
   'period', date_trunc('month', current_date)::date, 'flow', 'arrival', 'country', 'DE', 'variantId', current_setting('t.a'),
   'tradeCode', '84818099', 'netMassKg', '13', 'quantity', '4', 'value', '4100', 'currency', 'EUR')) ->> 'id', true);
 select set_config('t.run2', better_supabase.prepare_intrastat('00000000-0000-4000-8000-000000000001', current_date)::text, true);

@@ -9,7 +9,7 @@ const Fields = v.object({ timezone: v.pipe(v.string(), v.minLength(3)) });
 describe("inventory fields", () => {
   it("sends a location's fields and parses them back", async () => {
     const t = fieldsTransport({
-      save_location: () => ({
+      upsert_location: () => ({
         id: "l1",
         code: "WH-1",
         active: true,

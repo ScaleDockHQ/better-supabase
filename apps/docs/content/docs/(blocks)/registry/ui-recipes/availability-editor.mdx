@@ -19,7 +19,7 @@ export async function AvailabilityEditor() {
   const [permissions, t, setup] = await Promise.all([
     getPermissions(),
     getExtracted("bookings"),
-    settle(loadBookingSetup),
+    settle(getBookingSetup),
   ]);
 
   if (!can(permissions, "bookings.manage")) {

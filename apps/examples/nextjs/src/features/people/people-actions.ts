@@ -12,10 +12,9 @@ import * as v from "valibot";
 
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { PEOPLE_TAG } from "./people-cache";
 import { TIME_ZONE } from "./people-queries";
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
@@ -59,8 +58,10 @@ export const createEmployee = bsb.action(
     }),
     requireTenant: true,
     permission: "employees.write",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async (input, { tenant, db, auth }) => {
+  async (input, { tenant, db }) => {
     const { employees } = db;
 
     const employee: Writable<EmployeeInput> = { name: input.name };
@@ -117,8 +118,6 @@ export const createEmployee = bsb.action(
       }
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG]);
-
     return ok({ id: created.data.id, name: created.data.name });
   },
 );
@@ -171,8 +170,10 @@ export const logTime = bsb.action(
     ),
     requireTenant: true,
     permission: "time_entries.track",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const day = Temporal.PlainDate.from(input.date);
 
     const at = (time: string) =>
@@ -194,8 +195,6 @@ export const logTime = bsb.action(
       return logged;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG]);
-
     return ok({ id: logged.data.id });
   },
 );
@@ -208,15 +207,15 @@ export const startTimer = bsb.action(
     }),
     requireTenant: true,
     permission: "time_entries.track",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async ({ project }, { db, auth }) => {
+  async ({ project }, { db }) => {
     const started = await db.timeEntries.start({ note: project });
 
     if (!started.ok) {
       return started;
     }
-
-    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: started.data.id });
   },
@@ -227,15 +226,15 @@ export const stopTimer = bsb.action(
     input: v.object({}),
     requireTenant: true,
     permission: "time_entries.track",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async (_input, { db, auth }) => {
+  async (_input, { db }) => {
     const stopped = await db.timeEntries.stop();
 
     if (!stopped.ok) {
       return stopped;
     }
-
-    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: stopped.data.id });
   },
@@ -247,8 +246,10 @@ export const submitTimesheet = bsb.action(
     input: v.object({ week: PlainDate }),
     requireTenant: true,
     permission: "time_entries.track",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async ({ week }, { db, auth }) => {
+  async ({ week }, { db }) => {
     const submitted = await db.timeEntries.submit({
       week: Temporal.PlainDate.from(week),
     });
@@ -256,8 +257,6 @@ export const submitTimesheet = bsb.action(
     if (!submitted.ok) {
       return submitted;
     }
-
-    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ status: submitted.data.status });
   },
@@ -272,8 +271,10 @@ export const createOpening = bsb.action(
     }),
     requireTenant: true,
     permission: "hiring.manage",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async ({ title, location }, { tenant, db, auth }) => {
+  async ({ title, location }, { tenant, db }) => {
     const job: Writable<JobInput> = { title, status: "open" };
 
     if (location !== undefined) {
@@ -286,8 +287,6 @@ export const createOpening = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG]);
-
     return ok({ id: saved.data.id, title: saved.data.title });
   },
 );
@@ -298,8 +297,10 @@ export const addCandidate = bsb.action(
     input: v.object({ jobId: Id, candidateId: Id }),
     requireTenant: true,
     permission: "hiring.write",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async ({ jobId, candidateId }, { db, auth }) => {
+  async ({ jobId, candidateId }, { db }) => {
     const applied = await db.hiring.apply({
       jobId,
       candidate: { type: "customer", id: candidateId },
@@ -309,8 +310,6 @@ export const addCandidate = bsb.action(
     if (!applied.ok) {
       return applied;
     }
-
-    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ id: applied.data.id });
   },
@@ -325,8 +324,10 @@ export const moveApplication = bsb.action(
     input: v.object({ applicationId: Id, stageId: Id }),
     requireTenant: true,
     permission: "hiring.write",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async ({ applicationId, stageId }, { db, auth }) => {
+  async ({ applicationId, stageId }, { db }) => {
     const moved = await db.rank.move({
       subjectType: "application",
       subjectId: applicationId,
@@ -336,8 +337,6 @@ export const moveApplication = bsb.action(
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ applicationId });
   },
@@ -352,8 +351,10 @@ export const closeApplication = bsb.action(
     }),
     requireTenant: true,
     permission: "hiring.write",
+    tags: () => [tags.people()],
+    refresh: true,
   },
-  async ({ applicationId, outcome }, { db, auth }) => {
+  async ({ applicationId, outcome }, { db }) => {
     const { hiring } = db;
 
     const closed = await (outcome === "hired"
@@ -363,8 +364,6 @@ export const closeApplication = bsb.action(
     if (!closed.ok) {
       return closed;
     }
-
-    await refreshCaller(auth, [PEOPLE_TAG]);
 
     return ok({ applicationId, outcome });
   },

@@ -8,7 +8,7 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { readMemberNames } from "@/features/people/member-names";
+import { getMemberNames } from "@/features/people/member-names";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -129,7 +129,7 @@ async function loadShift(
     return "not-found";
   }
 
-  const names = await readMemberNames(scope, tenant);
+  const names = await getMemberNames(scope, tenant);
 
   return {
     id: shift.id,

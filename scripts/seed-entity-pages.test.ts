@@ -110,7 +110,7 @@ describe("seed-entity-pages", () => {
   it("seeds the CRM pages through their block functions", () => {
     const sqlOf = (entity: string) => targetOf(entity).sql;
 
-    expect(sqlOf("app.pipelines")).toContain("save_pipeline_stage");
+    expect(sqlOf("app.pipelines")).toContain("upsert_pipeline_stage");
     expect(sqlOf("app.deals")).toContain("better_supabase.create_deal");
     expect(sqlOf("app.segments")).toContain("better_supabase.refresh_segment");
     expect(sqlOf("app.queues")).toContain("set_assignment_members");

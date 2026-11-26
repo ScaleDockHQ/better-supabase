@@ -50,7 +50,7 @@ describe("reminders on subjects", () => {
 
     expect(sql).not.toContain("remind_at");
     expect(sql).toContain(
-      `create or replace function "better_supabase"."save_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)`,
+      `create or replace function "better_supabase"."upsert_reminder"(tenant uuid, subject_type text, subject_id text, offset_minutes integer)`,
     );
   });
 });

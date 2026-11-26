@@ -21,7 +21,7 @@ import {
   recordCalibration,
   recordReading,
 } from "../maintenance-actions";
-import { loadMeters, stateOf } from "../maintenance-queries";
+import { getMeters, stateOf } from "../maintenance-queries";
 
 export function MaintenanceListSkeleton() {
   return <RecordListSkeleton rows={5} />;
@@ -282,7 +282,7 @@ export async function CalibrationOverview({
 export async function CreatePlanDialog() {
   const [t, loaded] = await Promise.all([
     getExtracted("maintenance"),
-    settle(loadMeters),
+    settle(getMeters),
   ]);
 
   const meters = loaded.kind === "ok" ? loaded.data : [];

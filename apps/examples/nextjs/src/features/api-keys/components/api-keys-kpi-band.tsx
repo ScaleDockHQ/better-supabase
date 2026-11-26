@@ -2,12 +2,12 @@ import { getExtracted } from "next-intl/server";
 
 import { KpiBand, KpiBandSkeleton } from "@/components/record-list/kpi-band";
 
-import { loadApiKeyCounts } from "../api-keys-queries";
+import { getApiKeyCounts } from "../api-keys-queries";
 
 /** Render inside `<Suspense>` with `ApiKeysKpiBandSkeleton`. */
 export async function ApiKeysKpiBand() {
   const [counts, t] = await Promise.all([
-    loadApiKeyCounts(),
+    getApiKeyCounts(),
     getExtracted("apiKeys"),
   ]);
 

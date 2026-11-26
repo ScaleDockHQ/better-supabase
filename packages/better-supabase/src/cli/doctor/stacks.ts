@@ -4,7 +4,7 @@ import type { ManagedStack } from "../stacks.ts";
 import type { Rule } from "./rules.ts";
 
 import { errorText } from "../core/errors.ts";
-import { readSharedMemory } from "../shm.ts";
+import { getSharedMemory } from "../shm.ts";
 import { branchName, listStacks } from "../stacks.ts";
 
 /** The segment use and the managed stacks, for BS700 and BS701. */
@@ -57,12 +57,12 @@ function sysvStacks(
   );
 }
 
-export async function loadLocalStackCheck(
+export async function getLocalStackCheck(
   root: string,
   env: CliEnv,
 ): Promise<LocalStackCheck> {
   try {
-    const memory = await readSharedMemory(root, env);
+    const memory = await getSharedMemory(root, env);
 
     if (!memory.supported) {
       return { skipped: "ipcs is not available." };

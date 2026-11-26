@@ -178,12 +178,16 @@ export function createAssignment(options: AssignmentOptions): AssignmentClient {
 
   const client: AssignmentClient = {
     saveQueue: ({ organizationId, queue }) =>
-      call("save_assignment_queue", { tenant: organizationId, queue }, queueOf),
+      call(
+        "upsert_assignment_queue",
+        { tenant: organizationId, queue },
+        queueOf,
+      ),
     setMembers: ({ queueId, members }) =>
       call("set_assignment_members", { queue: queueId, members }, queueOf),
     removeQueue: (queueId) =>
       call(
-        "remove_assignment_queue",
+        "delete_assignment_queue",
         { queue: queueId },
         (value) => value === true,
       ),

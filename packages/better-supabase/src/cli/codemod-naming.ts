@@ -12,7 +12,7 @@ import type { Rewritten } from "./codemod-arguments.ts";
 import type { Codemod, MigrationContext } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
-import { bsbPolicyName, readPolicies } from "../sql/index.ts";
+import { bsbPolicyName, getPolicies } from "../sql/index.ts";
 import { renameArguments, renameBlockReferences } from "./codemod-arguments.ts";
 import { renameConfigKeys } from "./codemod-config-keys.ts";
 import {
@@ -37,6 +37,7 @@ export type RenameKind =
   | "index"
   | "policy"
   | "sqlFunction"
+  | "sqlFunctionName"
   | "subpath"
   | "table"
   | "trigger"
@@ -53,6 +54,8 @@ export interface NamingRename {
    * belongs to (`schema.table`).
    */
   readonly table?: string;
+  /** The SQL module that owns a `sqlFunctionName` rename. */
+  readonly module?: string;
 }
 
 /** The rename table, as `naming.json` has it. */
@@ -123,7 +126,12 @@ export function renameNames(
 
   const quoted = new Map(
     renames
-      .filter((r) => r.kind === "hint" || r.kind === "event")
+      .filter(
+        (r) =>
+          r.kind === "hint" ||
+          r.kind === "event" ||
+          r.kind === "sqlFunctionName",
+      )
       .map((r) => [r.from, r.to]),
   );
 
@@ -231,7 +239,7 @@ function generatedPolicyRenames(projectSql: string | undefined): string[] {
 
   const seen = new Set<string>();
 
-  return readPolicies(projectSql).flatMap(({ policy }): string[] => {
+  return getPolicies(projectSql).flatMap(({ policy }): string[] => {
     const { schema, name } = qualifiedOf(policy.table);
     const to = bsbPolicyName(policy.name);
     const key = `${policy.table}\u0000${policy.name}`;
@@ -436,6 +444,7 @@ export function renameMigrationSql(
       case "event":
       case "function":
       case "hint":
+      case "sqlFunctionName":
       case "subpath":
       case "type": {
         return [];
@@ -459,6 +468,39 @@ export function renameMigrationSql(
   }
 
   return `-- better-supabase codemod naming: renames installed objects, no data moves.\n-- destructive: reviewed\ndo $$\nbegin\n  ${statements.join("\n  ")}\nend\n$$;\n`;
+}
+
+/**
+ * Rewrites a call to a renamed SQL function in the app's own SQL, where the
+ * name is qualified with the module schema (X * bare name stays: it may be the
+ * app's own function. The module's function is dropped and created again by the
+ * next schema diff, never renamed, because its body qualifies its arguments
+ * with the function name.
+ */
+function renameSqlFunctions(
+  text: string,
+  renames: readonly NamingRename[],
+): string {
+  const functions = new Map(
+    renames
+      .filter((rename) => rename.kind === "sqlFunctionName")
+      .map((rename) => [rename.from, rename.to]),
+  );
+
+  if (functions.size === 0) {
+    return text;
+  }
+
+  const names = [...functions.keys()].toSorted((a, b) => b.length - a.length);
+
+  return text.replaceAll(
+    new RegExp(
+      `(\\bbetter_supabase"?\\.)(["]?)(${names.join("|")})\\2(?![\\w])`,
+      "g",
+    ),
+    (_match, schema: string, mark: string, name: string) =>
+      `${schema}${mark}${functions.get(name) ?? name}${mark}`,
+  );
 }
 
 /** The `naming` codemod for `renames`, the whole table by default. */
@@ -556,10 +598,13 @@ export function namingCodemod(
         };
       };
     },
-    sql: (text, context) =>
-      context.configLoaded
-        ? renameSqlColumns(text, renames, context.tenantColumns)
-        : text,
+    sql: async (text, context) =>
+      renameSqlFunctions(
+        context.configLoaded
+          ? await renameSqlColumns(text, renames, context.tenantColumns)
+          : text,
+        renames,
+      ),
     migration: (sql, context) => {
       const migration = renameMigrationSql(renames, sql, context);
       const review: string[] = [];

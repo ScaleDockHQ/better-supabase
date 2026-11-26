@@ -80,7 +80,7 @@ const EVENTS: BlockSqlEvents<HiringEvents> = {
   },
 };
 
-/** The optional job columns `save_job` writes: logical, attrs key, and name. */
+/** The optional job columns `upsert_job` writes: logical, attrs key, and name. */
 const JOB_ATTRS: readonly (readonly [string, string, string])[] = [
   ["team", "teamId", "team"],
   ["location", "location", "location"],
@@ -355,9 +355,9 @@ function build(ctx: BlockSqlContext): string {
       ? asColumnType(
           t("jobs"),
           ctx.colName("jobs", "hiringManager"),
-          "save_job.attrs ->> 'hiringManagerId'",
+          "upsert_job.attrs ->> 'hiringManagerId'",
         )
-      : "(save_job.attrs ->> 'hiringManagerId')::uuid";
+      : "(upsert_job.attrs ->> 'hiringManagerId')::uuid";
 
   // A column definition, left out when the app maps the column to null.
   const column = (table: string, logical: string, type: string): string =>
@@ -407,10 +407,10 @@ function build(ctx: BlockSqlContext): string {
 ${indent}  ${fail(code, message, "22023")}
 ${indent}end if;`;
 
-  // A job column save_job keeps unless attrs has its key.
+  // A job column upsert_job keeps unless attrs has its key.
   const keep = (logical: string, key: string, value: string): string =>
     ctx.has("jobs", logical)
-      ? `\n        ${j(logical)} = case when save_job.attrs ? '${key}' then ${value} else x.${j(logical)} end,`
+      ? `\n        ${j(logical)} = case when upsert_job.attrs ? '${key}' then ${value} else x.${j(logical)} end,`
       : "";
 
   // The update that stamps a job's open and close times, when it has them.
@@ -460,13 +460,13 @@ ${indent}end if;`;
 
   const jobAccess =
     jobsCreate === undefined && jobsUpdate === undefined
-      ? ctx.scope.can("save_job.tenant", manage)
-      : `((save_job.job is null and ${ctx.scope.can("save_job.tenant", sqlString(jobsCreate ?? manageKey))}) or (save_job.job is not null and ${ctx.scope.can("save_job.tenant", sqlString(jobsUpdate ?? manageKey))}))`;
+      ? ctx.scope.can("upsert_job.tenant", manage)
+      : `((upsert_job.job is null and ${ctx.scope.can("upsert_job.tenant", sqlString(jobsCreate ?? manageKey))}) or (upsert_job.job is not null and ${ctx.scope.can("upsert_job.tenant", sqlString(jobsUpdate ?? manageKey))}))`;
 
   const requiredJobColumns = insertExtraColumns(
     t("jobs"),
     extras,
-    "save_job.attrs -> 'fields'",
+    "upsert_job.attrs -> 'fields'",
   );
 
   const tables = ctx.manages
@@ -589,7 +589,7 @@ ${stages === undefined ? "" : stageTriggers(ctx, stages)}
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function ${fn("save_job")}(tenant ${ctx.idType}, job uuid, attrs jsonb)
+create or replace function ${fn("upsert_job")}(tenant ${ctx.idType}, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -602,23 +602,23 @@ begin
   if not (${service} or ${jobAccess}) then
     ${fail("HIRING_FORBIDDEN", "not allowed to manage jobs")}
   end if;
-  if save_job.job is not null then
-    select * into v_job from ${t("jobs")} x where x.${j("id")} = save_job.job and x.${j("tenant")} = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from ${t("jobs")} x where x.${j("id")} = upsert_job.job and x.${j("tenant")} = upsert_job.tenant;
     if v_job.${j("id")} is null then
       ${fail("JOB_OPENING_NOT_FOUND", "job not found", "P0002")}
     end if;
     v_was := v_job.${j("status")};
-  end if;${managerCheck(ctx, managerEmployee)}${JOB_ATTRS.map(([logical, key, thing]) => refuse("jobs", logical, `save_job.attrs ->> '${key}'`, `HIRING_JOB_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this jobs table has no ${thing} column`)).join("")}
+  end if;${managerCheck(ctx, managerEmployee)}${JOB_ATTRS.map(([logical, key, thing]) => refuse("jobs", logical, `upsert_job.attrs ->> '${key}'`, `HIRING_JOB_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this jobs table has no ${thing} column`)).join("")}
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into ${t("jobs")} (${j("tenant")}, ${j("title")}${also("jobs", "team")}${also("jobs", "location")}${also("jobs", "employmentType")}${also("jobs", "description")}${also("jobs", "hiringManager")}, ${j("status")}${requiredJobColumns.columns})
       values (${lines(
         "        ",
         [
-          "save_job.tenant",
-          "save_job.attrs ->> 'title'",
-          present("jobs", "team", "(save_job.attrs ->> 'teamId')::uuid"),
-          present("jobs", "location", "save_job.attrs ->> 'location'"),
+          "upsert_job.tenant",
+          "upsert_job.attrs ->> 'title'",
+          present("jobs", "team", "(upsert_job.attrs ->> 'teamId')::uuid"),
+          present("jobs", "location", "upsert_job.attrs ->> 'location'"),
         ],
         [
           present(
@@ -627,32 +627,32 @@ begin
             ctx.cast(
               "jobs",
               "employmentType",
-              "save_job.attrs ->> 'employmentType'",
+              "upsert_job.attrs ->> 'employmentType'",
             ),
           ),
-          present("jobs", "description", "save_job.attrs ->> 'description'"),
+          present("jobs", "description", "upsert_job.attrs ->> 'description'"),
           present("jobs", "hiringManager", managerValue),
         ],
         [
           ctx.cast(
             "jobs",
             "status",
-            "coalesce(save_job.attrs ->> 'status', 'draft')",
+            "coalesce(upsert_job.attrs ->> 'status', 'draft')",
           ),
         ],
       )}${requiredJobColumns.values})
       returning * into v_job;
     else
       update ${t("jobs")} x set
-        ${j("title")} = coalesce(save_job.attrs ->> 'title', x.${j("title")}),${keep("team", "teamId", "(save_job.attrs ->> 'teamId')::uuid")}${keep("location", "location", "save_job.attrs ->> 'location'")}${keep("employmentType", "employmentType", ctx.cast("jobs", "employmentType", "save_job.attrs ->> 'employmentType'"))}${keep("description", "description", "save_job.attrs ->> 'description'")}${keep("hiringManager", "hiringManagerId", managerValue)}
-        ${j("status")} = coalesce(${ctx.cast("jobs", "status", "save_job.attrs ->> 'status'")}, x.${j("status")}),
+        ${j("title")} = coalesce(upsert_job.attrs ->> 'title', x.${j("title")}),${keep("team", "teamId", "(upsert_job.attrs ->> 'teamId')::uuid")}${keep("location", "location", "upsert_job.attrs ->> 'location'")}${keep("employmentType", "employmentType", ctx.cast("jobs", "employmentType", "upsert_job.attrs ->> 'employmentType'"))}${keep("description", "description", "upsert_job.attrs ->> 'description'")}${keep("hiringManager", "hiringManagerId", managerValue)}
+        ${j("status")} = coalesce(${ctx.cast("jobs", "status", "upsert_job.attrs ->> 'status'")}, x.${j("status")}),
         ${j("updatedAt")} = now()
-      where x.${j("id")} = save_job.job
+      where x.${j("id")} = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
     ${fail("JOB_OPENING_INVALID", "a job needs a title and a status of draft, open or closed", "22023")}
-  end;${writeExtraColumns(t("jobs"), extras, "save_job.attrs -> 'fields'", `x.${j("id")} = v_job.${j("id")}`, "v_job")}
+  end;${writeExtraColumns(t("jobs"), extras, "upsert_job.attrs -> 'fields'", `x.${j("id")} = v_job.${j("id")}`, "v_job")}
   if ${asText(ctx, "jobs", `v_job.${j("status")}`)} is distinct from v_was then
     if ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["open"])} then${stamp(
       [
@@ -672,7 +672,7 @@ begin
   return ${withExtraFields(ctx.rowJson("jobs", "v_job"), "v_job", extras)};
 end;
 $$;
-${userGrant(`${fn("save_job")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_job")}(${ctx.idType}, uuid, jsonb)`)}
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.${appExtras.length > 0 ? "\n-- fields sets the applicationExtraColumns by name." : ""}
@@ -927,7 +927,7 @@ ${applicationList(ctx, applicationJson, { name: "list_applications_for_jobs", pa
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
-    { name: "save_job", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
+    { name: "upsert_job", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     {
       name: "apply_to_job",
       args: [

@@ -413,7 +413,7 @@ export interface ImportFilesOptions {
   readonly limit?: number;
 }
 
-async function readSource(file: PendingInboxFile): Promise<Blob> {
+async function getSource(file: PendingInboxFile): Promise<Blob> {
   if (file.source.url === undefined) {
     throw new Error(`file ${file.id} has no URL; pass read`);
   }
@@ -700,7 +700,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
         throw new TypeError("importFiles needs the Inbox, not a store");
       }
 
-      const read = importOptions.read ?? readSource;
+      const read = importOptions.read ?? getSource;
 
       const pending = await inbox.files
         .pending(importOptions.limit ?? 50)

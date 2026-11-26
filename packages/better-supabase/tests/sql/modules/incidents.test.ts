@@ -52,7 +52,7 @@ describe("incidents module", () => {
     const without = sqlOf();
     expect(without).not.toContain("incident_postmortem_actions");
     expect(without).not.toContain(
-      'function "better_supabase"."add_incident_postmortem_action"',
+      'function "better_supabase"."create_incident_postmortem_action"',
     );
     expect(without).not.toContain("action_items");
 
@@ -82,8 +82,8 @@ describe("incidents module", () => {
 
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "add_incident_postmortem_action",
-        "remove_incident_postmortem_action",
+        "create_incident_postmortem_action",
+        "delete_incident_postmortem_action",
       ]),
     );
   });
@@ -100,7 +100,7 @@ describe("incidents module", () => {
 
       expect(sql).toContain("incident_regulatory_profiles");
       expect(sql).toContain("incident_regulatory_filings");
-      expect(sql).toContain("save_incident_regulatory_profile");
+      expect(sql).toContain("upsert_incident_regulatory_profile");
       expect(sql).toContain("submit_incident_filing");
       expect(sql).toContain("interval '24 hours'");
       expect(sql).toContain("interval '72 hours'");

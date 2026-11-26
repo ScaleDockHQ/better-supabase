@@ -7,7 +7,7 @@ import type { FilePlan } from "./core/files.ts";
 import type { CliEnv } from "./env.ts";
 import type { ExistingTable } from "./sql/adopt.ts";
 
-import { loadSnapshot, serializeSnapshot } from "./commands/snapshot.ts";
+import { getSnapshot, serializeSnapshot } from "./commands/snapshot.ts";
 import { insideRoot } from "./core/files.ts";
 import { toCatalog } from "./introspect/index.ts";
 
@@ -52,7 +52,7 @@ async function snapshotTables(
   }
 
   try {
-    return toCatalog(await loadSnapshot(config, env, { snapshotPath: path }))
+    return toCatalog(await getSnapshot(config, env, { snapshotPath: path }))
       .tables;
   } catch {
     return [];
@@ -111,7 +111,7 @@ export async function planSnapshotFrom(
   root: string,
   url: string,
 ): Promise<{ readonly plan: FilePlan; readonly tables: number }> {
-  const snapshot = await loadSnapshot(config, env, { dbUrl: url, live: true });
+  const snapshot = await getSnapshot(config, env, { dbUrl: url, live: true });
 
   return {
     tables: snapshot.extras.tables.length,

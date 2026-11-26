@@ -137,7 +137,7 @@ describe("createMedications", () => {
 
   it("saves, archives, imports and lists medications", async () => {
     const t = fieldsTransport({
-      save_medication: () => MEDICATION,
+      upsert_medication: () => MEDICATION,
       archive_medication: () => ({ ...MEDICATION, archivedAt: AT }),
       import_medication: () => MEDICATION,
       list_medications: () => [MEDICATION, BARE_MEDICATION],
@@ -190,7 +190,7 @@ describe("createMedications", () => {
     expect(bare).toEqual({ ...BARE_MEDICATION, highRisk: false });
     expect(t.calls).toEqual([
       [
-        "save_medication",
+        "upsert_medication",
         {
           tenant: "org-1",
           name: "Warfarin",
@@ -204,7 +204,7 @@ describe("createMedications", () => {
         },
       ],
       [
-        "save_medication",
+        "upsert_medication",
         {
           tenant: "org-1",
           name: "Water",

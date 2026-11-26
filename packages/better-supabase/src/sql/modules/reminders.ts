@@ -204,7 +204,7 @@ function build(ctx: BlockSqlContext): string {
     ctx.on === undefined
       ? ""
       : `
-  if save_reminder.subject_type is null or save_reminder.subject_type not in (${listed}) then
+  if upsert_reminder.subject_type is null or upsert_reminder.subject_type not in (${listed}) then
     raise exception 'blocks.${ctx.instance}.on does not allow this record type'
       using errcode = '22023', hint = 'REMINDER_SUBJECT_UNSUPPORTED';
   end if;`;
@@ -216,8 +216,8 @@ function build(ctx: BlockSqlContext): string {
       ? ""
       : `
   if not (auth.role() = 'service_role')
-    and save_reminder.subject_type in (${listed})
-    and not (${subjectReadable(ctx, subjects, { type: "save_reminder.subject_type", id: "save_reminder.subject_id", tenant: "save_reminder.tenant" })}) then
+    and upsert_reminder.subject_type in (${listed})
+    and not (${subjectReadable(ctx, subjects, { type: "upsert_reminder.subject_type", id: "upsert_reminder.subject_id", tenant: "upsert_reminder.tenant" })}) then
     ${fail("REMINDER_SUBJECT_NOT_FOUND", "the record was not found in this organization", "P0002")}
   end if;`;
 
@@ -328,14 +328,14 @@ ${lockTable(deliveries, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-${fields.drop(ctx.fn("save_reminder"), saveArgs)}${
+${fields.drop(ctx.fn("upsert_reminder"), saveArgs)}${
     at
       ? `
-drop function if exists ${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer);
-drop function if exists ${ctx.fn("save_reminder")}(${ctx.idType}, text, text, integer, jsonb);`
+drop function if exists ${ctx.fn("upsert_reminder")}(${ctx.idType}, text, text, integer);
+drop function if exists ${ctx.fn("upsert_reminder")}(${ctx.idType}, text, text, integer, jsonb);`
       : ""
   }
-create or replace function ${ctx.fn("save_reminder")}(tenant ${ctx.idType}, subject_type text, subject_id text, offset_minutes integer${at ? ", remind_at timestamptz default null" : ""}${fields.param})
+create or replace function ${ctx.fn("upsert_reminder")}(tenant ${ctx.idType}, subject_type text, subject_id text, offset_minutes integer${at ? ", remind_at timestamptz default null" : ""}${fields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -344,12 +344,12 @@ as $$
 declare
   v_id uuid;
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("save_reminder.tenant", manage)}) then
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("upsert_reminder.tenant", manage)}) then
     ${fail("REMINDER_FORBIDDEN", "not allowed to manage reminders")}
   end if;${typeGuard}${readCheck}
   insert into ${reminders} (${ctx.col("reminders", "tenant")}, ${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")}, ${ctx.col("reminders", "user")}, ${ctx.col("reminders", "offsetMinutes")}${at ? `, ${remindAt}` : ""})
-  values (save_reminder.tenant, save_reminder.subject_type, save_reminder.subject_id, auth.uid(), coalesce(save_reminder.offset_minutes, 0)${at ? ", save_reminder.remind_at" : ""})
-  returning ${ctx.col("reminders", "id")} into v_id;${writeExtraColumns(reminders, extras, "save_reminder.fields", `x.${ctx.col("reminders", "id")} = v_id`)}
+  values (upsert_reminder.tenant, upsert_reminder.subject_type, upsert_reminder.subject_id, auth.uid(), coalesce(upsert_reminder.offset_minutes, 0)${at ? ", upsert_reminder.remind_at" : ""})
+  returning ${ctx.col("reminders", "id")} into v_id;${writeExtraColumns(reminders, extras, "upsert_reminder.fields", `x.${ctx.col("reminders", "id")} = v_id`)}
   return jsonb_build_object('id', v_id${
     extras.length === 0
       ? ""
@@ -360,7 +360,7 @@ begin
   });
 end;
 $$;
-${userGrant(`${ctx.fn("save_reminder")}(${saveArgs}${fields.type})`)}
+${userGrant(`${ctx.fn("upsert_reminder")}(${saveArgs}${fields.type})`)}
 
 -- The caller's reminders on one subject, or on every subject when both are
 -- null, the earliest first.
@@ -553,7 +553,7 @@ grant execute on function ${ctx.fn("list_reminder_schedule")}() to service_role;
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_reminder",
+      name: "upsert_reminder",
       args: [
         "{id}",
         "text",

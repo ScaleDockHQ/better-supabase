@@ -1,5 +1,5 @@
 import { leaseList } from "../../../../features/leases/leases-list";
-import { loadLeasePage } from "../../../../features/leases/leases-queries";
+import { getLeasePage } from "../../../../features/leases/leases-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -13,7 +13,7 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadLeasePage(db, query.value);
+  const page = await getLeasePage(db, query.value);
 
   return page.ok
     ? Response.json(page.data)

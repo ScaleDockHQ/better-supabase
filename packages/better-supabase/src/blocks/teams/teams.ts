@@ -294,9 +294,9 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
     purge: (id) => call("purge_team", { team: id }, (value) => value === true),
     purgeMany: (ids) => call("purge_teams", { team_ids: ids }, Number),
     addMember: (input) =>
-      call("add_team_member", memberArgs(input), (value) => value === true),
+      call("create_team_member", memberArgs(input), (value) => value === true),
     removeMember: (input) =>
-      call("remove_team_member", memberArgs(input), (value) => value === true),
+      call("delete_team_member", memberArgs(input), (value) => value === true),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (organizationId, options) =>
       call(

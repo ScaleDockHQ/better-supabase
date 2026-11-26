@@ -515,9 +515,9 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
     saveProgram: (program) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_enrollment_program",
+          "upsert_enrollment_program",
           { tenant: organizationId, program: programArg(program) },
-          (value) => programOf(value, "save_enrollment_program"),
+          (value) => programOf(value, "upsert_enrollment_program"),
         ),
       ),
     programs: (options = {}) =>

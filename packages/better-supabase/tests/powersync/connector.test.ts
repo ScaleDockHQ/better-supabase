@@ -503,7 +503,7 @@ describe("replaying a table that loads on first use", () => {
       body: [{ id: "c" }],
     }));
 
-    const tableLoaders = Object.fromEntries(
+    const tableGetters = Object.fromEntries(
       Object.entries(schema.meta.tables).map(([key, table]) => [
         key,
         () => Promise.resolve(table),
@@ -515,7 +515,7 @@ describe("replaying a table that loads on first use", () => {
         ...schema.meta,
         tables: {},
         lazyTables: true,
-        tableLoaders,
+        tableGetters,
       }),
     ).connect(client);
 

@@ -2,6 +2,7 @@ import { driveSubject } from "better-supabase/blocks/drive";
 import { defineConfig } from "better-supabase/config";
 import { factories } from "better-supabase/generators/factories";
 import { nuqs } from "better-supabase/generators/nuqs";
+import { tags } from "better-supabase/generators/tags";
 import { zod } from "better-supabase/generators/zod";
 import { defineEntityPage, seedRef } from "better-supabase/list";
 
@@ -18,6 +19,7 @@ import {
 import { overviewPages } from "./overview-pages.ts";
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
 import { metrics } from "./src/metrics.ts";
+import { TAG_DOMAINS } from "./tag-domains.ts";
 
 const crud = ["select", "insert", "update", "delete"] as const;
 
@@ -528,6 +530,7 @@ export default defineConfig({
       zod({ validators: false }),
       nuqs({ tables: ["tasks", "customers"] }),
       factories(),
+      tags({ domains: TAG_DOMAINS }),
     ],
     // Routes that need no other block (sign-in, the customers API) build their
     // server from this set and bundle no other block (ADR 0542).

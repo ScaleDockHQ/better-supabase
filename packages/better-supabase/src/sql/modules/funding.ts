@@ -449,7 +449,7 @@ ${tables(ctx, layout)}${fundingFunctions(ctx)}${fundingTimeFunctions(ctx)}${fund
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_funding_product",
+      name: "upsert_funding_product",
       args: [
         "{id}",
         "text",
@@ -469,7 +469,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_funding_award",
+      name: "upsert_funding_award",
       args: ["{id}", "text", "text", "jsonb", "uuid"],
       returns: "jsonb",
     },

@@ -432,7 +432,10 @@ describe.skipIf(!live)("knowledge module", () => {
         [tenant],
       );
 
-      await s.value("better_supabase.add_team_member($1, $2)", [team, rep.id]);
+      await s.value("better_supabase.create_team_member($1, $2)", [
+        team,
+        rep.id,
+      ]);
 
       const collection = await s.value<string>(
         "(better_supabase.create_knowledge_collection(tenant => $1, name => 'Playbooks', visibility => 'restricted') ->> 'id')",

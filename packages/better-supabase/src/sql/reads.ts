@@ -49,7 +49,7 @@ export const declareRead = (
 ): BlockSqlRead => ({ name, function: fn, args, result, summary, tables });
 
 /** The SQL type of an argument, for the contract. */
-export function readArgSqlType(type: BlockSqlReadArgType): string {
+export function getArgSqlType(type: BlockSqlReadArgType): string {
   return {
     bool: "boolean",
     date: "date",
@@ -61,7 +61,7 @@ export function readArgSqlType(type: BlockSqlReadArgType): string {
 }
 
 /** The TypeScript type of an argument. */
-export function readArgSource(type: BlockSqlReadArgType): string {
+export function getArgSource(type: BlockSqlReadArgType): string {
   return {
     bool: "boolean",
     date: "string",

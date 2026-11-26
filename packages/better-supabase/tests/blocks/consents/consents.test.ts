@@ -74,7 +74,7 @@ describe("createConsents", () => {
 
   it("saves purposes for the organization or the whole system", async () => {
     const { transport, call } = fakeTransport({
-      save_consent_purpose: PURPOSE,
+      upsert_consent_purpose: PURPOSE,
       list_consent_purposes: [PURPOSE, { ...PURPOSE, organizationId: null }],
       archive_consent_purpose: { ...PURPOSE, archivedAt: AT },
     });
@@ -90,7 +90,7 @@ describe("createConsents", () => {
     expect(saved.archivedAt).toBeUndefined();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
-      "save_consent_purpose",
+      "upsert_consent_purpose",
       expect.objectContaining({ tenant: "org", key: "marketing.email" }),
     );
 
@@ -99,7 +99,7 @@ describe("createConsents", () => {
       .orThrow();
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
-      "save_consent_purpose",
+      "upsert_consent_purpose",
       expect.objectContaining({ tenant: null, key: "terms" }),
     );
 

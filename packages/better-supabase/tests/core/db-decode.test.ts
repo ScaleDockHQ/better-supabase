@@ -122,7 +122,7 @@ describe("db.$decode with lazy tables", () => {
   it("loads the table and the embedded relations before it decodes", async () => {
     const loaded: string[] = [];
 
-    const tableLoaders = Object.fromEntries(
+    const tableGetters = Object.fromEntries(
       Object.entries(schema.meta.tables).map(([key, table]) => [
         key,
         () => {
@@ -138,7 +138,7 @@ describe("db.$decode with lazy tables", () => {
         ...schema.meta,
         tables: {},
         lazyTables: true,
-        tableLoaders,
+        tableGetters,
       }),
     ).connect(executor);
 

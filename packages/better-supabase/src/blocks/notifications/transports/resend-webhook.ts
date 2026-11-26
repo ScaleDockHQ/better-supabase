@@ -8,7 +8,7 @@ import type {
   SuppressInput,
 } from "../api-types.ts";
 
-import { readBodyCapped } from "../../../core/block-helpers.ts";
+import { getBodyCapped } from "../../../core/block-helpers.ts";
 import { dbError } from "../../../core/errors.ts";
 import { methodNotAllowed, problemResponse } from "../../../core/problem.ts";
 import { verifyWebhook } from "../../../core/signatures.ts";
@@ -200,7 +200,7 @@ export function resendWebhook(
       return methodNotAllowed(["POST"]);
     }
 
-    const body = await readBodyCapped(request, limit);
+    const body = await getBodyCapped(request, limit);
 
     if (body === undefined) {
       return problemResponse(

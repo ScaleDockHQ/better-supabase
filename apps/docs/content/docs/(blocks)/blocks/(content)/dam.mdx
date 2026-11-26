@@ -140,11 +140,11 @@ and rights exchange.
 ```ts
 import {
   damUsageRightsToOdrl,
-  readC2paManifest,
+  getC2paManifest,
 } from "better-supabase/blocks/dam";
 ```
 
-`readC2paManifest` runs a `C2paReader` over a file's bytes and returns what
+`getC2paManifest` runs a `C2paReader` over a file's bytes and returns what
 the DAM should keep: `absent`, `valid` or `invalid`, the manifest, the actions
 of a valid manifest and whether an action marks the media as generated (an
 IPTC `trainedAlgorithmicMedia` or `algorithmicMedia` source type). The reader

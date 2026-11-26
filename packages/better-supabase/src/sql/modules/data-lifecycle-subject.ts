@@ -250,7 +250,7 @@ function entrySql(ctx: BlockSqlContext, entry: SubjectEntry): string {
 
   const where = `t.${entry.type}::text = request_subject_export.subject_type and t.${entry.id}::text = request_subject_export.subject_id${tenant}`;
 
-  // Custom field values decrypt through read_field_values as the caller, which
+  // Custom field values decrypt through get_field_values as the caller, which
   // also leaves out the fields the caller may not read.
   if (entry.module === "custom-fields" && entry.logical === "values") {
     const fields = ctx.of("custom-fields");
@@ -258,7 +258,7 @@ function entrySql(ctx: BlockSqlContext, entry: SubjectEntry): string {
     const id = fields.col("values", "id");
 
     return `if v_tenant is not null then
-    v_fields := coalesce(${fields.fn("read_field_values")}(v_tenant, request_subject_export.subject_type, request_subject_export.subject_id), '[]'::jsonb);
+    v_fields := coalesce(${fields.fn("get_field_values")}(v_tenant, request_subject_export.subject_type, request_subject_export.subject_id), '[]'::jsonb);
     select coalesce(jsonb_agg(((to_jsonb(t.*)${omitted(entry.omit)}) || jsonb_build_object(${sqlString(text)}, f.value ->> 'text')) order by t.ctid), '[]'::jsonb) into v_rows
     from ${entry.table} t
     join jsonb_array_elements(v_fields) f on f.value ->> 'id' = t.${id}::text

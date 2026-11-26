@@ -268,7 +268,7 @@ describe("tasks block", () => {
 
   it("saves projects and iterations with dates as ISO text", async () => {
     const t = transport({
-      save_project: () => ({
+      upsert_project: () => ({
         id: "p1",
         key: "PAY",
         name: "Payments",
@@ -278,7 +278,7 @@ describe("tasks block", () => {
         target_on: null,
         progress: 50,
       }),
-      save_iteration: () => ({
+      upsert_iteration: () => ({
         id: "i1",
         team_id: null,
         name: "Sprint 1",
@@ -363,7 +363,7 @@ describe("tasks block, sparse rows and options", () => {
           progress: null,
         },
       ],
-      save_project: () => ({
+      upsert_project: () => ({
         id: "p1",
         key: "PAY",
         name: "Payments",
@@ -373,7 +373,7 @@ describe("tasks block, sparse rows and options", () => {
         target_on: "2026-12-31",
         progress: null,
       }),
-      save_iteration: () => ({
+      upsert_iteration: () => ({
         id: "i1",
         team_id: "t1",
         name: "Sprint",
@@ -462,7 +462,7 @@ describe("tasks block, sparse rows and options", () => {
       create_task: () => full,
       get_task: (args) => (args["task"] === "w1" ? full : null),
       list_task_checklist: () => [entry],
-      save_task_checklist_item: () => ({
+      upsert_task_checklist_item: () => ({
         ...entry,
         done: false,
         doneAt: null,
@@ -569,7 +569,7 @@ describe("project budgets", () => {
 
   it("sends a budget as minor units and its currency, and reads it back", async () => {
     const t = transport({
-      save_project: () => ({
+      upsert_project: () => ({
         ...PROJECT,
         budget_amount: "50000",
         budget_currency: "EUR",
@@ -609,7 +609,7 @@ describe("project budgets", () => {
   });
 
   it("clears a budget, and reads a project without one", async () => {
-    const t = transport({ save_project: () => PROJECT });
+    const t = transport({ upsert_project: () => PROJECT });
     const items = createTasks({ transport: t });
 
     const project = await items

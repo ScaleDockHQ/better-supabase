@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COMPLIANCE_TAG } from "./compliance-cache";
 
 /**
  * Records a note as evidence on a control. With `evidenceTaskId` it answers
@@ -21,8 +19,10 @@ export const addControlEvidence = bsb.action(
     }),
     requireTenant: true,
     permission: "compliance.collect",
+    tags: () => [tags.compliance()],
+    refresh: true,
   },
-  async ({ controlId, evidenceTaskId, note }, { db, auth }) => {
+  async ({ controlId, evidenceTaskId, note }, { db }) => {
     const added = await db.compliance.addEvidence({
       controlId,
       input: evidenceTaskId === undefined ? { note } : { note, evidenceTaskId },
@@ -31,8 +31,6 @@ export const addControlEvidence = bsb.action(
     if (!added.ok) {
       return added;
     }
-
-    await refreshCaller(auth, [COMPLIANCE_TAG]);
 
     return ok({ id: added.data.id });
   },

@@ -37,7 +37,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { loadShipmentTracking } from "../field-queries";
+import { getShipmentTracking } from "../field-queries";
 import { FieldLoadError } from "./field-load-error";
 import { NewShipmentDialog } from "./new-shipment-dialog";
 
@@ -112,7 +112,7 @@ export async function ShipmentTracking({
   const picked = v.safeParse(ShipmentParam, query["shipment"]);
 
   const tracking = await settle(() =>
-    loadShipmentTracking(picked.success ? picked.output : undefined),
+    getShipmentTracking(picked.success ? picked.output : undefined),
   );
 
   if (tracking.kind === "no-organization") {

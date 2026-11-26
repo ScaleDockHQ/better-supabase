@@ -301,7 +301,7 @@ function authoring(ctx: BlockSqlContext): string {
   end if;`
       : `if v_account is not null and not exists (
     select 1 from ${mail.table("accounts")} k
-    where k.${mail.col("accounts", "id")} = v_account and k.${mail.col("accounts", "tenant")} = save_sequence.tenant
+    where k.${mail.col("accounts", "id")} = v_account and k.${mail.col("accounts", "tenant")} = upsert_sequence.tenant
       and k.${mail.col("accounts", "status")} <> 'disconnected'
   ) then
     ${q.invalid("accountId must be a connected mailbox of this organization")}
@@ -326,7 +326,7 @@ function authoring(ctx: BlockSqlContext): string {
 -- description, status, exitOnReply, accountId, steps }; keys left out keep
 -- their value. Changing the steps raises the version and moves running
 -- recipients onto the new steps. Archiving ends every run.
-create or replace function ${fn("save_sequence")}(tenant ${ctx.idType}, sequence jsonb)
+create or replace function ${fn("upsert_sequence")}(tenant ${ctx.idType}, sequence jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -346,25 +346,25 @@ declare
   v_steps jsonb;
   v_run uuid;
 begin
-  if not ${q.allowed("save_sequence.tenant", q.manage)} then
+  if not ${q.allowed("upsert_sequence.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage sequences")}
   end if;
-  if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
+  if upsert_sequence.sequence is null or jsonb_typeof(upsert_sequence.sequence) <> 'object' then
     ${q.invalid("sequence must be an object")}
   end if;
-  v_id := nullif(save_sequence.sequence ->> 'id', '')::uuid;
+  v_id := nullif(upsert_sequence.sequence ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from ${q.sequences} x
-    where x.${s("id")} = v_id and x.${s("tenant")} = save_sequence.tenant
+    where x.${s("id")} = v_id and x.${s("tenant")} = upsert_sequence.tenant
     for update;
     if v_old.${s("id")} is null then
       ${q.sequenceMissing}
     end if;
   end if;
-  v_key := coalesce(save_sequence.sequence ->> 'key', v_old.${s("key")});
-  v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old.${s("name")}));
-  v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else ${q.opt("v_old", "sequences", "description")} end;${
+  v_key := coalesce(upsert_sequence.sequence ->> 'key', v_old.${s("key")});
+  v_name := trim(coalesce(upsert_sequence.sequence ->> 'name', v_old.${s("name")}));
+  v_description := case when upsert_sequence.sequence ? 'description'
+    then nullif(trim(upsert_sequence.sequence ->> 'description'), '') else ${q.opt("v_old", "sequences", "description")} end;${
       q.has("sequences", "description")
         ? ""
         : `
@@ -372,13 +372,13 @@ begin
     ${fail("SEQUENCE_DESCRIPTION_UNSUPPORTED", "this sequences table has no description column", "22023")}
   end if;`
     }
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old.${s("status")}::text, 'draft');
-  v_exit := case when save_sequence.sequence ? 'exitOnReply'
-    then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old.${s("exitOnReply")}, true) end;
-  v_account := case when save_sequence.sequence ? 'accountId'
-    then nullif(save_sequence.sequence ->> 'accountId', '')::uuid else v_old.${s("account")} end;
-  v_steps := case when save_sequence.sequence ? 'steps'
-    then save_sequence.sequence -> 'steps' else coalesce(v_old.${s("steps")}, '[]'::jsonb) end;
+  v_status := coalesce(upsert_sequence.sequence ->> 'status', v_old.${s("status")}::text, 'draft');
+  v_exit := case when upsert_sequence.sequence ? 'exitOnReply'
+    then (upsert_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old.${s("exitOnReply")}, true) end;
+  v_account := case when upsert_sequence.sequence ? 'accountId'
+    then nullif(upsert_sequence.sequence ->> 'accountId', '')::uuid else v_old.${s("account")} end;
+  v_steps := case when upsert_sequence.sequence ? 'steps'
+    then upsert_sequence.sequence -> 'steps' else coalesce(v_old.${s("steps")}, '[]'::jsonb) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     ${q.invalid('key: use lowercase letters, digits or "-", starting with a letter')}
   end if;
@@ -403,12 +403,12 @@ begin
   end if;
   ${mailboxCheck}
   ${ctx.hook("before_sequence_save", [
-    [ctx.idType, "save_sequence.tenant"],
-    ["jsonb", "save_sequence.sequence"],
+    [ctx.idType, "upsert_sequence.tenant"],
+    ["jsonb", "upsert_sequence.sequence"],
   ])}
   if v_old.${s("id")} is null then
     insert into ${q.sequences} (${s("tenant")}, ${s("key")}, ${s("name")}, ${description}${s("status")}, ${s("exitOnReply")}, ${s("account")}, ${s("steps")}, ${s("version")}, ${s("createdBy")})
-    values (save_sequence.tenant, v_key, v_name, ${q.has("sequences", "description") ? "v_description, " : ""}${status}, v_exit, v_account, v_steps, 1, auth.uid())
+    values (upsert_sequence.tenant, v_key, v_name, ${q.has("sequences", "description") ? "v_description, " : ""}${status}, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update ${q.sequences} x
@@ -435,7 +435,7 @@ begin
   return ${q.sequenceJson("v_row")} || jsonb_build_object('counts', ${counts(`v_row.${s("id")}`)});
 end;
 $$;
-${userGrant(`${fn("save_sequence")}(${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_sequence")}(${ctx.idType}, jsonb)`)}
 
 -- An organization's sequences with their recipient counts, by name. status
 -- filters; without it archived sequences stay out.

@@ -267,9 +267,9 @@ begin
     raise exception 'an unlisted action needs approval';
   end if;
   ${as(ADMIN)}
-  perform better_supabase.save_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'workflow_run', 'action', 'quote.send',
+  perform better_supabase.upsert_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'workflow_run', 'action', 'quote.send',
     'name', 'Second look', 'steps', jsonb_build_array(jsonb_build_object('approvers', jsonb_build_object('users', jsonb_build_array('${ANN}'))))));
-  perform better_supabase.save_approval_policy('${TENANT}', jsonb_build_object('subjectType', '*', 'action', '*', 'effect', 'access',
+  perform better_supabase.upsert_approval_policy('${TENANT}', jsonb_build_object('subjectType', '*', 'action', '*', 'effect', 'access',
     'name', 'Access changes', 'mode', 'confirm', 'steps', '[]'::jsonb));
   ${SERVICE}
   if jsonb_array_length(better_supabase.approval_requirement('${TENANT}', 'workflow_run', 'quote.send', '{}'::jsonb) -> 'steps') <> 2 then
@@ -319,12 +319,12 @@ declare
   v_policy jsonb;
 begin
   ${as(ADMIN)}
-  v_policy := better_supabase.save_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'invoice', 'action', 'send',
+  v_policy := better_supabase.upsert_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'invoice', 'action', 'send',
     'name', 'Big invoices', 'steps', '[]'::jsonb, 'fields', jsonb_build_object('description', 'Over the limit')));
   if v_policy -> 'fields' ->> 'description' <> 'Over the limit' then
     raise exception 'saved %', v_policy;
   end if;
-  v_policy := better_supabase.save_approval_policy('${TENANT}', jsonb_build_object('id', v_policy ->> 'id', 'name', 'Large invoices'));
+  v_policy := better_supabase.upsert_approval_policy('${TENANT}', jsonb_build_object('id', v_policy ->> 'id', 'name', 'Large invoices'));
   if v_policy -> 'fields' ->> 'description' <> 'Over the limit' or v_policy ->> 'name' <> 'Large invoices' then
     raise exception 'kept %', v_policy;
   end if;

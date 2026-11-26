@@ -186,7 +186,7 @@ export function policyFunctions(ctx: BlockSqlContext): string {
 -- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
-create or replace function ${fn("save_compliance_policy")}(tenant ${idType}, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function ${fn("upsert_compliance_policy")}(tenant ${idType}, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -197,32 +197,32 @@ declare
   v_row ${policies}%rowtype;
   v_required boolean;
 begin
-  if not ${allowed("save_compliance_policy.tenant", manage)} then
+  if not ${allowed("upsert_compliance_policy.tenant", manage)} then
     ${forbidden("not allowed to manage policies")}
   end if;
 ${
   owner
-    ? `  if save_compliance_policy.owner_id is not null and not exists (
-    select 1 from ${memberships} m where m.${mt} = save_compliance_policy.tenant and m.${mu} = save_compliance_policy.owner_id
+    ? `  if upsert_compliance_policy.owner_id is not null and not exists (
+    select 1 from ${memberships} m where m.${mt} = upsert_compliance_policy.tenant and m.${mu} = upsert_compliance_policy.owner_id
   ) then
     ${fail("COMPLIANCE_POLICY_INVALID", "the owner must be a member of the organization", "22023")}
   end if;
 `
     : ""
 }  select x.${p("requiresAck")} and x.${p("archivedAt")} is null into v_required from ${policies} x
-    where x.${p("tenant")} = save_compliance_policy.tenant
-      and (x.${p("id")} = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x.${p("key")} = save_compliance_policy.key));
-  if save_compliance_policy.policy_id is null then
+    where x.${p("tenant")} = upsert_compliance_policy.tenant
+      and (x.${p("id")} = upsert_compliance_policy.policy_id or (upsert_compliance_policy.policy_id is null and x.${p("key")} = upsert_compliance_policy.key));
+  if upsert_compliance_policy.policy_id is null then
     insert into ${policies} (${p("tenant")}, ${p("key")}, ${p("title")}${owner ? `, ${p("owner")}` : ""}, ${p("requiresAck")})
-    values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title)${owner ? ", save_compliance_policy.owner_id" : ""}, coalesce(save_compliance_policy.requires_acknowledgement, true))
+    values (upsert_compliance_policy.tenant, upsert_compliance_policy.key, trim(upsert_compliance_policy.title)${owner ? ", upsert_compliance_policy.owner_id" : ""}, coalesce(upsert_compliance_policy.requires_acknowledgement, true))
     on conflict (${p("tenant")}, ${p("key")}) do update
       set ${p("title")} = excluded.${p("title")}${owner ? `, ${p("owner")} = excluded.${p("owner")}` : ""},
         ${p("requiresAck")} = excluded.${p("requiresAck")}${touch}
     returning * into v_row;
   else
-    update ${policies} x set ${p("key")} = save_compliance_policy.key, ${p("title")} = trim(save_compliance_policy.title)${owner ? `, ${p("owner")} = save_compliance_policy.owner_id` : ""},
-      ${p("requiresAck")} = coalesce(save_compliance_policy.requires_acknowledgement, true)${touch}
-      where x.${p("id")} = save_compliance_policy.policy_id and x.${p("tenant")} = save_compliance_policy.tenant
+    update ${policies} x set ${p("key")} = upsert_compliance_policy.key, ${p("title")} = trim(upsert_compliance_policy.title)${owner ? `, ${p("owner")} = upsert_compliance_policy.owner_id` : ""},
+      ${p("requiresAck")} = coalesce(upsert_compliance_policy.requires_acknowledgement, true)${touch}
+      where x.${p("id")} = upsert_compliance_policy.policy_id and x.${p("tenant")} = upsert_compliance_policy.tenant
       returning * into v_row;
     if not found then
       ${notFound}
@@ -236,7 +236,7 @@ ${
   return ${policyJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_compliance_policy")}(${idType}, text, text, uuid, boolean, uuid)`)}
+${userGrant(`${fn("upsert_compliance_policy")}(${idType}, text, text, uuid, boolean, uuid)`)}
 
 -- Publishes the policy text as a new frozen version (versions block) and
 -- makes it current. Members acknowledge each published version again, through

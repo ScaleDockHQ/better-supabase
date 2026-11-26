@@ -12,9 +12,9 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Nut', 'nut', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'NUT-1', null, 'Nut', null, null, true, false, null) ->> 'id', true);
-select set_config('t.l', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH8', 'Warehouse 8', null, null) ->> 'id', true);
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Nut', 'nut', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'NUT-1', null, 'Nut', null, null, true, false, null) ->> 'id', true);
+select set_config('t.l', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'WH8', 'Warehouse 8', null, null) ->> 'id', true);
 select better_supabase.adjust_stock(current_setting('t.v')::uuid, current_setting('t.l')::uuid, 6, 'receipt', 'in', null);
 select set_config('t.a', (better_supabase.allocate_stock('00000000-0000-4000-8000-000000000001', current_setting('t.v')::uuid, current_setting('t.l')::uuid, 10, 'quote', 'q1', 'l1', true) ->> 'id'), true);
 

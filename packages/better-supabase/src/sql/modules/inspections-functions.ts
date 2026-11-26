@@ -15,22 +15,22 @@ function programFunctions(ctx: BlockSqlContext, q: InspectionsSql): string {
 
   const notes = has("programs", "notes")
     ? `
-  if length(save_inspection_program.notes) > 10000 then
+  if length(upsert_inspection_program.notes) > 10000 then
     ${q.invalid("notes is at most 10000 characters")}
   end if;`
     : `
-  if nullif(trim(save_inspection_program.notes), '') is not null then
+  if nullif(trim(upsert_inspection_program.notes), '') is not null then
     ${q.invalid("the programmes table has no notes column")}
   end if;`;
 
   const notesCol = has("programs", "notes") ? `, ${p("notes")}` : "";
 
   const notesValue = has("programs", "notes")
-    ? ", nullif(trim(save_inspection_program.notes), '')"
+    ? ", nullif(trim(upsert_inspection_program.notes), '')"
     : "";
 
   const notesSet = has("programs", "notes")
-    ? `\n      ${p("notes")} = nullif(trim(save_inspection_program.notes), ''),`
+    ? `\n      ${p("notes")} = nullif(trim(upsert_inspection_program.notes), ''),`
     : "";
 
   /** Loads `v_row` by `func.program_id` for update, for a manager. */
@@ -47,7 +47,7 @@ function programFunctions(ctx: BlockSqlContext, q: InspectionsSql): string {
   return `
 -- Creates an audit programme for a period or, with program_id, changes one.
 -- A new programme starts as a draft; a closed one takes no changes.
-create or replace function ${fn("save_inspection_program")}(tenant ${idType}, name text, period_start date, period_end date, owner_id uuid default null, notes text default null, program_id uuid default null)
+create or replace function ${fn("upsert_inspection_program")}(tenant ${idType}, name text, period_start date, period_end date, owner_id uuid default null, notes text default null, program_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -57,24 +57,24 @@ as $$
 declare
   v_row ${programs};
 begin
-  if not ${q.allowed("save_inspection_program.tenant", q.manage)} then
+  if not ${q.allowed("upsert_inspection_program.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage audit programmes")}
   end if;
-  if coalesce(length(trim(save_inspection_program.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_inspection_program.name)), 0) not between 1 and 200 then
     ${q.invalid("a programme needs a name of 1 to 200 characters")}
   end if;
-  if save_inspection_program.period_start is null or save_inspection_program.period_end is null
-    or save_inspection_program.period_end < save_inspection_program.period_start then
+  if upsert_inspection_program.period_start is null or upsert_inspection_program.period_end is null
+    or upsert_inspection_program.period_end < upsert_inspection_program.period_start then
     ${q.invalid("a programme needs a period that ends on or after its start")}
   end if;${notes}
-  if save_inspection_program.program_id is null then
+  if upsert_inspection_program.program_id is null then
     insert into ${programs} (${p("tenant")}, ${p("name")}, ${p("periodStart")}, ${p("periodEnd")}, ${p("owner")}${notesCol})
-    values (save_inspection_program.tenant, trim(save_inspection_program.name), save_inspection_program.period_start, save_inspection_program.period_end, save_inspection_program.owner_id${notesValue})
+    values (upsert_inspection_program.tenant, trim(upsert_inspection_program.name), upsert_inspection_program.period_start, upsert_inspection_program.period_end, upsert_inspection_program.owner_id${notesValue})
     returning * into v_row;
     ${q.recordProgram("inspection_program.created", "v_row", "audit programme created")}
   else
     select * into v_row from ${programs} x
-    where x.${p("id")} = save_inspection_program.program_id and x.${p("tenant")} = save_inspection_program.tenant
+    where x.${p("id")} = upsert_inspection_program.program_id and x.${p("tenant")} = upsert_inspection_program.tenant
     for update;
     if not found then
       ${q.programMissing}
@@ -83,10 +83,10 @@ begin
       ${q.invalid("the programme is closed")}
     end if;
     update ${programs} x set
-      ${p("name")} = trim(save_inspection_program.name),
-      ${p("periodStart")} = save_inspection_program.period_start,
-      ${p("periodEnd")} = save_inspection_program.period_end,
-      ${p("owner")} = save_inspection_program.owner_id,${notesSet}
+      ${p("name")} = trim(upsert_inspection_program.name),
+      ${p("periodStart")} = upsert_inspection_program.period_start,
+      ${p("periodEnd")} = upsert_inspection_program.period_end,
+      ${p("owner")} = upsert_inspection_program.owner_id,${notesSet}
       ${p("updatedAt")} = now()
     where x.${p("id")} = v_row.${p("id")}
     returning * into v_row;
@@ -95,7 +95,7 @@ begin
   return ${programJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_inspection_program")}(${idType}, text, date, date, uuid, text, uuid)`)}
+${userGrant(`${fn("upsert_inspection_program")}(${idType}, text, date, date, uuid, text, uuid)`)}
 
 -- Approves a draft programme.
 create or replace function ${fn("approve_inspection_program")}(program_id uuid)
@@ -533,7 +533,7 @@ ${userGrant(`${fn("start_inspection")}(uuid)`)}
 
 -- Saves the answers of the checklist of an inspection in progress, as its
 -- lead or an auditor, as a draft or (draft false) submitted and validated.
-create or replace function ${fn("save_inspection_checklist")}(inspection_id uuid, answers jsonb, draft boolean default true)
+create or replace function ${fn("upsert_inspection_checklist")}(inspection_id uuid, answers jsonb, draft boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -544,7 +544,7 @@ declare
   v_row ${inspections};
   v_respondent uuid;
 begin
-  ${load(q, "save_inspection_checklist")}
+  ${load(q, "upsert_inspection_checklist")}
   if not ${q.acts(`v_row.${i("tenant")}`, `v_row.${i("id")}`, ["lead", "auditor"])} then
     ${q.forbidden("not allowed to fill in this checklist")}
   end if;
@@ -556,11 +556,11 @@ begin
   end if;
   select x.${s("respondent")} into v_respondent from ${forms.table("submissions")} x
   where x.${s("id")} = v_row.${i("checklistSubmission")};
-  return ${save}(v_row.${i("checklistForm")}, save_inspection_checklist.answers, ${q.subject}, v_row.${i("id")}::text,
-    v_respondent, 'member', coalesce(save_inspection_checklist.draft, true), v_row.${i("checklistSubmission")});
+  return ${save}(v_row.${i("checklistForm")}, upsert_inspection_checklist.answers, ${q.subject}, v_row.${i("id")}::text,
+    v_respondent, 'member', coalesce(upsert_inspection_checklist.draft, true), v_row.${i("checklistSubmission")});
 end;
 $$;
-${userGrant(`${fn("save_inspection_checklist")}(uuid, jsonb, boolean)`)}
+${userGrant(`${fn("upsert_inspection_checklist")}(uuid, jsonb, boolean)`)}
 
 -- Ends the fieldwork of an inspection in progress as its lead: the checklist,
 -- when there is one, is submitted. The inspection moves to reporting.

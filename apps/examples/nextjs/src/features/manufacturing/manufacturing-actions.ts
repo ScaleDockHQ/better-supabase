@@ -3,11 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { SHOP_TAG } from "@/features/shop/shop-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MANUFACTURING_TAG } from "./manufacturing-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -17,15 +14,15 @@ export const releaseProductionOrder = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "manufacturing.write",
+    tags: () => [tags.manufacturing(), tags.shop()],
+    refresh: true,
   },
-  async ({ orderId }, { db, auth }) => {
+  async ({ orderId }, { db }) => {
     const released = await db.manufacturing.release({ orderId });
 
     if (!released.ok) {
       return released;
     }
-
-    await refreshCaller(auth, [MANUFACTURING_TAG, SHOP_TAG]);
 
     return ok({ id: released.data.id, status: released.data.status });
   },
@@ -41,8 +38,10 @@ export const createFromRequirements = bsb.action(
     input: v.object({}),
     requireTenant: true,
     permission: "manufacturing.write",
+    tags: () => [tags.manufacturing(), tags.shop()],
+    refresh: true,
   },
-  async (_input, { db, auth }) => {
+  async (_input, { db }) => {
     const requirements = await db.manufacturing.requirements();
 
     if (!requirements.ok) {
@@ -63,8 +62,6 @@ export const createFromRequirements = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [MANUFACTURING_TAG, SHOP_TAG]);
-
     return ok({
       productionOrders: created.data.productionOrders.length,
       purchases:
@@ -83,15 +80,15 @@ export const completeProductionOrder = bsb.action(
     }),
     requireTenant: true,
     permission: "manufacturing.produce",
+    tags: () => [tags.manufacturing(), tags.shop()],
+    refresh: true,
   },
-  async ({ orderId, produced }, { db, auth }) => {
+  async ({ orderId, produced }, { db }) => {
     const done = await db.manufacturing.complete({ orderId, produced });
 
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, [MANUFACTURING_TAG, SHOP_TAG]);
 
     return ok({ id: done.data.id, status: done.data.status });
   },

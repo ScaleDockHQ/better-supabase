@@ -38,7 +38,7 @@ describe("parties module", () => {
     );
     expect(unnamedChecks(sql)).not.toContain('"people" add column "segment"');
     expect(unnamedChecks(sql)).toContain(
-      '(jsonb_populate_record(null::"better_supabase"."companies", save_company.attrs))."segment"',
+      '(jsonb_populate_record(null::"better_supabase"."companies", upsert_company.attrs))."segment"',
     );
   });
 
@@ -68,7 +68,7 @@ describe("parties module, custom mode", () => {
       .map((file) => file.contents)
       .join("");
 
-    expect(unnamedChecks(sql)).not.toContain("save_company");
+    expect(unnamedChecks(sql)).not.toContain("upsert_company");
   });
 });
 

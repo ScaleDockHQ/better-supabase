@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:dfc984ca3958ddd87b63be76ae2d13b350e01c9d25cf6999ecce48f04744c815
+-- @bsb-hash sha256:0842d36f2465460abdc8499facc3119a990b220d4639a2c962db0ebab86a7f05
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -307,7 +307,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member"(organization uuid, member uuid)
+create or replace function "better_supabase"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -967,8 +967,8 @@ revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, te
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."sole_owned_organizations"(uuid, uuid) from public, anon;

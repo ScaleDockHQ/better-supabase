@@ -230,7 +230,7 @@ describe("createDonations", () => {
     };
 
     const { calls, transport } = router({
-      save_donation_fund: () => FUND,
+      upsert_donation_fund: () => FUND,
       archive_donation_fund: () => plain,
       restore_donation_fund: () => plain,
       list_donation_funds: () => [FUND, plain],
@@ -268,7 +268,7 @@ describe("createDonations", () => {
     expect(listed).toHaveLength(2);
     expect(calls).toEqual([
       [
-        "save_donation_fund",
+        "upsert_donation_fund",
         {
           tenant: "org-1",
           key: "roof",
@@ -281,7 +281,7 @@ describe("createDonations", () => {
         },
       ],
       [
-        "save_donation_fund",
+        "upsert_donation_fund",
         {
           tenant: "org-1",
           key: "general",
@@ -1304,7 +1304,7 @@ describe("donations block", () => {
 
     const donations = createDonations({ transport, tenant: "org-1" });
 
-    expect((await givingBinding.load(donations, DONOR, undefined)).ok).toBe(
+    expect((await givingBinding.get(donations, DONOR, undefined)).ok).toBe(
       true,
     );
     expect(calls[0]?.[1]).toMatchObject({ donor_type: "contact" });

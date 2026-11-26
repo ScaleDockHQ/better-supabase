@@ -9,11 +9,9 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { env } from "@/env";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SSO_TAG } from "./sso-cache";
 
 const DOMAIN = v.pipe(
   v.string(),
@@ -54,15 +52,15 @@ export const addSsoDomain = bsb.action(
     input: v.object({ domain: DOMAIN }),
     requireTenant: true,
     permission: "sso.manage",
+    tags: () => [tags.sso()],
+    refresh: true,
   },
-  async ({ domain }, { tenant, db, auth }) => {
+  async ({ domain }, { tenant, db }) => {
     const added = await db.sso.addDomain({ organizationId: tenant, domain });
 
     if (!added.ok) {
       return added;
     }
-
-    await refreshCaller(auth, [SSO_TAG]);
 
     return ok(added.data.id);
   },
@@ -73,15 +71,15 @@ export const removeSsoDomain = bsb.action(
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
     permission: "sso.manage",
+    tags: () => [tags.sso()],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const removed = await db.sso.removeDomain(id);
 
     if (!removed.ok) {
       return removed;
     }
-
-    await refreshCaller(auth, [SSO_TAG]);
 
     return ok(removed.data);
   },
@@ -92,6 +90,8 @@ export const verifySsoDomain = bsb.action(
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
     permission: "sso.manage",
+    tags: () => [tags.sso()],
+    refresh: true,
   },
   async ({ id }, { auth }) => {
     const admin = ssoAdmin();
@@ -113,8 +113,6 @@ export const verifySsoDomain = bsb.action(
       return verified;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
-
     return ok(verified.data.verifiedAt !== undefined);
   },
 );
@@ -133,8 +131,10 @@ export const updateSsoDomain = bsb.action(
     }),
     requireTenant: true,
     permission: "sso.manage",
+    tags: () => [tags.sso()],
+    refresh: true,
   },
-  async ({ id, autoJoinRole, enforceSso }, { db, auth }) => {
+  async ({ id, autoJoinRole, enforceSso }, { db }) => {
     const settings: DomainSettingsDraft = {};
 
     if (autoJoinRole !== undefined) {
@@ -150,8 +150,6 @@ export const updateSsoDomain = bsb.action(
     if (!updated.ok) {
       return updated;
     }
-
-    await refreshCaller(auth, [SSO_TAG]);
 
     return ok(updated.data.id);
   },
@@ -170,6 +168,8 @@ export const addSamlConnection = bsb.action(
     }),
     requireTenant: true,
     permission: "sso.manage",
+    tags: () => [tags.sso()],
+    refresh: true,
   },
   async ({ metadataUrl, domains }, { tenant, auth }) => {
     const admin = ssoAdmin();
@@ -192,8 +192,6 @@ export const addSamlConnection = bsb.action(
       return added;
     }
 
-    await refreshCaller(auth, [SSO_TAG]);
-
     return ok(added.data.id);
   },
 );
@@ -203,6 +201,8 @@ export const removeSamlConnection = bsb.action(
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
     permission: "sso.manage",
+    tags: () => [tags.sso()],
+    refresh: true,
   },
   async ({ id }, { auth }) => {
     const admin = ssoAdmin();
@@ -223,8 +223,6 @@ export const removeSamlConnection = bsb.action(
     if (!removed.ok) {
       return removed;
     }
-
-    await refreshCaller(auth, [SSO_TAG]);
 
     return ok(removed.data !== undefined);
   },

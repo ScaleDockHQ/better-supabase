@@ -122,11 +122,11 @@ declare
   v_def jsonb;
 begin
   ${SERVICE}
-  v_first := (better_supabase.save_workflow_definition('${TENANT}', 'deal-a', 'Deal A', null, array['deal']) ->> 'id')::uuid;
-  v_second := (better_supabase.save_workflow_definition('${TENANT}', 'deal-b', 'Deal B', null, array['deal']) ->> 'id')::uuid;
-  v_auto := (better_supabase.save_workflow_definition('${TENANT}', 'auto', 'Auto') ->> 'id')::uuid;
+  v_first := (better_supabase.upsert_workflow_definition('${TENANT}', 'deal-a', 'Deal A', null, array['deal']) ->> 'id')::uuid;
+  v_second := (better_supabase.upsert_workflow_definition('${TENANT}', 'deal-b', 'Deal B', null, array['deal']) ->> 'id')::uuid;
+  v_auto := (better_supabase.upsert_workflow_definition('${TENANT}', 'auto', 'Auto') ->> 'id')::uuid;
   for v_draft in
-    select better_supabase.save_workflow_draft(x, '{"nodes": [{"id": "start", "kind": "trigger"}], "edges": []}'::jsonb)
+    select better_supabase.upsert_workflow_draft(x, '{"nodes": [{"id": "start", "kind": "trigger"}], "edges": []}'::jsonb)
     from unnest(array[v_first, v_second]) x
   loop
     perform better_supabase.publish_workflow_version((v_draft ->> 'id')::uuid);

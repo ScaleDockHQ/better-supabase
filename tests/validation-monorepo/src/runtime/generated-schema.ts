@@ -6,7 +6,7 @@ import { defineSchema, type SchemaMeta, type Schema } from "better-supabase";
 import meta from "./generated.meta.js";
 import { type Database, type Functions, type Models, type SubjectType } from "./generated.ts";
 
-const tableLoaders = {
+const tableGetters = {
   changeRequests: () => import("./tables/change-requests.ts").then((mod) => mod.changeRequestsTable),
   clientNotes: () => import("./tables/client-notes.ts").then((mod) => mod.clientNotesTable),
   contacts: () => import("./tables/contacts.ts").then((mod) => mod.contactsTable),
@@ -34,6 +34,6 @@ export const schema: Schema<Models, Database, Functions, SubjectType> = /*#__PUR
   lazyTables: true,
   tables: {},
   functions: {},
-  tableLoaders,
-  loadFunctions: () => import("./generated.functions.js").then((mod) => mod.default as SchemaMeta["functions"]),
+  tableGetters,
+  getFunctions: () => import("./generated.functions.js").then((mod) => mod.default as SchemaMeta["functions"]),
 });

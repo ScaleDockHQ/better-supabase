@@ -29,7 +29,7 @@ export async function BookingPage({
 
   const parsed = v.safeParse(v.pipe(v.string(), v.isoDate()), query["from"]);
   const from = parsed.success ? parsed.output : undefined;
-  const page = await settle(() => loadPublicBooking(token, from));
+  const page = await settle(() => getPublicBooking(token, from));
 
   if (page.kind === "missing") {
     notFound();

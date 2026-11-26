@@ -79,7 +79,7 @@ async function run(blocks: AnyBlocksConfig, check: string): Promise<void> {
 }
 
 const TYPE = `${as(CAROL)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;`;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;`;
 
 const approved = (id: string): string =>
   `(select r.approved_at is not null from better_supabase.leave_requests r where r.id = ${id})`;

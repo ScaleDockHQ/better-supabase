@@ -71,7 +71,7 @@ export const relationsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "relations",
-  load: (client: Relations, subject) => client.of({ subject }),
+  get: (client: Relations, subject) => client.of({ subject }),
   events: ["subject.linked", "subject.unlinked"],
   writes: {
     link: {

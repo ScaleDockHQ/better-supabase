@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@5 managed
--- @bsb-hash sha256:26caa953338f9e51ba21489c7451bb14409f9487f3e82c4c13da76f3cd3373b2
+-- @bsb-hash sha256:ced399215548392cf3807273c9953ce500e443965463e3e1a82e9b4524391e31
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -325,7 +325,7 @@ create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function "better_supabase"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "better_supabase"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -338,7 +338,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_shipping_rate.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_shipping_rate.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(data) is distinct from 'object' then
@@ -357,16 +357,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ '^[A-Z]{2}$') then
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into "better_supabase"."order_shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "better_supabase"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = coalesce(data ->> 'kind', 'flat'), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
-    where x."id" = save_shipping_rate.rate and x."tenant_id" = save_shipping_rate.tenant
+    where x."id" = upsert_shipping_rate.rate and x."tenant_id" = upsert_shipping_rate.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'shipping rate not found' using errcode = 'P0002', hint = 'ORDERS_RATE_NOT_FOUND';
@@ -375,8 +375,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -1921,7 +1921,7 @@ begin
   if v_lines is null then
     raise exception 'the order has no catalog lines to buy' using errcode = '55000', hint = 'ORDERS_CART_EMPTY';
   end if;
-  v_purchase := "better_supabase"."save_purchase_order"(v_order.tenant, null, v_location, purchase_order_from_order.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(v_order.tenant, null, v_location, purchase_order_from_order.supplier_type,
     purchase_order_from_order.supplier_id, v_order.currency, null, v_lines, 'Drop ship');
   update "better_supabase"."purchase_orders" x set "ship_to" = v_order.ship_to, "origin_type" = 'order', "origin_id" = v_order.id::text
   where x."id" = (v_purchase ->> 'id')::uuid;
@@ -3125,7 +3125,7 @@ create policy bsb_kitchen_receive on realtime.messages
 
 -- Creates or changes a station. attrs: key, name, position, default, active
 -- and productIds, which replaces the products routed to it.
-create or replace function "better_supabase"."save_kitchen_station"(tenant uuid, station uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_kitchen_station"(tenant uuid, station uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3137,7 +3137,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_kitchen_station.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_kitchen_station.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to run this kitchen' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(attrs) is distinct from 'object' then
@@ -3148,11 +3148,11 @@ begin
   end if;
   if coalesce((attrs ->> 'default')::boolean, false) then
     update "better_supabase"."order_kitchen_stations" s set "is_default" = false
-    where s."tenant_id" = save_kitchen_station.tenant and s."is_default" and s."id" is distinct from save_kitchen_station.station;
+    where s."tenant_id" = upsert_kitchen_station.tenant and s."is_default" and s."id" is distinct from upsert_kitchen_station.station;
   end if;
-  if save_kitchen_station.station is null then
+  if upsert_kitchen_station.station is null then
     insert into "better_supabase"."order_kitchen_stations" ("tenant_id", "key", "name", "position", "is_default", "active")
-    values (save_kitchen_station.tenant, attrs ->> 'key', coalesce(attrs ->> 'name', attrs ->> 'key'), coalesce((attrs ->> 'position')::integer, 0), coalesce((attrs ->> 'default')::boolean, false), coalesce((attrs ->> 'active')::boolean, true))
+    values (upsert_kitchen_station.tenant, attrs ->> 'key', coalesce(attrs ->> 'name', attrs ->> 'key'), coalesce((attrs ->> 'position')::integer, 0), coalesce((attrs ->> 'default')::boolean, false), coalesce((attrs ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "better_supabase"."order_kitchen_stations" s set
@@ -3162,7 +3162,7 @@ begin
       "is_default" = coalesce((attrs ->> 'default')::boolean, s."is_default"),
       "active" = coalesce((attrs ->> 'active')::boolean, s."active"),
       "updated_at" = now()
-    where s."id" = save_kitchen_station.station and s."tenant_id" = save_kitchen_station.tenant
+    where s."id" = upsert_kitchen_station.station and s."tenant_id" = upsert_kitchen_station.tenant
     returning s."id" into v_id;
     if v_id is null then
       raise exception 'no such kitchen station' using errcode = 'P0002', hint = 'ORDERS_KITCHEN_STATION_NOT_FOUND';
@@ -3173,22 +3173,22 @@ begin
       select 1 from jsonb_array_elements_text(attrs -> 'productIds') e(value)
       where not exists (
         select 1 from "better_supabase"."products" p
-        where p."id"::text = e.value and p."tenant_id"::text = save_kitchen_station.tenant::text
+        where p."id"::text = e.value and p."tenant_id"::text = upsert_kitchen_station.tenant::text
       )
     ) then
       raise exception 'productIds must name products of this organization' using errcode = '22023', hint = 'ORDERS_KITCHEN_STATION_INVALID';
     end if;
     delete from "better_supabase"."order_kitchen_routes" r where r."station_id" = v_id;
     insert into "better_supabase"."order_kitchen_routes" ("product_id", "tenant_id", "station_id")
-    select distinct e.value::uuid, save_kitchen_station.tenant, v_id
+    select distinct e.value::uuid, upsert_kitchen_station.tenant, v_id
     from jsonb_array_elements_text(attrs -> 'productIds') e(value)
     on conflict ("product_id") do update set "station_id" = excluded."station_id";
   end if;
   return (select jsonb_build_object('id', s."id", 'organizationId', s."tenant_id", 'key', s."key", 'name', s."name", 'position', s."position", 'isDefault', s."is_default", 'active', s."active", 'productIds', coalesce((select jsonb_agg(r."product_id" order by r."product_id") from "better_supabase"."order_kitchen_routes" r where r."station_id" = s."id"), '[]'::jsonb), 'createdAt', s."created_at", 'updatedAt', s."updated_at") from "better_supabase"."order_kitchen_stations" s where s."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_kitchen_station"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_kitchen_station"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_kitchen_station"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_kitchen_station"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_kitchen_station"(station uuid)
 returns boolean
@@ -3651,14 +3651,14 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "api"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_shipping_rate"($1, $2, $3) $$;
-revoke execute on function "api"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_shipping_rate"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -3998,14 +3998,14 @@ as $$ select "better_supabase"."page_orders"($1, $2) $$;
 revoke execute on function "api"."page_orders"(uuid, jsonb) from public, anon;
 grant execute on function "api"."page_orders"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_kitchen_station"(tenant uuid, station uuid, attrs jsonb)
+create or replace function "api"."upsert_kitchen_station"(tenant uuid, station uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_kitchen_station"($1, $2, $3) $$;
-revoke execute on function "api"."save_kitchen_station"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_kitchen_station"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_kitchen_station"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_kitchen_station"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_kitchen_station"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_kitchen_station"(station uuid)
 returns boolean

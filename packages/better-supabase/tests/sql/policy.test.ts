@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   maskSql,
   policy,
-  readGrants,
-  readPolicies,
+  getGrants,
+  getPolicies,
   readPolicy,
   renderPolicy,
 } from "../../src/sql/policy.ts";
@@ -51,7 +51,7 @@ describe("policy", () => {
   });
 });
 
-describe("readPolicies", () => {
+describe("getPolicies", () => {
   it("ignores policies in comments and strings", () => {
     const sql = [
       "-- create policy a on t for select using (true);",
@@ -59,7 +59,7 @@ describe("readPolicies", () => {
       "create policy c on t for select to public using (true);",
     ].join("\n");
 
-    expect(readPolicies(sql).map((read) => read.policy.name)).toEqual(["c"]);
+    expect(getPolicies(sql).map((read) => read.policy.name)).toEqual(["c"]);
   });
 
   it("finds policies inside do blocks", () => {
@@ -67,7 +67,7 @@ describe("readPolicies", () => {
   create policy "in do" on "s"."t" for select to authenticated using (x = 'a)');
 end $$;`;
 
-    const [read] = readPolicies(sql);
+    const [read] = getPolicies(sql);
 
     expect(read?.policy.name).toBe("in do");
     expect(read?.policy.using).toBe("x = 'a)'");
@@ -79,7 +79,7 @@ end $$;`;
       'create policy b on "s"."second" for select using (true);',
     ].join("\n");
 
-    expect(readPolicies(sql).map((read) => read.policy.table)).toEqual([
+    expect(getPolicies(sql).map((read) => read.policy.table)).toEqual([
       "s.first",
       "s.second",
     ]);
@@ -92,7 +92,7 @@ end $$;`;
   });
 });
 
-describe("readGrants", () => {
+describe("getGrants", () => {
   it("reads table grants with quoted and qualified names", () => {
     const sql = [
       'grant select on "s"."a" to authenticated;',
@@ -100,7 +100,7 @@ describe("readGrants", () => {
       "-- grant all on s.c to anon;",
     ].join("\n");
 
-    expect(readGrants(sql)).toEqual([
+    expect(getGrants(sql)).toEqual([
       { table: "s.a", roles: ["authenticated"] },
       { table: "s.b", roles: ["anon", "authenticated"] },
     ]);
@@ -124,7 +124,7 @@ describe("scanner edge cases", () => {
     const sql = `/* a /* nested */ create policy x on t */
 create policy "we""ird" on "s"."t""q" for select using (true);`;
 
-    const [read] = readPolicies(sql);
+    const [read] = getPolicies(sql);
 
     expect(read?.policy.name).toBe('we"ird');
     expect(read?.policy.table).toBe('s.t"q');
@@ -134,11 +134,11 @@ create policy "we""ird" on "s"."t""q" for select using (true);`;
     const sql = `select E'it\\'s; create policy z on t', 'a''b; create policy y on t';
 create policy ok on t for select using (true);`;
 
-    expect(readPolicies(sql).map((read) => read.policy.name)).toEqual(["ok"]);
+    expect(getPolicies(sql).map((read) => read.policy.name)).toEqual(["ok"]);
   });
 
   it("closes an unterminated comment and dollar quote", () => {
-    expect(readPolicies("select 1 -- create policy a on t")).toEqual([]);
-    expect(readPolicies("select 1 /* create policy a on t")).toEqual([]);
+    expect(getPolicies("select 1 -- create policy a on t")).toEqual([]);
+    expect(getPolicies("select 1 /* create policy a on t")).toEqual([]);
   });
 });

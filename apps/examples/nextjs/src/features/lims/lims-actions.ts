@@ -4,12 +4,10 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { given, Id, Name, Optional, plainDateOf } from "@/lib/form-input";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { LIMS_TAG } from "./lims-cache";
-
-const TAGS = [LIMS_TAG];
+const TAGS = [tags.lims()];
 
 /** Registers a sample, which gets the next SMP number. */
 export const registerSample = bsb.action(
@@ -23,8 +21,10 @@ export const registerSample = bsb.action(
     }),
     requireTenant: true,
     permission: "lims.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const sample = await db.lims.registerSample({
       title: input.title,
       ...given("kind", input.kind),
@@ -36,8 +36,6 @@ export const registerSample = bsb.action(
     if (!sample.ok) {
       return sample;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: sample.data.id });
   },
@@ -57,8 +55,10 @@ export const saveMethod = bsb.action(
     }),
     requireTenant: true,
     permission: "lims.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const lower = input.lowerLimit;
     const upper = input.upperLimit;
 
@@ -86,8 +86,6 @@ export const saveMethod = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -107,8 +105,10 @@ export const recordResult = bsb.action(
     }),
     requireTenant: true,
     permission: "lims.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ sampleId, methodId, instrumentId, value, note }, { db, auth }) => {
+  async ({ sampleId, methodId, instrumentId, value, note }, { db }) => {
     const saved = await db.lims.recordResult({
       sampleId,
       methodId,
@@ -118,8 +118,6 @@ export const recordResult = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ outcome: saved.data.outcome });
   },
@@ -131,15 +129,15 @@ export const completeSample = bsb.action(
     input: v.object({ sampleId: Id }),
     requireTenant: true,
     permission: "lims.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ sampleId }, { db, auth }) => {
+  async ({ sampleId }, { db }) => {
     const moved = await db.lims.completeSample(sampleId);
 
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -155,8 +153,10 @@ export const decideSample = bsb.action(
     }),
     requireTenant: true,
     permission: "lims.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ sampleId, action, reason }, { db, auth }) => {
+  async ({ sampleId, action, reason }, { db }) => {
     const moved =
       action === "release"
         ? await db.lims.releaseSample(sampleId)
@@ -168,8 +168,6 @@ export const decideSample = bsb.action(
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },

@@ -10,7 +10,7 @@ import {
 import {
   activeLogin,
   CloudError,
-  readLogin,
+  getLogin,
   requestSample,
   saveLogin,
 } from "../../../src/cli/seeds/cloud.ts";
@@ -167,7 +167,7 @@ describe("activeLogin", () => {
       'https://c.test/api/cli/auth/refresh {"refreshToken":"old-refresh"}',
     );
     expect(login?.accessToken).toBe("new-access");
-    expect((await readLogin(path))?.refreshToken).toBe("new-refresh");
+    expect((await getLogin(path))?.refreshToken).toBe("new-refresh");
   });
 
   it("returns nothing when the cloud refuses the refresh token", async () => {

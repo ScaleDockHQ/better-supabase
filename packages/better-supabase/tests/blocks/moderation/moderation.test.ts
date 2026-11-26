@@ -364,7 +364,7 @@ describe("moderationBinding", () => {
     });
 
     const item = await moderationBinding
-      .load(moderation, { type: "comment", id: "c1" }, undefined)
+      .get(moderation, { type: "comment", id: "c1" }, undefined)
       .orThrow();
 
     expect(item).toMatchObject({ status: "hidden", reports: [], actions: [] });

@@ -4,7 +4,7 @@
 //   node tests/bench/approval-eligible-ids.ts
 import type { BlockSqlAccessProvider } from "../../src/sql/module-types.ts";
 
-import { loadLite, migrateLite, seedLite } from "../../src/lite/runtime.ts";
+import { getLite, migrateLite, seedLite } from "../../src/lite/runtime.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
 const SIZES = [54, 5000];
@@ -61,7 +61,7 @@ const files = renderBlocks(["permissions", "approvals"], {
   accessProvider: PROVIDER,
 });
 
-const lite = await loadLite();
+const lite = await getLite();
 
 if (!lite) {
   throw new Error("Install @supabase/lite to run this benchmark.");

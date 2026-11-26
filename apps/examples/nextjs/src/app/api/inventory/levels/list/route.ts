@@ -1,5 +1,5 @@
 import { stockList } from "@/features/inventory/inventory-list";
-import { loadStockPage } from "@/features/inventory/inventory-queries";
+import { getStockPage } from "@/features/inventory/inventory-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -11,7 +11,7 @@ export const GET = bsb.route(
   async (request, { db, tenant }) => {
     const query = stockList.parse(request.nextUrl.searchParams);
 
-    return Response.json(await loadStockPage(db, tenant, query.value));
+    return Response.json(await getStockPage(db, tenant, query.value));
   },
   { requireTenant: true },
 );

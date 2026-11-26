@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COMMUNITY_TAG } from "./community-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -18,8 +16,10 @@ export const createFeedbackBoard = bsb.action(
     }),
     requireTenant: true,
     permission: "posts.manage",
+    tags: () => [tags.community()],
+    refresh: true,
   },
-  async ({ name }, { db, auth }) => {
+  async ({ name }, { db }) => {
     const board = await db.posts.saveBoard({
       key: "feedback",
       name,
@@ -29,8 +29,6 @@ export const createFeedbackBoard = bsb.action(
     if (!board.ok) {
       return board;
     }
-
-    await refreshCaller(auth, [COMMUNITY_TAG]);
 
     return ok({ id: board.data.id });
   },
@@ -46,15 +44,15 @@ export const createPost = bsb.action(
     }),
     requireTenant: true,
     permission: "posts.write",
+    tags: () => [tags.community()],
+    refresh: true,
   },
-  async ({ boardId, title, body }, { db, auth }) => {
+  async ({ boardId, title, body }, { db }) => {
     const post = await db.posts.create({ boardId, input: { title, body } });
 
     if (!post.ok) {
       return post;
     }
-
-    await refreshCaller(auth, [COMMUNITY_TAG]);
 
     return ok({ id: post.data.id, moderation: post.data.moderation });
   },
@@ -66,15 +64,15 @@ export const voteOnPost = bsb.action(
     input: v.object({ postId: Id, value: v.picklist([0, 1]) }),
     requireTenant: true,
     permission: "posts.read",
+    tags: () => [tags.community()],
+    refresh: true,
   },
-  async ({ postId, value }, { db, auth }) => {
+  async ({ postId, value }, { db }) => {
     const tally = await db.posts.vote({ postId, value });
 
     if (!tally.ok) {
       return tally;
     }
-
-    await refreshCaller(auth, [COMMUNITY_TAG]);
 
     return ok(tally.data);
   },

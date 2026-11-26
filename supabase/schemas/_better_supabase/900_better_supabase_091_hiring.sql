@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:0a1d8546175ddf254499c9c03bd2c70ac9dfa6e2312da4536b95ae8a7bf4e04b
+-- @bsb-hash sha256:822d62be87f3856010bbbd4f2eb15aa55e9ebc0dac1b9e4e961aa1b5cb49db2b
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,7 +138,7 @@ for each row execute function better_supabase.bsb_application_guard();
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -151,34 +151,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_job.tenant, 'hiring.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_job.tenant, 'hiring.manage'), false)) then
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
-  if save_job.job is not null then
-    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = upsert_job.job and x."tenant_id" = upsert_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+      values (upsert_job.tenant, upsert_job.attrs ->> 'title', (upsert_job.attrs ->> 'teamId')::uuid, upsert_job.attrs ->> 'location',
+        upsert_job.attrs ->> 'employmentType', upsert_job.attrs ->> 'description', (upsert_job.attrs ->> 'hiringManagerId')::uuid,
+        coalesce(upsert_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set
-        "title" = coalesce(save_job.attrs ->> 'title', x."title"),
-        "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
-        "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
-        "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
-        "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
-        "status" = coalesce(save_job.attrs ->> 'status', x."status"),
+        "title" = coalesce(upsert_job.attrs ->> 'title', x."title"),
+        "team_id" = case when upsert_job.attrs ? 'teamId' then (upsert_job.attrs ->> 'teamId')::uuid else x."team_id" end,
+        "location" = case when upsert_job.attrs ? 'location' then upsert_job.attrs ->> 'location' else x."location" end,
+        "employment_type" = case when upsert_job.attrs ? 'employmentType' then upsert_job.attrs ->> 'employmentType' else x."employment_type" end,
+        "description" = case when upsert_job.attrs ? 'description' then upsert_job.attrs ->> 'description' else x."description" end,
+        "hiring_manager_id" = case when upsert_job.attrs ? 'hiringManagerId' then (upsert_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
+        "status" = coalesce(upsert_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
-      where x."id" = save_job.job
+      where x."id" = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
@@ -196,8 +196,8 @@ begin
   return to_jsonb(v_job);
 end;
 $$;
-revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
@@ -601,14 +601,14 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "api"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_job"($1, $2, $3) $$;
-revoke execute on function "api"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_job"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
 returns jsonb

@@ -6,30 +6,13 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { API_KEYS_TAG } from "@/features/api-keys/api-keys-cache";
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
 import { findBookingPage } from "@/features/bookings/bookings-queries";
-import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
-import { CASES_TAG } from "@/features/cases/cases-cache";
-import { COURSES_TAG } from "@/features/courses/courses-cache";
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { DRIVE_ROLES } from "@/features/drive/drive-roles";
-import { FIELD_TAG } from "@/features/field/field-cache";
-import { FINANCE_RECORDS_TAG } from "@/features/finance-records/finance-records-cache";
-import { MAINTENANCE_TAG } from "@/features/maintenance/maintenance-cache";
-import { ONBOARDING_TAG } from "@/features/onboarding/onboarding-cache";
-import { PEOPLE_TAG } from "@/features/people/people-cache";
-import { PRIVACY_TAG } from "@/features/privacy/privacy-cache";
-import { PROJECTS_TAG } from "@/features/projects/projects-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { present } from "@/lib/present";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { blockSet } from "@/lib/supabase";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -62,15 +45,15 @@ export const closeDealWon = bsb.action(
     input: v.object({ dealId: Id, quote: v.optional(v.boolean(), true) }),
     requireTenant: true,
     permission: "deals.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ dealId, quote }, { db, auth }) => {
+  async ({ dealId, quote }, { db }) => {
     const closed = await crmOf(db).closeWon({ dealId, quote });
 
     if (!closed.ok) {
       return closed;
     }
-
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
 
     return ok({
       dealId: closed.data.deal.id,
@@ -123,8 +106,10 @@ export const shareDriveWithRoles = bsb.action(
     }),
     requireTenant: true,
     permission: "drive.read",
+    tags: () => [tags.drive()],
+    refresh: true,
   },
-  async ({ id, roles, role }, { db, auth }) => {
+  async ({ id, roles, role }, { db }) => {
     const report = await filespaceOf(db, driveOf(db)).bulkShare({
       id,
       principals: roles.map((each) => ({
@@ -136,8 +121,6 @@ export const shareDriveWithRoles = bsb.action(
     if (!report.ok) {
       return report;
     }
-
-    await refreshCaller(auth, [DRIVE_TAG]);
 
     return ok({
       shared: report.data.succeeded.length,
@@ -203,15 +186,15 @@ export const rotateKey = bsb.action(
     input: v.object({ id: Id, graceHours: v.optional(Hours) }),
     requireTenant: true,
     permission: "api_keys.manage",
+    tags: () => [tags.apiKeys()],
+    refresh: true,
   },
-  async ({ id, graceHours }, { db, auth }) => {
+  async ({ id, graceHours }, { db }) => {
     const rotated = await keyRotationOf(db).rotateApiKey({ id, graceHours });
 
     if (!rotated.ok) {
       return rotated;
     }
-
-    await refreshCaller(auth, [API_KEYS_TAG]);
 
     return ok({ id: rotated.data.key.id, token: rotated.data.token });
   },
@@ -297,8 +280,10 @@ export const settleReturn = bsb.action(
     }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => FINANCE_TAGS,
+    refresh: true,
   },
-  async ({ orderId, returnId, disposition, refund }, { db, auth }) => {
+  async ({ orderId, returnId, disposition, refund }, { db }) => {
     const settled = await commerceOf(db).processReturn({
       orderId,
       returnId,
@@ -309,8 +294,6 @@ export const settleReturn = bsb.action(
     if (!settled.ok) {
       return settled;
     }
-
-    await refreshCaller(auth, FINANCE_TAGS);
 
     return ok({
       disposition: settled.data.disposition,
@@ -360,8 +343,10 @@ export const approveAndInvoiceTimesheet = bsb.action(
     }),
     requireTenant: true,
     permission: "time_entries.approve",
+    tags: () => [tags.projects(), tags.financeRecords()],
+    refresh: true,
   },
-  async ({ timesheetId, title }, { db, auth }) => {
+  async ({ timesheetId, title }, { db }) => {
     const decided = await db.$blocks.approvals.decideForSubject({
       subject: { type: "timesheet", id: timesheetId },
       action: "approve",
@@ -390,8 +375,6 @@ export const approveAndInvoiceTimesheet = bsb.action(
     if (!invoiced.ok) {
       return invoiced;
     }
-
-    await refreshCaller(auth, [PROJECTS_TAG, FINANCE_RECORDS_TAG]);
 
     return ok({ timesheetId, invoiceId: invoiced.data.invoiceId });
   },
@@ -452,8 +435,10 @@ export const closeDealLost = bsb.action(
     }),
     requireTenant: true,
     permission: "deals.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ dealId, reason, withdraw }, { db, auth }) => {
+  async ({ dealId, reason, withdraw }, { db }) => {
     const closed = await crmOf(db).closeLost({
       dealId,
       reason: reason === "" ? undefined : reason,
@@ -463,8 +448,6 @@ export const closeDealLost = bsb.action(
     if (!closed.ok) {
       return closed;
     }
-
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
 
     return ok({
       dealId: closed.data.deal.id,
@@ -486,8 +469,10 @@ export const acceptQuote = bsb.action(
     }),
     requireTenant: true,
     permission: "quotes.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ quoteId, dealId, followUp }, { db, auth }) => {
+  async ({ quoteId, dealId, followUp }, { db }) => {
     const accepted = await salesOf(db).acceptQuote({
       quoteId,
       dealId,
@@ -498,8 +483,6 @@ export const acceptQuote = bsb.action(
     if (!accepted.ok) {
       return accepted;
     }
-
-    await refreshCaller(auth, [CRM_TAG, CUSTOMERS_TAG]);
 
     return ok({
       quoteId: accepted.data.quote.id,
@@ -515,15 +498,15 @@ export const payAndFulfilOrder = bsb.action(
     input: v.object({ orderId: Id }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.customers(), tags.shop()],
+    refresh: true,
   },
-  async ({ orderId }, { db, auth }) => {
+  async ({ orderId }, { db }) => {
     const done = await commerceOf(db).payAndFulfil({ orderId });
 
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, [CUSTOMERS_TAG, SHOP_TAG]);
 
     return ok({ shipped: done.data.fulfillment.shipped });
   },
@@ -538,15 +521,15 @@ export const reconcileAccount = bsb.action(
     input: v.object({ accountId: Id }),
     requireTenant: true,
     permission: "banking.reconcile",
+    tags: () => [tags.customers()],
+    refresh: true,
   },
-  async ({ accountId }, { db, auth }) => {
+  async ({ accountId }, { db }) => {
     const run = await financeOf(db).reconcile({ accountId });
 
     if (!run.ok) {
       return run;
     }
-
-    await refreshCaller(auth, [CUSTOMERS_TAG]);
 
     return ok({
       matched: run.data.matched.length,
@@ -593,10 +576,12 @@ export const completeVisit = bsb.action(
     }),
     requireTenant: true,
     permission: "dispatch.work",
+    tags: () => [tags.field(), tags.maintenance()],
+    refresh: true,
   },
   async (
     { workOrderId, note, partName, partQuantity, meterId, reading },
-    { db, auth },
+    { db },
   ) => {
     const visit = await db.$blocks.service.completeVisit({
       workOrderId,
@@ -614,8 +599,6 @@ export const completeVisit = bsb.action(
     if (!visit.ok) {
       return visit;
     }
-
-    await refreshCaller(auth, [FIELD_TAG, MAINTENANCE_TAG]);
 
     return ok({
       workOrderId: visit.data.workOrder.id,
@@ -636,8 +619,10 @@ export const openTicket = bsb.action(
     input: v.object({ title: Text, body: Blank }),
     requireTenant: true,
     permission: "tasks.write",
+    tags: () => [tags.projects(), tags.cases()],
+    refresh: true,
   },
-  async ({ title, body }, { db, auth, tenant }) => {
+  async ({ title, body }, { db, tenant }) => {
     // This app names the entity `work_item`, so the subject type is passed
     // to the one-call create-and-start function.
     const created = await db.$blocks.tasks.createWithSla({
@@ -649,8 +634,6 @@ export const openTicket = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [PROJECTS_TAG, CASES_TAG]);
 
     return ok({
       id: created.data.work_item.id,
@@ -665,8 +648,10 @@ export const discussCase = bsb.action(
     input: v.object({ caseId: Id, comment: Text }),
     requireTenant: true,
     permission: "cases.read",
+    tags: () => [tags.cases(), tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ caseId, comment }, { db, auth }) => {
+  async ({ caseId, comment }, { db }) => {
     const discussion = await db.$blocks.collaboration.discuss({
       subject: { type: "case", id: caseId },
       comment: { body: comment },
@@ -675,8 +660,6 @@ export const discussCase = bsb.action(
     if (!discussion.ok) {
       return discussion;
     }
-
-    await refreshCaller(auth, [CASES_TAG, CRM_TAG, CUSTOMERS_TAG]);
 
     return ok({ caseId });
   },
@@ -715,10 +698,12 @@ export const prescribeMedicationWithConsent = bsb.action(
     }),
     requireTenant: true,
     permission: "medications.prescribe",
+    tags: () => [tags.customers()],
+    refresh: true,
   },
   async (
     { clientId, medicationId, purposeKey, dose, times },
-    { db, auth, tenant },
+    { db, tenant },
   ) => {
     const prescribed = await careOf(db).prescribeWithConsent({
       organizationId: tenant,
@@ -731,8 +716,6 @@ export const prescribeMedicationWithConsent = bsb.action(
     if (!prescribed.ok) {
       return prescribed;
     }
-
-    await refreshCaller(auth, [CUSTOMERS_TAG]);
 
     return ok({ orderId: prescribed.data.id });
   },
@@ -755,8 +738,10 @@ export const exportRecordSubject = bsb.action(
     }),
     requireTenant: true,
     permission: "data_lifecycle.export",
+    tags: () => [tags.privacy()],
+    refresh: true,
   },
-  async ({ subjectType, subjectId }, { db, auth, tenant }) => {
+  async ({ subjectType, subjectId }, { db, tenant }) => {
     const exported = await governanceOf(db).exportSubject({
       organizationId: tenant,
       subjectType,
@@ -766,8 +751,6 @@ export const exportRecordSubject = bsb.action(
     if (!exported.ok) {
       return exported;
     }
-
-    await refreshCaller(auth, [PRIVACY_TAG]);
 
     return ok({
       exportId: exported.data.export.id,
@@ -802,8 +785,10 @@ export const hireApplication = bsb.action(
     }),
     requireTenant: true,
     permission: "hiring.manage",
+    tags: () => [tags.people(), tags.onboarding(), tags.customers()],
+    refresh: true,
   },
-  async ({ applicationId, jobTitle, startDate }, { db, auth }) => {
+  async ({ applicationId, jobTitle, startDate }, { db }) => {
     const hired = await recruitingOf(db).hire({
       applicationId,
       overrides: present({
@@ -818,8 +803,6 @@ export const hireApplication = bsb.action(
     if (!hired.ok) {
       return hired;
     }
-
-    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG, CUSTOMERS_TAG]);
 
     return ok({ id: hired.data.employee.id });
   },
@@ -841,11 +824,10 @@ export const onboardEmployee = bsb.action(
     }),
     requireTenant: true,
     permission: "employees.write",
+    tags: () => [tags.people(), tags.onboarding()],
+    refresh: true,
   },
-  async (
-    { name, email, jobTitle, program, startDate },
-    { db, auth, tenant },
-  ) => {
+  async ({ name, email, jobTitle, program, startDate }, { db, tenant }) => {
     const onboarded = await peopleOf(db).onboard({
       organizationId: tenant,
       program,
@@ -876,8 +858,6 @@ export const onboardEmployee = bsb.action(
       return onboarded;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG]);
-
     return ok({ id: onboarded.data.employee.id });
   },
 );
@@ -892,8 +872,10 @@ export const offboardEmployee = bsb.action(
     input: v.object({ employeeId: Id, endDate: PlainDate, reason: Blank }),
     requireTenant: true,
     permission: "employees.write",
+    tags: () => [tags.people(), tags.onboarding()],
+    refresh: true,
   },
-  async ({ employeeId, endDate, reason }, { db, auth }) => {
+  async ({ employeeId, endDate, reason }, { db }) => {
     const offboarded = await peopleOf(db).offboard({
       employeeId,
       ...present({
@@ -907,8 +889,6 @@ export const offboardEmployee = bsb.action(
       return offboarded;
     }
 
-    await refreshCaller(auth, [PEOPLE_TAG, ONBOARDING_TAG]);
-
     return ok({ id: employeeId });
   },
 );
@@ -919,15 +899,15 @@ export const assignCourse = bsb.action(
     input: v.object({ courseId: Id, userId: Id }),
     requireTenant: true,
     permission: "courses.enroll",
+    tags: () => [tags.courses()],
+    refresh: true,
   },
-  async ({ courseId, userId }, { db, auth }) => {
+  async ({ courseId, userId }, { db }) => {
     const assigned = await learningOf(db).assign({ courseId, userId });
 
     if (!assigned.ok) {
       return assigned;
     }
-
-    await refreshCaller(auth, [COURSES_TAG]);
 
     return ok({ id: assigned.data.learner.enrollmentId });
   },
@@ -949,8 +929,10 @@ export const bookWithReminder = bsb.action(
     }),
     requireTenant: true,
     permission: "bookings.manage",
+    tags: () => [tags.bookings(), tags.calendar()],
+    refresh: true,
   },
-  async ({ name, email, date, hour }, { db, auth, tenant, session }) => {
+  async ({ name, email, date, hour }, { db, tenant, session }) => {
     if (session.kind !== "user") {
       return err(
         dbError("forbidden", "Sign in to book on your own booking page."),
@@ -982,13 +964,16 @@ export const bookWithReminder = bsb.action(
       return booked;
     }
 
-    await refreshCaller(auth, [BOOKINGS_TAG, CALENDAR_TAG]);
-
     return ok({ id: booked.data.booking.id });
   },
 );
 
-const FINANCE_TAGS = [FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG];
+const FINANCE_TAGS = [
+  tags.financeRecords(),
+  BILLING_TAG,
+  tags.banking(),
+  tags.shop(),
+];
 
 /**
  * Closes an accounting period when nothing blocks it: `finance.closePeriod`. A
@@ -1000,8 +985,10 @@ export const closeAccountingPeriod = bsb.action(
     input: v.object({ periodId: Id }),
     requireTenant: true,
     permission: "accounting.manage",
+    tags: () => FINANCE_TAGS,
+    refresh: true,
   },
-  async ({ periodId }, { db, auth }) => {
+  async ({ periodId }, { db }) => {
     const closed = await financeOf(db).closePeriod(periodId);
 
     if (!closed.ok) {
@@ -1020,8 +1007,6 @@ export const closeAccountingPeriod = bsb.action(
         ),
       );
     }
-
-    await refreshCaller(auth, FINANCE_TAGS);
 
     return ok({ id: closed.data.period.id, status: closed.data.period.status });
   },
@@ -1053,11 +1038,10 @@ export const payDueBills = bsb.action(
     }),
     requireTenant: true,
     permission: "banking.manage",
+    tags: () => FINANCE_TAGS,
+    refresh: true,
   },
-  async (
-    { accountId, dueBy, creditorName, creditorIban },
-    { db, tenant, auth },
-  ) => {
+  async ({ accountId, dueBy, creditorName, creditorIban }, { db, tenant }) => {
     const bills = await db.invoices.page({
       organizationId: tenant,
       limit: 200,
@@ -1084,8 +1068,6 @@ export const payDueBills = bsb.action(
       return paid;
     }
 
-    await refreshCaller(auth, FINANCE_TAGS);
-
     return ok({ id: paid.data.batch.id, sepa: paid.data.sepa !== null });
   },
 );
@@ -1099,8 +1081,10 @@ export const requestOrderReturn = bsb.action(
     }),
     requireTenant: true,
     permission: "orders.manage",
+    tags: () => [tags.shop()],
+    refresh: true,
   },
-  async ({ orderId, reason }, { db, auth }) => {
+  async ({ orderId, reason }, { db }) => {
     const order = await db.orders.getOrder(orderId);
 
     if (!order.ok) {
@@ -1119,8 +1103,6 @@ export const requestOrderReturn = bsb.action(
     if (!requested.ok) {
       return requested;
     }
-
-    await refreshCaller(auth, [SHOP_TAG]);
 
     return ok({ id: requested.data.id, quantity: requested.data.quantity });
   },

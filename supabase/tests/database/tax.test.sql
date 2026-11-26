@@ -39,7 +39,7 @@ set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 
-insert into ids values ('vat21', (better_supabase.save_tax_code('00000000-0000-4000-8000-000000000001',
+insert into ids values ('vat21', (better_supabase.upsert_tax_code('00000000-0000-4000-8000-000000000001',
   '{"code": "VAT21", "name": "VAT 21%", "type": "sales", "rateBps": 2100, "returnBoxes": ["1a"]}') ->> 'id')::uuid);
 select is(
   (select jsonb_build_array(code, type, return_boxes) from better_supabase.tax_codes
@@ -48,19 +48,19 @@ select is(
   'the owner adds a tax code with its return boxes'
 );
 select throws_ok(
-  $$select better_supabase.save_tax_code('00000000-0000-4000-8000-000000000001', '{"code": "VAT21", "name": "Again", "type": "sales", "rateBps": 900}')$$,
+  $$select better_supabase.upsert_tax_code('00000000-0000-4000-8000-000000000001', '{"code": "VAT21", "name": "Again", "type": "sales", "rateBps": 900}')$$,
   '22023',
   null,
   'a code is unique per organization'
 );
 select throws_ok(
-  $$select better_supabase.save_tax_code('00000000-0000-4000-8000-000000000001', '{"code": "BAD", "name": "Bad", "type": "nonsense"}')$$,
+  $$select better_supabase.upsert_tax_code('00000000-0000-4000-8000-000000000001', '{"code": "BAD", "name": "Bad", "type": "nonsense"}')$$,
   null,
   null,
   'an unknown type is refused'
 );
 
-select better_supabase.save_tax_rate('00000000-0000-4000-8000-000000000001',
+select better_supabase.upsert_tax_rate('00000000-0000-4000-8000-000000000001',
   (select id from ids where name = 'vat21'), 2300, date '2027-01-01');
 select is(
   (select jsonb_agg(jsonb_build_array(rate_bps, valid_to) order by valid_from) from better_supabase.tax_rates
@@ -88,7 +88,7 @@ select is(
   'a document dated 2027-01-01 is taxed at 23%: 100000 + 23000'
 );
 
-insert into ids values ('margin', (better_supabase.save_tax_code('00000000-0000-4000-8000-000000000001',
+insert into ids values ('margin', (better_supabase.upsert_tax_code('00000000-0000-4000-8000-000000000001',
   '{"code": "MARGIN", "name": "Margin scheme", "type": "margin", "rateBps": 2100, "returnBoxes": ["1a"]}') ->> 'id')::uuid);
 select is(
   (select jsonb_build_array(g ->> 'net', g ->> 'tax', g ->> 'gross')
@@ -125,7 +125,7 @@ select is(
   'a credit restriction of 2500 bps taxes 75000: tax 15750, gross 115750'
 );
 
-insert into ids values ('exempt', (better_supabase.save_tax_code('00000000-0000-4000-8000-000000000001',
+insert into ids values ('exempt', (better_supabase.upsert_tax_code('00000000-0000-4000-8000-000000000001',
   '{"code": "EXEMPT", "name": "Exempt", "type": "exempt", "returnBoxes": ["5"]}') ->> 'id')::uuid);
 select is(
   (better_supabase.compute_document_tax(
@@ -135,13 +135,13 @@ select is(
   'an exempt code charges no tax'
 );
 
-insert into ids values ('icg', (better_supabase.save_tax_code('00000000-0000-4000-8000-000000000001',
+insert into ids values ('icg', (better_supabase.upsert_tax_code('00000000-0000-4000-8000-000000000001',
   '{"code": "ICG", "name": "Intra-EU goods", "type": "intra_eu_goods", "returnBoxes": ["3b"]}') ->> 'id')::uuid);
 
 -- Invoices: a domestic sale and an intra-EU sale to a customer with a VAT number.
-insert into ids values ('domestic', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null,
+insert into ids values ('domestic', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null,
   '{"name": "Domestic customer"}') ->> 'id')::uuid);
-insert into ids values ('german', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null,
+insert into ids values ('german', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null,
   '{"name": "German customer", "vatId": "DE 123456789"}') ->> 'id')::uuid);
 
 insert into ids values ('inv1', (better_supabase.create_invoice('00000000-0000-4000-8000-000000000001',
@@ -227,7 +227,7 @@ select is(
   'a member reads the tax codes'
 );
 select throws_ok(
-  $$select better_supabase.save_tax_code('00000000-0000-4000-8000-000000000001', '{"code": "X", "name": "X", "type": "sales"}')$$,
+  $$select better_supabase.upsert_tax_code('00000000-0000-4000-8000-000000000001', '{"code": "X", "name": "X", "type": "sales"}')$$,
   '42501',
   null,
   'a member can''t change tax codes'

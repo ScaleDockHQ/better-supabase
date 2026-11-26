@@ -29,7 +29,7 @@ describe("promotions module", () => {
       );
     }
 
-    for (const fn of ["save_promotion", "apply_promotion_code"]) {
+    for (const fn of ["upsert_promotion", "apply_promotion_code"]) {
       expect(sql).toMatch(
         new RegExp(
           `grant execute on function "better_supabase"\\."${fn}"\\([^)]*\\) to authenticated`,

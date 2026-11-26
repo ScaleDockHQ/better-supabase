@@ -125,7 +125,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
         }),
       upsert: ({ organizationId, key }) =>
         call(
-          "save_ai_provider_key",
+          "upsert_ai_provider_key",
           {
             tenant: organizationId,
             provider: key.provider,
@@ -134,7 +134,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
             settings: key.settings,
             enabled: key.enabled,
           },
-          (value) => recordOf(value, "save_ai_provider_key"),
+          (value) => recordOf(value, "upsert_ai_provider_key"),
         ).andThen((saved) => {
           const stored = keyOf(saved["key"]);
           const replaced = saved["replaced"];
@@ -327,7 +327,7 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
       },
       saveItems: ({ batchId, items }) =>
         service(
-          "save_ai_batch_items",
+          "upsert_ai_batch_items",
           {
             id: batchId,
             items: {

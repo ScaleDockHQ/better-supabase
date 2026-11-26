@@ -62,9 +62,7 @@ function isStoredLogin(value: unknown): value is StoredLogin {
   );
 }
 
-export async function readLogin(
-  path: string,
-): Promise<StoredLogin | undefined> {
+export async function getLogin(path: string): Promise<StoredLogin | undefined> {
   let text: string;
 
   try {
@@ -99,7 +97,7 @@ export async function saveLogin(
 }
 
 export async function clearLogin(path: string): Promise<boolean> {
-  const existed = (await readLogin(path)) !== undefined;
+  const existed = (await getLogin(path)) !== undefined;
 
   await rm(path, { force: true });
 
@@ -316,7 +314,7 @@ export async function activeLogin(
   base: string,
   now: number,
 ): Promise<StoredLogin | undefined> {
-  const login = await readLogin(path);
+  const login = await getLogin(path);
 
   if (login === undefined || !isExpired(login, now)) {
     return login;

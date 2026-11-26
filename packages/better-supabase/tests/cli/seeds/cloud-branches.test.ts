@@ -11,7 +11,7 @@ import {
   clearLogin,
   CloudError,
   pollLogin,
-  readLogin,
+  getLogin,
   requestSample,
   saveLogin,
   startLogin,
@@ -73,13 +73,13 @@ describe("saved login", () => {
   it("returns undefined for a missing file, bad JSON or a wrong shape", async () => {
     const path = await tempPath();
 
-    await expect(readLogin(path)).resolves.toBeUndefined();
+    await expect(getLogin(path)).resolves.toBeUndefined();
     await writeFile(path, "{bad");
-    await expect(readLogin(path)).resolves.toBeUndefined();
+    await expect(getLogin(path)).resolves.toBeUndefined();
     await writeFile(path, JSON.stringify({ accessToken: "a" }));
-    await expect(readLogin(path)).resolves.toBeUndefined();
+    await expect(getLogin(path)).resolves.toBeUndefined();
     await writeFile(path, "null");
-    await expect(readLogin(path)).resolves.toBeUndefined();
+    await expect(getLogin(path)).resolves.toBeUndefined();
   });
 
   it("saves, reads and clears a login", async () => {
@@ -95,10 +95,10 @@ describe("saved login", () => {
       expiresAt: 4_000_000_000,
       email: "me@example.com",
     });
-    await expect(readLogin(path)).resolves.toEqual(stored);
+    await expect(getLogin(path)).resolves.toEqual(stored);
     await expect(readFile(path, "utf-8")).resolves.not.toContain("approved");
     await expect(clearLogin(path)).resolves.toBe(true);
-    await expect(readLogin(path)).resolves.toBeUndefined();
+    await expect(getLogin(path)).resolves.toBeUndefined();
   });
 });
 
@@ -283,7 +283,7 @@ describe("activeLogin", () => {
       expiresAt: 4_000_000_000,
       email: "me@example.com",
     });
-    await expect(readLogin(path)).resolves.toEqual(login);
+    await expect(getLogin(path)).resolves.toEqual(login);
   });
 
   it("gives up quietly when the cloud refuses the refresh", async () => {
@@ -294,7 +294,7 @@ describe("activeLogin", () => {
       await expect(
         activeLogin(path, reply(status, {}), BASE, NOW),
       ).resolves.toBeUndefined();
-      await expect(readLogin(path)).resolves.toEqual(expired);
+      await expect(getLogin(path)).resolves.toEqual(expired);
     }
   });
 

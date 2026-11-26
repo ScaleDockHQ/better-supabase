@@ -164,7 +164,7 @@ describe("block fields", () => {
 
   it("puts fields in attrs for the blocks that save from attrs", async () => {
     const fake = transport({
-      save_sla_policy: {
+      upsert_sla_policy: {
         id: "p1",
         subject_type: "ticket",
         name: "Urgent",
@@ -172,7 +172,7 @@ describe("block fields", () => {
         business_hours: false,
         fields: { priority: "high", points: 1 },
       },
-      save_goal: {
+      upsert_goal: {
         id: "g1",
         name: "Q4",
         metric: "deals.won_count",
@@ -288,7 +288,7 @@ describe("block fields", () => {
         createdAt: at,
         fields: { priority: "high", points: 2 },
       },
-      save_workflow_definition: {
+      upsert_workflow_definition: {
         id: "d1",
         slug: "s",
         name: "S",
@@ -296,7 +296,7 @@ describe("block fields", () => {
         updatedAt: at,
         fields: { priority: "low", points: 1 },
       },
-      save_template: {
+      upsert_template: {
         id: "t1",
         scope: "tenant",
         type: "invoice",
@@ -399,8 +399,8 @@ describe("block fields", () => {
       "update_time_entry",
       "snapshot_version",
       "join_waitlist",
-      "save_workflow_definition",
-      "save_template",
+      "upsert_workflow_definition",
+      "upsert_template",
     ]) {
       expect(sent[fn]).toEqual(value);
     }

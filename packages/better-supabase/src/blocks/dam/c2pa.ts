@@ -102,7 +102,7 @@ export function c2paIsAiGenerated(manifest: C2paManifest): boolean {
  * flag, since a tampered file can still say it was generated, but reports no
  * actions.
  */
-export async function readC2paManifest(
+export async function getC2paManifest(
   reader: C2paReader,
   input: { readonly bytes: Uint8Array; readonly mimeType: string },
 ): Promise<Result<C2paReading>> {

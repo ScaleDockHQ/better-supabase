@@ -41,17 +41,17 @@ select set_config(
 set local role authenticated;
 
 insert into ids
-select 'purpose', (better_supabase.save_consent_purpose('00000000-0000-4000-8000-000000000001',
+select 'purpose', (better_supabase.upsert_consent_purpose('00000000-0000-4000-8000-000000000001',
   'marketing.email', 'Marketing email', valid_months => 12) ->> 'id')::uuid;
 
 select throws_ok(
-  $$select better_supabase.save_consent_purpose('00000000-0000-4000-8000-000000000001', 'Not A Key', 'Bad')$$,
+  $$select better_supabase.upsert_consent_purpose('00000000-0000-4000-8000-000000000001', 'Not A Key', 'Bad')$$,
   '22023',
   null,
   'a purpose key is lowercase'
 );
 select throws_ok(
-  $$select better_supabase.save_consent_purpose(null, 'terms', 'Terms')$$,
+  $$select better_supabase.upsert_consent_purpose(null, 'terms', 'Terms')$$,
   '42501',
   null,
   'only the service role saves a system purpose'

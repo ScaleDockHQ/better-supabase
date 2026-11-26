@@ -14,7 +14,7 @@ vi.mock(
 
 const {
   chainDelay,
-  loadVercelQueue,
+  getVercelQueue,
   retentionFor,
   retryAfterSeconds,
   vercelIdempotencyKey,
@@ -90,15 +90,15 @@ describe("loadVercelQueue", () => {
 
     importPeer.mockResolvedValue({ QueueClient });
 
-    expect(await loadVercelQueue()).toBeInstanceOf(QueueClient);
+    expect(await getVercelQueue()).toBeInstanceOf(QueueClient);
     expect(importPeer).toHaveBeenCalledWith("@vercel/queue");
   });
 
   it("says how to install the peer when it is missing or too old", async () => {
     importPeer.mockResolvedValue(undefined);
-    await expect(loadVercelQueue()).rejects.toThrow("@vercel/queue");
+    await expect(getVercelQueue()).rejects.toThrow("@vercel/queue");
 
     importPeer.mockResolvedValue({ QueueClient: function QueueClient() {} });
-    await expect(loadVercelQueue()).rejects.toThrow("@vercel/queue");
+    await expect(getVercelQueue()).rejects.toThrow("@vercel/queue");
   });
 });

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { configIssues, configSchemas } from "../../src/cli/config-schema.ts";
-import { loadConfig } from "../../src/cli/config.ts";
+import { getConfig } from "../../src/cli/config.ts";
 import { stubProvider } from "../fixtures/authorization-provider.ts";
 
 describe("configSchemas", () => {
@@ -310,7 +310,7 @@ describe("committed configs", () => {
     "tests/validation-request-context",
     "tests/types/shared",
   ])("%s loads", async (dir) => {
-    await expect(loadConfig(join(repo, dir))).resolves.toMatchObject({
+    await expect(getConfig(join(repo, dir))).resolves.toMatchObject({
       root: join(repo, dir),
     });
   });

@@ -38,7 +38,7 @@ The service role passes every check, for imports and sync jobs.
 `blocks.catalog.permissions.create`, `update` and `purge` name separate keys
 for creating, changing and purging products and variants (statuses, archive,
 restore and options count as changes; `purge` falls back to `manage`). `categoryCreate`, `categoryUpdate` and
-`categoryDelete` do the same for `save_category` (a new or an existing
+`categoryDelete` do the same for `upsert_category` (a new or an existing
 category), `move_category` and `delete_category`. Without them those writes
 check `manage`, and prices, product categories, collections and channels
 always do.
@@ -243,7 +243,7 @@ const matrix = await catalog
 
 `updateVariant` changes only what it names: a SKU, option values or a flag
 left out keeps its value, and `null` clears `sku`, `title`, `barcode` or
-`weightGrams` (`save_variant` takes `clear`). Clearing a SKU needs a nullable
+`weightGrams` (`upsert_variant` takes `clear`). Clearing a SKU needs a nullable
 SKU column. `updateProduct` patches the same way: `title`, `slug`,
 `description` and `kind` left out keep their value, `description: null` clears
 the description and `slug: null` derives it from the title again. The block's
@@ -255,7 +255,7 @@ check across `kind` and an extra column holds when a product changes kind.
 
 When your variants have no tracking column, map `columns.variants.trackInventory`
 to `null` and keep the flag on the product (`columns.products.trackInventory`):
-inventory and orders read the product's flag, and `save_variant` refuses a
+inventory and orders read the product's flag, and `upsert_variant` refuses a
 per-variant one (`CATALOG_TRACK_INVENTORY_UNSUPPORTED`).
 
 ### Integer positions

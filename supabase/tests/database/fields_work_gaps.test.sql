@@ -11,8 +11,8 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.company', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Time Co"}') ->> 'id', true);
-select set_config('t.person', better_supabase.save_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Time Pat"}') ->> 'id', true);
+select set_config('t.company', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Time Co"}') ->> 'id', true);
+select set_config('t.person', better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Time Pat"}') ->> 'id', true);
 
 select is(
   (better_supabase.log_time('00000000-0000-4000-8000-000000000001', '2026-11-02 09:00+00', '2026-11-02 10:00+00', 'company', current_setting('t.company')) ->> 'subjectType'),

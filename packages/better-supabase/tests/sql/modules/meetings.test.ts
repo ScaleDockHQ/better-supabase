@@ -80,7 +80,7 @@ describe("meetings module", () => {
         "create_meeting",
         "hold_meeting",
         "record_meeting_decision",
-        "add_meeting_action_item",
+        "create_meeting_action_item",
       ]),
     );
   });

@@ -20,7 +20,7 @@ export const changeRequestsSearchParams: {
 export const changeRequestsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof changeRequestsSearchParams>> = createSearchParamsCache(changeRequestsSearchParams);
 
 /** Parses `changeRequestsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadChangeRequestsSearchParams: LoaderFunction<typeof changeRequestsSearchParams> = createLoader(changeRequestsSearchParams);
+export const getChangeRequestsSearchParams: LoaderFunction<typeof changeRequestsSearchParams> = createLoader(changeRequestsSearchParams);
 
 /** Writes `changeRequestsSearchParams` into a URL, for links. */
 export const serializeChangeRequestsSearchParams: ReturnType<typeof createSerializer<typeof changeRequestsSearchParams>> = createSerializer(changeRequestsSearchParams);
@@ -42,7 +42,7 @@ export const clientNotesSearchParams: {
 export const clientNotesSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof clientNotesSearchParams>> = createSearchParamsCache(clientNotesSearchParams);
 
 /** Parses `clientNotesSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadClientNotesSearchParams: LoaderFunction<typeof clientNotesSearchParams> = createLoader(clientNotesSearchParams);
+export const getClientNotesSearchParams: LoaderFunction<typeof clientNotesSearchParams> = createLoader(clientNotesSearchParams);
 
 /** Writes `clientNotesSearchParams` into a URL, for links. */
 export const serializeClientNotesSearchParams: ReturnType<typeof createSerializer<typeof clientNotesSearchParams>> = createSerializer(clientNotesSearchParams);
@@ -64,7 +64,7 @@ export const contactsSearchParams: {
 export const contactsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof contactsSearchParams>> = createSearchParamsCache(contactsSearchParams);
 
 /** Parses `contactsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadContactsSearchParams: LoaderFunction<typeof contactsSearchParams> = createLoader(contactsSearchParams);
+export const getContactsSearchParams: LoaderFunction<typeof contactsSearchParams> = createLoader(contactsSearchParams);
 
 /** Writes `contactsSearchParams` into a URL, for links. */
 export const serializeContactsSearchParams: ReturnType<typeof createSerializer<typeof contactsSearchParams>> = createSerializer(contactsSearchParams);
@@ -86,7 +86,7 @@ export const customerTagsSearchParams: {
 export const customerTagsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof customerTagsSearchParams>> = createSearchParamsCache(customerTagsSearchParams);
 
 /** Parses `customerTagsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadCustomerTagsSearchParams: LoaderFunction<typeof customerTagsSearchParams> = createLoader(customerTagsSearchParams);
+export const getCustomerTagsSearchParams: LoaderFunction<typeof customerTagsSearchParams> = createLoader(customerTagsSearchParams);
 
 /** Writes `customerTagsSearchParams` into a URL, for links. */
 export const serializeCustomerTagsSearchParams: ReturnType<typeof createSerializer<typeof customerTagsSearchParams>> = createSerializer(customerTagsSearchParams);
@@ -110,7 +110,7 @@ export const customersSearchParams: {
 export const customersSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof customersSearchParams>> = createSearchParamsCache(customersSearchParams);
 
 /** Parses `customersSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadCustomersSearchParams: LoaderFunction<typeof customersSearchParams> = createLoader(customersSearchParams);
+export const getCustomersSearchParams: LoaderFunction<typeof customersSearchParams> = createLoader(customersSearchParams);
 
 /** Writes `customersSearchParams` into a URL, for links. */
 export const serializeCustomersSearchParams: ReturnType<typeof createSerializer<typeof customersSearchParams>> = createSerializer(customersSearchParams);
@@ -132,7 +132,7 @@ export const customersWithOwnerSearchParams: {
 export const customersWithOwnerSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof customersWithOwnerSearchParams>> = createSearchParamsCache(customersWithOwnerSearchParams);
 
 /** Parses `customersWithOwnerSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadCustomersWithOwnerSearchParams: LoaderFunction<typeof customersWithOwnerSearchParams> = createLoader(customersWithOwnerSearchParams);
+export const getCustomersWithOwnerSearchParams: LoaderFunction<typeof customersWithOwnerSearchParams> = createLoader(customersWithOwnerSearchParams);
 
 /** Writes `customersWithOwnerSearchParams` into a URL, for links. */
 export const serializeCustomersWithOwnerSearchParams: ReturnType<typeof createSerializer<typeof customersWithOwnerSearchParams>> = createSerializer(customersWithOwnerSearchParams);
@@ -154,7 +154,7 @@ export const locationsSearchParams: {
 export const locationsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof locationsSearchParams>> = createSearchParamsCache(locationsSearchParams);
 
 /** Parses `locationsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadLocationsSearchParams: LoaderFunction<typeof locationsSearchParams> = createLoader(locationsSearchParams);
+export const getLocationsSearchParams: LoaderFunction<typeof locationsSearchParams> = createLoader(locationsSearchParams);
 
 /** Writes `locationsSearchParams` into a URL, for links. */
 export const serializeLocationsSearchParams: ReturnType<typeof createSerializer<typeof locationsSearchParams>> = createSerializer(locationsSearchParams);
@@ -176,7 +176,7 @@ export const membershipsSearchParams: {
 export const membershipsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof membershipsSearchParams>> = createSearchParamsCache(membershipsSearchParams);
 
 /** Parses `membershipsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadMembershipsSearchParams: LoaderFunction<typeof membershipsSearchParams> = createLoader(membershipsSearchParams);
+export const getMembershipsSearchParams: LoaderFunction<typeof membershipsSearchParams> = createLoader(membershipsSearchParams);
 
 /** Writes `membershipsSearchParams` into a URL, for links. */
 export const serializeMembershipsSearchParams: ReturnType<typeof createSerializer<typeof membershipsSearchParams>> = createSerializer(membershipsSearchParams);
@@ -200,7 +200,7 @@ export const notesSearchParams: {
 export const notesSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof notesSearchParams>> = createSearchParamsCache(notesSearchParams);
 
 /** Parses `notesSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadNotesSearchParams: LoaderFunction<typeof notesSearchParams> = createLoader(notesSearchParams);
+export const getNotesSearchParams: LoaderFunction<typeof notesSearchParams> = createLoader(notesSearchParams);
 
 /** Writes `notesSearchParams` into a URL, for links. */
 export const serializeNotesSearchParams: ReturnType<typeof createSerializer<typeof notesSearchParams>> = createSerializer(notesSearchParams);
@@ -222,7 +222,7 @@ export const organizationsSearchParams: {
 export const organizationsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof organizationsSearchParams>> = createSearchParamsCache(organizationsSearchParams);
 
 /** Parses `organizationsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadOrganizationsSearchParams: LoaderFunction<typeof organizationsSearchParams> = createLoader(organizationsSearchParams);
+export const getOrganizationsSearchParams: LoaderFunction<typeof organizationsSearchParams> = createLoader(organizationsSearchParams);
 
 /** Writes `organizationsSearchParams` into a URL, for links. */
 export const serializeOrganizationsSearchParams: ReturnType<typeof createSerializer<typeof organizationsSearchParams>> = createSerializer(organizationsSearchParams);
@@ -244,7 +244,7 @@ export const planFeaturesSearchParams: {
 export const planFeaturesSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof planFeaturesSearchParams>> = createSearchParamsCache(planFeaturesSearchParams);
 
 /** Parses `planFeaturesSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadPlanFeaturesSearchParams: LoaderFunction<typeof planFeaturesSearchParams> = createLoader(planFeaturesSearchParams);
+export const getPlanFeaturesSearchParams: LoaderFunction<typeof planFeaturesSearchParams> = createLoader(planFeaturesSearchParams);
 
 /** Writes `planFeaturesSearchParams` into a URL, for links. */
 export const serializePlanFeaturesSearchParams: ReturnType<typeof createSerializer<typeof planFeaturesSearchParams>> = createSerializer(planFeaturesSearchParams);
@@ -266,7 +266,7 @@ export const plansSearchParams: {
 export const plansSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof plansSearchParams>> = createSearchParamsCache(plansSearchParams);
 
 /** Parses `plansSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadPlansSearchParams: LoaderFunction<typeof plansSearchParams> = createLoader(plansSearchParams);
+export const getPlansSearchParams: LoaderFunction<typeof plansSearchParams> = createLoader(plansSearchParams);
 
 /** Writes `plansSearchParams` into a URL, for links. */
 export const serializePlansSearchParams: ReturnType<typeof createSerializer<typeof plansSearchParams>> = createSerializer(plansSearchParams);
@@ -288,7 +288,7 @@ export const projectsSearchParams: {
 export const projectsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof projectsSearchParams>> = createSearchParamsCache(projectsSearchParams);
 
 /** Parses `projectsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadProjectsSearchParams: LoaderFunction<typeof projectsSearchParams> = createLoader(projectsSearchParams);
+export const getProjectsSearchParams: LoaderFunction<typeof projectsSearchParams> = createLoader(projectsSearchParams);
 
 /** Writes `projectsSearchParams` into a URL, for links. */
 export const serializeProjectsSearchParams: ReturnType<typeof createSerializer<typeof projectsSearchParams>> = createSerializer(projectsSearchParams);
@@ -310,7 +310,7 @@ export const projectsViewSearchParams: {
 export const projectsViewSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof projectsViewSearchParams>> = createSearchParamsCache(projectsViewSearchParams);
 
 /** Parses `projectsViewSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadProjectsViewSearchParams: LoaderFunction<typeof projectsViewSearchParams> = createLoader(projectsViewSearchParams);
+export const getProjectsViewSearchParams: LoaderFunction<typeof projectsViewSearchParams> = createLoader(projectsViewSearchParams);
 
 /** Writes `projectsViewSearchParams` into a URL, for links. */
 export const serializeProjectsViewSearchParams: ReturnType<typeof createSerializer<typeof projectsViewSearchParams>> = createSerializer(projectsViewSearchParams);
@@ -332,7 +332,7 @@ export const savedViewsSearchParams: {
 export const savedViewsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof savedViewsSearchParams>> = createSearchParamsCache(savedViewsSearchParams);
 
 /** Parses `savedViewsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadSavedViewsSearchParams: LoaderFunction<typeof savedViewsSearchParams> = createLoader(savedViewsSearchParams);
+export const getSavedViewsSearchParams: LoaderFunction<typeof savedViewsSearchParams> = createLoader(savedViewsSearchParams);
 
 /** Writes `savedViewsSearchParams` into a URL, for links. */
 export const serializeSavedViewsSearchParams: ReturnType<typeof createSerializer<typeof savedViewsSearchParams>> = createSerializer(savedViewsSearchParams);
@@ -356,7 +356,7 @@ export const subscriptionsSearchParams: {
 export const subscriptionsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof subscriptionsSearchParams>> = createSearchParamsCache(subscriptionsSearchParams);
 
 /** Parses `subscriptionsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadSubscriptionsSearchParams: LoaderFunction<typeof subscriptionsSearchParams> = createLoader(subscriptionsSearchParams);
+export const getSubscriptionsSearchParams: LoaderFunction<typeof subscriptionsSearchParams> = createLoader(subscriptionsSearchParams);
 
 /** Writes `subscriptionsSearchParams` into a URL, for links. */
 export const serializeSubscriptionsSearchParams: ReturnType<typeof createSerializer<typeof subscriptionsSearchParams>> = createSerializer(subscriptionsSearchParams);
@@ -380,7 +380,7 @@ export const tagsSearchParams: {
 export const tagsSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof tagsSearchParams>> = createSearchParamsCache(tagsSearchParams);
 
 /** Parses `tagsSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadTagsSearchParams: LoaderFunction<typeof tagsSearchParams> = createLoader(tagsSearchParams);
+export const getTagsSearchParams: LoaderFunction<typeof tagsSearchParams> = createLoader(tagsSearchParams);
 
 /** Writes `tagsSearchParams` into a URL, for links. */
 export const serializeTagsSearchParams: ReturnType<typeof createSerializer<typeof tagsSearchParams>> = createSerializer(tagsSearchParams);
@@ -404,7 +404,7 @@ export const tasksSearchParams: {
 export const tasksSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof tasksSearchParams>> = createSearchParamsCache(tasksSearchParams);
 
 /** Parses `tasksSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadTasksSearchParams: LoaderFunction<typeof tasksSearchParams> = createLoader(tasksSearchParams);
+export const getTasksSearchParams: LoaderFunction<typeof tasksSearchParams> = createLoader(tasksSearchParams);
 
 /** Writes `tasksSearchParams` into a URL, for links. */
 export const serializeTasksSearchParams: ReturnType<typeof createSerializer<typeof tasksSearchParams>> = createSerializer(tasksSearchParams);
@@ -426,7 +426,7 @@ export const tasksViewSearchParams: {
 export const tasksViewSearchParamsCache: ReturnType<typeof createSearchParamsCache<typeof tasksViewSearchParams>> = createSearchParamsCache(tasksViewSearchParams);
 
 /** Parses `tasksViewSearchParams` from a URL, a `Request` or `searchParams`. */
-export const loadTasksViewSearchParams: LoaderFunction<typeof tasksViewSearchParams> = createLoader(tasksViewSearchParams);
+export const getTasksViewSearchParams: LoaderFunction<typeof tasksViewSearchParams> = createLoader(tasksViewSearchParams);
 
 /** Writes `tasksViewSearchParams` into a URL, for links. */
 export const serializeTasksViewSearchParams: ReturnType<typeof createSerializer<typeof tasksViewSearchParams>> = createSerializer(tasksViewSearchParams);

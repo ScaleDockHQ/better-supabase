@@ -400,7 +400,7 @@ function build(ctx: BlockSqlContext): string {
 
   const claims = ctx.installed("notifications") ? "\n  v_claims text;" : "";
 
-  const loadForManage = (
+  const getForManage = (
     fnName: string,
   ): string => `select * into v_row from ${reviews} x where x.${r("id")} = ${fnName}.review_id for update;
   if not found then
@@ -682,7 +682,7 @@ as $$
 declare
   v_row ${reviews}%rowtype;
 begin
-  ${loadForManage("publish_review")}
+  ${getForManage("publish_review")}
   if v_row.${r("status")} = 'published' then
     return ${full("v_row")};
   end if;
@@ -705,7 +705,7 @@ as $$
 declare
   v_row ${reviews}%rowtype;
 begin
-  ${loadForManage("reject_review")}
+  ${getForManage("reject_review")}
   perform ${moderated.fn("moderation_apply")}(${fn("review_moderation_item")}(v_row.${r("id")}), 'hide', reject_review.reason, false);
   select * into v_row from ${reviews} x where x.${r("id")} = reject_review.review_id;
   return ${full("v_row")};
@@ -724,7 +724,7 @@ as $$
 declare
   v_row ${reviews}%rowtype;${claims}
 begin
-  ${loadForManage("reply_to_review")}
+  ${getForManage("reply_to_review")}
   if length(reply_to_review.reply) > ${String(maxBody)} then
     ${fail("REVIEW_INVALID", `reply must be at most ${String(maxBody)} characters`, "22023")}
   end if;

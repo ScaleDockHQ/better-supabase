@@ -7,9 +7,8 @@ import type {
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { INCIDENTS_TAG } from "./incidents-cache";
 
 export interface IncidentRow {
   readonly id: string;
@@ -26,7 +25,7 @@ export interface IncidentRow {
 export async function getIncidents(): Promise<readonly IncidentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INCIDENTS_TAG);
+  cacheTag(tags.incidents());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -70,7 +69,7 @@ export async function getIncident(
 ): Promise<IncidentDetailData | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(INCIDENTS_TAG);
+  cacheTag(tags.incidents());
 
   const incident = await db.incidents.get(id).orThrow();
 

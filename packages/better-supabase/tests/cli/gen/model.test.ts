@@ -7,7 +7,7 @@ import { emitModule } from "../../../src/cli/gen/emit.ts";
 import { buildModel } from "../../../src/cli/gen/model.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { libraryFixture } from "../fixtures/library.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 const root = libraryFixture("").pathname;
 const BOTH = ["public", "better_supabase"];
@@ -21,7 +21,7 @@ async function model(
   config: ResolveInput = {},
   extras: Partial<Snapshot["extras"]> = {},
 ) {
-  const fixture = await loadFixtureSnapshot();
+  const fixture = await getFixtureSnapshot();
 
   const snapshot: Snapshot = {
     ...fixture,

@@ -220,7 +220,7 @@ ${read("buckets")}
 }
 
 /** Loads a variant's tenant into `v_tenant`, raising when it doesn't exist. */
-function loadVariant(ctx: BlockSqlContext, variant: string): string {
+function getVariant(ctx: BlockSqlContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
 
@@ -280,7 +280,7 @@ declare
   v_row ${items}%rowtype;
   v_old ${items}%rowtype;
 begin
-  ${loadVariant(ctx, "set_stock_item.variant")}
+  ${getVariant(ctx, "set_stock_item.variant")}
   ${guard(names.scope, names.manage, "v_tenant")}
   select * into v_old from ${items} x where x.${i("variant")} = set_stock_item.variant for update;
   v_row.${i("variant")} := set_stock_item.variant;
@@ -328,7 +328,7 @@ ${userGrant(`${fn("set_stock_item")}(uuid, text, smallint, text, boolean, text, 
 
 -- Creates a bin at a location (bin null) or updates one. Stock in a hold bin
 -- counts as held: on hand, but not available to sell.
-create or replace function ${fn("save_bin")}(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
+create or replace function ${fn("upsert_bin")}(location uuid, bin uuid, code text, name text, hold boolean, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -337,31 +337,31 @@ as $$
 #variable_conflict use_column
 declare
   v_tenant ${ctx.idType};
-  v_id uuid := save_bin.bin;
+  v_id uuid := upsert_bin.bin;
   v_hold boolean;
   v_was boolean;
 begin
-  select x.${l("tenant")} into v_tenant from ${loc.table} x where x.${l("id")} = save_bin.location;
+  select x.${l("tenant")} into v_tenant from ${loc.table} x where x.${l("id")} = upsert_bin.location;
   if v_tenant is null then
     ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found", "P0002")}
   end if;
   ${guard(names.scope, names.manage, "v_tenant")}
-  if save_bin.code is null or save_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  if upsert_bin.code is null or upsert_bin.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     ${fail("INVENTORY_BIN_CODE_INVALID", "the code must be 1 to 40 letters, digits, dots, dashes or underscores", "22023")}
   end if;
   begin
     if v_id is null then
       insert into ${bins} (${b("tenant")}, ${b("location")}, ${b("code")}, ${b("name")}, ${b("hold")}, ${b("active")})
-      values (v_tenant, save_bin.location, save_bin.code, save_bin.name, coalesce(save_bin.hold, false), coalesce(save_bin.active, true))
+      values (v_tenant, upsert_bin.location, upsert_bin.code, upsert_bin.name, coalesce(upsert_bin.hold, false), coalesce(upsert_bin.active, true))
       returning ${b("id")}, ${b("hold")} into v_id, v_hold;
       v_was := v_hold;
     else
-      select x.${b("hold")} into v_was from ${bins} x where x.${b("id")} = v_id and x.${b("location")} = save_bin.location for update;
+      select x.${b("hold")} into v_was from ${bins} x where x.${b("id")} = v_id and x.${b("location")} = upsert_bin.location for update;
       if not found then
         ${fail("INVENTORY_BIN_NOT_FOUND", "bin not found at this location", "P0002")}
       end if;
-      update ${bins} x set ${b("code")} = save_bin.code, ${b("name")} = save_bin.name,
-        ${b("hold")} = coalesce(save_bin.hold, x.${b("hold")}), ${b("active")} = coalesce(save_bin.active, x.${b("active")})
+      update ${bins} x set ${b("code")} = upsert_bin.code, ${b("name")} = upsert_bin.name,
+        ${b("hold")} = coalesce(upsert_bin.hold, x.${b("hold")}), ${b("active")} = coalesce(upsert_bin.active, x.${b("active")})
       where x.${b("id")} = v_id
       returning x.${b("hold")} into v_hold;
     end if;
@@ -372,12 +372,12 @@ begin
     update ${levels} x set ${lv("held")} = greatest(x.${lv("held")} + case when v_hold then y.on_hand else -y.on_hand end, 0), ${lv("updatedAt")} = now()
     from (select z.${k("variant")} as variant, sum(z.${k("onHand")}) as on_hand from ${buckets} z
       where z.${k("bin")} = v_id and z.${k("onHand")} > 0 group by z.${k("variant")}) y
-    where x.${lv("variant")} = y.variant and x.${lv("location")} = save_bin.location;
+    where x.${lv("variant")} = y.variant and x.${lv("location")} = upsert_bin.location;
   end if;
-  return jsonb_build_object('id', v_id, 'code', save_bin.code, 'hold', v_hold, 'active', coalesce(save_bin.active, true));
+  return jsonb_build_object('id', v_id, 'code', upsert_bin.code, 'hold', v_hold, 'active', coalesce(upsert_bin.active, true));
 end;
 $$;
-${userGrant(`${fn("save_bin")}(uuid, uuid, text, text, boolean, boolean)`)}
+${userGrant(`${fn("upsert_bin")}(uuid, uuid, text, text, boolean, boolean)`)}
 
 -- The lot of a variant with this code, created when missing. A given
 -- expires_on replaces the stored one.
@@ -405,7 +405,7 @@ $$;
 revoke execute on function ${fn("stock_lot_for")}(${ctx.idType}, uuid, text, date) from public, anon, authenticated;
 
 -- Creates a lot of a variant or updates its expiry date. Returns the lot.
-create or replace function ${fn("save_lot")}(variant uuid, code text, expires_on date)
+create or replace function ${fn("upsert_lot")}(variant uuid, code text, expires_on date)
 returns jsonb
 language plpgsql
 security definer
@@ -415,14 +415,14 @@ declare
   v_tenant ${ctx.idType};
   v_id uuid;
 begin
-  ${loadVariant(ctx, "save_lot.variant")}
+  ${getVariant(ctx, "upsert_lot.variant")}
   ${guard(names.scope, names.manage, "v_tenant")}
-  v_id := ${fn("stock_lot_for")}(v_tenant, save_lot.variant, save_lot.code, save_lot.expires_on);
+  v_id := ${fn("stock_lot_for")}(v_tenant, upsert_lot.variant, upsert_lot.code, upsert_lot.expires_on);
   return (select jsonb_build_object('id', x.${lt("id")}, 'code', x.${lt("code")}, 'expiresOn', x.${lt("expiresOn")})
     from ${lots} x where x.${lt("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_lot")}(uuid, text, date)`)}
+${userGrant(`${fn("upsert_lot")}(uuid, text, date)`)}
 
 -- A variant's stock at a location: the level, each bin and lot bucket, the
 -- stock outside any bin or lot, and the serial numbers in stock there.
@@ -571,7 +571,7 @@ declare
   v_tenant ${ctx.idType};
   v_item record;
 begin
-  ${loadVariant(ctx, "stock_valuation.variant")}
+  ${getVariant(ctx, "stock_valuation.variant")}
   if not (auth.role() = 'service_role' or ${names.scope.can("v_tenant", names.read)}) then
     ${fail("INVENTORY_FORBIDDEN", "not allowed to read this inventory")}
   end if;

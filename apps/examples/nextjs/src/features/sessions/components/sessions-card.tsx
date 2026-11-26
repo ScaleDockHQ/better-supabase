@@ -23,7 +23,7 @@ async function retry() {
   refresh();
 }
 
-async function loadSession(): Promise<
+async function getSession(): Promise<
   | {
       kind: "ok";
       session: CurrentSession | null;
@@ -48,7 +48,7 @@ async function loadSession(): Promise<
 export async function SessionsCard() {
   const [t, result] = await Promise.all([
     getExtracted("sessions"),
-    loadSession(),
+    getSession(),
   ]);
 
   if (result.kind === "error") {

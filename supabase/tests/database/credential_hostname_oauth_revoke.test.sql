@@ -17,7 +17,7 @@ select set_config(
   true
 );
 set local role authenticated;
-select set_config('test.host', better_supabase.add_hostname(
+select set_config('test.host', better_supabase.create_hostname(
   '00000000-0000-4000-8000-000000000001', 'revoke-test.example.com') ->> 'id', true);
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
@@ -35,7 +35,7 @@ select set_config(
   true
 );
 set local role authenticated;
-select is(better_supabase.remove_hostname(current_setting('test.host')::uuid), true, 'removing a hostname succeeds');
+select is(better_supabase.delete_hostname(current_setting('test.host')::uuid), true, 'removing a hostname succeeds');
 select is(
   better_supabase.resolve_hostname('revoke-test.example.com'), null,
   'a removed hostname stops resolving'

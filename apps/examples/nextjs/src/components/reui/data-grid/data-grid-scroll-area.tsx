@@ -166,16 +166,16 @@ function DataGridScrollArea({
     const container = containerRef.current;
     if (!container) return;
 
-    const readDirection = () => {
+    const getDirection = () => {
       const next = getComputedStyle(container).direction === "rtl";
       setIsLayoutRtl((prev) => (prev === next ? prev : next));
     };
 
-    readDirection();
+    getDirection();
     if (typeof MutationObserver === "undefined") return;
 
     // Only a dir attribute flips it at runtime (an RTL toggle on <html>).
-    const observer = new MutationObserver(readDirection);
+    const observer = new MutationObserver(getDirection);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["dir"],

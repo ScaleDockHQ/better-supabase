@@ -10,12 +10,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { WAREHOUSE_TAG } from "./warehouse-cache";
 
 export interface LocationOption {
   readonly id: string;
@@ -49,10 +46,10 @@ const LOOKUP_LIMIT = 200;
  * names and selects of the warehouse and request pages. The inventory block
  * lists them, and row level security decides the rows (EX-1102).
  */
-export async function loadLookups(): Promise<Lookups | null> {
+export async function getLookups(): Promise<Lookups | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -125,18 +122,18 @@ export function pickListRowOf(row: PickList): PickListRow {
 }
 
 /** The pick lists released with one wave. */
-export async function loadWavePickLists(
+export async function getWavePickLists(
   waveId: string,
 ): Promise<readonly PickListRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG, MANUFACTURING_TAG);
+  cacheTag(tags.warehouse(), tags.shop(), tags.manufacturing());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const rows = await readAllPages((page) =>
+  const rows = await getAllPages((page) =>
     db.warehouse.pickListPage({ ...page, filters: { waveId: [waveId] } }),
   );
 
@@ -165,7 +162,7 @@ export async function loadPickList(
 ): Promise<PickListFull | null | undefined> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG, MANUFACTURING_TAG);
+  cacheTag(tags.warehouse(), tags.shop(), tags.manufacturing());
 
   if (!tenantOf(session)) {
     return null;
@@ -236,16 +233,16 @@ export function waveRowOf(wave: PickWave): WaveRow {
   };
 }
 
-export async function loadWaves(): Promise<readonly WaveRow[] | null> {
+export async function getWaves(): Promise<readonly WaveRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG);
+  cacheTag(tags.warehouse());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const waves = await readAllPages((page) => db.warehouse.pickWavePage(page));
+  const waves = await getAllPages((page) => db.warehouse.pickWavePage(page));
 
   return waves.map(waveRowOf);
 }
@@ -273,20 +270,18 @@ export function putawayRuleRowOf(rule: PutawayRule): PutawayRuleRow {
   };
 }
 
-export async function loadPutawayRules(): Promise<
+export async function getPutawayRules(): Promise<
   readonly PutawayRuleRow[] | null
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG);
+  cacheTag(tags.warehouse());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const rules = await readAllPages((page) =>
-    db.warehouse.putawayRulePage(page),
-  );
+  const rules = await getAllPages((page) => db.warehouse.putawayRulePage(page));
 
   return rules.map(putawayRuleRowOf);
 }
@@ -302,12 +297,12 @@ export interface SlottingRow {
 }
 
 /** The fastest movers of one location and the bin that suits each. */
-export async function loadSlotting(
+export async function getSlotting(
   locationId: string,
 ): Promise<readonly SlottingRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
@@ -359,18 +354,16 @@ export function countPlanRowOf(plan: CountPlan): CountPlanRow {
   };
 }
 
-export async function loadCountPlans(): Promise<
-  readonly CountPlanRow[] | null
-> {
+export async function getCountPlans(): Promise<readonly CountPlanRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const plans = await readAllPages((page) => db.warehouse.countPlanPage(page));
+  const plans = await getAllPages((page) => db.warehouse.countPlanPage(page));
 
   return plans.map(countPlanRowOf);
 }
@@ -393,12 +386,12 @@ export interface CountVariance {
 }
 
 /** The variance of a plan's last count against its limit. */
-export async function loadVariance(
+export async function getVariance(
   countId: string,
 ): Promise<CountVariance | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
 
   if (!tenantOf(session)) {
     return null;
@@ -421,12 +414,12 @@ export interface ReceivableOrder {
 }
 
 /** Placed purchase orders that still owe units, for the receive dialog. */
-export async function loadReceivableOrders(): Promise<
+export async function getReceivableOrders(): Promise<
   readonly ReceivableOrder[] | null
 > {
   "use cache: private";
   const { session } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
   const tenant = tenantOf(session);
   const connection = postgres();
   const claims = userClaims(session);
@@ -497,13 +490,13 @@ export interface ReceiptPutaway {
  * inventory block has no list call for receipts, so the read goes through the
  * caller's connection (EX-1111).
  */
-export async function loadReceipts(): Promise<{
+export async function getReceipts(): Promise<{
   readonly receipts: readonly ReceiptRow[];
   readonly latest: ReceiptPutaway | null;
 } | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  cacheTag(tags.warehouse(), tags.shop());
   const tenant = tenantOf(session);
   const connection = postgres();
   const claims = userClaims(session);

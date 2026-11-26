@@ -26,7 +26,7 @@ const SUBJECT = { type: "patient", id: "p1" };
 
 describe("subjects members parsing defaults", () => {
   it("fills empty defaults when a row has no optional columns", async () => {
-    const { members } = setup({ add_subject_member: {} });
+    const { members } = setup({ create_subject_member: {} });
 
     const member = await members
       .add({ subject: SUBJECT, member: { teamId: "t1" } })
@@ -43,7 +43,7 @@ describe("subjects members parsing defaults", () => {
   });
 
   it("sends a team, the default role and null dates", async () => {
-    const { calls, members } = setup({ add_subject_member: {} });
+    const { calls, members } = setup({ create_subject_member: {} });
 
     await members.add({ subject: SUBJECT, member: { teamId: "t1" } }).orThrow();
 
@@ -60,7 +60,7 @@ describe("subjects members parsing defaults", () => {
 
   it("parses every optional column of a full row", async () => {
     const { members } = setup({
-      add_subject_member: {
+      create_subject_member: {
         id: "m1",
         organizationId: "org",
         subjectType: "patient",

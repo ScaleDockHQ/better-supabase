@@ -3,7 +3,7 @@ import type { CalendarTransparency } from "./availability.ts";
 import type { ContentLine } from "./ics-text.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
-import { alarmLines, readAlarm } from "./alarms.ts";
+import { alarmLines, getAlarm } from "./alarms.ts";
 import { compact, escapeText, pad, unescapeText, utc } from "./ics-text.ts";
 
 /** How an attendee takes part (RFC 5545 `ROLE`), in lowercase. */
@@ -367,7 +367,7 @@ function eventOf(
   const zoned = start.instant.toZonedDateTimeISO(start.tz);
 
   const alarms = alarmGroups.flatMap((group) => {
-    const alarm = readAlarm(group);
+    const alarm = getAlarm(group);
 
     return alarm === undefined ? [] : [alarm];
   });

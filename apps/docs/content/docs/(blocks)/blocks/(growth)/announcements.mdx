@@ -228,7 +228,7 @@ export function Component(props: { organizationId: string }) {
 | `active_announcements(tenant)`         | `authenticated`, `service_role` | The caller's live, undismissed announcements                                                  |
 | `dismiss_announcement(id)`             | `authenticated`, `service_role` | Hides one for the caller                                                                      |
 | `list_announcements(include_archived)` | `authenticated`, `service_role` | Every announcement that is not archived, for staff; `include_archived` adds the archived ones |
-| `save_announcement(id, fields)`        | `authenticated`, `service_role` | Creates (`id` null) or changes one, for staff                                                 |
+| `upsert_announcement(id, fields)`      | `authenticated`, `service_role` | Creates (`id` null) or changes one, for staff                                                 |
 | `archive_announcement(id)`             | `authenticated`, `service_role` | Takes one out of the lists, for staff                                                         |
 | `restore_announcement(id)`             | `authenticated`, `service_role` | Brings an archived one back, for staff                                                        |
 | `purge_announcement(id)`               | `authenticated`, `service_role` | Removes one and its dismissals for good, for staff                                            |

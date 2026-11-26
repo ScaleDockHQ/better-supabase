@@ -201,19 +201,19 @@ const check = await db.courses.verifyCertificate(code).orThrow();
 
 ## Functions
 
-| Function                                                                                                           | Granted to                              | Does                                                    |
-| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------- |
-| `save_course(tenant, course)`, `archive_course(course_id)`, `restore_course(course_id)`, `purge_course(course_id)` | `authenticated`, `service_role`         | Creates, changes, archives, restores or purges a course |
-| `list_courses(tenant, status)`                                                                                     | `authenticated`, `service_role`         | The organization's courses by title                     |
-| `save_course_module(course_id, module)`, `delete_course_module(module_id)`                                         | `authenticated`, `service_role`         | Creates, changes or deletes a module                    |
-| `save_course_lesson(course_id, lesson)`, `delete_course_lesson(lesson_id)`                                         | `authenticated`, `service_role`         | Creates, changes or deletes a lesson                    |
-| `course_outline(course_id)`, `course_lesson(lesson_id)`                                                            | `authenticated`, `service_role`         | A course's outline, or one lesson to play               |
-| `enroll_in_course(course_id, user_id)`, `unenroll_from_course(course_id, ...)`                                     | `authenticated`, `service_role`         | Enrolls a learner or cancels the enrollment             |
-| `start_course_lesson(lesson_id)`, `complete_course_lesson(lesson_id, done)`                                        | `authenticated`, `service_role`         | Records a lesson opened, done or not done               |
-| `submit_course_quiz(lesson_id, answers)`                                                                           | `authenticated`, `service_role`         | Submits and grades a quiz                               |
-| `course_progress(course_id, user_id)`, `list_course_learners(course_id, ...)`                                      | `authenticated`, `service_role`         | One learner's progress, or all of them                  |
-| `verify_course_certificate(code)`                                                                                  | `anon`, `authenticated`, `service_role` | Checks a certificate by its code                        |
-| `revoke_course_certificate(certificate_id)`                                                                        | `authenticated`, `service_role`         | Revokes a certificate                                   |
+| Function                                                                                                             | Granted to                              | Does                                                    |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------- |
+| `upsert_course(tenant, course)`, `archive_course(course_id)`, `restore_course(course_id)`, `purge_course(course_id)` | `authenticated`, `service_role`         | Creates, changes, archives, restores or purges a course |
+| `list_courses(tenant, status)`                                                                                       | `authenticated`, `service_role`         | The organization's courses by title                     |
+| `upsert_course_module(course_id, module)`, `delete_course_module(module_id)`                                         | `authenticated`, `service_role`         | Creates, changes or deletes a module                    |
+| `upsert_course_lesson(course_id, lesson)`, `delete_course_lesson(lesson_id)`                                         | `authenticated`, `service_role`         | Creates, changes or deletes a lesson                    |
+| `course_outline(course_id)`, `course_lesson(lesson_id)`                                                              | `authenticated`, `service_role`         | A course's outline, or one lesson to play               |
+| `enroll_in_course(course_id, user_id)`, `unenroll_from_course(course_id, ...)`                                       | `authenticated`, `service_role`         | Enrolls a learner or cancels the enrollment             |
+| `start_course_lesson(lesson_id)`, `complete_course_lesson(lesson_id, done)`                                          | `authenticated`, `service_role`         | Records a lesson opened, done or not done               |
+| `submit_course_quiz(lesson_id, answers)`                                                                             | `authenticated`, `service_role`         | Submits and grades a quiz                               |
+| `course_progress(course_id, user_id)`, `list_course_learners(course_id, ...)`                                        | `authenticated`, `service_role`         | One learner's progress, or all of them                  |
+| `verify_course_certificate(code)`                                                                                    | `anon`, `authenticated`, `service_role` | Checks a certificate by its code                        |
+| `revoke_course_certificate(certificate_id)`                                                                          | `authenticated`, `service_role`         | Revokes a certificate                                   |
 
 ## Errors
 

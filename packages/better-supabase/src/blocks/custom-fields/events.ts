@@ -23,7 +23,7 @@ export type CustomFieldsEvents = {
   readonly "field_value.viewed": FieldValueReadEventData;
 };
 
-/** The values of one subject that a `read_field_values` call returned. */
+/** The values of one subject that a `get_field_values` call returned. */
 export interface FieldValueReadEventData extends SaasSubjectEventData {
   /** The ids of the encrypted or sensitive values it returned. */
   readonly ids: readonly string[];

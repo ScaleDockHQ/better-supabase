@@ -24,7 +24,7 @@ describe("employeeContractsBinding", () => {
     // SAFETY: the binding calls only `contracts`.
     const client = { contracts } as unknown as Employees;
 
-    const loaded = await employeeContractsBinding.load(
+    const loaded = await employeeContractsBinding.get(
       client,
       { type: "employee", id: "e1" },
       undefined,

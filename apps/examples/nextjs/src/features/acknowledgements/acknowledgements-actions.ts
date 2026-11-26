@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ACKNOWLEDGEMENTS_TAG } from "./acknowledgements-cache";
 
 const RECORD_TYPE = /^[a-z][a-z0-9_]*$/;
 
@@ -22,8 +20,10 @@ export const acknowledgeRecord = bsb.action(
     }),
     requireTenant: true,
     permission: "acknowledgements.acknowledge",
+    tags: () => [tags.acknowledgements()],
+    refresh: true,
   },
-  async ({ type, id, versionId }, { db, auth }) => {
+  async ({ type, id, versionId }, { db }) => {
     const acknowledged = await db.acknowledgements.acknowledge({
       record: { type, id },
       versionId,
@@ -32,8 +32,6 @@ export const acknowledgeRecord = bsb.action(
     if (!acknowledged.ok) {
       return acknowledged;
     }
-
-    await refreshCaller(auth, [ACKNOWLEDGEMENTS_TAG]);
 
     return ok({ id: acknowledged.data.id });
   },

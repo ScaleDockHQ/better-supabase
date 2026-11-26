@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:534c25e62c373db5e86021ad307a0f1e332f6293029d9f86686821d966e78cb8
+-- @bsb-hash sha256:823c5ce6c09909ec87ae4f479261b1c71a1b08b5ed3c31efbb5091dd7979dc78
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -146,7 +146,7 @@ end
 $$;
 
 -- Removes the quota of one tenant or plan on a meter; true when there was one.
-create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+create or replace function "better_supabase"."delete_usage_quota"(tenant uuid, plan text, meter text)
 returns boolean
 language plpgsql
 security definer
@@ -155,7 +155,7 @@ as $$
 #variable_conflict use_variable
 begin
   if (tenant is null) = (plan is null) then
-    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+    raise exception 'delete_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
@@ -814,9 +814,9 @@ grant execute on function "better_supabase"."usage_quota"(uuid, text) to service
 revoke execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
-grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
+grant execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."usage_remaining"(uuid, text) to authenticated, service_role;
@@ -879,7 +879,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:8f20de52abb9bf5c2d401d4a0573ba348d52fc48dc4021490a85d3fae011da88
+-- @bsb-hash sha256:786dcae9aae97a31e0c4a0dc11b3b834a8243433a8f8a4f9a560df2092644fc4
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1045,7 +1045,7 @@ end
 $$;
 
 -- Removes the quota of one tenant or plan on a meter; true when there was one.
-create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+create or replace function "better_supabase"."delete_usage_quota"(tenant uuid, plan text, meter text)
 returns boolean
 language plpgsql
 security definer
@@ -1054,7 +1054,7 @@ as $$
 #variable_conflict use_variable
 begin
   if (tenant is null) = (plan is null) then
-    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+    raise exception 'delete_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
@@ -1753,9 +1753,9 @@ grant execute on function "better_supabase"."usage_quota"(uuid, text) to service
 revoke execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
-grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
+grant execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."usage_remaining"(uuid, text) to authenticated, service_role;
@@ -1954,7 +1954,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:91c875e6cd0dd5b0d5c05284b1fc84d4b4e02fc7f3d9b36d5a58cde1dcef7351
+-- @bsb-hash sha256:7af9fb45e857f1c8e72a96bcb5d32013ac76f6cac68e6d716ee986d399f5c193
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2104,7 +2104,7 @@ end
 $$;
 
 -- Removes the quota of one tenant or plan on a meter; true when there was one.
-create or replace function "app_private"."remove_usage_quota"(tenant uuid, plan text, meter text)
+create or replace function "app_private"."delete_usage_quota"(tenant uuid, plan text, meter text)
 returns boolean
 language plpgsql
 security definer
@@ -2113,7 +2113,7 @@ as $$
 #variable_conflict use_variable
 begin
   if (tenant is null) = (plan is null) then
-    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+    raise exception 'delete_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
   end if;
   delete from "app_private"."usage_quotas" q
   where q."meter" = meter
@@ -2772,9 +2772,9 @@ grant execute on function "app_private"."usage_quota"(uuid, text) to service_rol
 revoke execute on function "app_private"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
 grant execute on function "app_private"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "app_private"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
-revoke execute on function "app_private"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+revoke execute on function "app_private"."delete_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "app_private"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
-grant execute on function "app_private"."remove_usage_quota"(uuid, text, text) to service_role;
+grant execute on function "app_private"."delete_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "app_private"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "app_private"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "app_private"."usage_remaining"(uuid, text) to authenticated, service_role;
@@ -2837,7 +2837,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:a47c139abaea6aa7fb5789fb354921725038576f9c707a18a9eec06f4c15b5c3
+-- @bsb-hash sha256:e49057f46066774bc4802218027479e4cb767ffb841aa8ff3ec3f4900cca94c4
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2982,7 +2982,7 @@ end
 $$;
 
 -- Removes the quota of one tenant or plan on a meter; true when there was one.
-create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+create or replace function "better_supabase"."delete_usage_quota"(tenant uuid, plan text, meter text)
 returns boolean
 language plpgsql
 security definer
@@ -2991,7 +2991,7 @@ as $$
 #variable_conflict use_variable
 begin
   if (tenant is null) = (plan is null) then
-    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+    raise exception 'delete_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
@@ -3650,9 +3650,9 @@ grant execute on function "better_supabase"."usage_quota"(uuid, text) to service
 revoke execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
-grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
+grant execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."usage_remaining"(uuid, text) to authenticated, service_role;
@@ -3818,14 +3818,14 @@ as $$ select "better_supabase"."set_usage_quota"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
 grant execute on function "api"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
 
-create or replace function "api"."remove_usage_quota"(tenant uuid, plan text, meter text)
+create or replace function "api"."delete_usage_quota"(tenant uuid, plan text, meter text)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_usage_quota"($1, $2, $3) $$;
-revoke execute on function "api"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
-grant execute on function "api"."remove_usage_quota"(uuid, text, text) to service_role;
+as $$ select "better_supabase"."delete_usage_quota"($1, $2, $3) $$;
+revoke execute on function "api"."delete_usage_quota"(uuid, text, text) from public, anon, authenticated;
+grant execute on function "api"."delete_usage_quota"(uuid, text, text) to service_role;
 
 create or replace function "api"."usage_used"(tenant uuid, meter text, period text default 'month')
 returns numeric
@@ -3921,7 +3921,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:b6b650c495b500270604289301afc024280e6fcadeaab133894c1292a0503b7f
+-- @bsb-hash sha256:cea0f3d3afd284eadfdc6a62af39c61fa0c34d74a708bc1250143ed525b5fbb2
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4055,7 +4055,7 @@ end
 $$;
 
 -- Removes the quota of one tenant or plan on a meter; true when there was one.
-create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+create or replace function "better_supabase"."delete_usage_quota"(tenant uuid, plan text, meter text)
 returns boolean
 language plpgsql
 security definer
@@ -4064,7 +4064,7 @@ as $$
 #variable_conflict use_variable
 begin
   if (tenant is null) = (plan is null) then
-    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+    raise exception 'delete_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
@@ -4723,9 +4723,9 @@ grant execute on function "better_supabase"."usage_quota"(uuid, text) to service
 revoke execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
-grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
+grant execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."usage_remaining"(uuid, text) to authenticated, service_role;
@@ -4788,7 +4788,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@9 managed
--- @bsb-hash sha256:f6c3a31b91a5c40ccffb813c2dc6f2b59903fe71def32d531649183d30f4aa07
+-- @bsb-hash sha256:2f59a73a152d2d021b30b5ded418ee6d977b891d2099a8b64c9bd90b7779d17b
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4933,7 +4933,7 @@ end
 $$;
 
 -- Removes the quota of one tenant or plan on a meter; true when there was one.
-create or replace function "better_supabase"."remove_usage_quota"(tenant uuid, plan text, meter text)
+create or replace function "better_supabase"."delete_usage_quota"(tenant uuid, plan text, meter text)
 returns boolean
 language plpgsql
 security definer
@@ -4942,7 +4942,7 @@ as $$
 #variable_conflict use_variable
 begin
   if (tenant is null) = (plan is null) then
-    raise exception 'remove_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
+    raise exception 'delete_usage_quota needs a tenant or a plan, not both' using errcode = '22023', hint = 'USAGE_QUOTA_TARGET';
   end if;
   delete from "better_supabase"."usage_quotas" q
   where q."meter" = meter
@@ -5601,9 +5601,9 @@ grant execute on function "better_supabase"."usage_quota"(uuid, text) to service
 revoke execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."usage_quotas_for"(uuid[], text[]) to service_role;
 revoke execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_usage_quota"(uuid, text, text, numeric, text) to service_role;
-grant execute on function "better_supabase"."remove_usage_quota"(uuid, text, text) to service_role;
+grant execute on function "better_supabase"."delete_usage_quota"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_used"(uuid, text, text) to service_role;
 grant execute on function "better_supabase"."usage_status"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."usage_remaining"(uuid, text) to authenticated, service_role;

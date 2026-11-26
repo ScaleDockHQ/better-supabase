@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SupabaseConfig } from "../../src/cli/supabase-config.ts";
 import type { SqlWorkflow } from "../../src/config/index.ts";
 
-import { readSupabasePort } from "../../src/cli/config.ts";
+import { getSupabasePort } from "../../src/cli/config.ts";
 import {
   declarativeSchemasDir,
   detectWorkflow,
@@ -57,8 +57,8 @@ describe("readSupabaseConfig", () => {
         "https://example.test",
       );
       expect(tomlGet(toml!.document, ["auth", "jwt_expiry"])).toBe(7200);
-      expect(await readSupabasePort(dir, "db")).toBe(55_422);
-      expect(await readSupabasePort(dir, "api")).toBeUndefined();
+      expect(await getSupabasePort(dir, "db")).toBe(55_422);
+      expect(await getSupabasePort(dir, "api")).toBeUndefined();
     } finally {
       delete process.env["BS_TOML_SITE_URL"];
     }
@@ -92,7 +92,7 @@ describe("readSupabaseConfig", () => {
       path: "../../supabase/config.toml",
       dir: "../../supabase",
     });
-    expect(await readSupabasePort(app, "db")).toBe(55_422);
+    expect(await getSupabasePort(app, "db")).toBe(55_422);
     expect((await readSupabaseConfig(dir))?.path).toBe("supabase/config.toml");
   });
 

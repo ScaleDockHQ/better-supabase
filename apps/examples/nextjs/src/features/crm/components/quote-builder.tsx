@@ -23,7 +23,7 @@ import {
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { loadQuote, settle } from "../crm-queries";
+import { getQuote, settle } from "../crm-queries";
 import { CrmLoadError } from "./crm-load-error";
 import { QuoteLinesEditor } from "./quote-lines-editor";
 import { QuoteStatusActions } from "./quote-status-actions";
@@ -46,7 +46,7 @@ export async function QuoteBuilder({ id }: { id: string }) {
     forbidden();
   }
 
-  const loaded = await settle(() => loadQuote(id));
+  const loaded = await settle(() => getQuote(id));
 
   if (loaded.kind === "no-organization") {
     return null;

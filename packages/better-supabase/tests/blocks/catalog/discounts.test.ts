@@ -59,7 +59,7 @@ describe("catalog discount groups and rules", () => {
       call(_schema: string, fn: string, args: Record<string, unknown>) {
         record.push({ fn, args });
 
-        return Promise.resolve(fn.startsWith("save_") ? { id: "x1" } : true);
+        return Promise.resolve(fn.startsWith("upsert_") ? { id: "x1" } : true);
       },
     },
   });

@@ -532,7 +532,7 @@ end;
 $$;
 ${userGrant(`${ctx.fn("set_calendar_grant")}(uuid, uuid, text)`)}
 
-create or replace function ${ctx.fn("remove_calendar_grant")}(calendar_id uuid, user_id uuid)
+create or replace function ${ctx.fn("delete_calendar_grant")}(calendar_id uuid, user_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -540,14 +540,14 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if not ${accessCall(ctx, "remove_calendar_grant.calendar_id", "manage")} then
+  if not ${accessCall(ctx, "delete_calendar_grant.calendar_id", "manage")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to manage this calendar")}
   end if;
-  delete from ${grants} where ${g("calendar")} = remove_calendar_grant.calendar_id and ${g("user")} = remove_calendar_grant.user_id;
+  delete from ${grants} where ${g("calendar")} = delete_calendar_grant.calendar_id and ${g("user")} = delete_calendar_grant.user_id;
   return found;
 end;
 $$;
-${userGrant(`${ctx.fn("remove_calendar_grant")}(uuid, uuid)`)}
+${userGrant(`${ctx.fn("delete_calendar_grant")}(uuid, uuid)`)}
 
 -- [{ userId, role }] of a calendar. Runs as the caller, so the policy decides.
 create or replace function ${ctx.fn("list_calendar_grants")}(calendar_id uuid)

@@ -6,10 +6,8 @@ import type { ShipmentAddress } from "better-supabase/blocks/shipments";
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { FIELD_TAG } from "./field-cache";
 
 type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
@@ -48,8 +46,10 @@ export const createWorkOrder = bsb.action(
     }),
     requireTenant: true,
     permission: "dispatch.manage",
+    tags: () => [tags.field()],
+    refresh: true,
   },
-  async ({ title, address, priority }, { db, auth }) => {
+  async ({ title, address, priority }, { db }) => {
     const order: Writable<WorkOrderInput> = { title, priority };
 
     if (address !== undefined) {
@@ -61,8 +61,6 @@ export const createWorkOrder = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [FIELD_TAG]);
 
     return ok({ id: created.data.id });
   },
@@ -77,15 +75,15 @@ export const advanceWorkOrder = bsb.action(
     }),
     requireTenant: true,
     permission: "dispatch.work",
+    tags: () => [tags.field()],
+    refresh: true,
   },
-  async ({ id, to }, { db, auth }) => {
+  async ({ id, to }, { db }) => {
     const moved = await db.dispatch.setStatus({ id, status: to });
 
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, [FIELD_TAG]);
 
     return ok({ status: moved.data.status });
   },
@@ -115,11 +113,10 @@ export const createShipment = bsb.action(
     }),
     requireTenant: true,
     permission: "shipments.manage",
+    tags: () => [tags.field()],
+    refresh: true,
   },
-  async (
-    { name, line1, city, postalCode, country, weightGrams },
-    { db, auth },
-  ) => {
+  async ({ name, line1, city, postalCode, country, weightGrams }, { db }) => {
     const to: Writable<ShipmentAddress> = { name, line1, city, country };
 
     if (postalCode !== undefined) {
@@ -135,8 +132,6 @@ export const createShipment = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [FIELD_TAG]);
 
     return ok({ id: created.data.id });
   },

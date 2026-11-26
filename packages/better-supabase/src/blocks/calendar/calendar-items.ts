@@ -4,7 +4,7 @@ import type { CalendarEvent } from "./occurrences.ts";
 
 import { alarmItem } from "./alarms.ts";
 
-/** The jsonb `save_calendar_event` takes. */
+/** The jsonb `upsert_calendar_event` takes. */
 export function itemOf(
   input: CalendarEventInput & {
     readonly id?: string;

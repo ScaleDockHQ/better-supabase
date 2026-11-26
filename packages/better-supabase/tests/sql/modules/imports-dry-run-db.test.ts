@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import type { PgliteConnection } from "../../../src/lite/runtime.ts";
 
-import { loadLite, migrateLite } from "../../../src/lite/runtime.ts";
+import { getLite, migrateLite } from "../../../src/lite/runtime.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
@@ -94,7 +94,7 @@ describe("import runs", { timeout: 60_000 }, () => {
     );
 
   beforeAll(async () => {
-    const lite = await loadLite();
+    const lite = await getLite();
 
     if (!lite) {
       throw new Error("@supabase/lite is a devDependency of these tests");

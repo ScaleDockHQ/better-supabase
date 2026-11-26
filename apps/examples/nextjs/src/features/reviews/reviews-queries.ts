@@ -14,11 +14,11 @@ import { Temporal } from "temporal-polyfill";
 import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { ReviewRow } from "./review-row";
 
-import { REVIEWS_TAG } from "./reviews-cache";
 import { REVIEW_PAGE_SIZE, REVIEW_STATUSES, reviewList } from "./reviews-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -75,7 +75,7 @@ async function nameSubjects(
 }
 
 /** One page of the moderation queue, shared by the page and the list route. */
-export async function loadReviewPage(
+export async function getReviewPage(
   db: Db,
   organizationId: string,
   query: BlockListQuery<"newest">,
@@ -118,7 +118,7 @@ export async function loadReviewPage(
 export async function getReviews(): Promise<BlockPage<ReviewRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(REVIEWS_TAG);
+  cacheTag(tags.reviews());
 
   const organizationId = tenantOf(session);
 
@@ -126,7 +126,7 @@ export async function getReviews(): Promise<BlockPage<ReviewRow> | null> {
     return null;
   }
 
-  const result = await loadReviewPage(db, organizationId, reviewList.defaults);
+  const result = await getReviewPage(db, organizationId, reviewList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);
@@ -145,7 +145,7 @@ export interface ReviewDetailData extends ReviewRow {
 export async function getReview(id: string): Promise<ReviewDetailData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(REVIEWS_TAG);
+  cacheTag(tags.reviews());
 
   const organizationId = tenantOf(session);
 

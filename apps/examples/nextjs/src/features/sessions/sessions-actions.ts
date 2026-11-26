@@ -3,7 +3,6 @@
 import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -11,8 +10,8 @@ import { bsb } from "@/lib/supabase/server";
  * working at once; its access token lasts until it expires.
  */
 export const endSession = bsb.action(
-  { input: v.object({ id: v.pipe(v.string(), v.uuid()) }) },
-  async ({ id }, { db, auth }) => {
+  { input: v.object({ id: v.pipe(v.string(), v.uuid()) }), evictSession: true },
+  async ({ id }, { db }) => {
     const ended = await db.$blocks.sessions.end({ sessionId: id });
 
     if (!ended.ok) {
@@ -22,8 +21,6 @@ export const endSession = bsb.action(
     if (!ended.data) {
       return err(dbError("not_found", "Session not found"));
     }
-
-    await refreshCaller(auth);
 
     return ok(true);
   },

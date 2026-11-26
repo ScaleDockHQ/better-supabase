@@ -16,7 +16,7 @@ set local role authenticated;
 
 select set_config(
   't.company',
-  better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Restore Co"}') ->> 'id',
+  better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Restore Co"}') ->> 'id',
   true
 );
 
@@ -32,7 +32,7 @@ select is(pg_temp.n('company.restored'), 1, 'a second restore records nothing');
 
 select set_config(
   't.method',
-  better_supabase.save_lims_method('00000000-0000-4000-8000-000000000001', '{"key":"restore_me","name":"Restore me"}', null) ->> 'id',
+  better_supabase.upsert_lims_method('00000000-0000-4000-8000-000000000001', '{"key":"restore_me","name":"Restore me"}', null) ->> 'id',
   true
 );
 select better_supabase.archive_lims_method(current_setting('t.method')::uuid);

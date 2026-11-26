@@ -31,13 +31,13 @@ select throws_ok(
   'only the service role writes the step library'
 );
 select isnt(
-  (better_supabase.save_workflow_definition('00000000-0000-4000-8000-000000000001', 'welcome', 'Welcome') ->> 'id'),
+  (better_supabase.upsert_workflow_definition('00000000-0000-4000-8000-000000000001', 'welcome', 'Welcome') ->> 'id'),
   null,
   'an admin creates a definition'
 );
 select is(
   (better_supabase.publish_workflow_version(
-    (better_supabase.save_workflow_draft(
+    (better_supabase.upsert_workflow_draft(
       (select id from better_supabase.workflow_definitions where slug = 'welcome'),
       '{"nodes":[{"id":"t","kind":"trigger"}],"edges":[]}'::jsonb
     ) ->> 'id')::uuid
@@ -46,7 +46,7 @@ select is(
   'an admin publishes a valid graph'
 );
 select throws_ok(
-  $$select better_supabase.publish_workflow_version((better_supabase.save_workflow_draft(
+  $$select better_supabase.publish_workflow_version((better_supabase.upsert_workflow_draft(
     (select id from better_supabase.workflow_definitions where slug = 'welcome'),
     '{"nodes":[{"id":"t","kind":"trigger"},{"id":"s","kind":"step","step":"missing"}],"edges":[{"id":"e","source":"t","target":"s"}]}'::jsonb
   ) ->> 'id')::uuid)$$,
@@ -56,7 +56,7 @@ select throws_ok(
 );
 
 select isnt(
-  (better_supabase.save_workflow_trigger(
+  (better_supabase.upsert_workflow_trigger(
     (select id from better_supabase.workflow_definitions where slug = 'welcome'),
     'event',
     '{"event":"task.*"}'::jsonb
@@ -108,7 +108,7 @@ select is(
   'a member reads the tenant''s definitions'
 );
 select throws_ok(
-  $$select better_supabase.save_workflow_definition('00000000-0000-4000-8000-000000000001', 'mine', 'Mine')$$,
+  $$select better_supabase.upsert_workflow_definition('00000000-0000-4000-8000-000000000001', 'mine', 'Mine')$$,
   '42501',
   null,
   'a member cannot create a definition'

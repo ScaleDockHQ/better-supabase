@@ -670,9 +670,9 @@ export function createCarePlans<
       ),
     addProblem: ({ planId, input }) =>
       call(
-        "add_care_plan_problem",
+        "create_care_plan_problem",
         { plan_id: planId, input: wire(input) },
-        row("add_care_plan_problem", problemOf),
+        row("create_care_plan_problem", problemOf),
       ),
     updateProblem: ({ problemId, change }) =>
       call(
@@ -682,9 +682,9 @@ export function createCarePlans<
       ),
     addGoal: ({ problemId, input }) =>
       call(
-        "add_care_plan_goal",
+        "create_care_plan_goal",
         { problem_id: problemId, input: wire(input) },
-        row("add_care_plan_goal", goalOf),
+        row("create_care_plan_goal", goalOf),
       ),
     updateGoal: ({ goalId, change }) =>
       call(
@@ -694,9 +694,9 @@ export function createCarePlans<
       ),
     addAction: ({ goalId, input }) =>
       call(
-        "add_care_plan_action",
+        "create_care_plan_action",
         { goal_id: goalId, input: wire(input) },
-        row("add_care_plan_action", actionOf),
+        row("create_care_plan_action", actionOf),
       ),
     updateAction: ({ actionId, change }) =>
       call(

@@ -28,7 +28,7 @@ describe("createFlags", () => {
           return Promise.resolve([row]);
         }
 
-        if (fn === "save_flag") {
+        if (fn === "upsert_flag") {
           return Promise.resolve(row);
         }
 
@@ -71,7 +71,7 @@ describe("createFlags", () => {
     expect(calls.slice(1)).toEqual([
       [
         "app",
-        "save_flag",
+        "upsert_flag",
         {
           key: "beta",
           definition: {
@@ -136,7 +136,7 @@ describe("createFlags", () => {
             ]);
           }
 
-          case "save_flag_segment": {
+          case "upsert_flag_segment": {
             return Promise.resolve({
               name: "staff",
               rules: { roles: ["owner"] },
@@ -156,7 +156,7 @@ describe("createFlags", () => {
       .upsert({ key: "beta", input: { enabled: true }, message: "Ship it" })
       .orThrow();
     expect(calls[0]).toEqual([
-      "save_flag",
+      "upsert_flag",
       { key: "beta", definition: { enabled: true }, message: "Ship it" },
     ]);
 
@@ -184,7 +184,7 @@ describe("createFlags", () => {
       await admin.saveSegment({ name: "staff", roles: ["owner"] }).orThrow(),
     ).toMatchObject({ name: "staff", roles: ["owner"] });
     expect(calls.at(-1)).toEqual([
-      "save_flag_segment",
+      "upsert_flag_segment",
       { name: "staff", description: null, rules: { roles: ["owner"] } },
     ]);
     expect(await admin.removeSegment("staff").orThrow()).toBe(true);

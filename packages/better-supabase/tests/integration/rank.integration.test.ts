@@ -335,11 +335,11 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
       await one("select rank_it.rank_tag($1, 'F') as value", [second.id]),
     ).toBe(true);
     await client.query(
-      `select rank_it.save_field_definition($1, 'deal', 'tier', 'Tier', 'text', false)`,
+      `select rank_it.upsert_field_definition($1, 'deal', 'tier', 'Tier', 'text', false)`,
       [ACME],
     );
     await client.query(
-      `select rank_it.save_field_definition($1, 'deal', 'size', 'Size', 'number', false)`,
+      `select rank_it.upsert_field_definition($1, 'deal', 'size', 'Size', 'number', false)`,
       [ACME],
     );
     expect(

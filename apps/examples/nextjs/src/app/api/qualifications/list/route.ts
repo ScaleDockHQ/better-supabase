@@ -1,4 +1,4 @@
-import { loadQualificationTypePage } from "@/features/qualifications/qualifications-queries";
+import { getQualificationTypePage } from "@/features/qualifications/qualifications-queries";
 import { qualificationTypeList } from "@/features/qualifications/qualifications-types-list";
 import { bsb } from "@/lib/supabase/server";
 
@@ -11,7 +11,7 @@ export const GET = bsb.route(
     const query = qualificationTypeList.parse(request.nextUrl.searchParams);
 
     return Response.json(
-      await loadQualificationTypePage(db, tenant, query.value),
+      await getQualificationTypePage(db, tenant, query.value),
     );
   },
   { requireTenant: true, permission: "qualifications.read" },

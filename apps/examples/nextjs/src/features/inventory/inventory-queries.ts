@@ -12,16 +12,14 @@ import type {
 } from "@/components/record-list/record-list-types";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { settle } from "@/features/shop/shop-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LotRow, MovementRow, StockRow } from "./inventory-list";
 
-import { INVENTORY_TAG } from "./inventory-cache";
 import {
   lotList,
   lotMap,
@@ -76,7 +74,7 @@ export interface StockData {
  * block's `levels` read has no titles, so the shop's SQL read supplies them;
  * the list kit searches, filters and sorts the rows on the server.
  */
-async function readStockRows(
+async function getStockRows(
   db: Db,
   organizationId: string,
 ): Promise<StockData> {
@@ -88,7 +86,7 @@ async function readStockRows(
         { returns: StockLevels },
       )
       .orThrow(),
-    readAllPages((page) => db.inventory.levelPage({ organizationId, ...page })),
+    getAllPages((page) => db.inventory.levelPage({ organizationId, ...page })),
   ]);
 
   const incomingBy = new Map(
@@ -215,7 +213,7 @@ function movementRowOf(
 }
 
 /** The newest ledger movements of one variant, named by product and location. */
-async function readMovementRows(
+async function getMovementRows(
   db: Db,
   organizationId: string,
   filter: { readonly variantId?: string } = {},
@@ -224,7 +222,7 @@ async function readMovementRows(
   readonly rows: readonly MovementRow[];
 }> {
   const [stock, movements] = await Promise.all([
-    readStockRows(db, organizationId),
+    getStockRows(db, organizationId),
     db.inventory
       .movementPage({
         organizationId,
@@ -246,14 +244,14 @@ async function readMovementRows(
  * One page of stock levels for a list query, searched, filtered and sorted by
  * the inventory block's `levelPage` and counted by `levelFacets`.
  */
-export async function loadStockPage(
+export async function getStockPage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
   stock?: StockData,
 ): Promise<RecordListPage<StockRow>> {
   const directory = directoryOf(
-    stock ?? (await readStockRows(db, organizationId)),
+    stock ?? (await getStockRows(db, organizationId)),
   );
 
   return pageEntityRows({
@@ -295,7 +293,7 @@ export async function loadStockPage(
  * One page of ledger movements for a list query, named by product and location,
  * with the locations the list filters by.
  */
-export async function loadMovementPage(
+export async function getMovementPage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -303,7 +301,7 @@ export async function loadMovementPage(
   readonly locations: readonly InventoryLocation[];
   readonly page: RecordListPage<MovementRow>;
 }> {
-  const directory = directoryOf(await readStockRows(db, organizationId));
+  const directory = directoryOf(await getStockRows(db, organizationId));
 
   const page = await pageEntityRows({
     pager: {
@@ -326,7 +324,7 @@ export async function loadMovementPage(
  * One page of lots with an expiry date for a list query, named by product and
  * location, soonest first.
  */
-export async function loadLotPage(
+export async function getLotPage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -334,7 +332,7 @@ export async function loadLotPage(
   readonly locations: readonly InventoryLocation[];
   readonly page: RecordListPage<LotRow>;
 }> {
-  const directory = directoryOf(await readStockRows(db, organizationId));
+  const directory = directoryOf(await getStockRows(db, organizationId));
   const today = Temporal.Now.plainDateISO();
 
   const page = await pageEntityRows({
@@ -393,7 +391,7 @@ export interface StockOverviewData extends StockData {
 async function loadStock(): Promise<StockOverviewData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -401,11 +399,11 @@ async function loadStock(): Promise<StockOverviewData | null> {
   }
 
   const [data, overview] = await Promise.all([
-    readStockRows(db, organizationId),
+    getStockRows(db, organizationId),
     db.inventory.overview({ organizationId, limit: 1, expiryDays: 30 }),
   ]);
 
-  const initial = await loadStockPage(
+  const initial = await getStockPage(
     db,
     organizationId,
     stockList.defaults,
@@ -429,11 +427,11 @@ export function getStock() {
 async function loadMovements() {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   return organizationId
-    ? loadMovementPage(db, organizationId, movementList.defaults)
+    ? getMovementPage(db, organizationId, movementList.defaults)
     : null;
 }
 
@@ -444,11 +442,11 @@ export function getMovements() {
 async function loadLots() {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   return organizationId
-    ? loadLotPage(db, organizationId, lotList.defaults)
+    ? getLotPage(db, organizationId, lotList.defaults)
     : null;
 }
 
@@ -475,7 +473,7 @@ export type StockItemData =
 async function loadStockItem(variantId: string): Promise<StockItemData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
+  cacheTag(tags.inventory(), tags.shop(), tags.manufacturing(), BILLING_TAG);
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -483,8 +481,8 @@ async function loadStockItem(variantId: string): Promise<StockItemData | null> {
   }
 
   const [stock, movements] = await Promise.all([
-    readStockRows(db, organizationId),
-    readMovementRows(db, organizationId, { variantId }),
+    getStockRows(db, organizationId),
+    getMovementRows(db, organizationId, { variantId }),
   ]);
 
   const rows = stock.rows.filter((row) => row.variantId === variantId);

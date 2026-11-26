@@ -67,7 +67,7 @@ describe("deadlines module", () => {
     );
     expect(plan?.steps[0]?.sql).toContain("previous_content_hash");
     expect(plan?.steps[0]?.sql).toContain(
-      'drop function if exists "better_supabase"."save_rule_version"(text, text, jsonb, date, text)',
+      'drop function if exists "better_supabase"."upsert_rule_version"(text, text, jsonb, date, text)',
     );
     expect(
       upgradePlan([{ module: "deadlines", version: 1 }], {

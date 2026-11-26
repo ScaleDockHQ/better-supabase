@@ -17,7 +17,7 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('acme', (better_supabase.save_company(
+insert into ids values ('acme', (better_supabase.upsert_company(
   '00000000-0000-4000-8000-000000000001', null, '{"name": "Party roles supplier"}') ->> 'id')::uuid);
 
 select is(

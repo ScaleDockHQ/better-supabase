@@ -211,7 +211,7 @@ export function notesOf(value: unknown): ActivityNotes {
   });
 }
 
-/** The jsonb `save_activity_notes` takes. */
+/** The jsonb `upsert_activity_notes` takes. */
 export function notesArg(
   input: ActivityNotesInput,
   source: "ai" | "member",
@@ -231,7 +231,7 @@ export function notesArg(
   };
 }
 
-/** The segments `save_activity_transcript` takes. */
+/** The segments `upsert_activity_transcript` takes. */
 export function segmentsArg(
   segments: readonly TranscriptSegmentInput[],
 ): Record<string, unknown>[] {

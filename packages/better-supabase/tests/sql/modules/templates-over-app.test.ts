@@ -135,16 +135,16 @@ declare
   v_fork jsonb;
 begin
   ${SERVICE}
-  v_tpl := better_supabase.save_template(null, '${TENANT}', 'invoice', 'Invoice', 'en', null);
+  v_tpl := better_supabase.upsert_template(null, '${TENANT}', 'invoice', 'Invoice', 'en', null);
   v_id := (v_tpl ->> 'id')::uuid;
   if v_tpl ->> 'scope' <> 'tenant' or (v_tpl ->> 'isDefault')::boolean or v_tpl -> 'key' <> 'null'::jsonb then
     raise exception 'created %', v_tpl;
   end if;
-  v_tpl := better_supabase.save_template(v_id, '${TENANT}', null, 'Invoice 2', null, null);
+  v_tpl := better_supabase.upsert_template(v_id, '${TENANT}', null, 'Invoice 2', null, null);
   if (select title from public.doc_templates where id = v_id) <> 'Invoice 2' then
     raise exception 'renamed %', v_tpl;
   end if;
-  perform better_supabase.save_template_draft(v_id, '{"lines": []}'::jsonb);
+  perform better_supabase.upsert_template_draft(v_id, '{"lines": []}'::jsonb);
   v_version := better_supabase.publish_template_version(v_id);
   if (v_version ->> 'version')::integer <> 1 or v_version ->> 'publishedAt' is null then
     raise exception 'published %', v_version;
@@ -158,11 +158,11 @@ begin
     raise exception 'applications missed the application';
   end if;
 
-  v_system := (better_supabase.save_template(null, null, 'invoice', 'Starter', 'en', null) ->> 'id')::uuid;
+  v_system := (better_supabase.upsert_template(null, null, 'invoice', 'Starter', 'en', null) ->> 'id')::uuid;
   if (select visibility from public.doc_templates where id = v_system) <> 'system' then
     raise exception 'system scope is %', (select visibility from public.doc_templates where id = v_system);
   end if;
-  perform better_supabase.save_template_draft(v_system, '{"lines": [1]}'::jsonb);
+  perform better_supabase.upsert_template_draft(v_system, '{"lines": [1]}'::jsonb);
   perform better_supabase.publish_template_version(v_system);
   v_fork := better_supabase.fork_template(v_system, '${TENANT}');
   if v_fork ->> 'scope' <> 'tenant' or v_fork -> 'forkedFrom' <> 'null'::jsonb then
@@ -182,7 +182,7 @@ $$;`),
       run(`do $$
 begin
   ${SERVICE}
-  perform better_supabase.save_template(null, '${TENANT}', 'invoice', 'Invoice', 'en', '{"paper": "a4"}'::jsonb);
+  perform better_supabase.upsert_template(null, '${TENANT}', 'invoice', 'Invoice', 'en', '{"paper": "a4"}'::jsonb);
 end;
 $$;`),
     ).rejects.toThrow(/no settings column/);

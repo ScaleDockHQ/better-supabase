@@ -70,7 +70,7 @@ select is(
   'the owner activates a contract signed elsewhere'
 );
 select is(
-  (better_supabase.save_contract_obligation((select id from ids), 'Quarterly report', current_date - 1,
+  (better_supabase.upsert_contract_obligation((select id from ids), 'Quarterly report', current_date - 1,
     '00000000-0000-4000-8000-0000000000a2') ->> 'status'),
   'open',
   'the owner adds an obligation for a member'

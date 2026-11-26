@@ -666,10 +666,10 @@ ${userGrant(`${fn(`${verb}_invoice`)}(uuid)`)}
   const chargeValues = [
     `v_row.${i("tenant")}`,
     `v_row.${i("id")}`,
-    "add_invoice_charge.amount",
+    "create_invoice_charge.amount",
     ...(ctx.has("charges", "currency") ? [`v_row.${i("currency")}`] : []),
     ...(ctx.has("charges", "description")
-      ? ["nullif(trim(add_invoice_charge.description), '')"]
+      ? ["nullif(trim(create_invoice_charge.description), '')"]
       : []),
     ...(ctx.has("charges", "createdBy") ? ["auth.uid()"] : []),
   ];
@@ -679,7 +679,7 @@ ${userGrant(`${fn(`${verb}_invoice`)}(uuid)`)}
   const chargeExtras = insertExtraColumns(
     t("charges"),
     n.chargeExtras,
-    "coalesce(add_invoice_charge.fields, '{}'::jsonb)",
+    "coalesce(create_invoice_charge.fields, '{}'::jsonb)",
   );
 
   const writeOffReason =
@@ -696,14 +696,14 @@ ${userGrant(`${fn(`${verb}_invoice`)}(uuid)`)}
 
   const addCharge = charges
     ? `
-${chargeFields.drop(fn("add_invoice_charge"), "uuid, bigint, text, text")}
-drop function if exists ${fn("add_invoice_charge")}(uuid, bigint, text, text${chargeFields.type});
+${chargeFields.drop(fn("create_invoice_charge"), "uuid, bigint, text, text")}
+drop function if exists ${fn("create_invoice_charge")}(uuid, bigint, text, text${chargeFields.type});
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
 -- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
-create or replace function ${fn("add_invoice_charge")}(invoice uuid, amount bigint, currency text, description text${chargeFields.param}, actor jsonb default null)
+create or replace function ${fn("create_invoice_charge")}(invoice uuid, amount bigint, currency text, description text${chargeFields.param}, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -713,29 +713,29 @@ declare
   v_row ${t("invoices")};
   v_charge uuid;
 begin
-  ${load("v_row", "add_invoice_charge.invoice", n.charge, "charge")}
+  ${load("v_row", "create_invoice_charge.invoice", n.charge, "charge")}
   if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_CHARGEABLE", "only an issued invoice takes charges", "55000")}
   end if;
-  if coalesce(add_invoice_charge.amount, 0) <= 0 then
+  if coalesce(create_invoice_charge.amount, 0) <= 0 then
     ${fail("INVOICE_CHARGE_INVALID", "a charge has a positive amount", "22023")}
   end if;
-  if upper(add_invoice_charge.currency) is distinct from v_row.${i("currency")} then
+  if upper(create_invoice_charge.currency) is distinct from v_row.${i("currency")} then
     ${fail("INVOICE_CURRENCY_MISMATCH", "a charge must be in the invoice's currency", "22023")}
   end if;
-  ${transitionActorSql("add_invoice_charge.actor", "INVOICE_ACTOR_INVALID")}
+  ${transitionActorSql("create_invoice_charge.actor", "INVOICE_ACTOR_INVALID")}
   insert into ${t("charges")} (${chargeColumns.join(", ")}${chargeExtras.columns})
   values (${chargeValues.join(", ")}${chargeExtras.values})
   returning ${ch("id")} into v_charge;${settle("v_row")}
   ${bookSource(ctx, "invoice_charge", "v_charge")}
-  ${record("invoice.charged", "v_row", `, 'chargeId', v_charge, 'amount', add_invoice_charge.amount::text, 'balance', ${balance("v_row")}::text`, true)}
+  ${record("invoice.charged", "v_row", `, 'chargeId', v_charge, 'amount', create_invoice_charge.amount::text, 'balance', ${balance("v_row")}::text`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_invoice_charge")}(uuid, bigint, text, text${chargeFields.type}, jsonb)`)}
+${userGrant(`${fn("create_invoice_charge")}(uuid, bigint, text, text${chargeFields.type}, jsonb)`)}
 
-drop function if exists ${fn("remove_invoice_charge")}(uuid);
-create or replace function ${fn("remove_invoice_charge")}(charge uuid, actor jsonb default null)
+drop function if exists ${fn("delete_invoice_charge")}(uuid);
+create or replace function ${fn("delete_invoice_charge")}(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -746,7 +746,7 @@ declare
   v_amount bigint;
 begin
   select x.* into v_row from ${t("invoices")} x join ${t("charges")} c on c.${ch("invoice")} = x.${i("id")}
-  where c.${ch("id")} = remove_invoice_charge.charge and ${can("x", n.charge)}
+  where c.${ch("id")} = delete_invoice_charge.charge and ${can("x", n.charge)}
   for update of x;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_CHARGE_NOT_FOUND", "no such charge on an invoice you can edit", "P0002")}
@@ -754,15 +754,15 @@ begin
   if ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_CHARGEABLE", "only an issued invoice changes its charges", "55000")}
   end if;
-  ${transitionActorSql("remove_invoice_charge.actor", "INVOICE_ACTOR_INVALID")}
-  delete from ${t("charges")} c where c.${ch("id")} = remove_invoice_charge.charge
+  ${transitionActorSql("delete_invoice_charge.actor", "INVOICE_ACTOR_INVALID")}
+  delete from ${t("charges")} c where c.${ch("id")} = delete_invoice_charge.charge
   returning c.${ch("amount")} into v_amount;${settle("v_row")}
-  ${unbookSource(ctx, "invoice_charge", `v_row.${i("tenant")}`, "remove_invoice_charge.charge")}
-  ${record("invoice.charge_removed", "v_row", `, 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text`, true)}
+  ${unbookSource(ctx, "invoice_charge", `v_row.${i("tenant")}`, "delete_invoice_charge.charge")}
+  ${record("invoice.charge_removed", "v_row", `, 'chargeId', delete_invoice_charge.charge, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("remove_invoice_charge")}(uuid, jsonb)`)}
+${userGrant(`${fn("delete_invoice_charge")}(uuid, jsonb)`)}
 `
     : "";
 

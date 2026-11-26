@@ -96,7 +96,7 @@ export interface MeetingMinutesView {
   }[];
 }
 
-async function loadMinutes(
+async function getMinutes(
   meetingId: string,
 ): Promise<MeetingMinutesView | null> {
   "use cache: private";
@@ -142,5 +142,5 @@ async function loadMinutes(
 export function getMeetingMinutes(
   meetingId: string,
 ): Promise<Loaded<MeetingMinutesView>> {
-  return settle(() => loadMinutes(meetingId));
+  return settle(() => getMinutes(meetingId));
 }

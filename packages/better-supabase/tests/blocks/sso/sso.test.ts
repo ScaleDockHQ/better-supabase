@@ -77,7 +77,7 @@ function fakeFetch(
 describe("createSso", () => {
   it("maps domains, providers and the sign-in lookup", async () => {
     const { calls, transport } = fakeTransport({
-      add_organization_domain: domainRow(),
+      create_organization_domain: domainRow(),
       list_organization_domains: [
         domainRow({ verified_at: "2026-10-06T12:05:00Z" }),
       ],
@@ -90,7 +90,7 @@ describe("createSso", () => {
           auto_join_role: args["auto_join_role"],
           enforce_sso: args["enforce_sso"],
         }),
-      remove_organization_domain: true,
+      delete_organization_domain: true,
       list_sso_providers: [providerRow()],
       sso_domain_for: (args: Record<string, unknown>) =>
         args["email"] === "a@acme.test"

@@ -603,15 +603,15 @@ export function createMeetings<
       ),
     removeAttendee: ({ meetingId, userId }) =>
       call(
-        "remove_meeting_attendee",
+        "delete_meeting_attendee",
         { meeting_id: meetingId, user_id: userId },
-        attendee("remove_meeting_attendee"),
+        attendee("delete_meeting_attendee"),
       ),
     saveAgendaItem: ({ meetingId, item }) =>
       call(
-        "save_meeting_agenda_item",
+        "upsert_meeting_agenda_item",
         { meeting_id: meetingId, item: definedOf(item) },
-        agendaItem("save_meeting_agenda_item"),
+        agendaItem("upsert_meeting_agenda_item"),
       ),
     deleteAgendaItem: (itemId) =>
       call(
@@ -633,7 +633,7 @@ export function createMeetings<
       ),
     addActionItem: ({ meetingId, input }) =>
       call(
-        "add_meeting_action_item",
+        "create_meeting_action_item",
         {
           meeting_id: meetingId,
           task: input.task,
@@ -641,7 +641,7 @@ export function createMeetings<
           agenda_item_id: input.agendaItemId ?? null,
           decision_id: input.decisionId ?? null,
         },
-        (value) => recordOf(value, "add_meeting_action_item"),
+        (value) => recordOf(value, "create_meeting_action_item"),
       ),
     get: (meetingId) =>
       call("get_meeting", { meeting_id: meetingId }, (value) =>

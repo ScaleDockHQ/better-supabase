@@ -3,11 +3,10 @@ import { cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { StoreSort } from "./store-sorts";
-
-import { STORE_TAG } from "./store-cache";
 
 const MinorUnits = v.pipe(v.string(), v.regex(/^-?\d+$/));
 
@@ -55,7 +54,7 @@ export async function getStoreCatalog(
 ): Promise<StoreCatalog | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(STORE_TAG);
+  cacheTag(tags.store());
 
   return db
     .$api(
@@ -106,7 +105,7 @@ export async function getStoreProduct(
 ): Promise<StoreProductPage | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(STORE_TAG);
+  cacheTag(tags.store());
 
   return db
     .$api(
@@ -136,7 +135,7 @@ export async function getStoreVariants(
 ): Promise<readonly StoreCartVariant[]> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(STORE_TAG);
+  cacheTag(tags.store());
 
   if (variantIds.length === 0) {
     return [];

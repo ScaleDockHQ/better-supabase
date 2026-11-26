@@ -44,7 +44,7 @@ const lines = [1, 2].map((day) => ({
 function setup() {
   const t = fieldsTransport({
     create_expense_report: () => REPORT,
-    add_expense_line: () => LINE,
+    create_expense_line: () => LINE,
     submit_expense_report: () => ({ ...REPORT, status: "submitted" }),
     get_expense_report: () => REPORT,
   });
@@ -63,8 +63,8 @@ describe("expenses helpers", () => {
     expect(report.status).toBe("submitted");
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "create_expense_report",
-      "add_expense_line",
-      "add_expense_line",
+      "create_expense_line",
+      "create_expense_line",
       "submit_expense_report",
     ]);
   });
@@ -89,7 +89,7 @@ describe("expenses helpers", () => {
     expect(report.ok).toBe(false);
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "create_expense_report",
-      "add_expense_line",
+      "create_expense_line",
     ]);
   });
 });

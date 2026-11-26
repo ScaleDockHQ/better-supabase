@@ -107,7 +107,7 @@ describe("accounting module", () => {
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
         "setup_accounting",
-        "save_accounting_entry",
+        "upsert_accounting_entry",
         "post_accounting_entry",
         "close_fiscal_year",
         "accounting_trial_balance",

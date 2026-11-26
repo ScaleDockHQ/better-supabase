@@ -5,11 +5,8 @@ import { parseMoney } from "better-supabase/commerce";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SALES_TAG } from "./sales-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
@@ -35,7 +32,7 @@ const Whole = (min: number, max: number) =>
     v.maxValue(max),
   );
 
-const TAGS = [SALES_TAG, CRM_TAG];
+const TAGS = [tags.sales(), tags.crm()];
 
 /**
  * `{ [key]: value }` when a value is given, `{}` otherwise, for exact optional
@@ -57,15 +54,15 @@ export const winDeal = bsb.action(
     input: v.object({ dealId: Id, note: Optional }),
     requireTenant: true,
     permission: "deals.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ dealId, note }, { db, auth }) => {
+  async ({ dealId, note }, { db }) => {
     const won = await db.deals.win({ dealId, note });
 
     if (!won.ok) {
       return won;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -77,15 +74,15 @@ export const reopenDeal = bsb.action(
     input: v.object({ dealId: Id }),
     requireTenant: true,
     permission: "deals.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ dealId }, { db, auth }) => {
+  async ({ dealId }, { db }) => {
     const reopened = await db.deals.reopen({ dealId });
 
     if (!reopened.ok) {
       return reopened;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -102,8 +99,10 @@ export const takeForecastSnapshot = bsb.action(
     }),
     requireTenant: true,
     permission: "forecasts.snapshot",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ since, until, currency, target }, { tenant, db, auth }) => {
+  async ({ since, until, currency, target }, { tenant, db }) => {
     const snapshot = await db.forecasts.snapshot({
       organizationId: tenant,
       period: {
@@ -122,8 +121,6 @@ export const takeForecastSnapshot = bsb.action(
     if (!snapshot.ok) {
       return snapshot;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: snapshot.data.id });
   },
@@ -148,8 +145,10 @@ export const createSegment = bsb.action(
     }),
     requireTenant: true,
     permission: "segments.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ name, description, lifecycle }, { tenant, db, auth }) => {
+  async ({ name, description, lifecycle }, { tenant, db }) => {
     const saved = await db.segments.upsert({
       organizationId: tenant,
       segment: {
@@ -177,8 +176,6 @@ export const createSegment = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -189,15 +186,15 @@ export const refreshSegment = bsb.action(
     input: v.object({ segmentId: Id }),
     requireTenant: true,
     permission: "segments.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ segmentId }, { db, auth }) => {
+  async ({ segmentId }, { db }) => {
     const refreshed = await db.segments.refresh(segmentId);
 
     if (!refreshed.ok) {
       return refreshed;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(refreshed.data);
   },
@@ -208,15 +205,15 @@ export const deleteSegment = bsb.action(
     input: v.object({ segmentId: Id }),
     requireTenant: true,
     permission: "segments.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ segmentId }, { db, auth }) => {
+  async ({ segmentId }, { db }) => {
     const removed = await db.segments.remove(segmentId);
 
     if (!removed.ok) {
       return removed;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(removed.data);
   },
@@ -232,8 +229,10 @@ export const createQueue = bsb.action(
     }),
     requireTenant: true,
     permission: "assignment.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ name, subjectType, strategy }, { tenant, db, auth }) => {
+  async ({ name, subjectType, strategy }, { tenant, db }) => {
     const saved = await db.assignment.saveQueue({
       organizationId: tenant,
       queue: { name, subjectType, strategy },
@@ -242,8 +241,6 @@ export const createQueue = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: saved.data.id });
   },
@@ -260,15 +257,15 @@ export const setQueueMembers = bsb.action(
     }),
     requireTenant: true,
     permission: "assignment.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ queueId, members }, { db, auth }) => {
+  async ({ queueId, members }, { db }) => {
     const saved = await db.assignment.setMembers({ queueId, members });
 
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -279,8 +276,10 @@ export const setQueueEnabled = bsb.action(
     input: v.object({ queueId: Id, enabled: v.boolean() }),
     requireTenant: true,
     permission: "assignment.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ queueId, enabled }, { tenant, db, auth }) => {
+  async ({ queueId, enabled }, { tenant, db }) => {
     const saved = await db.assignment.saveQueue({
       organizationId: tenant,
       queue: { id: queueId, enabled },
@@ -289,8 +288,6 @@ export const setQueueEnabled = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -307,8 +304,10 @@ export const createScoreModel = bsb.action(
     }),
     requireTenant: true,
     permission: "scores.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ key, name, lifecycle, points }, { db, auth }) => {
+  async ({ key, name, lifecycle, points }, { db }) => {
     const saved = await db.scores.saveModel({
       key,
       name,
@@ -345,8 +344,6 @@ export const createScoreModel = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -356,15 +353,15 @@ export const setScoreModelEnabled = bsb.action(
     input: v.object({ modelId: Id, enabled: v.boolean() }),
     requireTenant: true,
     permission: "scores.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ modelId, enabled }, { db, auth }) => {
+  async ({ modelId, enabled }, { db }) => {
     const saved = await db.scores.saveModel({ id: modelId, enabled });
 
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -379,8 +376,10 @@ export const scoreRecord = bsb.action(
     }),
     requireTenant: true,
     permission: "scores.compute",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ subjectType, subjectId }, { db, auth }) => {
+  async ({ subjectType, subjectId }, { db }) => {
     const scored = await db.leadScoring.score({
       type: subjectType,
       id: subjectId,
@@ -389,8 +388,6 @@ export const scoreRecord = bsb.action(
     if (!scored.ok) {
       return scored;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ score: scored.data.score, band: scored.data.band ?? null });
   },
@@ -412,10 +409,12 @@ export const createContract = bsb.action(
     }),
     requireTenant: true,
     permission: "contracts.write",
+    tags: () => TAGS,
+    refresh: true,
   },
   async (
     { title, value, currency, startsOn, endsOn, autoRenew },
-    { tenant, db, auth },
+    { tenant, db },
   ) => {
     const created = await db.contracts.create({
       organizationId: tenant,
@@ -447,8 +446,6 @@ export const createContract = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: created.data.id });
   },
 );
@@ -469,15 +466,15 @@ export const transitionContract = bsb.action(
     }),
     requireTenant: true,
     permission: "contracts.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ contractId, action, reason }, { db, auth }) => {
+  async ({ contractId, action, reason }, { db }) => {
     const moved = await db.contracts.transition({ contractId, action, reason });
 
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -488,8 +485,10 @@ export const addObligation = bsb.action(
     input: v.object({ contractId: Id, title: Name, dueOn: Optional }),
     requireTenant: true,
     permission: "contracts.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ contractId, title, dueOn }, { db, auth }) => {
+  async ({ contractId, title, dueOn }, { db }) => {
     const saved = await db.contracts.saveObligation({
       contractId,
       input: {
@@ -507,8 +506,6 @@ export const addObligation = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok(true);
   },
 );
@@ -521,8 +518,10 @@ export const setObligationStatus = bsb.action(
     }),
     requireTenant: true,
     permission: "contracts.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ obligationId, status }, { db, auth }) => {
+  async ({ obligationId, status }, { db }) => {
     const saved = await db.contracts.setObligationStatus({
       obligationId,
       status,
@@ -531,8 +530,6 @@ export const setObligationStatus = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -547,8 +544,10 @@ export const createCommissionPlan = bsb.action(
     }),
     requireTenant: true,
     permission: "commissions.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ name, rate }, { db, auth }) => {
+  async ({ name, rate }, { db }) => {
     const saved = await db.commissions.savePlan({
       name,
       kind: "flat",
@@ -558,8 +557,6 @@ export const createCommissionPlan = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: saved.data.id });
   },
@@ -576,8 +573,10 @@ export const buildCommissionStatement = bsb.action(
     }),
     requireTenant: true,
     permission: "commissions.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ sellerId, currency, startsOn, endsOn }, { db, auth }) => {
+  async ({ sellerId, currency, startsOn, endsOn }, { db }) => {
     const built = await db.commissions.buildStatement({
       sellerId,
       currency,
@@ -589,8 +588,6 @@ export const buildCommissionStatement = bsb.action(
       return built;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: built.data.id });
   },
 );
@@ -601,8 +598,10 @@ export const advanceStatement = bsb.action(
     input: v.object({ statementId: Id, step: v.picklist(["finalize", "pay"]) }),
     requireTenant: true,
     permission: "commissions.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ statementId, step }, { db, auth }) => {
+  async ({ statementId, step }, { db }) => {
     const advanced =
       step === "finalize"
         ? await db.commissions.finalizeStatement(statementId)
@@ -611,8 +610,6 @@ export const advanceStatement = bsb.action(
     if (!advanced.ok) {
       return advanced;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -635,8 +632,10 @@ export const createReferralCode = bsb.action(
     }),
     requireTenant: true,
     permission: "referrals.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ maxUses }, { db, auth }) => {
+  async ({ maxUses }, { db }) => {
     const created = await db.referrals.createCode(
       maxUses === undefined ? {} : { maxUses },
     );
@@ -644,8 +643,6 @@ export const createReferralCode = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ code: created.data.code });
   },
@@ -666,8 +663,10 @@ export const assignDealOwners = bsb.action(
     }),
     requireTenant: true,
     permission: "deals.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ ownerId, dealIds }, { db, auth }) => {
+  async ({ ownerId, dealIds }, { db }) => {
     const changed = await db.deals.update({
       changes: dealIds.map((dealId) => ({
         dealId,
@@ -679,8 +678,6 @@ export const assignDealOwners = bsb.action(
     if (!changed.ok) {
       return changed;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({
       assigned: new Set(changed.data.accepted.map((entry) => entry.dealId))

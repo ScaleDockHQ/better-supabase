@@ -47,7 +47,7 @@ describe("createRetention", () => {
     const { transport, calls } = fakeTransport({
       set_retention_policy: policy,
       list_retention_policies: [policy],
-      remove_retention_policy: true,
+      delete_retention_policy: true,
     });
 
     const retention = createRetention({ transport });
@@ -82,7 +82,7 @@ describe("createRetention", () => {
       ],
       ["list_retention_policies", { kind: undefined }],
       [
-        "remove_retention_policy",
+        "delete_retention_policy",
         { kind: "audit", tenant: undefined, plan: "pro" },
       ],
     ]);

@@ -140,10 +140,12 @@ export async function getUser() {
       path: authActions,
       contents: `'use server';
 
+import { createAuthFlows } from 'better-supabase/next/sign-in';
+
 import { bsb } from '${from(authActions, server)}';
 
 export async function signOutAction(): Promise<void> {
-  await bsb.signOut({ next: '/sign-in' });
+  await createAuthFlows(bsb).signOut({ next: '/sign-in' });
 }
 `,
     },

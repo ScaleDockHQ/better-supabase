@@ -1,4 +1,4 @@
-import { loadAdminList } from "../../../../features/admin-lists/admin-list-load";
+import { getAdminList } from "../../../../features/admin-lists/admin-list-load";
 import { jobList } from "../../../../features/jobs/jobs-list";
 import { JOBS_PERMISSION } from "../../../../features/jobs/jobs-server";
 import { jobSource, queueNames } from "../../../../features/jobs/jobs-source";
@@ -13,7 +13,7 @@ export const GET = bsb.route(
     const query = jobList.parse(request.nextUrl.searchParams);
 
     return Response.json(
-      await loadAdminList({
+      await getAdminList({
         session,
         tenant,
         list: jobList,

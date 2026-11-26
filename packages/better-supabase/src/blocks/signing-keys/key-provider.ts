@@ -149,7 +149,7 @@ export const ownerArgs = (
   owner_id: owner.id,
 });
 
-/** Generates a key and stores it with `add_signing_key`. */
+/** Generates a key and stores it with `create_signing_key`. */
 export function addSigningKey(
   call: BlockCall,
   owner: SigningKeyOwner,
@@ -162,7 +162,7 @@ export function addSigningKey(
 }> {
   return run(() => generateSigningKey(alg)).andThen((generated) =>
     call(
-      "add_signing_key",
+      "create_signing_key",
       {
         ...ownerArgs(owner),
         kid: generated.kid,
@@ -171,7 +171,7 @@ export function addSigningKey(
         private_jwk: JSON.stringify(generated.privateKey),
       },
       (value) => {
-        const row = recordOf(value, "add_signing_key");
+        const row = recordOf(value, "create_signing_key");
 
         return {
           kid: generated.kid,

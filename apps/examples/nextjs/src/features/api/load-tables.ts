@@ -3,11 +3,11 @@ import type { SchemaMeta } from "better-supabase";
 
 /** The part of a server `loadTables` needs. */
 interface TableServer {
-  readonly meta: Pick<SchemaMeta, "tableLoaders">;
+  readonly meta: Pick<SchemaMeta, "tableGetters">;
   registerTable(table: Awaited<ReturnType<LoadTable>>): void;
 }
 
-type LoadTable = NonNullable<SchemaMeta["tableLoaders"]>[string];
+type LoadTable = NonNullable<SchemaMeta["tableGetters"]>[string];
 
 /**
  * Loads the metadata of the named tables. The server loads table metadata on
@@ -15,12 +15,12 @@ type LoadTable = NonNullable<SchemaMeta["tableLoaders"]>[string];
  * tools read each resource's table when their module evaluates, so each awaits
  * this first.
  */
-export async function loadTables(
+export async function getTables(
   server: TableServer,
   keys: Iterable<string>,
 ): Promise<void> {
   for (const key of keys) {
-    const load = server.meta.tableLoaders?.[key];
+    const load = server.meta.tableGetters?.[key];
 
     if (load !== undefined) {
       server.registerTable(await load());

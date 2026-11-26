@@ -121,14 +121,14 @@ $$;`),
       run(`do $$
 begin
   ${as(ALICE)}
-  if not better_supabase.add_member_role('${TENANT}', '${BOB}', 'admin') then
-    raise exception 'add_member_role returned false';
+  if not better_supabase.create_member_role('${TENANT}', '${BOB}', 'admin') then
+    raise exception 'create_member_role returned false';
   end if;
-  if better_supabase.add_member_role('${TENANT}', '${BOB}', 'admin') then
+  if better_supabase.create_member_role('${TENANT}', '${BOB}', 'admin') then
     raise exception 'adding a held role reported a change';
   end if;
-  if not better_supabase.remove_member_role('${TENANT}', '${BOB}', 'member') then
-    raise exception 'remove_member_role returned false';
+  if not better_supabase.delete_member_role('${TENANT}', '${BOB}', 'member') then
+    raise exception 'delete_member_role returned false';
   end if;
   if ${ROLE_SET(BOB)} <> array['admin'] then
     raise exception 'set %', ${ROLE_SET(BOB)};
@@ -224,7 +224,7 @@ $$;`,
       run(`do $$
 begin
   ${as(ALICE)}
-  perform better_supabase.remove_member_role('${TENANT}', '${BOB}', 'member');
+  perform better_supabase.delete_member_role('${TENANT}', '${BOB}', 'member');
 end;
 $$;`),
     ).rejects.toThrow(/keeps at least one role/);

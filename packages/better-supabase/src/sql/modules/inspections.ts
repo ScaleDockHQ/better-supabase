@@ -403,7 +403,7 @@ ${inspectionIntegrations(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_inspection_program",
+      name: "upsert_inspection_program",
       args: ["{id}", "text", "date", "date", "uuid", "text", "uuid"],
       returns: "jsonb",
     },
@@ -419,7 +419,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "start_inspection", args: ["uuid"], returns: "jsonb" },
     {
-      name: "save_inspection_checklist",
+      name: "upsert_inspection_checklist",
       args: ["uuid", "jsonb", "boolean"],
       returns: "jsonb",
     },
@@ -430,7 +430,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "get_inspection", args: ["uuid"], returns: "jsonb" },
     { name: "list_inspections", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
-      name: "add_inspection_finding",
+      name: "create_inspection_finding",
       args: ["uuid", "text", "text", "text", "text", "uuid", "text"],
       returns: "jsonb",
     },

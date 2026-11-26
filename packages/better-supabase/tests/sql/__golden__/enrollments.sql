@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:873309f673c65fd5edde8664f9298f3340b6e5991d3973a70b8dacc0f93bed4e
+-- @bsb-hash sha256:8b774817e9a7e1015e09f8b3d4fbead07787de846c4499b8960c67006e7156fb
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -392,7 +392,7 @@ revoke execute on function "better_supabase"."enrollment_restart"(uuid, integer,
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
 -- stored one.
-create or replace function "better_supabase"."save_enrollment_program"(tenant uuid, program jsonb)
+create or replace function "better_supabase"."upsert_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -415,16 +415,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', upsert_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
-  if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
+  if upsert_enrollment_program.program is null or jsonb_typeof(upsert_enrollment_program.program) <> 'object' then
     raise exception 'program must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_id := nullif(save_enrollment_program.program ->> 'id', '')::uuid;
+  v_id := nullif(upsert_enrollment_program.program ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."enrollment_programs" x
-    where x."id" = v_id and x."tenant_id" = save_enrollment_program.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_enrollment_program.tenant
     for update;
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
@@ -432,24 +432,24 @@ begin
     if v_old."archived_at" is not null then
       raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
     end if;
-    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
+    if upsert_enrollment_program.program ? 'version' and (upsert_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
   end if;
-  if save_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(save_enrollment_program.program -> 'subjectTypes') <> 'array' then
+  if upsert_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(upsert_enrollment_program.program -> 'subjectTypes') <> 'array' then
     raise exception 'subjectTypes must be an array of subject types' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_key := coalesce(save_enrollment_program.program ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old."name"));
-  v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else v_old."description" end;
-  v_types := case when save_enrollment_program.program ? 'subjectTypes'
-    then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
+  v_key := coalesce(upsert_enrollment_program.program ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_enrollment_program.program ->> 'name', v_old."name"));
+  v_description := case when upsert_enrollment_program.program ? 'description'
+    then nullif(trim(upsert_enrollment_program.program ->> 'description'), '') else v_old."description" end;
+  v_types := case when upsert_enrollment_program.program ? 'subjectTypes'
+    then array(select t.value from jsonb_array_elements_text(upsert_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old."subject_types", '{}') end;
-  v_steps := case when save_enrollment_program.program ? 'steps'
-    then save_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
-  v_enabled := case when save_enrollment_program.program ? 'enabled'
-    then (save_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
+  v_steps := case when upsert_enrollment_program.program ? 'steps'
+    then upsert_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_enabled := case when upsert_enrollment_program.program ? 'enabled'
+    then (upsert_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits, "_" or "-", starting with a letter' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
@@ -511,7 +511,7 @@ begin
   );
   if v_old."id" is null then
     insert into "better_supabase"."enrollment_programs" ("tenant_id", "key", "name", "description", "subject_types", "steps", "enabled", "created_by")
-    values (save_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
+    values (upsert_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -534,8 +534,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's programs by key; archived ones stay out unless
 -- include_archived is true.
@@ -1444,7 +1444,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:969be5b91278f9408f7d400fee45d17d4005ebb26519c0e699bd10753bd6abbb
+-- @bsb-hash sha256:d9fb1fac489eabeb08bedd4a83ad9ae0cfe8ddcc55012998421531e857ebb0b8
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1898,7 +1898,7 @@ revoke execute on function "better_supabase"."enrollment_restart"(uuid, integer,
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
 -- stored one.
-create or replace function "better_supabase"."save_enrollment_program"(tenant uuid, program jsonb)
+create or replace function "better_supabase"."upsert_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1921,16 +1921,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', upsert_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
-  if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
+  if upsert_enrollment_program.program is null or jsonb_typeof(upsert_enrollment_program.program) <> 'object' then
     raise exception 'program must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_id := nullif(save_enrollment_program.program ->> 'id', '')::uuid;
+  v_id := nullif(upsert_enrollment_program.program ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."enrollment_programs" x
-    where x."id" = v_id and x."tenant_id" = save_enrollment_program.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_enrollment_program.tenant
     for update;
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
@@ -1938,24 +1938,24 @@ begin
     if v_old."archived_at" is not null then
       raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
     end if;
-    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
+    if upsert_enrollment_program.program ? 'version' and (upsert_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
   end if;
-  if save_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(save_enrollment_program.program -> 'subjectTypes') <> 'array' then
+  if upsert_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(upsert_enrollment_program.program -> 'subjectTypes') <> 'array' then
     raise exception 'subjectTypes must be an array of subject types' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_key := coalesce(save_enrollment_program.program ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old."name"));
-  v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else v_old."description" end;
-  v_types := case when save_enrollment_program.program ? 'subjectTypes'
-    then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
+  v_key := coalesce(upsert_enrollment_program.program ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_enrollment_program.program ->> 'name', v_old."name"));
+  v_description := case when upsert_enrollment_program.program ? 'description'
+    then nullif(trim(upsert_enrollment_program.program ->> 'description'), '') else v_old."description" end;
+  v_types := case when upsert_enrollment_program.program ? 'subjectTypes'
+    then array(select t.value from jsonb_array_elements_text(upsert_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old."subject_types", '{}') end;
-  v_steps := case when save_enrollment_program.program ? 'steps'
-    then save_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
-  v_enabled := case when save_enrollment_program.program ? 'enabled'
-    then (save_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
+  v_steps := case when upsert_enrollment_program.program ? 'steps'
+    then upsert_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_enabled := case when upsert_enrollment_program.program ? 'enabled'
+    then (upsert_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits, "_" or "-", starting with a letter' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
@@ -2017,7 +2017,7 @@ begin
   );
   if v_old."id" is null then
     insert into "better_supabase"."enrollment_programs" ("tenant_id", "key", "name", "description", "subject_types", "steps", "enabled", "created_by")
-    values (save_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
+    values (upsert_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -2060,8 +2060,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's programs by key; archived ones stay out unless
 -- include_archived is true.
@@ -3016,7 +3016,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:905678d868b66a24222f65e41573b8e36ab794da1daec3e663e9eb0762435b8e
+-- @bsb-hash sha256:65ea4e0ad13a994219f67ed3159f1f2abf305da30c51106e735adfbaee623e83
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3412,7 +3412,7 @@ revoke execute on function "app_private"."enrollment_restart"(uuid, integer, tex
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
 -- stored one.
-create or replace function "app_private"."save_enrollment_program"(tenant uuid, program jsonb)
+create or replace function "app_private"."upsert_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3435,16 +3435,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', upsert_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
-  if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
+  if upsert_enrollment_program.program is null or jsonb_typeof(upsert_enrollment_program.program) <> 'object' then
     raise exception 'program must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_id := nullif(save_enrollment_program.program ->> 'id', '')::uuid;
+  v_id := nullif(upsert_enrollment_program.program ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "app_private"."enrollment_programs" x
-    where x."id" = v_id and x."tenant_id" = save_enrollment_program.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_enrollment_program.tenant
     for update;
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
@@ -3452,24 +3452,24 @@ begin
     if v_old."archived_at" is not null then
       raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
     end if;
-    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
+    if upsert_enrollment_program.program ? 'version' and (upsert_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
   end if;
-  if save_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(save_enrollment_program.program -> 'subjectTypes') <> 'array' then
+  if upsert_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(upsert_enrollment_program.program -> 'subjectTypes') <> 'array' then
     raise exception 'subjectTypes must be an array of subject types' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_key := coalesce(save_enrollment_program.program ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old."name"));
-  v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else v_old."description" end;
-  v_types := case when save_enrollment_program.program ? 'subjectTypes'
-    then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
+  v_key := coalesce(upsert_enrollment_program.program ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_enrollment_program.program ->> 'name', v_old."name"));
+  v_description := case when upsert_enrollment_program.program ? 'description'
+    then nullif(trim(upsert_enrollment_program.program ->> 'description'), '') else v_old."description" end;
+  v_types := case when upsert_enrollment_program.program ? 'subjectTypes'
+    then array(select t.value from jsonb_array_elements_text(upsert_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old."subject_types", '{}') end;
-  v_steps := case when save_enrollment_program.program ? 'steps'
-    then save_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
-  v_enabled := case when save_enrollment_program.program ? 'enabled'
-    then (save_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
+  v_steps := case when upsert_enrollment_program.program ? 'steps'
+    then upsert_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_enabled := case when upsert_enrollment_program.program ? 'enabled'
+    then (upsert_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits, "_" or "-", starting with a letter' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
@@ -3531,7 +3531,7 @@ begin
   );
   if v_old."id" is null then
     insert into "app_private"."enrollment_programs" ("tenant_id", "key", "name", "description", "subject_types", "steps", "enabled", "created_by")
-    values (save_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
+    values (upsert_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -3554,8 +3554,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_enrollment_program"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_enrollment_program"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's programs by key; archived ones stay out unless
 -- include_archived is true.
@@ -4464,7 +4464,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:387c8e95e3cd0a3f10af19b87289bd05ed178f39d75f8c6512eb34d8586713ba
+-- @bsb-hash sha256:63757097367bee4a65dff24bd84d6a1b9819cbca831491ea1d82fa6dca327692
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4855,7 +4855,7 @@ revoke execute on function "better_supabase"."enrollment_restart"(uuid, integer,
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
 -- stored one.
-create or replace function "better_supabase"."save_enrollment_program"(tenant uuid, program jsonb)
+create or replace function "better_supabase"."upsert_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4878,16 +4878,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', upsert_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
-  if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
+  if upsert_enrollment_program.program is null or jsonb_typeof(upsert_enrollment_program.program) <> 'object' then
     raise exception 'program must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_id := nullif(save_enrollment_program.program ->> 'id', '')::uuid;
+  v_id := nullif(upsert_enrollment_program.program ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."enrollment_programs" x
-    where x."id" = v_id and x."tenant_id" = save_enrollment_program.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_enrollment_program.tenant
     for update;
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
@@ -4895,24 +4895,24 @@ begin
     if v_old."archived_at" is not null then
       raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
     end if;
-    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
+    if upsert_enrollment_program.program ? 'version' and (upsert_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
   end if;
-  if save_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(save_enrollment_program.program -> 'subjectTypes') <> 'array' then
+  if upsert_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(upsert_enrollment_program.program -> 'subjectTypes') <> 'array' then
     raise exception 'subjectTypes must be an array of subject types' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_key := coalesce(save_enrollment_program.program ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old."name"));
-  v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else v_old."description" end;
-  v_types := case when save_enrollment_program.program ? 'subjectTypes'
-    then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
+  v_key := coalesce(upsert_enrollment_program.program ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_enrollment_program.program ->> 'name', v_old."name"));
+  v_description := case when upsert_enrollment_program.program ? 'description'
+    then nullif(trim(upsert_enrollment_program.program ->> 'description'), '') else v_old."description" end;
+  v_types := case when upsert_enrollment_program.program ? 'subjectTypes'
+    then array(select t.value from jsonb_array_elements_text(upsert_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old."subject_types", '{}') end;
-  v_steps := case when save_enrollment_program.program ? 'steps'
-    then save_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
-  v_enabled := case when save_enrollment_program.program ? 'enabled'
-    then (save_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
+  v_steps := case when upsert_enrollment_program.program ? 'steps'
+    then upsert_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_enabled := case when upsert_enrollment_program.program ? 'enabled'
+    then (upsert_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits, "_" or "-", starting with a letter' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
@@ -4974,7 +4974,7 @@ begin
   );
   if v_old."id" is null then
     insert into "better_supabase"."enrollment_programs" ("tenant_id", "key", "name", "description", "subject_types", "steps", "enabled", "created_by")
-    values (save_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
+    values (upsert_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -4997,8 +4997,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's programs by key; archived ones stay out unless
 -- include_archived is true.
@@ -5894,14 +5894,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_enrollment_program"(tenant uuid, program jsonb)
+create or replace function "api"."upsert_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_enrollment_program"($1, $2) $$;
-revoke execute on function "api"."save_enrollment_program"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_enrollment_program"($1, $2) $$;
+revoke execute on function "api"."upsert_enrollment_program"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -6070,7 +6070,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:79d74f4ad0729d206149944b0694fe847f2aa419010f67cb50c3cbb3f3d5bccd
+-- @bsb-hash sha256:38b8624b359b70b7f9b2c81e3fdc4b7bba33c27365f23ef24d41a18a66d86467
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6450,7 +6450,7 @@ revoke execute on function "better_supabase"."enrollment_restart"(uuid, integer,
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
 -- stored one.
-create or replace function "better_supabase"."save_enrollment_program"(tenant uuid, program jsonb)
+create or replace function "better_supabase"."upsert_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6473,16 +6473,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', upsert_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
-  if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
+  if upsert_enrollment_program.program is null or jsonb_typeof(upsert_enrollment_program.program) <> 'object' then
     raise exception 'program must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_id := nullif(save_enrollment_program.program ->> 'id', '')::uuid;
+  v_id := nullif(upsert_enrollment_program.program ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."enrollment_programs" x
-    where x."id" = v_id and x."tenant_id" = save_enrollment_program.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_enrollment_program.tenant
     for update;
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
@@ -6490,24 +6490,24 @@ begin
     if v_old."archived_at" is not null then
       raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
     end if;
-    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
+    if upsert_enrollment_program.program ? 'version' and (upsert_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
   end if;
-  if save_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(save_enrollment_program.program -> 'subjectTypes') <> 'array' then
+  if upsert_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(upsert_enrollment_program.program -> 'subjectTypes') <> 'array' then
     raise exception 'subjectTypes must be an array of subject types' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_key := coalesce(save_enrollment_program.program ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old."name"));
-  v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else v_old."description" end;
-  v_types := case when save_enrollment_program.program ? 'subjectTypes'
-    then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
+  v_key := coalesce(upsert_enrollment_program.program ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_enrollment_program.program ->> 'name', v_old."name"));
+  v_description := case when upsert_enrollment_program.program ? 'description'
+    then nullif(trim(upsert_enrollment_program.program ->> 'description'), '') else v_old."description" end;
+  v_types := case when upsert_enrollment_program.program ? 'subjectTypes'
+    then array(select t.value from jsonb_array_elements_text(upsert_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old."subject_types", '{}') end;
-  v_steps := case when save_enrollment_program.program ? 'steps'
-    then save_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
-  v_enabled := case when save_enrollment_program.program ? 'enabled'
-    then (save_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
+  v_steps := case when upsert_enrollment_program.program ? 'steps'
+    then upsert_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_enabled := case when upsert_enrollment_program.program ? 'enabled'
+    then (upsert_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits, "_" or "-", starting with a letter' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
@@ -6569,7 +6569,7 @@ begin
   );
   if v_old."id" is null then
     insert into "better_supabase"."enrollment_programs" ("tenant_id", "key", "name", "description", "subject_types", "steps", "enabled", "created_by")
-    values (save_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
+    values (upsert_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -6592,8 +6592,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's programs by key; archived ones stay out unless
 -- include_archived is true.
@@ -7502,7 +7502,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:6b2c8339bc9f22bc9f63bebb2d81f76cfadbe61ef120cb596e9e68fb1949a331
+-- @bsb-hash sha256:4ad39a9c6d6484107ba322166ea16ae321f97cefa8e3072759750b844170503a
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7893,7 +7893,7 @@ revoke execute on function "better_supabase"."enrollment_restart"(uuid, integer,
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
 -- Changing the steps raises the version. version, when given, must be the
 -- stored one.
-create or replace function "better_supabase"."save_enrollment_program"(tenant uuid, program jsonb)
+create or replace function "better_supabase"."upsert_enrollment_program"(tenant uuid, program jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7916,16 +7916,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', save_enrollment_program.tenant, 'enrollments.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_enrollment_program.tenant is not null and coalesce(better_supabase.can('tenant', upsert_enrollment_program.tenant, 'enrollments.manage'), false))) then
     raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
-  if save_enrollment_program.program is null or jsonb_typeof(save_enrollment_program.program) <> 'object' then
+  if upsert_enrollment_program.program is null or jsonb_typeof(upsert_enrollment_program.program) <> 'object' then
     raise exception 'program must be an object' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_id := nullif(save_enrollment_program.program ->> 'id', '')::uuid;
+  v_id := nullif(upsert_enrollment_program.program ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."enrollment_programs" x
-    where x."id" = v_id and x."org_id" = save_enrollment_program.tenant
+    where x."id" = v_id and x."org_id" = upsert_enrollment_program.tenant
     for update;
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
@@ -7933,24 +7933,24 @@ begin
     if v_old."archived_at" is not null then
       raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
     end if;
-    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
+    if upsert_enrollment_program.program ? 'version' and (upsert_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
   end if;
-  if save_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(save_enrollment_program.program -> 'subjectTypes') <> 'array' then
+  if upsert_enrollment_program.program ? 'subjectTypes' and jsonb_typeof(upsert_enrollment_program.program -> 'subjectTypes') <> 'array' then
     raise exception 'subjectTypes must be an array of subject types' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
-  v_key := coalesce(save_enrollment_program.program ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_enrollment_program.program ->> 'name', v_old."name"));
-  v_description := case when save_enrollment_program.program ? 'description'
-    then nullif(trim(save_enrollment_program.program ->> 'description'), '') else v_old."description" end;
-  v_types := case when save_enrollment_program.program ? 'subjectTypes'
-    then array(select t.value from jsonb_array_elements_text(save_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
+  v_key := coalesce(upsert_enrollment_program.program ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_enrollment_program.program ->> 'name', v_old."name"));
+  v_description := case when upsert_enrollment_program.program ? 'description'
+    then nullif(trim(upsert_enrollment_program.program ->> 'description'), '') else v_old."description" end;
+  v_types := case when upsert_enrollment_program.program ? 'subjectTypes'
+    then array(select t.value from jsonb_array_elements_text(upsert_enrollment_program.program -> 'subjectTypes') with ordinality as t(value, ord) order by t.ord)
     else coalesce(v_old."subject_types", '{}') end;
-  v_steps := case when save_enrollment_program.program ? 'steps'
-    then save_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
-  v_enabled := case when save_enrollment_program.program ? 'enabled'
-    then (save_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
+  v_steps := case when upsert_enrollment_program.program ? 'steps'
+    then upsert_enrollment_program.program -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_enabled := case when upsert_enrollment_program.program ? 'enabled'
+    then (upsert_enrollment_program.program ->> 'enabled')::boolean else coalesce(v_old."enabled", true) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits, "_" or "-", starting with a letter' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;
@@ -8012,7 +8012,7 @@ begin
   );
   if v_old."id" is null then
     insert into "better_supabase"."enrollment_programs" ("org_id", "key", "name", "description", "subject_types", "steps", "enabled", "created_by")
-    values (save_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
+    values (upsert_enrollment_program.tenant, v_key, v_name, v_description, v_types, v_steps, v_enabled, auth.uid())
     on conflict ("org_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -8035,8 +8035,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's programs by key; archived ones stay out unless
 -- include_archived is true.

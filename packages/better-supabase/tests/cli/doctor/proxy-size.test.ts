@@ -8,7 +8,7 @@ import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 import {
   PROXY_BUDGET_BYTES,
   PROXY_SIZE_RULES,
-  readProxyTrace,
+  getProxyTrace,
 } from "../../../src/cli/doctor/proxy-size.ts";
 
 const folders: string[] = [];
@@ -36,7 +36,7 @@ afterEach(async () => {
   );
 });
 
-const run = (trace: Awaited<ReturnType<typeof readProxyTrace>>) => {
+const run = (trace: Awaited<ReturnType<typeof getProxyTrace>>) => {
   // SAFETY: BS650 reads only `proxyTrace`.
   const findings = PROXY_SIZE_RULES[0]?.check({
     proxyTrace: trace,
@@ -51,7 +51,7 @@ const run = (trace: Awaited<ReturnType<typeof readProxyTrace>>) => {
 
 describe("BS650", () => {
   it("adds up the traced files and names the biggest", async () => {
-    const trace = await readProxyTrace(
+    const trace = await getProxyTrace(
       await project({ "a.js": PROXY_BUDGET_BYTES, "b.js": 10 }),
     );
 
@@ -61,7 +61,7 @@ describe("BS650", () => {
   });
 
   it("passes a proxy under the budget", async () => {
-    expect(run(await readProxyTrace(await project({ "a.js": 1000 })))).toEqual(
+    expect(run(await getProxyTrace(await project({ "a.js": 1000 })))).toEqual(
       [],
     );
   });
@@ -70,7 +70,7 @@ describe("BS650", () => {
     const root = await mkdtemp(join(tmpdir(), "bsb-proxy-"));
     folders.push(root);
 
-    expect(await readProxyTrace(root)).toBeUndefined();
+    expect(await getProxyTrace(root)).toBeUndefined();
     expect(run(undefined)).toEqual([]);
   });
 });

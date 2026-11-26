@@ -138,27 +138,27 @@ ${userGrant(`${fn("list_advisory_products")}(${idType})`)}
 -- Creates a product or, with product_id, changes one. The key is lowercase
 -- letters, digits, dots, dashes and underscores; it names the product in OpenVEX
 -- and CSAF documents. archived true takes the product off the lists.
-create or replace function ${fn("save_advisory_product")}(tenant ${idType}, key text, name text, vendor text default null, description text default null, archived boolean default null, product_id uuid default null)
+create or replace function ${fn("upsert_advisory_product")}(tenant ${idType}, key text, name text, vendor text default null, description text default null, archived boolean default null, product_id uuid default null)
 ${HEADER}
 declare
   v_row ${products};
   v_old ${products};
 begin
-  if not ${q.allowed("save_advisory_product.tenant", q.write)} then
+  if not ${q.allowed("upsert_advisory_product.tenant", q.write)} then
     ${q.forbidden("not allowed to change advisories")}
   end if;
-  if coalesce(save_advisory_product.key, '') !~ '^[a-z0-9][a-z0-9._-]{0,62}$' then
+  if coalesce(upsert_advisory_product.key, '') !~ '^[a-z0-9][a-z0-9._-]{0,62}$' then
     ${q.invalid("key must be lowercase letters, digits, dots, dashes and underscores, 1 to 63 characters")}
   end if;
-  if coalesce(length(trim(save_advisory_product.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_advisory_product.name)), 0) not between 1 and 200 then
     ${q.invalid("name must be 1 to 200 characters")}
   end if;
-  if length(save_advisory_product.vendor) > 200 or length(save_advisory_product.description) > 5000 then
+  if length(upsert_advisory_product.vendor) > 200 or length(upsert_advisory_product.description) > 5000 then
     ${q.invalid("vendor is at most 200 characters and description at most 5000")}
   end if;
-  if save_advisory_product.product_id is not null then
+  if upsert_advisory_product.product_id is not null then
     select * into v_old from ${products} y
-    where y.${p("id")} = save_advisory_product.product_id and y.${p("tenant")} = save_advisory_product.tenant
+    where y.${p("id")} = upsert_advisory_product.product_id and y.${p("tenant")} = upsert_advisory_product.tenant
     for update;
     if not found then
       ${q.missing("product")}
@@ -166,18 +166,18 @@ begin
   end if;
   if v_old.${p("id")} is null then
     insert into ${products} (${p("tenant")}, ${p("key")}, ${p("name")}, ${p("vendor")}, ${p("description")}, ${p("createdBy")})
-    values (save_advisory_product.tenant, save_advisory_product.key, trim(save_advisory_product.name), nullif(trim(save_advisory_product.vendor), ''), nullif(trim(save_advisory_product.description), ''), (select auth.uid()))
+    values (upsert_advisory_product.tenant, upsert_advisory_product.key, trim(upsert_advisory_product.name), nullif(trim(upsert_advisory_product.vendor), ''), nullif(trim(upsert_advisory_product.description), ''), (select auth.uid()))
     returning * into v_row;
     ${rec.product("advisory_product.created", "v_row", "advisory product created")}
   else
     update ${products} y set
-      ${p("key")} = save_advisory_product.key,
-      ${p("name")} = trim(save_advisory_product.name),
-      ${p("vendor")} = nullif(trim(save_advisory_product.vendor), ''),
-      ${p("description")} = nullif(trim(save_advisory_product.description), ''),
+      ${p("key")} = upsert_advisory_product.key,
+      ${p("name")} = trim(upsert_advisory_product.name),
+      ${p("vendor")} = nullif(trim(upsert_advisory_product.vendor), ''),
+      ${p("description")} = nullif(trim(upsert_advisory_product.description), ''),
       ${p("archivedAt")} = case
-        when save_advisory_product.archived is null then y.${p("archivedAt")}
-        when save_advisory_product.archived then coalesce(y.${p("archivedAt")}, now())
+        when upsert_advisory_product.archived is null then y.${p("archivedAt")}
+        when upsert_advisory_product.archived then coalesce(y.${p("archivedAt")}, now())
         else null end,
       ${p("updatedAt")} = now()
     where y.${p("id")} = v_old.${p("id")}
@@ -189,7 +189,7 @@ exception when unique_violation then
   ${q.invalid("another product of this organization has this key")}
 end;
 $$;
-${userGrant(`${fn("save_advisory_product")}(${idType}, text, text, text, text, boolean, uuid)`)}
+${userGrant(`${fn("upsert_advisory_product")}(${idType}, text, text, text, text, boolean, uuid)`)}
 
 -- Adds a version to a product. Versions are free text, such as 2.4.1.
 create or replace function ${fn("create_product_version")}(tenant ${idType}, product_id uuid, version text, released_at timestamptz default null, end_of_support_at timestamptz default null)
@@ -353,48 +353,48 @@ function vulnerabilityFunctions(
 -- Registers a vulnerability the organization tracks, or changes what a person
 -- entered. A null argument keeps the stored value. cvss_version is 3.0, 3.1 or
 -- 4.0; the TypeScript client parses the vector and passes the version and score.
-create or replace function ${fn("save_vulnerability")}(tenant ${idType}, vuln_id text, summary text default null, details text default null, aliases text[] default null, cvss_vector text default null, cvss_version text default null, cvss_score numeric default null, affected_purls text[] default null)
+create or replace function ${fn("upsert_vulnerability")}(tenant ${idType}, vuln_id text, summary text default null, details text default null, aliases text[] default null, cvss_vector text default null, cvss_version text default null, cvss_score numeric default null, affected_purls text[] default null)
 ${HEADER}
 declare
   v_row ${vulnerabilities};
   v_old ${vulnerabilities};
-  v_id text := ${ID("save_vulnerability.vuln_id")};
+  v_id text := ${ID("upsert_vulnerability.vuln_id")};
 begin
-  if not ${q.allowed("save_vulnerability.tenant", q.write)} then
+  if not ${q.allowed("upsert_vulnerability.tenant", q.write)} then
     ${q.forbidden("not allowed to change advisories")}
   end if;
   if coalesce(v_id, '') !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$' then
     ${q.invalid("vuln_id must be a CVE, GHSA or other vulnerability id of 3 to 128 characters")}
   end if;
-  if length(save_vulnerability.summary) > 1000 or length(save_vulnerability.details) > 20000 or length(save_vulnerability.cvss_vector) > 300 then
+  if length(upsert_vulnerability.summary) > 1000 or length(upsert_vulnerability.details) > 20000 or length(upsert_vulnerability.cvss_vector) > 300 then
     ${q.invalid("summary is at most 1000 characters, details 20000 and the CVSS vector 300")}
   end if;
-  if save_vulnerability.cvss_version is not null and save_vulnerability.cvss_version not in ('3.0', '3.1', '4.0') then
+  if upsert_vulnerability.cvss_version is not null and upsert_vulnerability.cvss_version not in ('3.0', '3.1', '4.0') then
     ${q.invalid("cvss_version must be 3.0, 3.1 or 4.0")}
   end if;
-  if save_vulnerability.cvss_score is not null and save_vulnerability.cvss_score not between 0 and 10 then
+  if upsert_vulnerability.cvss_score is not null and upsert_vulnerability.cvss_score not between 0 and 10 then
     ${q.invalid("cvss_score must be between 0 and 10")}
   end if;
   select * into v_old from ${vulnerabilities} y
-  where y.${x("tenant")} = save_vulnerability.tenant and y.${x("vulnId")} = v_id
+  where y.${x("tenant")} = upsert_vulnerability.tenant and y.${x("vulnId")} = v_id
   for update;
   if v_old.${x("id")} is null then
     insert into ${vulnerabilities} (${x("tenant")}, ${x("vulnId")}, ${x("summary")}, ${x("details")}, ${x("aliases")}, ${x("cvssVector")}, ${x("cvssVersion")}, ${x("cvssScore")}, ${x("severity")}, ${x("affectedPurls")})
-    values (save_vulnerability.tenant, v_id, nullif(trim(save_vulnerability.summary), ''), nullif(trim(save_vulnerability.details), ''),
-      coalesce(save_vulnerability.aliases, '{}'::text[]), save_vulnerability.cvss_vector, save_vulnerability.cvss_version, save_vulnerability.cvss_score,
-      ${severityOf("save_vulnerability.cvss_score")}, coalesce(save_vulnerability.affected_purls, '{}'::text[]))
+    values (upsert_vulnerability.tenant, v_id, nullif(trim(upsert_vulnerability.summary), ''), nullif(trim(upsert_vulnerability.details), ''),
+      coalesce(upsert_vulnerability.aliases, '{}'::text[]), upsert_vulnerability.cvss_vector, upsert_vulnerability.cvss_version, upsert_vulnerability.cvss_score,
+      ${severityOf("upsert_vulnerability.cvss_score")}, coalesce(upsert_vulnerability.affected_purls, '{}'::text[]))
     returning * into v_row;
     ${rec.vulnerability("vulnerability.created", "v_row", "vulnerability registered")}
   else
     update ${vulnerabilities} y set
-      ${x("summary")} = coalesce(nullif(trim(save_vulnerability.summary), ''), y.${x("summary")}),
-      ${x("details")} = coalesce(nullif(trim(save_vulnerability.details), ''), y.${x("details")}),
-      ${x("aliases")} = coalesce(save_vulnerability.aliases, y.${x("aliases")}),
-      ${x("cvssVector")} = coalesce(save_vulnerability.cvss_vector, y.${x("cvssVector")}),
-      ${x("cvssVersion")} = coalesce(save_vulnerability.cvss_version, y.${x("cvssVersion")}),
-      ${x("cvssScore")} = coalesce(save_vulnerability.cvss_score, y.${x("cvssScore")}),
-      ${x("severity")} = coalesce(${severityOf("save_vulnerability.cvss_score")}, y.${x("severity")}),
-      ${x("affectedPurls")} = coalesce(save_vulnerability.affected_purls, y.${x("affectedPurls")}),
+      ${x("summary")} = coalesce(nullif(trim(upsert_vulnerability.summary), ''), y.${x("summary")}),
+      ${x("details")} = coalesce(nullif(trim(upsert_vulnerability.details), ''), y.${x("details")}),
+      ${x("aliases")} = coalesce(upsert_vulnerability.aliases, y.${x("aliases")}),
+      ${x("cvssVector")} = coalesce(upsert_vulnerability.cvss_vector, y.${x("cvssVector")}),
+      ${x("cvssVersion")} = coalesce(upsert_vulnerability.cvss_version, y.${x("cvssVersion")}),
+      ${x("cvssScore")} = coalesce(upsert_vulnerability.cvss_score, y.${x("cvssScore")}),
+      ${x("severity")} = coalesce(${severityOf("upsert_vulnerability.cvss_score")}, y.${x("severity")}),
+      ${x("affectedPurls")} = coalesce(upsert_vulnerability.affected_purls, y.${x("affectedPurls")}),
       ${x("updatedAt")} = now()
     where y.${x("id")} = v_old.${x("id")}
     returning * into v_row;
@@ -402,7 +402,7 @@ begin
   return ${vulnerabilityJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_vulnerability")}(${idType}, text, text, text, text[], text, text, numeric, text[])`)}
+${userGrant(`${fn("upsert_vulnerability")}(${idType}, text, text, text, text[], text, text, numeric, text[])`)}
 
 -- Stores what the vulnerability feed found for a tracked vulnerability: OSV
 -- fields, the EPSS score and the CISA KEV entry. enrichment is { summary,
@@ -595,7 +595,7 @@ ${userGrant(`${fn("version_exposure")}(${idType}, uuid)`)}
 -- Sets the product's statement for a vulnerability, for one version or, with a
 -- null version_id, for every version. not_affected needs a justification; the
 -- other statuses take none. affected may carry an action_statement.
-create or replace function ${fn("save_vex_statement")}(tenant ${idType}, product_id uuid, vulnerability_id uuid, status text, version_id uuid default null, justification text default null, impact_statement text default null, action_statement text default null)
+create or replace function ${fn("upsert_vex_statement")}(tenant ${idType}, product_id uuid, vulnerability_id uuid, status text, version_id uuid default null, justification text default null, impact_statement text default null, action_statement text default null)
 ${HEADER}
 declare
   v_row ${vex};
@@ -603,55 +603,55 @@ declare
   v_vuln text;
   v_label text;
 begin
-  if not ${q.allowed("save_vex_statement.tenant", q.write)} then
+  if not ${q.allowed("upsert_vex_statement.tenant", q.write)} then
     ${q.forbidden("not allowed to change advisories")}
   end if;
-  if coalesce(save_vex_statement.status, '') not in (${quoted(ADVISORY_VEX_STATUSES)}) then
+  if coalesce(upsert_vex_statement.status, '') not in (${quoted(ADVISORY_VEX_STATUSES)}) then
     ${q.invalid(`status must be one of ${ADVISORY_VEX_STATUSES.join(", ")}`)}
   end if;
-  if save_vex_statement.status = 'not_affected' and (save_vex_statement.justification is null and nullif(trim(save_vex_statement.impact_statement), '') is null) then
+  if upsert_vex_statement.status = 'not_affected' and (upsert_vex_statement.justification is null and nullif(trim(upsert_vex_statement.impact_statement), '') is null) then
     ${q.invalid("not_affected needs a justification or an impact statement")}
   end if;
-  if save_vex_statement.justification is not null and (save_vex_statement.status <> 'not_affected' or save_vex_statement.justification not in (${quoted(ADVISORY_VEX_JUSTIFICATIONS)})) then
+  if upsert_vex_statement.justification is not null and (upsert_vex_statement.status <> 'not_affected' or upsert_vex_statement.justification not in (${quoted(ADVISORY_VEX_JUSTIFICATIONS)})) then
     ${q.invalid("a justification applies to not_affected and is one of the OpenVEX justifications")}
   end if;
-  if length(save_vex_statement.impact_statement) > 5000 or length(save_vex_statement.action_statement) > 5000 then
+  if length(upsert_vex_statement.impact_statement) > 5000 or length(upsert_vex_statement.action_statement) > 5000 then
     ${q.invalid("impact_statement and action_statement are at most 5000 characters")}
   end if;
   if not exists (
     select 1 from ${products} y
-    where y.${p("id")} = save_vex_statement.product_id and y.${p("tenant")} = save_vex_statement.tenant
+    where y.${p("id")} = upsert_vex_statement.product_id and y.${p("tenant")} = upsert_vex_statement.tenant
   ) then
     ${q.missing("product")}
   end if;
   select y.${x("vulnId")} into v_vuln from ${vulnerabilities} y
-  where y.${x("id")} = save_vex_statement.vulnerability_id and y.${x("tenant")} = save_vex_statement.tenant;
+  where y.${x("id")} = upsert_vex_statement.vulnerability_id and y.${x("tenant")} = upsert_vex_statement.tenant;
   if not found then
     ${q.missing("vulnerability")}
   end if;
-  if save_vex_statement.version_id is not null and not exists (
+  if upsert_vex_statement.version_id is not null and not exists (
     select 1 from ${versions} y
-    where y.${v("id")} = save_vex_statement.version_id and y.${v("tenant")} = save_vex_statement.tenant
-      and y.${v("product")} = save_vex_statement.product_id
+    where y.${v("id")} = upsert_vex_statement.version_id and y.${v("tenant")} = upsert_vex_statement.tenant
+      and y.${v("product")} = upsert_vex_statement.product_id
   ) then
     ${q.missing("version of this product")}
   end if;
   select * into v_old from ${vex} w
-  where w.${s("tenant")} = save_vex_statement.tenant and w.${s("product")} = save_vex_statement.product_id
-    and w.${s("vulnerability")} = save_vex_statement.vulnerability_id
-    and w.${s("version")} is not distinct from save_vex_statement.version_id
+  where w.${s("tenant")} = upsert_vex_statement.tenant and w.${s("product")} = upsert_vex_statement.product_id
+    and w.${s("vulnerability")} = upsert_vex_statement.vulnerability_id
+    and w.${s("version")} is not distinct from upsert_vex_statement.version_id
   for update;
   if v_old.${s("id")} is null then
     insert into ${vex} (${s("tenant")}, ${s("product")}, ${s("version")}, ${s("vulnerability")}, ${s("status")}, ${s("justification")}, ${s("impactStatement")}, ${s("actionStatement")}, ${s("createdBy")})
-    values (save_vex_statement.tenant, save_vex_statement.product_id, save_vex_statement.version_id, save_vex_statement.vulnerability_id, save_vex_statement.status,
-      save_vex_statement.justification, nullif(trim(save_vex_statement.impact_statement), ''), nullif(trim(save_vex_statement.action_statement), ''), (select auth.uid()))
+    values (upsert_vex_statement.tenant, upsert_vex_statement.product_id, upsert_vex_statement.version_id, upsert_vex_statement.vulnerability_id, upsert_vex_statement.status,
+      upsert_vex_statement.justification, nullif(trim(upsert_vex_statement.impact_statement), ''), nullif(trim(upsert_vex_statement.action_statement), ''), (select auth.uid()))
     returning * into v_row;
   else
     update ${vex} w set
-      ${s("status")} = save_vex_statement.status,
-      ${s("justification")} = save_vex_statement.justification,
-      ${s("impactStatement")} = nullif(trim(save_vex_statement.impact_statement), ''),
-      ${s("actionStatement")} = nullif(trim(save_vex_statement.action_statement), ''),
+      ${s("status")} = upsert_vex_statement.status,
+      ${s("justification")} = upsert_vex_statement.justification,
+      ${s("impactStatement")} = nullif(trim(upsert_vex_statement.impact_statement), ''),
+      ${s("actionStatement")} = nullif(trim(upsert_vex_statement.action_statement), ''),
       ${s("updatedAt")} = now()
     where w.${s("id")} = v_old.${s("id")}
     returning * into v_row;
@@ -661,7 +661,7 @@ begin
   return ${statementJson("v_row", "v_vuln", "v_label")};
 end;
 $$;
-${userGrant(`${fn("save_vex_statement")}(${idType}, uuid, uuid, text, uuid, text, text, text)`)}
+${userGrant(`${fn("upsert_vex_statement")}(${idType}, uuid, uuid, text, uuid, text, text, text)`)}
 
 -- The product's statements, with the vulnerability id and version they name.
 -- With version_id: the ones for that version and for every version.
@@ -736,23 +736,23 @@ function advisoryFunctions(
 -- Creates a draft advisory about a product and the vulnerabilities it covers,
 -- or, with advisory_id, changes one. The tracking id (the CSAF tracking.id,
 -- such as ACME-SA-2026-001) can't change after the first publication.
-create or replace function ${fn("save_advisory")}(tenant ${idType}, tracking_id text, title text, summary text, product_id uuid, vulnerability_ids uuid[], severity text default null, advisory_id uuid default null)
+create or replace function ${fn("upsert_advisory")}(tenant ${idType}, tracking_id text, title text, summary text, product_id uuid, vulnerability_ids uuid[], severity text default null, advisory_id uuid default null)
 ${HEADER}
 declare
   v_row ${advisories};
   v_old ${advisories};
-  v_ids uuid[] := coalesce(save_advisory.vulnerability_ids, '{}'::uuid[]);
+  v_ids uuid[] := coalesce(upsert_advisory.vulnerability_ids, '{}'::uuid[]);
 begin
-  if not ${q.allowed("save_advisory.tenant", q.write)} then
+  if not ${q.allowed("upsert_advisory.tenant", q.write)} then
     ${q.forbidden("not allowed to change advisories")}
   end if;
-  if coalesce(save_advisory.tracking_id, '') !~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$' then
+  if coalesce(upsert_advisory.tracking_id, '') !~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$' then
     ${q.invalid("tracking_id must be 3 to 100 letters, digits, dots, dashes and underscores")}
   end if;
-  if coalesce(length(trim(save_advisory.title)), 0) not between 1 and 300 or length(save_advisory.summary) > 10000 then
+  if coalesce(length(trim(upsert_advisory.title)), 0) not between 1 and 300 or length(upsert_advisory.summary) > 10000 then
     ${q.invalid("title must be 1 to 300 characters and summary at most 10000")}
   end if;
-  if save_advisory.severity is not null and save_advisory.severity not in (${quoted(ADVISORY_SEVERITIES)}) then
+  if upsert_advisory.severity is not null and upsert_advisory.severity not in (${quoted(ADVISORY_SEVERITIES)}) then
     ${q.invalid(`severity must be one of ${ADVISORY_SEVERITIES.join(", ")}`)}
   end if;
   if cardinality(v_ids) > 500 then
@@ -760,37 +760,37 @@ begin
   end if;
   if not exists (
     select 1 from ${products} y
-    where y.${p("id")} = save_advisory.product_id and y.${p("tenant")} = save_advisory.tenant
+    where y.${p("id")} = upsert_advisory.product_id and y.${p("tenant")} = upsert_advisory.tenant
   ) then
     ${q.missing("product")}
   end if;
-  if (select count(*) from ${vulnerabilities} y where y.${x("tenant")} = save_advisory.tenant and y.${x("id")} = any (v_ids))
+  if (select count(*) from ${vulnerabilities} y where y.${x("tenant")} = upsert_advisory.tenant and y.${x("id")} = any (v_ids))
     <> (select count(distinct i) from unnest(v_ids) i) then
     ${q.missing("vulnerability")}
   end if;
-  if save_advisory.advisory_id is not null then
+  if upsert_advisory.advisory_id is not null then
     select * into v_old from ${advisories} y
-    where y.${a("id")} = save_advisory.advisory_id and y.${a("tenant")} = save_advisory.tenant
+    where y.${a("id")} = upsert_advisory.advisory_id and y.${a("tenant")} = upsert_advisory.tenant
     for update;
     if not found then
       ${q.missing("advisory")}
     end if;
-    if v_old.${a("initialReleaseAt")} is not null and v_old.${a("trackingId")} <> save_advisory.tracking_id then
+    if v_old.${a("initialReleaseAt")} is not null and v_old.${a("trackingId")} <> upsert_advisory.tracking_id then
       ${q.invalid("a published advisory keeps its tracking id")}
     end if;
   end if;
   if v_old.${a("id")} is null then
     insert into ${advisories} (${a("tenant")}, ${a("trackingId")}, ${a("title")}, ${a("summary")}, ${a("product")}, ${a("severity")}, ${a("createdBy")})
-    values (save_advisory.tenant, save_advisory.tracking_id, trim(save_advisory.title), nullif(trim(save_advisory.summary), ''), save_advisory.product_id, save_advisory.severity, (select auth.uid()))
+    values (upsert_advisory.tenant, upsert_advisory.tracking_id, trim(upsert_advisory.title), nullif(trim(upsert_advisory.summary), ''), upsert_advisory.product_id, upsert_advisory.severity, (select auth.uid()))
     returning * into v_row;
     ${rec.advisory("advisory.created", "v_row", "advisory drafted")}
   else
     update ${advisories} y set
-      ${a("trackingId")} = save_advisory.tracking_id,
-      ${a("title")} = trim(save_advisory.title),
-      ${a("summary")} = nullif(trim(save_advisory.summary), ''),
-      ${a("product")} = save_advisory.product_id,
-      ${a("severity")} = save_advisory.severity,
+      ${a("trackingId")} = upsert_advisory.tracking_id,
+      ${a("title")} = trim(upsert_advisory.title),
+      ${a("summary")} = nullif(trim(upsert_advisory.summary), ''),
+      ${a("product")} = upsert_advisory.product_id,
+      ${a("severity")} = upsert_advisory.severity,
       ${a("updatedAt")} = now()
     where y.${a("id")} = v_old.${a("id")}
     returning * into v_row;
@@ -804,7 +804,7 @@ exception when unique_violation then
   ${q.invalid("another advisory of this organization has this tracking id")}
 end;
 $$;
-${userGrant(`${fn("save_advisory")}(${idType}, text, text, text, uuid, uuid[], text, uuid)`)}
+${userGrant(`${fn("upsert_advisory")}(${idType}, text, text, text, uuid, uuid[], text, uuid)`)}
 
 -- Publishes an advisory as interim or final, or publishes a new revision of one
 -- already published. The CSAF document version and revision history advance on

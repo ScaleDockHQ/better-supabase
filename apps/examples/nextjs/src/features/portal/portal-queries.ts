@@ -2,9 +2,8 @@ import "server-only";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PORTAL_TAG } from "./portal-cache";
 
 export interface PortalGrant {
   readonly id: string;
@@ -28,7 +27,7 @@ export type PortalState =
 async function loadPortal(): Promise<readonly PortalMembership[]> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(PORTAL_TAG);
+  cacheTag(tags.portal());
 
   const memberships = await db.guests.mine().orThrow();
 

@@ -119,7 +119,7 @@ describe.skipIf(!live)("ai-cache and ai-keys modules", () => {
 
       expect(badRef.ok).toBe(false);
       expect(
-        await s.hint("better_supabase.save_ai_provider_key($1, $2, $3)", [
+        await s.hint("better_supabase.upsert_ai_provider_key($1, $2, $3)", [
           tenant,
           "anthropic",
           { provider: "vault", secret: "theirs", tenant: crypto.randomUUID() },

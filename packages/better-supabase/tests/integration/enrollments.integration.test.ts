@@ -86,7 +86,7 @@ describe.skipIf(!live)("enrollments", () => {
 
       expect(changed.version).toBe(2);
       expect(
-        await s.hint("better_supabase.save_enrollment_program($1, $2)", [
+        await s.hint("better_supabase.upsert_enrollment_program($1, $2)", [
           tenant,
           { id: program.id, version: 1, name: "Stale" },
         ]),

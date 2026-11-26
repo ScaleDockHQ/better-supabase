@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readExtras } from "../../../src/cli/introspect/extras.ts";
+import { getExtras } from "../../../src/cli/introspect/extras.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 
 const catalog = (present: { buckets?: boolean } = {}) =>
@@ -292,7 +292,7 @@ const catalog = (present: { buckets?: boolean } = {}) =>
 describe("readExtras", () => {
   it("joins the catalog rows into one record per relation", async () => {
     const db = catalog();
-    const extras = await readExtras(db.pg, ["public", "it's"]);
+    const extras = await getExtras(db.pg, ["public", "it's"]);
 
     expect(db.texts()[0]).toContain("array['public', 'it''s']::text[]");
     const [notes, events] = extras.tables;
@@ -434,7 +434,7 @@ describe("readExtras", () => {
   });
 
   it("reads buckets, realtime, role settings and functions", async () => {
-    const extras = await readExtras(catalog().pg, ["public"]);
+    const extras = await getExtras(catalog().pg, ["public"]);
     expect(extras.buckets).toEqual([
       {
         id: "avatars",
@@ -491,7 +491,7 @@ describe("readExtras", () => {
 
   it("skips service tables that do not exist", async () => {
     const db = catalog({ buckets: false });
-    const extras = await readExtras(db.pg, ["public"]);
+    const extras = await getExtras(db.pg, ["public"]);
     expect(extras.buckets).toEqual([]);
     expect(
       db.texts().some((text) => text.includes("from storage.buckets")),
@@ -501,7 +501,7 @@ describe("readExtras", () => {
   it("reads Auth hook functions with their ACLs, by target", async () => {
     const db = catalog();
 
-    const extras = await readExtras(
+    const extras = await getExtras(
       db.pg,
       ["public"],
       [
@@ -561,7 +561,7 @@ describe("readExtras", () => {
       ],
     ]);
 
-    const extras = await readExtras(
+    const extras = await getExtras(
       db.pg,
       ["public"],
       [],
@@ -574,7 +574,7 @@ describe("readExtras", () => {
     expect(extras.functionSources).toEqual({
       "app.home_data": "select 1 from notes\nselect 2 from tags",
     });
-    expect(await readExtras(fakeSql().pg, ["public"])).not.toHaveProperty(
+    expect(await getExtras(fakeSql().pg, ["public"])).not.toHaveProperty(
       "functionSources",
     );
   });
@@ -587,7 +587,7 @@ describe("readExtras", () => {
       ],
     ]);
 
-    const extras = await readExtras(db.pg, ["public"], [], [], true);
+    const extras = await getExtras(db.pg, ["public"], [], [], true);
     const sql = db.texts().find((text) => text.includes("as function_source"));
 
     expect(sql).toContain("n.nspname = any(array['public']::text[])");

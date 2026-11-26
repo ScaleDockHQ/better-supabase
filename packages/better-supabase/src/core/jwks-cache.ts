@@ -272,7 +272,7 @@ function cachedJwksOf(value: unknown): CachedJwks | undefined {
 }
 
 /** The store's copy of `url`, or `undefined` when it fails or is slow. */
-async function readStored(
+async function getStored(
   store: JwksStore,
   url: URL,
 ): Promise<CachedJwks | undefined> {
@@ -415,7 +415,7 @@ export async function sharedJwks(
   // Another instance may have fetched a newer copy. It counts from its own
   // fetch time, so it fits the same windows as one fetched here.
   if (store && !entry.pending) {
-    const stored = await readStored(store, url);
+    const stored = await getStored(store, url);
     const time = now();
     const cutoff = storeCutoff(url.href, time);
 

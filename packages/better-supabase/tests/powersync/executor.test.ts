@@ -178,7 +178,7 @@ describe("powersyncExecutor", () => {
     const inTransaction: string[] = [];
     let transactions = 0;
 
-    const readTransaction = <T>(
+    const getTransaction = <T>(
       callback: (tx: SqliteContextLike) => Promise<T>,
     ): Promise<T> => {
       transactions += 1;
@@ -194,7 +194,7 @@ describe("powersyncExecutor", () => {
     };
 
     const client = betterSupabase.connect(
-      powersyncExecutor({ ...db, readTransaction }),
+      powersyncExecutor({ ...db, readTransaction: getTransaction }),
     );
 
     await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();

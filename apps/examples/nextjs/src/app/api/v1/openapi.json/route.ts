@@ -1,7 +1,7 @@
 import { createOpenApi } from "better-supabase/spec";
 
 import { API_BASE_PATH, apiResources } from "@/features/api/api-resources";
-import { loadTables } from "@/features/api/load-tables";
+import { getTables } from "@/features/api/load-tables";
 import { betterSupabaseApi } from "@/lib/supabase/api";
 import { bsbApi } from "@/lib/supabase/server-api";
 
@@ -14,7 +14,7 @@ import { bsbApi } from "@/lib/supabase/server-api";
  */
 void bsbApi;
 
-await loadTables(betterSupabaseApi, Object.keys(apiResources));
+await getTables(betterSupabaseApi, Object.keys(apiResources));
 
 const document = createOpenApi(betterSupabaseApi, {
   info: { title: "Example SaaS API", version: "1.0.0" },

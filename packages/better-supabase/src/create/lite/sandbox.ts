@@ -4,9 +4,9 @@ import type { PresetMigrationFile } from "../types.ts";
 import type { SkippedBlock } from "./apply.ts";
 import type { RawCatalog } from "./catalog.ts";
 
-import { LITE_INSTALL, loadLite } from "../../lite/runtime.ts";
+import { LITE_INSTALL, getLite } from "../../lite/runtime.ts";
 import { applyFiles, messageOf } from "./apply.ts";
-import { catalogQuery, readCatalog } from "./catalog.ts";
+import { catalogQuery, getCatalog } from "./catalog.ts";
 import { SUPABASE_PRELUDE } from "./prelude.ts";
 import { handleRest } from "./rest.ts";
 
@@ -161,7 +161,7 @@ export async function openSandbox(
   project: { readonly files: readonly PresetMigrationFile[] },
   options: SandboxOptions = {},
 ): Promise<Sandbox> {
-  const runtime = options.runtime ?? (await loadLite());
+  const runtime = options.runtime ?? (await getLite());
 
   if (runtime === undefined) {
     throw new Error(LITE_INSTALL);
@@ -205,7 +205,7 @@ export async function openSandbox(
     catalog: async () => {
       const { rows } = await driver.query(catalogQuery(["public"]));
 
-      return readCatalog(rows);
+      return getCatalog(rows);
     },
     close: () => connection.close(),
   };

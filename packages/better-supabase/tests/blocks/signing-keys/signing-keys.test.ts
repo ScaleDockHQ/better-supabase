@@ -235,7 +235,7 @@ describe("signing-keys with a key provider", () => {
 
     expect(t.calls.map(([fn]) => fn)).toEqual([
       "signing_key",
-      "add_signing_key",
+      "create_signing_key",
       "signing_key",
       "note_signing_key_exp",
     ]);
@@ -348,7 +348,7 @@ describe("signing-keys with a key provider", () => {
     expect(t.calls).toEqual([]);
 
     await keys.create({ owner: OWNER }).orThrow();
-    expect(t.calls.map(([fn]) => fn)).toEqual(["add_signing_key"]);
+    expect(t.calls.map(([fn]) => fn)).toEqual(["create_signing_key"]);
   });
 
   it("clears the cache of a Vault provider the app passes", async () => {

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 import type { PlannedFile } from "./core/files.ts";
 
-import { readIfExists } from "./core/io.ts";
+import { getIfExists } from "./core/io.ts";
 import { CACHE_DIR } from "./introspect/cache.ts";
 import { installedVersion } from "./peers.ts";
 
@@ -99,8 +99,8 @@ export async function contentMapperSetup(
   root: string,
 ): Promise<ContentMapperSetup> {
   const [tsconfig, manifest, typescript] = await Promise.all([
-    readIfExists(resolve(root, "tsconfig.json")),
-    readIfExists(resolve(root, "package.json")),
+    getIfExists(resolve(root, "tsconfig.json")),
+    getIfExists(resolve(root, "package.json")),
     installedVersion("typescript", root),
   ]);
 
@@ -247,7 +247,7 @@ export async function contentMapperFiles(
   const notes: string[] = [];
 
   for (const { path, edit, note } of EDITS) {
-    const text = await readIfExists(resolve(root, path));
+    const text = await getIfExists(resolve(root, path));
     const result = text === undefined ? MISSING : edit(text);
 
     switch (result.kind) {

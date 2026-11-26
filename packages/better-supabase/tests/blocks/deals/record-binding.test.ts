@@ -25,7 +25,7 @@ describe("dealsBinding", () => {
       transport: transport(calls),
     });
 
-    const loaded = await dealsBinding.load(
+    const loaded = await dealsBinding.get(
       client,
       { type: "company", id: "c1" },
       undefined,

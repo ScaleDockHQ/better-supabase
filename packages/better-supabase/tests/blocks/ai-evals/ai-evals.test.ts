@@ -143,7 +143,7 @@ describe("scorers", () => {
 describe("createAiEvals", () => {
   it("copies rated replies into a dataset", async () => {
     const { transport, calls } = fake({
-      add_eval_items_from_feedback: () => 3,
+      create_eval_items_from_feedback: () => 3,
     });
 
     const added = await createAiEvals({ transport })
@@ -351,7 +351,7 @@ describe("createAiEvals reads and writes", () => {
         description: "d",
         created_at: AT,
       }),
-      add_eval_items: () => 2,
+      create_eval_items: () => 2,
       list_eval_items: () => [
         {
           ...item("i1", "a", "A"),

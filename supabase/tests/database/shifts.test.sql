@@ -32,7 +32,7 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('template', (better_supabase.save_shift_template(
+insert into ids values ('template', (better_supabase.upsert_shift_template(
   '00000000-0000-4000-8000-000000000001', 'Early', '06:00', '14:00',
   weekdays => array[1, 2, 3, 4, 5, 6, 7]) ->> 'id')::uuid);
 
@@ -52,10 +52,10 @@ select is(
 insert into ids values ('early', (select id from better_supabase.shifts
   where template_id = (select id from ids where name = 'template')
   order by starts_at limit 1));
-insert into ids values ('late', (better_supabase.save_shift('00000000-0000-4000-8000-000000000001',
+insert into ids values ('late', (better_supabase.upsert_shift('00000000-0000-4000-8000-000000000001',
   ((current_date + 10) + time '15:00') at time zone 'UTC',
   ((current_date + 10) + time '22:00') at time zone 'UTC') ->> 'id')::uuid);
-insert into ids values ('overlap', (better_supabase.save_shift('00000000-0000-4000-8000-000000000001',
+insert into ids values ('overlap', (better_supabase.upsert_shift('00000000-0000-4000-8000-000000000001',
   ((current_date + 10) + time '12:00') at time zone 'UTC',
   ((current_date + 10) + time '18:00') at time zone 'UTC') ->> 'id')::uuid);
 
@@ -86,9 +86,9 @@ select throws_ok(
   'a user outside the organization is refused'
 );
 
-select better_supabase.save_qualification_type('00000000-0000-4000-8000-000000000001',
+select better_supabase.upsert_qualification_type('00000000-0000-4000-8000-000000000001',
   'first_aid', 'First aid', array['member']);
-insert into ids values ('qualified', (better_supabase.save_shift('00000000-0000-4000-8000-000000000001',
+insert into ids values ('qualified', (better_supabase.upsert_shift('00000000-0000-4000-8000-000000000001',
   ((current_date + 20) + time '08:00') at time zone 'UTC',
   ((current_date + 20) + time '16:00') at time zone 'UTC',
   required_qualifications => array['first_aid']) ->> 'id')::uuid);
@@ -99,7 +99,7 @@ select throws_ok(
   'a member without the required qualification is refused'
 );
 select throws_ok(
-  $$select better_supabase.save_shift('00000000-0000-4000-8000-000000000001', now(), now() + interval '25 hours')$$,
+  $$select better_supabase.upsert_shift('00000000-0000-4000-8000-000000000001', now(), now() + interval '25 hours')$$,
   '22023',
   null,
   'a shift longer than 24 hours is refused'
@@ -130,7 +130,7 @@ select is(
   'a member reads their own shifts'
 );
 select throws_ok(
-  $$select better_supabase.save_shift('00000000-0000-4000-8000-000000000001', now() + interval '1 day', now() + interval '1 day 8 hours')$$,
+  $$select better_supabase.upsert_shift('00000000-0000-4000-8000-000000000001', now() + interval '1 day', now() + interval '1 day 8 hours')$$,
   '42501',
   null,
   'a member cannot plan shifts'

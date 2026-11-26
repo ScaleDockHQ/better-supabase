@@ -391,7 +391,7 @@ ${
 }create index if not exists ${ctx.naming.rename("flag_overrides_user_idx")} on ${overrides} (${o("user")});
 ${lockTable(overrides)}
 
--- Every state save_flag leaves, numbered per flag, so staff can see what
+-- Every state upsert_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
 create table if not exists ${revisions} (
   ${r("id")} bigint generated always as identity primary key,
@@ -669,8 +669,8 @@ $$;
 -- steps: [{ percentage, durationSeconds }], finalPercentage }) and fields
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
-drop function if exists ${fn("save_flag")}(text, jsonb);
-create or replace function ${fn("save_flag")}(key text, definition jsonb, message text default null)
+drop function if exists ${fn("upsert_flag")}(text, jsonb);
+create or replace function ${fn("upsert_flag")}(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -685,28 +685,28 @@ begin
   ${denied}
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
     select 1 from jsonb_array_elements(d -> 'rollout_variants') e
-    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x.${f("variants")} from ${flags} x where x.${f("key")} = save_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
+    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x.${f("variants")} from ${flags} x where x.${f("key")} = upsert_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
       or coalesce((e.value ->> 'weight')::numeric, -1) not between 0 and 100
   ) then
     ${fail("FLAGS_ROLLOUT_VARIANTS", "Each rollout variant needs a known variant and a weight from 0 to 100", "22023")}
   end if;
-  v_inserted := not exists (select 1 from ${flags} x where x.${f("key")} = save_flag.key);
+  v_inserted := not exists (select 1 from ${flags} x where x.${f("key")} = upsert_flag.key);
   insert into ${flags} as x (${[f("key"), ...written.map(([logical]) => f(logical))].join(", ")}${insertExtraColumns(flags, extras, "coalesce(d -> 'fields', '{}'::jsonb)").columns})
   values (
-    ${["save_flag.key", ...written.map(([, value]) => value)].join(",\n    ")}${insertExtraColumns(flags, extras, "coalesce(d -> 'fields', '{}'::jsonb)").values}
+    ${["upsert_flag.key", ...written.map(([, value]) => value)].join(",\n    ")}${insertExtraColumns(flags, extras, "coalesce(d -> 'fields', '{}'::jsonb)").values}
   )
   on conflict (${f("key")}) do update set
-    ${assignments.join(",\n    ")};${writeExtraColumns(flags, extras, "d -> 'fields'", `x.${f("key")} = save_flag.key`)}
-  saved := (select v from jsonb_array_elements(${fn("flag_definitions")}()) v where v ->> 'key' = save_flag.key);
+    ${assignments.join(",\n    ")};${writeExtraColumns(flags, extras, "d -> 'fields'", `x.${f("key")} = upsert_flag.key`)}
+  saved := (select v from jsonb_array_elements(${fn("flag_definitions")}()) v where v ->> 'key' = upsert_flag.key);
   insert into ${revisions} (${r("flag")}, ${r("revision")}, ${r("definition")}, ${r("message")}, ${r("changedBy")})
   values (
-    save_flag.key,
-    coalesce((select max(h.${r("revision")}) from ${revisions} h where h.${r("flag")} = save_flag.key), 0) + 1,
+    upsert_flag.key,
+    coalesce((select max(h.${r("revision")}) from ${revisions} h where h.${r("flag")} = upsert_flag.key), 0) + 1,
     saved - 'overrides' - 'segments',
-    save_flag.message,
+    upsert_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
-  ${createdOrUpdated("v_inserted", (verb) => flagEvent(`flag.${verb}`, "save_flag.key"))}
+  ${createdOrUpdated("v_inserted", (verb) => flagEvent(`flag.${verb}`, "upsert_flag.key"))}
   return saved;
 end;
 $$;
@@ -745,7 +745,7 @@ begin
   if stored is null then
     return null;
   end if;
-  return ${fn("save_flag")}(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
+  return ${fn("upsert_flag")}(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
 end;
 $$;
 
@@ -766,7 +766,7 @@ end;
 $$;
 
 -- Creates or replaces a segment; rules naming it see the change at once.
-create or replace function ${fn("save_flag_segment")}(name text, description text, rules jsonb)
+create or replace function ${fn("upsert_flag_segment")}(name text, description text, rules jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -776,12 +776,12 @@ as $$
 begin
   ${denied}
   insert into ${segments} as g (${s("name")}, ${s("description")}, ${s("rules")})
-  values (save_flag_segment.name, save_flag_segment.description, coalesce(save_flag_segment.rules, '{}'::jsonb))
+  values (upsert_flag_segment.name, upsert_flag_segment.description, coalesce(upsert_flag_segment.rules, '{}'::jsonb))
   on conflict (${s("name")}) do update set
     ${s("description")} = excluded.${s("description")},
     ${s("rules")} = excluded.${s("rules")},
     ${s("updatedAt")} = now();
-  return jsonb_build_object('name', save_flag_segment.name, 'description', save_flag_segment.description, 'rules', coalesce(save_flag_segment.rules, '{}'::jsonb));
+  return jsonb_build_object('name', upsert_flag_segment.name, 'description', upsert_flag_segment.description, 'rules', coalesce(upsert_flag_segment.rules, '{}'::jsonb));
 end;
 $$;
 
@@ -852,21 +852,21 @@ end;
 $$;
 
 revoke execute on function ${fn("list_flags")}() from public, anon;
-revoke execute on function ${fn("save_flag")}(text, jsonb, text) from public, anon;
+revoke execute on function ${fn("upsert_flag")}(text, jsonb, text) from public, anon;
 revoke execute on function ${fn("delete_flag")}(text) from public, anon;
 revoke execute on function ${fn("flag_history")}(text) from public, anon;
 revoke execute on function ${fn("restore_flag")}(text, integer) from public, anon;
 revoke execute on function ${fn("list_flag_segments")}() from public, anon;
-revoke execute on function ${fn("save_flag_segment")}(text, text, jsonb) from public, anon;
+revoke execute on function ${fn("upsert_flag_segment")}(text, text, jsonb) from public, anon;
 revoke execute on function ${fn("delete_flag_segment")}(text) from public, anon;
 revoke execute on function ${fn("set_flag_override")}(text, text, ${id}, uuid, text, text) from public, anon;
 grant execute on function ${fn("list_flags")}() to authenticated, service_role;
-grant execute on function ${fn("save_flag")}(text, jsonb, text) to authenticated, service_role;
+grant execute on function ${fn("upsert_flag")}(text, jsonb, text) to authenticated, service_role;
 grant execute on function ${fn("delete_flag")}(text) to authenticated, service_role;
 grant execute on function ${fn("flag_history")}(text) to authenticated, service_role;
 grant execute on function ${fn("restore_flag")}(text, integer) to authenticated, service_role;
 grant execute on function ${fn("list_flag_segments")}() to authenticated, service_role;
-grant execute on function ${fn("save_flag_segment")}(text, text, jsonb) to authenticated, service_role;
+grant execute on function ${fn("upsert_flag_segment")}(text, text, jsonb) to authenticated, service_role;
 grant execute on function ${fn("delete_flag_segment")}(text) to authenticated, service_role;
 grant execute on function ${fn("set_flag_override")}(text, text, ${id}, uuid, text, text) to authenticated, service_role;
 grant execute on function ${fn("flag_condition_matches")}(jsonb, text, text, text, text[], jsonb) to anon, authenticated, service_role;
@@ -999,13 +999,13 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "flag_definitions", args: [], returns: "jsonb" },
     { name: "tenant_ids_with_flag", args: ["text"], returns: "{id}" },
     { name: "list_flags", args: [], returns: "jsonb" },
-    { name: "save_flag", args: ["text", "jsonb", "text"], returns: "jsonb" },
+    { name: "upsert_flag", args: ["text", "jsonb", "text"], returns: "jsonb" },
     { name: "delete_flag", args: ["text"], returns: "boolean" },
     { name: "flag_history", args: ["text"], returns: "jsonb" },
     { name: "restore_flag", args: ["text", "integer"], returns: "jsonb" },
     { name: "list_flag_segments", args: [], returns: "jsonb" },
     {
-      name: "save_flag_segment",
+      name: "upsert_flag_segment",
       args: ["text", "text", "jsonb"],
       returns: "jsonb",
     },
@@ -1057,7 +1057,7 @@ export const FLAGS: BlockSqlDefinition = {
     {
       from: 3,
       description:
-        "Flag lifecycle: rollout_variant becomes rollout_variants, weighted splits (an existing variant moves over with weight 100), rollouts can follow a schedule, rules can name shared segments, and every save records a revision that restore_flag() brings back. save_flag() takes a message.",
+        "Flag lifecycle: rollout_variant becomes rollout_variants, weighted splits (an existing variant moves over with weight 100), rollouts can follow a schedule, rules can name shared segments, and every save records a revision that restore_flag() brings back. upsert_flag() takes a message.",
       sql: upgradeRolloutVariants,
     },
   ],

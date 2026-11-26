@@ -1,6 +1,6 @@
 import type { Policy, PolicyInput, RenderPolicyOptions } from "./policy.ts";
 
-import { maskSql, policy, readPolicies, renderPolicy } from "./policy.ts";
+import { maskSql, policy, getPolicies, renderPolicy } from "./policy.ts";
 
 /** A comparison a rule can make against a column. */
 export type RuleOperator = "=" | "<>" | "<" | "<=" | ">" | ">=";
@@ -217,7 +217,7 @@ export function rulePolicy(input: RulePolicyInput): RulePolicy {
 
 /**
  * The statement for a rule policy, with the `-- @bsb rule` comment that
- * {@link readRulePolicies} reads back.
+ * {@link getRulePolicies} reads back.
  */
 export function renderRulePolicy(
   built: RulePolicy,
@@ -269,10 +269,10 @@ function parseMeta(
  * Policies in `sql` that carry an `@bsb rule` comment directly above them.
  * `inSync` says whether the policy still matches what its rules render to.
  */
-export function readRulePolicies(sql: string): ReadRulePolicy[] {
+export function getRulePolicies(sql: string): ReadRulePolicy[] {
   const found: ReadRulePolicy[] = [];
 
-  for (const read of readPolicies(sql)) {
+  for (const read of getPolicies(sql)) {
     const lines = sql.slice(0, read.span[0]).trimEnd().split("\n");
     const comment = RULE_COMMENT.exec(lines.at(-1)?.trim() ?? "");
     const meta = comment?.[1] === undefined ? undefined : parseMeta(comment[1]);

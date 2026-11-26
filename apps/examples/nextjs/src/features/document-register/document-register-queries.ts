@@ -10,11 +10,10 @@ import type {
 } from "@/components/record-list/record-list-types";
 import type { Loaded } from "@/features/people/people-queries";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { RegisterRow } from "./document-register-list";
@@ -43,7 +42,7 @@ const rowOf = (node: DriveNode): RegisterRow[] =>
  * One page of controlled documents for a list query, searched, filtered and
  * sorted by the drive block's `documentPage` and counted by `documentFacets`.
  */
-export function loadRegisterPage(
+export function getRegisterPage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -65,10 +64,10 @@ export function loadRegisterPage(
 async function loadRegister(): Promise<RecordListPage<RegisterRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.drive(), tags.customers());
   const tenant = tenantOf(session);
 
-  return tenant ? loadRegisterPage(db, tenant, registerList.defaults) : null;
+  return tenant ? getRegisterPage(db, tenant, registerList.defaults) : null;
 }
 
 export function getRegister(): Promise<Loaded<RecordListPage<RegisterRow>>> {
@@ -93,7 +92,7 @@ async function loadDocument(
 ): Promise<RegisterDetailData | "not-found" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.drive(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {

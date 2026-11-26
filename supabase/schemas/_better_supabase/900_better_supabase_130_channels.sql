@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:5baf88f4fcceac7721b9251493298277690525d1f5e73f2fabd875d6a5953f43
+-- @bsb-hash sha256:eb2481ce237272f554631df24ed54d1cbeb8d71e4eec56a732b30e0e9619b78b
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -272,7 +272,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = join_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  perform "better_supabase"."add_conversation_members"(join_channel.channel, array[auth.uid()]);
+  perform "better_supabase"."create_conversation_members"(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -290,7 +290,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = leave_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."remove_conversation_member"(leave_channel.channel, auth.uid());
+  return "better_supabase"."delete_conversation_member"(leave_channel.channel, auth.uid());
 end;
 $$;
 revoke execute on function "better_supabase"."leave_channel"(uuid) from public, anon;
@@ -308,7 +308,7 @@ begin
   if not exists (select 1 from "better_supabase"."channels" x where x."id" = invite_to_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."add_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
+  return "better_supabase"."create_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 revoke execute on function "better_supabase"."invite_to_channel"(uuid, uuid[]) from public, anon;

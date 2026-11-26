@@ -276,7 +276,7 @@ describe("createAdvisories reads and writes", () => {
 
   it("maps vulnerabilities and sparse rows", async () => {
     const { transport, call } = fakeTransport({
-      save_vulnerability: vulnerabilityRow,
+      upsert_vulnerability: vulnerabilityRow,
       list_vulnerabilities: [
         vulnerabilityRow,
         {
@@ -375,7 +375,7 @@ describe("createAdvisories reads and writes", () => {
 
   it("saves and lists VEX statements and rejects malformed ones", async () => {
     const { transport, call } = fakeTransport({
-      save_vex_statement: statementRow,
+      upsert_vex_statement: statementRow,
       list_vex_statements: [
         statementRow,
         {
@@ -500,7 +500,7 @@ describe("createAdvisories reads and writes", () => {
 
   it("saves, publishes, lists and reads advisories", async () => {
     const { transport, call } = fakeTransport({
-      save_advisory: advisoryRow,
+      upsert_advisory: advisoryRow,
       publish_advisory: advisoryRow,
       list_advisories: [advisoryRow, { ...advisoryRow, status: "draft" }],
       get_advisory: {

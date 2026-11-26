@@ -4,13 +4,9 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { PROJECTS_TAG } from "@/features/projects/projects-cache";
-import { WORK_TAG } from "@/features/work/work-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { CUSTOM_FIELDS_TAG } from "./custom-fields-cache";
 import { FieldEntitySchema, FieldTypeSchema } from "./custom-fields-types";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -30,8 +26,15 @@ export const saveField = bsb.action(
     }),
     requireTenant: true,
     permission: "custom_fields.manage",
+    tags: () => [
+      tags.customFields(),
+      tags.work(),
+      tags.projects(),
+      tags.customers(),
+    ],
+    refresh: true,
   },
-  async ({ entity, key, label, type, sensitive }, { db, auth }) => {
+  async ({ entity, key, label, type, sensitive }, { db }) => {
     const saved = await db.customFields.saveDefinition({
       entity,
       key,
@@ -44,13 +47,6 @@ export const saveField = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [
-      CUSTOM_FIELDS_TAG,
-      WORK_TAG,
-      PROJECTS_TAG,
-      CUSTOMERS_TAG,
-    ]);
-
     return ok(saved.data.id);
   },
 );
@@ -60,20 +56,20 @@ export const deleteField = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "custom_fields.manage",
+    tags: () => [
+      tags.customFields(),
+      tags.work(),
+      tags.projects(),
+      tags.customers(),
+    ],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const archived = await db.customFields.archiveDefinition(id);
 
     if (!archived.ok) {
       return archived;
     }
-
-    await refreshCaller(auth, [
-      CUSTOM_FIELDS_TAG,
-      WORK_TAG,
-      PROJECTS_TAG,
-      CUSTOMERS_TAG,
-    ]);
 
     return ok(true);
   },
@@ -92,8 +88,15 @@ export const moveField = bsb.action(
     }),
     requireTenant: true,
     permission: "custom_fields.manage",
+    tags: () => [
+      tags.customFields(),
+      tags.work(),
+      tags.projects(),
+      tags.customers(),
+    ],
+    refresh: true,
   },
-  async ({ entity, id, direction }, { db, auth }) => {
+  async ({ entity, id, direction }, { db }) => {
     const { customFields } = db;
 
     const listed = await customFields
@@ -145,13 +148,6 @@ export const moveField = bsb.action(
         previous = ranked.data;
       }
     }
-
-    await refreshCaller(auth, [
-      CUSTOM_FIELDS_TAG,
-      WORK_TAG,
-      PROJECTS_TAG,
-      CUSTOMERS_TAG,
-    ]);
 
     return ok(true);
   },

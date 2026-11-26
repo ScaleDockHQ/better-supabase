@@ -8,7 +8,7 @@ select plan(8);
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select ok(
-  better_supabase.save_consent_purpose(null, 'agency.agreement', 'Agency agreement') ->> 'key' = 'agency.agreement',
+  better_supabase.upsert_consent_purpose(null, 'agency.agreement', 'Agency agreement') ->> 'key' = 'agency.agreement',
   'the service role saves a system purpose'
 );
 

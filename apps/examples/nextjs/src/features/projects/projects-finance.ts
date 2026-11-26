@@ -7,10 +7,8 @@ import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
 import { projectsOf } from "@/features/composites/composites";
-import { WORK_TAG } from "@/features/work/work-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PROJECTS_TAG } from "./projects-cache";
 
 const PORTFOLIO_LIMIT = 50;
 const SECONDS_PER_HOUR = 3600;
@@ -54,12 +52,12 @@ export interface Portfolio {
  * used: `projects.financials` and `projects.retainerDrawdown`, the budget as
  * the retainer. `undefined` when the project does not exist.
  */
-export async function loadProjectFinance(
+export async function getProjectFinance(
   id: string,
 ): Promise<ProjectFinance | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG);
+  cacheTag(tags.projects(), tags.work());
 
   if (!tenantOf(session)) {
     return null;
@@ -102,10 +100,10 @@ export async function loadProjectFinance(
  * Every project with its tracked hours, and the team's utilization this week:
  * `projects.financials` per project and `projects.utilization`.
  */
-export async function loadPortfolio(): Promise<Portfolio | null> {
+export async function getPortfolio(): Promise<Portfolio | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG);
+  cacheTag(tags.projects(), tags.work());
   const tenant = tenantOf(session);
 
   if (!tenant) {

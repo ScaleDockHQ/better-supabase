@@ -148,7 +148,7 @@ describe("inspections module", () => {
         "schedule_inspection",
         "start_inspection",
         "close_inspection",
-        "add_inspection_finding",
+        "create_inspection_finding",
         "raise_inspection_finding_case",
       ]),
     );

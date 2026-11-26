@@ -301,7 +301,7 @@ describe("calendar availability client", () => {
         { ...row, kind: "focus_time", transparency: "odd", autoDecline: true },
         { ...row, id: "e2", uid: "e2" },
       ],
-      save_calendar_event: { id: "e3", uid: "e3", created: true },
+      upsert_calendar_event: { id: "e3", uid: "e3", created: true },
     });
 
     const [focus, plain] = await calendar

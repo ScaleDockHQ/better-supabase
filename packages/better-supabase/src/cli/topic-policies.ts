@@ -4,7 +4,7 @@ import type { LoadedTopic, LoadedTriggerOptions } from "./topics.ts";
 
 import { BROADCAST_ONCE_SQL, dedupeTrigger } from "./broadcast-once.ts";
 import { CliError } from "./core/errors.ts";
-import { loadTopics } from "./topics.ts";
+import { getTopics } from "./topics.ts";
 
 const literalParts = (template: string): string =>
   template.replaceAll(/\{[^}]+\}/g, "{}");
@@ -56,7 +56,7 @@ export async function topicPolicyFile(
     return undefined;
   }
 
-  const topics = (await loadTopics(config.root, policies.from)).map(
+  const topics = (await getTopics(config.root, policies.from)).map(
     (each) => each.topic,
   );
 

@@ -6,9 +6,8 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
 import { getMembers } from "@/features/organization/organization-queries";
-import { WORK_TAG } from "@/features/work/work-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type {
@@ -28,7 +27,6 @@ import {
   TASK_LIST,
   parseTaskQuery,
 } from "./project-types";
-import { PROJECTS_TAG } from "./projects-cache";
 
 const TASK_LIMIT = 500;
 
@@ -103,7 +101,7 @@ export async function getTasks(
 ): Promise<readonly TaskRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG, CUSTOM_FIELDS_TAG);
+  cacheTag(tags.projects(), tags.work(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -128,7 +126,7 @@ export async function getProjectOptions(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG, CUSTOM_FIELDS_TAG);
+  cacheTag(tags.projects(), tags.work(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -160,7 +158,7 @@ export async function getProject(
 ): Promise<ProjectRecord | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG, CUSTOM_FIELDS_TAG);
+  cacheTag(tags.projects(), tags.work(), tags.customFields());
 
   if (!tenantOf(session)) {
     return null;
@@ -223,7 +221,7 @@ export async function getProjectHistory(
   projectId: string,
 ): Promise<readonly ProjectVersion[] | null> {
   const [{ bindings }, { db, session }] = await Promise.all([
-    projectPage.load(projectId, {
+    projectPage.get(projectId, {
       bindings: ["versions"],
       options: { versions: { pageSize: HISTORY_LIMIT } },
     }),
@@ -272,7 +270,7 @@ export async function getTaskViews(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PROJECTS_TAG, WORK_TAG, CUSTOM_FIELDS_TAG);
+  cacheTag(tags.projects(), tags.work(), tags.customFields());
   const tenant = tenantOf(session);
 
   if (!tenant) {

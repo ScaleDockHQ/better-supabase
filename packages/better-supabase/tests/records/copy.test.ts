@@ -29,7 +29,7 @@ const copying = defineBlock({
   create: () => ({}),
   record: defineRecordBinding({
     permissions: { read: "read" },
-    load: () => resolved(0),
+    get: () => resolved(0),
     copy,
     events: [],
   }),
@@ -41,7 +41,7 @@ const readOnly = defineBlock({
   create: () => ({}),
   record: defineRecordBinding({
     permissions: { read: "read" },
-    load: () => resolved(0),
+    get: () => resolved(0),
     events: [],
   }),
 });
@@ -52,7 +52,7 @@ const broken = defineBlock({
   create: () => ({}),
   record: defineRecordBinding({
     permissions: { read: "read" },
-    load: () => resolved(0),
+    get: () => resolved(0),
     copy: () => failed<number>("No copy"),
     events: [],
   }),

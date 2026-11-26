@@ -428,7 +428,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_shift_template",
+      name: "upsert_shift_template",
       args: [
         "{id}",
         "text",
@@ -457,7 +457,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_shift",
+      name: "upsert_shift",
       args: [
         "{id}",
         "timestamptz",

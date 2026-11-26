@@ -26,7 +26,7 @@ type Kind = "object" | "array" | "primitive";
 const kindOf = (value: unknown): Kind =>
   Array.isArray(value) ? "array" : isObject(value) ? "object" : "primitive";
 
-function readMinor(version: unknown): Minor | undefined {
+function getMinor(version: unknown): Minor | undefined {
   if (typeof version !== "string") {
     return undefined;
   }
@@ -479,7 +479,7 @@ function applyInPlace(
   options: ApplyOverlayOptions,
   reporter: Reporter,
 ): void {
-  const minor = readMinor(overlay.overlay);
+  const minor = getMinor(overlay.overlay);
 
   if (minor === undefined) {
     report(
@@ -579,7 +579,7 @@ function applyInPlace(
  * the caller to narrow it.
  *
  * @example
- *   const jsonpath = await loadJsonPath();
+ *   const jsonpath = await getJsonPath();
  *   const { document, diagnostics } = applyOverlay(openapi, overlay, {
  *     jsonpath,
  *   });

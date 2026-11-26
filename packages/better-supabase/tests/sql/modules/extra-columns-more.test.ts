@@ -39,10 +39,10 @@ describe("extra columns on more tables", () => {
     });
 
     expect(sql).toContain(
-      `(save_employee_private_details.attrs -> 'fields') ? 'tax_code'`,
+      `(upsert_employee_private_details.attrs -> 'fields') ? 'tax_code'`,
     );
     expect(sql).toContain(
-      `jsonb_build_object('grade', (add_employee_contract.attrs -> 'fields') -> 'grade')))."grade"`,
+      `jsonb_build_object('grade', (create_employee_contract.attrs -> 'fields') -> 'grade')))."grade"`,
     );
   });
 
@@ -52,7 +52,7 @@ describe("extra columns on more tables", () => {
         "saved-views": { options: { extraColumns: { area: "text not null" } } },
       }),
     ).toContain(
-      `jsonb_build_object('area', save_view.fields -> 'area')))."area"`,
+      `jsonb_build_object('area', upsert_view.fields -> 'area')))."area"`,
     );
   });
 });

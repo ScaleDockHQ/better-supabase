@@ -537,15 +537,18 @@ export const addNote = toNextAction(
 
 ## REST resources
 
-`bsb.resources(map, options)` serves the same REST routes as
+`createResources(bsb)(map, options)` from `better-supabase/next/resources`
+serves the same REST routes as
 [Hono resources](/docs/frameworks/hono#resources) from one catch-all route.
-It returns a handler for each method:
+It returns a handler for each method, and lives on its own subpath so an app
+that serves no resources does not ship the router:
 
 ```ts title="src/app/api/v1/[...path]/route.ts"
 import { defineAction } from "better-supabase/next";
+import { createResources } from "better-supabase/next/resources";
 import { bsb } from "@/lib/supabase/server";
 
-export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
+export const { GET, POST, PATCH, PUT, DELETE } = createResources(bsb)(
   {
     customers: {
       operations: ["list", "get", "update", "delete"],
@@ -581,10 +584,11 @@ serve the matching OpenAPI document.
 ### The OpenAPI document
 
 Keep the map in its own module, so the routes and the document read the same
-object and can't drift. `satisfies` checks the map against `bsb.resources`
+object and can't drift. `satisfies` checks the map against `ResourceMapOf<typeof bsb>`
 without widening it:
 
 ```ts title="src/features/api/api-resources.ts"
+import type { ResourceMapOf } from "better-supabase/next/resources";
 import type { bsb } from "@/lib/supabase/server";
 
 export const API_BASE_PATH = "/api/v1";
@@ -592,7 +596,7 @@ export const API_BASE_PATH = "/api/v1";
 export const apiResources = {
   customers: { operations: ["list", "get", "update", "delete"] },
   projects: { operations: ["list", "get", "create", "update", "delete"] },
-} satisfies Parameters<typeof bsb.resources>[0];
+} satisfies ResourceMapOf<typeof bsb>;
 ```
 
 ```ts title="src/app/api/v1/openapi.json/route.ts"
@@ -787,6 +791,35 @@ export const archive = bsb.action(
 // <form action={archive.bind(null, organizationId)}>
 ```
 
+`tags` computes cache tags to expire after a successful call, from the
+tenant, the validated input and the returned data, and `refresh: true` calls
+`refresh()` from `next/cache` afterwards, so the caller no longer refreshes the
+router itself:
+
+```ts
+export const createAgendaItem = bsb.action(
+  async (input, { db }) => await db.agendaItems.create(input),
+  {
+    input: agendaItemSchema,
+    tenant: (input) => input.organizationId,
+    tags: ({ tenant }) => [agendaTag(tenant)],
+    refresh: true,
+  },
+);
+```
+
+`evictSession: true` drops every cached entry of the caller after a successful
+call (`bsb.evictSession`) and re-renders their page. Use it for a write that
+changes what other domains read, such as a membership, role or profile change,
+and prefer `tags` when the write reaches one domain:
+
+```ts
+export const renameOrganization = bsb.action(
+  async ({ name }, { db }) => await db.organizations.rename(name),
+  { input: renameSchema, evictSession: true },
+);
+```
+
 #### Mapping the data to another type
 
 `result` keeps the data type. To return a different type, pass a mapper as the
@@ -802,6 +835,33 @@ export const createNote = bsb.action(
   (row) => ({ id: row.id, href: `/notes/${row.id}` }),
 );
 ```
+
+#### Rules every action shares
+
+`createNext({ actions })` holds what each action would repeat (ADR 1256).
+`envelope(outcome)` returns fields merged into every outcome, such as a
+translated `message`, and each action's return type carries them. `guard`
+runs before an action's own `guard`. `from(value)` settles a value the library
+does not know, such as a `better-result` `Result`.
+
+```ts
+export const bsb = createNext(betterSupabase, {
+  actions: {
+    envelope: (outcome) => ({
+      message: outcome.ok ? "Saved" : translate(outcome.error),
+    }),
+    guard: (tenant, ctx) =>
+      ctx.auth.kind === "user" && isReadOnly(ctx) ? readOnlyError : undefined,
+  },
+});
+```
+
+On the client, render `ActionDefaultsProvider` from `better-supabase/react` in a
+Client Component with `onSuccess` and `onError` callbacks. `useAction`,
+`useOptimisticAction` and `useActionForm` call them with the whole outcome when
+the call has no callback of its own, so a toast needs no `startTransition`
+block. `defineTags(["customers"])` returns `tags.customers(tenant)`, one tag
+function that a reader's `tags` option and an action's `tags` both use.
 
 ## The app's own context
 

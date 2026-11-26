@@ -96,7 +96,7 @@ export function catalogDiscounts(call: BlockCall): CatalogDiscounts {
   return {
     saveDiscountGroup: ({ organizationId, input }) =>
       call(
-        "save_discount_group",
+        "upsert_discount_group",
         {
           tenant: organizationId,
           group: input.id ?? null,
@@ -104,7 +104,7 @@ export function catalogDiscounts(call: BlockCall): CatalogDiscounts {
           code: input.code,
           name: input.name,
         },
-        (value) => idOf(value, "save_discount_group"),
+        (value) => idOf(value, "upsert_discount_group"),
       ),
     deleteDiscountGroup: (groupId) =>
       call("delete_discount_group", { group: groupId }, (v) => v === true),
@@ -122,7 +122,7 @@ export function catalogDiscounts(call: BlockCall): CatalogDiscounts {
       ),
     saveDiscountRule: ({ organizationId, input }) =>
       call(
-        "save_discount_rule",
+        "upsert_discount_rule",
         {
           tenant: organizationId,
           rule: input.id ?? null,
@@ -143,7 +143,7 @@ export function catalogDiscounts(call: BlockCall): CatalogDiscounts {
             currency: input.currency,
           },
         },
-        (value) => idOf(value, "save_discount_rule"),
+        (value) => idOf(value, "upsert_discount_rule"),
       ),
     deleteDiscountRule: (ruleId) =>
       call("delete_discount_rule", { rule: ruleId }, (v) => v === true),

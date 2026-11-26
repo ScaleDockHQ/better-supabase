@@ -549,7 +549,7 @@ describe("passes block", () => {
 
     const subject = { type: "event", id: "e1" };
 
-    await passesBinding.load(passes, subject, undefined);
+    await passesBinding.get(passes, subject, undefined);
     await passesBinding.writes.issue.run(passes, subject, { resourceId: "r1" });
 
     expect(fake.calls.map(([fn, args]) => [fn, args["subject_id"]])).toEqual([

@@ -10,6 +10,7 @@ import type {
 } from "../blocks/react-env.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
+import type { ActionDefaultsProvider as clientActionDefaultsProvider } from "./actions.ts";
 import type {
   useBlockEvent as clientUseBlockEvent,
   useBlockMutation as clientUseBlockMutation,
@@ -56,6 +57,7 @@ import type {
   useConflicts as clientUseConflicts,
   useSyncStatus as clientUseSyncStatus,
 } from "./sync.ts";
+import type { useTenant as clientUseTenant } from "./tenant.ts";
 
 export {
   BetterSupabaseProvider,
@@ -76,6 +78,8 @@ export { ErrorMessagesProvider } from "./error-messages.ts";
 export type { ErrorMessageResolver } from "./error-messages.ts";
 
 export { can, PermissionsProvider } from "./permissions.ts";
+
+export { TenantProvider } from "./tenant.ts";
 
 export { OfflineContext } from "./offline.ts";
 
@@ -304,6 +308,19 @@ export const defineInfiniteListHook: typeof clientDefineInfiniteListHook = () =>
  */
 export const useErrorMessage: typeof clientUseErrorMessage =
   clientOnly("useErrorMessage");
+
+/**
+ * The `react-server` build of `useTenant`: read the tenant where you fetched
+ * it.
+ */
+export const useTenant: typeof clientUseTenant = clientOnly("useTenant");
+
+/**
+ * The `react-server` build of `ActionDefaultsProvider`: its callbacks cannot
+ * cross the server boundary, so render it in a Client Component.
+ */
+export const ActionDefaultsProvider: typeof clientActionDefaultsProvider =
+  clientOnly("ActionDefaultsProvider");
 
 /** The `react-server` build of `useCan`: call `can()` with the bootstrap value. */
 export const useCan: typeof clientUseCan = clientOnly("useCan");

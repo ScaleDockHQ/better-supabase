@@ -10,14 +10,14 @@ import type {
   BindingSource,
 } from "./bindings.ts";
 
-import { findBinding, loadBindings } from "./bindings.ts";
+import { findBinding, getBindings } from "./bindings.ts";
 
 /** One entry of a record's timeline, with the binding it came from. */
 export interface TimelineEntry extends TimelineItem {
   readonly binding: string;
 }
 
-/** What `loadTimeline` returns. */
+/** What `getTimeline` returns. */
 export interface Timeline {
   /** Every binding's entries, newest first. */
   readonly entries: readonly TimelineEntry[];
@@ -67,19 +67,19 @@ function newestFirst(a: TimelineEntry, b: TimelineEntry): number {
 
 /**
  * A record's history across its bindings, newest first: comments, files and
- * versions, each binding loaded once through `loadBindings` and mapped by its
+ * versions, each binding loaded once through `getBindings` and mapped by its
  * `timeline`. A binding that fails or that `can` hides adds nothing and is
  * listed in `skipped`; it never throws.
  *
  * ```ts
- * const { entries } = await loadTimeline(
+ * const { entries } = await getTimeline(
  *   { blocks: blockSet.blocks, clients: blocks },
  *   { type: "customer", id },
  *   { limit: 50 },
  * );
  * ```
  */
-export async function loadTimeline<
+export async function getTimeline<
   B extends BindingBlocks,
   const N extends BindingName<B>,
 >(
@@ -90,7 +90,7 @@ export async function loadTimeline<
   // SAFETY: without `bindings` every timeline binding loads, which is `N` at
   // its default.
   const names = options.bindings ?? (timelineBindings(source.blocks) as N[]);
-  const loaded = await loadBindings(source, subject, names, options);
+  const loaded = await getBindings(source, subject, names, options);
   const entries: TimelineEntry[] = [];
   const skipped: Record<string, Timeline["skipped"][string]> = {};
 

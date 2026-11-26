@@ -28,7 +28,7 @@ export const passesBinding: RecordBinding<
   permissions: { read: "read", write: "manage" },
   module: "passes",
   // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
-  load: (client: Passes, subject) => client.list({ subject }),
+  get: (client: Passes, subject) => client.list({ subject }),
   events: ["pass.*"],
   writes: {
     issue: {

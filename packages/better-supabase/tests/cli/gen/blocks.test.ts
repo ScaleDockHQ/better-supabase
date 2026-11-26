@@ -18,7 +18,7 @@ import { resolveConfig as resolveDefault } from "../../../src/config/resolve.ts"
 import { zod } from "../../../src/generators/zod.ts";
 import { PRESET_CATALOG } from "../../../src/preset/catalog.generated.ts";
 import { blockTables } from "../../../src/sql/index.ts";
-import { loadFixtureSnapshot } from "../fixtures/render.ts";
+import { getFixtureSnapshot } from "../fixtures/render.ts";
 
 /**
  * These tests read the single-module layout; the default layout has its own in
@@ -261,8 +261,8 @@ describe("blocks.generated.ts", () => {
         release_task_claim: "release_ticket_claim",
         release_task_hold: "release_ticket_hold",
         renew_task_claim: "renew_ticket_claim",
-        save_project: "save_initiative",
-        save_task_checklist_item: "save_ticket_checklist_item",
+        upsert_project: "upsert_initiative",
+        upsert_task_checklist_item: "upsert_ticket_checklist_item",
         set_task_assignees: "set_ticket_assignees",
         task_stage_times: "ticket_stage_times",
         task_tree: "ticket_tree",
@@ -385,7 +385,7 @@ describe("blocks.generated.ts", () => {
       names: {
         functions: {
           create_task: "create_ticket",
-          save_project: "tickets_save_project",
+          upsert_project: "tickets_upsert_project",
         },
       },
     });
@@ -760,7 +760,7 @@ describe("schemaExtensions", () => {
     ]);
 
     const main = (
-      await renderFiles(config, await loadFixtureSnapshot(), {})
+      await renderFiles(config, await getFixtureSnapshot(), {})
     ).find((file) => file.path === "src/db/generated.ts")?.contents;
 
     expect(main).toContain(
@@ -804,7 +804,7 @@ describe("schemaExtensions", () => {
       "/project",
     );
 
-    const snapshot = await loadFixtureSnapshot();
+    const snapshot = await getFixtureSnapshot();
 
     const main = (await renderFiles(config, snapshot, {})).find(
       (file) => file.path === "src/db/generated.ts",

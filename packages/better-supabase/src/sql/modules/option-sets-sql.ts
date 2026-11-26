@@ -382,7 +382,7 @@ export function setFunctions(
     bindings,
     (
       binding,
-    ) => `      update ${binding.subject.qualified} r set ${sqlIdent(binding.column)} = save_option_set_item.level
+    ) => `      update ${binding.subject.qualified} r set ${sqlIdent(binding.column)} = upsert_option_set_item.level
       where r.${sqlIdent(binding.option)} = v_item;`,
     "null;",
   );
@@ -512,44 +512,44 @@ ${userGrant(`${fn("ensure_option_set")}(${idType}, text, text, text)`)}
 
 -- Creates an option set (option_set null) or renames one. Returns it with its
 -- items. A set made the default replaces the field's previous default.
-create or replace function ${fn("save_option_set")}(tenant ${idType}, option_set uuid, subject_type text, field text, key text, name text, scope_id text default null, is_default boolean default false)
+create or replace function ${fn("upsert_option_set")}(tenant ${idType}, option_set uuid, subject_type text, field text, key text, name text, scope_id text default null, is_default boolean default false)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_set uuid := save_option_set.option_set;
-  v_tenant ${idType} := save_option_set.tenant;
-  v_type text := save_option_set.subject_type;
-  v_field text := save_option_set.field;
-  v_created boolean := save_option_set.option_set is null;
+  v_set uuid := upsert_option_set.option_set;
+  v_tenant ${idType} := upsert_option_set.tenant;
+  v_type text := upsert_option_set.subject_type;
+  v_field text := upsert_option_set.field;
+  v_created boolean := upsert_option_set.option_set is null;
 begin
-  ${manage("save_option_set.tenant")}
-  if not (save_option_set.subject_type || '.' || save_option_set.field = any (${sqlString(`{${bindings.map((binding) => `${binding.type}.${binding.field}`).join(",")}}`)}::text[])) then
+  ${manage("upsert_option_set.tenant")}
+  if not (upsert_option_set.subject_type || '.' || upsert_option_set.field = any (${sqlString(`{${bindings.map((binding) => `${binding.type}.${binding.field}`).join(",")}}`)}::text[])) then
     ${unknownField}
   end if;
-  if coalesce(save_option_set.is_default, false) then
+  if coalesce(upsert_option_set.is_default, false) then
     update ${t("sets")} x set ${s("isDefault")} = false
-    where x.${s("tenant")} = save_option_set.tenant and x.${s("subjectType")} = save_option_set.subject_type
-      and x.${s("field")} = save_option_set.field
-      and x.${s("scope")} is not distinct from save_option_set.scope_id and x.${s("isDefault")}
-      and x.${s("id")} is distinct from save_option_set.option_set;
+    where x.${s("tenant")} = upsert_option_set.tenant and x.${s("subjectType")} = upsert_option_set.subject_type
+      and x.${s("field")} = upsert_option_set.field
+      and x.${s("scope")} is not distinct from upsert_option_set.scope_id and x.${s("isDefault")}
+      and x.${s("id")} is distinct from upsert_option_set.option_set;
   end if;
   begin
     if v_created then
       insert into ${t("sets")} (${s("tenant")}, ${s("subjectType")}, ${s("field")}, ${s("scope")}, ${s("key")}, ${s("name")}, ${s("isDefault")})
-      values (save_option_set.tenant, save_option_set.subject_type, save_option_set.field, save_option_set.scope_id, save_option_set.key, save_option_set.name,
-        coalesce(save_option_set.is_default, false) or not exists (
-          select 1 from ${t("sets")} x where x.${s("tenant")} = save_option_set.tenant and x.${s("subjectType")} = save_option_set.subject_type
-            and x.${s("field")} = save_option_set.field
-            and x.${s("scope")} is not distinct from save_option_set.scope_id and x.${s("archivedAt")} is null))
+      values (upsert_option_set.tenant, upsert_option_set.subject_type, upsert_option_set.field, upsert_option_set.scope_id, upsert_option_set.key, upsert_option_set.name,
+        coalesce(upsert_option_set.is_default, false) or not exists (
+          select 1 from ${t("sets")} x where x.${s("tenant")} = upsert_option_set.tenant and x.${s("subjectType")} = upsert_option_set.subject_type
+            and x.${s("field")} = upsert_option_set.field
+            and x.${s("scope")} is not distinct from upsert_option_set.scope_id and x.${s("archivedAt")} is null))
       returning ${s("id")} into v_set;
     else
-      update ${t("sets")} x set ${s("key")} = save_option_set.key, ${s("name")} = save_option_set.name,
-        ${s("isDefault")} = coalesce(save_option_set.is_default, x.${s("isDefault")}), ${s("updatedAt")} = now()
-      where x.${s("id")} = save_option_set.option_set and x.${s("tenant")} = save_option_set.tenant
-        and x.${s("subjectType")} = save_option_set.subject_type and x.${s("field")} = save_option_set.field;
+      update ${t("sets")} x set ${s("key")} = upsert_option_set.key, ${s("name")} = upsert_option_set.name,
+        ${s("isDefault")} = coalesce(upsert_option_set.is_default, x.${s("isDefault")}), ${s("updatedAt")} = now()
+      where x.${s("id")} = upsert_option_set.option_set and x.${s("tenant")} = upsert_option_set.tenant
+        and x.${s("subjectType")} = upsert_option_set.subject_type and x.${s("field")} = upsert_option_set.field;
       if not found then
         ${fail("OPTION_SET_NOT_FOUND", "option set not found", "P0002")}
       end if;
@@ -557,16 +557,16 @@ begin
   exception when unique_violation then
     ${fail("OPTION_SET_KEY_TAKEN", "another option set of this field has this key", "23505")}
   end;
-  ${createdOrUpdated("v_created", (verb) => configured(`option_set.${verb}`, "jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', save_option_set.key)", "'option-sets/' || v_set::text", "v_tenant::text", "option_set", "v_set::text", `'${verb} option set ' || save_option_set.name`))}
+  ${createdOrUpdated("v_created", (verb) => configured(`option_set.${verb}`, "jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'subjectType', v_type, 'field', v_field, 'key', upsert_option_set.key)", "'option-sets/' || v_set::text", "v_tenant::text", "option_set", "v_set::text", `'${verb} option set ' || upsert_option_set.name`))}
   return (select ${setJson("y", "false")} from ${t("sets")} y where y.${s("id")} = v_set);
 end;
 $$;
-${userGrant(`${fn("save_option_set")}(${idType}, uuid, text, text, text, text, text, boolean)`)}
+${userGrant(`${fn("upsert_option_set")}(${idType}, uuid, text, text, text, text, text, boolean)`)}
 
 -- Creates an item at the end of a set (item null) or changes one. The level
 -- must lie within the bounds of the field's binding; records on the item take
 -- the new level.
-create or replace function ${fn("save_option_set_item")}(option_set uuid, item uuid, key text, label text, level integer, color text default null, icon text default null, description text default null)
+create or replace function ${fn("upsert_option_set_item")}(option_set uuid, item uuid, key text, label text, level integer, color text default null, icon text default null, description text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -578,31 +578,31 @@ declare
   v_field text;
   v_min integer;
   v_max integer;
-  v_set uuid := save_option_set_item.option_set;
-  v_item uuid := save_option_set_item.item;
+  v_set uuid := upsert_option_set_item.option_set;
+  v_item uuid := upsert_option_set_item.item;
 begin
   select x.${s("tenant")}, x.${s("subjectType")}, x.${s("field")} into v_tenant, v_type, v_field
-  from ${t("sets")} x where x.${s("id")} = save_option_set_item.option_set and x.${s("archivedAt")} is null;
+  from ${t("sets")} x where x.${s("id")} = upsert_option_set_item.option_set and x.${s("archivedAt")} is null;
   if v_tenant is null then
     ${fail("OPTION_SET_NOT_FOUND", "option set not found", "P0002")}
   end if;
   ${manage("v_tenant")}
   ${bounds}
-  if save_option_set_item.level is null or save_option_set_item.level < v_min or save_option_set_item.level > v_max then
+  if upsert_option_set_item.level is null or upsert_option_set_item.level < v_min or upsert_option_set_item.level > v_max then
     ${fail("OPTION_SET_LEVEL_INVALID", "the level is outside the bounds of this field", "22023")}
   end if;
   begin
     if v_item is null then
       insert into ${t("items")} (${i("tenant")}, ${i("set")}, ${i("key")}, ${i("label")}, ${i("level")}, ${i("color")}, ${i("icon")}, ${i("description")}, ${i("rank")})
-      values (v_tenant, save_option_set_item.option_set, save_option_set_item.key, save_option_set_item.label, save_option_set_item.level,
-        save_option_set_item.color, save_option_set_item.icon, save_option_set_item.description,
-        ${rankAfter(`(select max(x.${i("rank")} collate "C") from ${t("items")} x where x.${i("set")} = save_option_set_item.option_set)`)})
+      values (v_tenant, upsert_option_set_item.option_set, upsert_option_set_item.key, upsert_option_set_item.label, upsert_option_set_item.level,
+        upsert_option_set_item.color, upsert_option_set_item.icon, upsert_option_set_item.description,
+        ${rankAfter(`(select max(x.${i("rank")} collate "C") from ${t("items")} x where x.${i("set")} = upsert_option_set_item.option_set)`)})
       returning ${i("id")} into v_item;
     else
-      update ${t("items")} x set ${i("key")} = save_option_set_item.key, ${i("label")} = save_option_set_item.label,
-        ${i("level")} = save_option_set_item.level, ${i("color")} = save_option_set_item.color, ${i("icon")} = save_option_set_item.icon,
-        ${i("description")} = save_option_set_item.description, ${i("updatedAt")} = now()
-      where x.${i("id")} = v_item and x.${i("set")} = save_option_set_item.option_set;
+      update ${t("items")} x set ${i("key")} = upsert_option_set_item.key, ${i("label")} = upsert_option_set_item.label,
+        ${i("level")} = upsert_option_set_item.level, ${i("color")} = upsert_option_set_item.color, ${i("icon")} = upsert_option_set_item.icon,
+        ${i("description")} = upsert_option_set_item.description, ${i("updatedAt")} = now()
+      where x.${i("id")} = v_item and x.${i("set")} = upsert_option_set_item.option_set;
       if not found then
         ${fail("OPTION_SET_ITEM_NOT_FOUND", "item not found", "P0002")}
       end if;
@@ -611,11 +611,11 @@ begin
   exception when unique_violation then
     ${fail("OPTION_SET_ITEM_KEY_TAKEN", "another item of this set has this key", "23505")}
   end;
-  ${createdOrUpdated("save_option_set_item.item is null", (verb) => configured(`option_set_item.${verb}`, "jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', save_option_set_item.key, 'level', save_option_set_item.level)", "'option-sets/' || v_set::text", "v_tenant::text", "option_set_item", "v_item::text", `'${verb} option set item ' || save_option_set_item.label`))}
+  ${createdOrUpdated("upsert_option_set_item.item is null", (verb) => configured(`option_set_item.${verb}`, "jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item, 'key', upsert_option_set_item.key, 'level', upsert_option_set_item.level)", "'option-sets/' || v_set::text", "v_tenant::text", "option_set_item", "v_item::text", `'${verb} option set item ' || upsert_option_set_item.label`))}
   return (select ${ctx.rowJson("items", "x")} from ${t("items")} x where x.${i("id")} = v_item);
 end;
 $$;
-${userGrant(`${fn("save_option_set_item")}(uuid, uuid, text, text, integer, text, text, text)`)}
+${userGrant(`${fn("upsert_option_set_item")}(uuid, uuid, text, text, integer, text, text, text)`)}
 
 -- Moves an item to a rank key the client computed with rankBetween.
 create or replace function ${fn("rank_option_set_item")}(item uuid, rank text)

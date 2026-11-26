@@ -100,7 +100,7 @@ const message = { id: "m1" } as MailMessage;
 describe("createSequences", () => {
   it("saves, reads and deletes sequences", async () => {
     const { transport, call } = fakeTransport({
-      save_sequence: sequenceRow,
+      upsert_sequence: sequenceRow,
       list_sequences: [{ ...sequenceRow, description: "Hi", counts: null }],
       get_sequence: sequenceRow,
       delete_sequence: true,
@@ -141,7 +141,7 @@ describe("createSequences", () => {
       { id: "plain", kind: "email", subject: "Plain" },
       { id: "odd", kind: "wait", minutes: 0 },
     ]);
-    expect(call).toHaveBeenCalledWith("better_supabase", "save_sequence", {
+    expect(call).toHaveBeenCalledWith("better_supabase", "upsert_sequence", {
       tenant: "org",
       sequence: { key: "welcome", name: "Welcome" },
     });

@@ -20,7 +20,7 @@ const isBlank = (char: string | undefined): boolean =>
  * @param text - The file contents.
  * @returns The entries in file order.
  */
-export function readDotenv(text: string): readonly DotenvEntry[] {
+export function getDotenv(text: string): readonly DotenvEntry[] {
   const entries: DotenvEntry[] = [];
   let at = 0;
   let line = 1;

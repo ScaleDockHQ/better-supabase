@@ -241,8 +241,8 @@ ${userGrant(`${fn("set_accounting_lock_date")}(${idType}, date)`)}
 -- debit for assets and expenses and credit for the rest; the level follows
 -- the parent; the default tax code is the code a line on the account takes
 -- when it names none.
-drop function if exists ${fn("save_accounting_account")}(${idType}, text, text, text, text, uuid, text, boolean, uuid);
-create or replace function ${fn("save_accounting_account")}(tenant ${idType}, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
+drop function if exists ${fn("upsert_accounting_account")}(${idType}, text, text, text, text, uuid, text, boolean, uuid);
+create or replace function ${fn("upsert_accounting_account")}(tenant ${idType}, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null, normal_side text default null, default_tax_code_id uuid default null, active boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -251,45 +251,45 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${accounts}%rowtype;
-  v_id uuid := save_accounting_account.account_id;
-  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+  v_id uuid := upsert_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(upsert_accounting_account.currency), ''));
   v_side text;
 begin
-  if not ${allowed("save_accounting_account.tenant", sql.manage)} then
+  if not ${allowed("upsert_accounting_account.tenant", sql.manage)} then
     ${sql.forbidden("ACCOUNTING_ACCOUNT", "not allowed to manage the chart of accounts")}
   end if;
-  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+  if nullif(trim(upsert_accounting_account.code), '') is null or nullif(trim(upsert_accounting_account.name), '') is null then
     ${sql.invalid("ACCOUNTING_ACCOUNT", "an account needs a code and a name")}
   end if;
-  if save_accounting_account.type is null or save_accounting_account.type not in (${sqlList(ACCOUNT_TYPES)}) then
+  if upsert_accounting_account.type is null or upsert_accounting_account.type not in (${sqlList(ACCOUNT_TYPES)}) then
     ${sql.invalid("ACCOUNTING_ACCOUNT", "the account type is asset, liability, equity, income or expense")}
   end if;
-  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in (${sqlList(config.subtypes)}) then
+  if upsert_accounting_account.subtype is not null and upsert_accounting_account.subtype not in (${sqlList(config.subtypes)}) then
     ${sql.invalid("ACCOUNTING_ACCOUNT", "the subtype isn't one of blocks.accounting.options.subtypes")}
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     ${sql.invalid("ACCOUNTING_ACCOUNT", "the currency must be an ISO 4217 code such as EUR")}
   end if;
-  v_side := coalesce(save_accounting_account.normal_side, case when save_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
+  v_side := coalesce(upsert_accounting_account.normal_side, case when upsert_accounting_account.type in ('asset', 'expense') then 'debit' else 'credit' end);
   if v_side not in ('debit', 'credit') then
     ${sql.invalid("ACCOUNTING_ACCOUNT", "the normal side is debit or credit")}
   end if;
-  if save_accounting_account.default_tax_code_id is not null and not exists (
-    select 1 from ${taxes} y where y.${t("id")} = save_accounting_account.default_tax_code_id and y.${t("tenant")} = save_accounting_account.tenant
+  if upsert_accounting_account.default_tax_code_id is not null and not exists (
+    select 1 from ${taxes} y where y.${t("id")} = upsert_accounting_account.default_tax_code_id and y.${t("tenant")} = upsert_accounting_account.tenant
   ) then
     ${sql.notFound("ACCOUNTING_TAX_CODE", "tax code not found")}
   end if;
   if v_id is null then
     select y.${a("id")} into v_id from ${accounts} y
-    where y.${a("tenant")} = save_accounting_account.tenant and y.${a("code")} = trim(save_accounting_account.code);
+    where y.${a("tenant")} = upsert_accounting_account.tenant and y.${a("code")} = trim(upsert_accounting_account.code);
   end if;
-  if save_accounting_account.parent_id is not null then
-    if not exists (select 1 from ${accounts} y where y.${a("id")} = save_accounting_account.parent_id and y.${a("tenant")} = save_accounting_account.tenant) then
+  if upsert_accounting_account.parent_id is not null then
+    if not exists (select 1 from ${accounts} y where y.${a("id")} = upsert_accounting_account.parent_id and y.${a("tenant")} = upsert_accounting_account.tenant) then
       ${notFound("ACCOUNTING_ACCOUNT", "parent account")}
     end if;
     if v_id is not null and exists (
       with recursive up (id) as (
-        select save_accounting_account.parent_id
+        select upsert_accounting_account.parent_id
         union
         select y.${a("parent")} from ${accounts} y join up on y.${a("id")} = up.id where y.${a("parent")} is not null
       )
@@ -301,34 +301,34 @@ begin
   if v_id is null then
     insert into ${accounts} (${a("tenant")}, ${a("code")}, ${a("name")}, ${a("type")}, ${a("subtype")}, ${a("parent")}, ${a("currency")}, ${a("reconcilable")},
       ${a("normalSide")}, ${a("defaultTaxCode")}, ${a("active")})
-    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
-      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false),
-      v_side, save_accounting_account.default_tax_code_id, coalesce(save_accounting_account.active, true))
+    values (upsert_accounting_account.tenant, trim(upsert_accounting_account.code), trim(upsert_accounting_account.name), upsert_accounting_account.type,
+      upsert_accounting_account.subtype, upsert_accounting_account.parent_id, v_currency, coalesce(upsert_accounting_account.reconcilable, false),
+      v_side, upsert_accounting_account.default_tax_code_id, coalesce(upsert_accounting_account.active, true))
     returning * into v_row;
   else
-    select * into v_row from ${accounts} y where y.${a("id")} = v_id and y.${a("tenant")} = save_accounting_account.tenant for update;
+    select * into v_row from ${accounts} y where y.${a("id")} = v_id and y.${a("tenant")} = upsert_accounting_account.tenant for update;
     if not found then
       ${notFound("ACCOUNTING_ACCOUNT", "account")}
     end if;
     if exists (
       select 1 from ${lines} y join ${entries} z on z.${e("id")} = y.${l("entry")}
       where y.${l("account")} = v_id and z.${e("status")} <> 'draft'
-        and (v_row.${a("type")} <> save_accounting_account.type or (v_currency is not null and y.${l("currency")} <> v_currency))
+        and (v_row.${a("type")} <> upsert_accounting_account.type or (v_currency is not null and y.${l("currency")} <> v_currency))
     ) then
       ${fail("ACCOUNTING_ACCOUNT_IN_USE", "the account has posted lines, so its type and currency stay", "55000")}
     end if;
-    update ${accounts} y set ${a("code")} = trim(save_accounting_account.code), ${a("name")} = trim(save_accounting_account.name),
-      ${a("type")} = save_accounting_account.type, ${a("subtype")} = save_accounting_account.subtype, ${a("parent")} = save_accounting_account.parent_id,
-      ${a("currency")} = v_currency, ${a("reconcilable")} = coalesce(save_accounting_account.reconcilable, false),
-      ${a("normalSide")} = v_side, ${a("defaultTaxCode")} = save_accounting_account.default_tax_code_id,
-      ${a("active")} = coalesce(save_accounting_account.active, true), ${a("updatedAt")} = now()
+    update ${accounts} y set ${a("code")} = trim(upsert_accounting_account.code), ${a("name")} = trim(upsert_accounting_account.name),
+      ${a("type")} = upsert_accounting_account.type, ${a("subtype")} = upsert_accounting_account.subtype, ${a("parent")} = upsert_accounting_account.parent_id,
+      ${a("currency")} = v_currency, ${a("reconcilable")} = coalesce(upsert_accounting_account.reconcilable, false),
+      ${a("normalSide")} = v_side, ${a("defaultTaxCode")} = upsert_accounting_account.default_tax_code_id,
+      ${a("active")} = coalesce(upsert_accounting_account.active, true), ${a("updatedAt")} = now()
     where y.${a("id")} = v_id
     returning * into v_row;
   end if;
   return ${json.account("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_accounting_account")}(${idType}, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean)`)}
+${userGrant(`${fn("upsert_accounting_account")}(${idType}, text, text, text, text, uuid, text, boolean, uuid, text, uuid, boolean)`)}
 
 -- Archives an account (nothing posts to it), or restores it. An account
 -- mapped to a role, a journal or a tax code stays.
@@ -437,8 +437,8 @@ $$;
 ${userGrant(`${fn("page_accounting_accounts")}(${idType}, jsonb)`)}
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
-drop function if exists ${fn("save_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid);
-create or replace function ${fn("save_accounting_journal")}(tenant ${idType}, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
+drop function if exists ${fn("upsert_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid);
+create or replace function ${fn("upsert_accounting_journal")}(tenant ${idType}, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null, contra_account_id uuid default null, bank_account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -447,47 +447,47 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${journals}%rowtype;
-  v_id uuid := save_accounting_journal.journal_id;
-  v_code text := upper(trim(save_accounting_journal.code));
-  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+  v_id uuid := upsert_accounting_journal.journal_id;
+  v_code text := upper(trim(upsert_accounting_journal.code));
+  v_currency text := upper(nullif(trim(upsert_accounting_journal.currency), ''));
 begin
-  if not ${allowed("save_accounting_journal.tenant", sql.manage)} then
+  if not ${allowed("upsert_accounting_journal.tenant", sql.manage)} then
     ${sql.forbidden("ACCOUNTING_JOURNAL", "not allowed to manage journals")}
   end if;
-  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(upsert_accounting_journal.name), '') is null then
     ${sql.invalid("ACCOUNTING_JOURNAL", "a journal needs a short code (letters, digits, - and _) and a name")}
   end if;
-  if save_accounting_journal.type is null or save_accounting_journal.type not in (${sqlList(JOURNAL_TYPES)}) then
+  if upsert_accounting_journal.type is null or upsert_accounting_journal.type not in (${sqlList(JOURNAL_TYPES)}) then
     ${sql.invalid("ACCOUNTING_JOURNAL", "the journal type is sales, purchase, bank, cash or general")}
   end if;
   if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
     ${sql.invalid("ACCOUNTING_JOURNAL", "the currency must be an ISO 4217 code such as EUR")}
   end if;
-  if save_accounting_journal.default_account_id is not null and not exists (
-    select 1 from ${accounts} y where y.${a("id")} = save_accounting_journal.default_account_id
-      and y.${a("tenant")} = save_accounting_journal.tenant and y.${a("archivedAt")} is null
+  if upsert_accounting_journal.default_account_id is not null and not exists (
+    select 1 from ${accounts} y where y.${a("id")} = upsert_accounting_journal.default_account_id
+      and y.${a("tenant")} = upsert_accounting_journal.tenant and y.${a("archivedAt")} is null
   ) then
     ${notFound("ACCOUNTING_ACCOUNT", "account")}
   end if;
-  if save_accounting_journal.contra_account_id is not null and not exists (
-    select 1 from ${accounts} y where y.${a("id")} = save_accounting_journal.contra_account_id
-      and y.${a("tenant")} = save_accounting_journal.tenant and y.${a("archivedAt")} is null
+  if upsert_accounting_journal.contra_account_id is not null and not exists (
+    select 1 from ${accounts} y where y.${a("id")} = upsert_accounting_journal.contra_account_id
+      and y.${a("tenant")} = upsert_accounting_journal.tenant and y.${a("archivedAt")} is null
   ) then
     ${sql.notFound("ACCOUNTING_ACCOUNT", "contra account not found")}
   end if;
   if v_id is null then
-    select y.${j("id")} into v_id from ${journals} y where y.${j("tenant")} = save_accounting_journal.tenant and y.${j("code")} = v_code;
+    select y.${j("id")} into v_id from ${journals} y where y.${j("tenant")} = upsert_accounting_journal.tenant and y.${j("code")} = v_code;
   end if;
   if v_id is null then
     insert into ${journals} (${j("tenant")}, ${j("code")}, ${j("name")}, ${j("type")}, ${j("defaultAccount")}, ${j("currency")}, ${j("contraAccount")}, ${j("bankAccount")})
-    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency,
-      save_accounting_journal.contra_account_id, save_accounting_journal.bank_account_id)
+    values (upsert_accounting_journal.tenant, v_code, trim(upsert_accounting_journal.name), upsert_accounting_journal.type, upsert_accounting_journal.default_account_id, v_currency,
+      upsert_accounting_journal.contra_account_id, upsert_accounting_journal.bank_account_id)
     returning * into v_row;
   else
-    update ${journals} y set ${j("code")} = v_code, ${j("name")} = trim(save_accounting_journal.name), ${j("type")} = save_accounting_journal.type,
-      ${j("defaultAccount")} = save_accounting_journal.default_account_id, ${j("currency")} = v_currency,
-      ${j("contraAccount")} = save_accounting_journal.contra_account_id, ${j("bankAccount")} = save_accounting_journal.bank_account_id, ${j("updatedAt")} = now()
-    where y.${j("id")} = v_id and y.${j("tenant")} = save_accounting_journal.tenant
+    update ${journals} y set ${j("code")} = v_code, ${j("name")} = trim(upsert_accounting_journal.name), ${j("type")} = upsert_accounting_journal.type,
+      ${j("defaultAccount")} = upsert_accounting_journal.default_account_id, ${j("currency")} = v_currency,
+      ${j("contraAccount")} = upsert_accounting_journal.contra_account_id, ${j("bankAccount")} = upsert_accounting_journal.bank_account_id, ${j("updatedAt")} = now()
+    where y.${j("id")} = v_id and y.${j("tenant")} = upsert_accounting_journal.tenant
     returning * into v_row;
     if not found then
       ${notFound("ACCOUNTING_JOURNAL", "journal")}
@@ -496,7 +496,7 @@ begin
   return ${json.journal("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid, uuid, uuid)`)}
+${userGrant(`${fn("upsert_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid, uuid, uuid)`)}
 
 create or replace function ${fn("list_accounting_journals")}(tenant ${idType})
 returns jsonb
@@ -561,7 +561,7 @@ $$;
 ${userGrant(`${fn("list_accounting_periods")}(${idType}, integer)`)}
 
 -- Creates or renames a dimension (project, department, cost center) by key.
-create or replace function ${fn("save_accounting_dimension")}(tenant ${idType}, key text, name text)
+create or replace function ${fn("upsert_accounting_dimension")}(tenant ${idType}, key text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -571,23 +571,23 @@ as $$
 declare
   v_row ${dimensions}%rowtype;
 begin
-  if not ${allowed("save_accounting_dimension.tenant", sql.manage)} then
+  if not ${allowed("upsert_accounting_dimension.tenant", sql.manage)} then
     ${sql.forbidden("ACCOUNTING_DIMENSION", "not allowed to manage dimensions")}
   end if;
-  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+  if coalesce(upsert_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(upsert_accounting_dimension.name), '') is null then
     ${sql.invalid("ACCOUNTING_DIMENSION", "a dimension needs a lower-case key and a name")}
   end if;
   insert into ${dimensions} (${d("tenant")}, ${d("key")}, ${d("name")})
-  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  values (upsert_accounting_dimension.tenant, upsert_accounting_dimension.key, trim(upsert_accounting_dimension.name))
   on conflict (${d("tenant")}, ${d("key")}) do update set ${d("name")} = excluded.${d("name")}
   returning * into v_row;
   return ${json.dimension("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_accounting_dimension")}(${idType}, text, text)`)}
+${userGrant(`${fn("upsert_accounting_dimension")}(${idType}, text, text)`)}
 
 -- Adds or renames a value of a dimension by code; archived values take no new lines.
-create or replace function ${fn("save_accounting_dimension_value")}(dimension_id uuid, code text, name text, archived boolean default false)
+create or replace function ${fn("upsert_accounting_dimension_value")}(dimension_id uuid, code text, name text, archived boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -597,25 +597,25 @@ as $$
 declare
   v_dimension ${dimensions}%rowtype;
 begin
-  select * into v_dimension from ${dimensions} y where y.${d("id")} = save_accounting_dimension_value.dimension_id;
+  select * into v_dimension from ${dimensions} y where y.${d("id")} = upsert_accounting_dimension_value.dimension_id;
   if not found then
     ${notFound("ACCOUNTING_DIMENSION", "dimension")}
   end if;
   if not ${allowed(`v_dimension.${d("tenant")}`, sql.manage)} then
     ${sql.forbidden("ACCOUNTING_DIMENSION", "not allowed to manage dimensions")}
   end if;
-  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+  if nullif(trim(upsert_accounting_dimension_value.code), '') is null or nullif(trim(upsert_accounting_dimension_value.name), '') is null then
     ${sql.invalid("ACCOUNTING_DIMENSION", "a dimension value needs a code and a name")}
   end if;
   insert into ${values} as y (${v("tenant")}, ${v("dimension")}, ${v("code")}, ${v("name")}, ${v("archivedAt")})
-  values (v_dimension.${d("tenant")}, v_dimension.${d("id")}, trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
-    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  values (v_dimension.${d("tenant")}, v_dimension.${d("id")}, trim(upsert_accounting_dimension_value.code), trim(upsert_accounting_dimension_value.name),
+    case when coalesce(upsert_accounting_dimension_value.archived, false) then now() end)
   on conflict (${v("dimension")}, ${v("code")}) do update
     set ${v("name")} = excluded.${v("name")}, ${v("archivedAt")} = case when excluded.${v("archivedAt")} is null then null else coalesce(y.${v("archivedAt")}, excluded.${v("archivedAt")}) end;
   return ${json.dimension("v_dimension")};
 end;
 $$;
-${userGrant(`${fn("save_accounting_dimension_value")}(uuid, text, text, boolean)`)}
+${userGrant(`${fn("upsert_accounting_dimension_value")}(uuid, text, text, boolean)`)}
 
 create or replace function ${fn("list_accounting_dimensions")}(tenant ${idType})
 returns jsonb

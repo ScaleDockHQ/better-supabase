@@ -614,6 +614,93 @@ With `rootParams: { locale, brand, tenant }` from `next/root-params` in
 and contexts fall back to the `tenant` root param when `tenant` resolves
 none. Outside the root layout's segment they return `undefined`.
 
+### Tenant scopes for cached reads
+
+`bsb.auth()`, `bsb.tenant(ref)` and `bsb.activeTenant()` are the first
+statement of a `"use cache: private"` function. Each returns the context of
+`bsb.cached()` with the caller, and ends the render when the caller is refused,
+so the function has no `null` ladder.
+
+```ts title="lib/queries.ts"
+export const getAgendaItem = cache(async (org: string, id: string) => {
+  "use cache: private";
+  const { db } = await bsb.tenant(org, permissions.agenda.read, {
+    tables: ["agenda_items"],
+  });
+
+  return await db.agendaItems.get(id).orNull();
+});
+```
+
+Tell `createNext()` how to find the tenant record:
+
+```ts title="lib/bsb.ts"
+export const bsb = createNext(betterSupabase, {
+  rootParams,
+  tenants: {
+    by: "slug",
+    resolve: { slug: (slug) => getOrganizationBySlug(slug) },
+  },
+});
+```
+
+A tenant ref is a string read as `by` (default `id`), `{ id }`, or `{ slug }`
+for any resolver kind. The resolver returns the record, which becomes
+`scope.tenant`, or `null` for an unknown tenant. The scope has `db`,
+`session`, `user`, `can(permission)`, and for a tenant `tenant` and `granted`.
+
+| Caller                         | Result           |
+| ------------------------------ | ---------------- |
+| No session                     | `unauthorized()` |
+| Unknown tenant or not a member | `notFound()`     |
+| Permission refused             | `forbidden()`    |
+
+`unauthorized()` and `forbidden()` need `experimental.authInterrupts`, which
+`createNextConfig` sets; without it both end in `notFound()`. Next.js ends the
+render with these inside `"use cache: private"`, on a render and on a prefetch
+(ADR 1252). Pass the tenant as an argument of the cached function: a Server
+Action cannot read a root param, and Next.js keys the cache on the arguments.
+`bsb.activeTenant(permission)` does the same for the tenant of
+`rootParams.tenant`.
+
+`.orNull()` on a read returns `null` for a `not_found` error and throws any
+other error. `.or(fallback)` returns the fallback in the same case.
+
+Pass `gate: true` in the options to save a round trip on a cold call. The
+scope returns at once, the permission check runs beside your first read, and
+`db` settles each read after the check. A refused caller gets a `forbidden`,
+`not_found` or `unauthorized` error Result from the read instead of rows
+(ADR 1255). Do not treat `can` or `granted` as proof before that read settles.
+
+```ts
+const { db } = await bsb.tenant(org, permissions.agenda.read, {
+  tables: ["agenda_items"],
+  gate: true,
+});
+```
+
+For data every member of a tenant reads alike, `bsb.shared(ref, permission,
+read)` checks the caller outside the cache, then returns `read(tenant)`. Write
+`read` as a `"use cache"` function of the tenant, so the database is read once
+per tenant and a refused caller never reaches the entry. The library does not
+create a restricted database role: `read` runs under the client you choose, so
+filter by the tenant yourself.
+
+```ts
+async function readRoles(tenantId: string) {
+  "use cache";
+  cacheTag(`roles@${tenantId}`);
+  return bsb.admin().roles.list({ where: { tenantId } }).orThrow();
+}
+
+export const getRoles = (org: string) =>
+  bsb.shared(org, permissions.roles.read, (tenant) => readRoles(tenant.id));
+```
+
+Fill `TenantProvider` from `better-supabase/react` in the layout with
+`scope.tenant`, and client components read it with `useTenant()` instead of
+taking `orgSlug` or `organizationId` props.
+
 ### Permission snapshots
 
 Read the caller's permissions once, in the compact form, and pass that one
@@ -638,7 +725,7 @@ it first, then let `bsb.cached()` set the tags and the lifetime:
 import { bsb } from "@/lib/supabase";
 import { permissionsFor } from "@/lib/permissions";
 
-export async function loadSnapshot(organizationId: string) {
+export async function getSnapshot(organizationId: string) {
   "use cache: private";
   const session = await bsb.claims();
   const snapshot = permissionsFor(session, organizationId);
@@ -657,14 +744,14 @@ layout stays synchronous and the snapshot streams in:
 
 ```tsx title="src/app/[organizationSlug]/layout.tsx"
 import { PermissionsProvider } from "@/components/permissions-provider";
-import { loadSnapshot } from "@/lib/access";
+import { getSnapshot } from "@/lib/access";
 
 export default function OrganizationLayout({
   children,
   params,
 }: LayoutProps<"/[organizationSlug]">) {
   const snapshotPromise = params.then(({ organizationSlug }) =>
-    loadSnapshot(organizationSlug),
+    getSnapshot(organizationSlug),
   );
   return (
     <PermissionsProvider snapshotPromise={snapshotPromise}>
@@ -691,7 +778,7 @@ without verifying the token again. `null` gives the signed-out context.
 
 ### Record pages without `my_permissions`
 
-`bsb.record(type).load()`, `.timeline()` and `recordListServer` need the
+`bsb.record(type).get()`, `.timeline()` and `recordListServer` need the
 caller's keys for their `can` flags. By default they call `my_permissions` with
 the keys the record type checks, once per call. Pass `heldPermissions` to
 `createNext` to give them a source that costs no database call, such as the

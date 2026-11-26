@@ -160,13 +160,13 @@ describe("ensureFunctions", () => {
   } as const;
 
   it("loads the functions once and installs them", async () => {
-    const loadFunctions = vi.fn(() => Promise.resolve({ lazyFn: fn }));
-    const meta: SchemaMeta = { ...freshMeta(), functions: {}, loadFunctions };
+    const getFunctions = vi.fn(() => Promise.resolve({ lazyFn: fn }));
+    const meta: SchemaMeta = { ...freshMeta(), functions: {}, getFunctions };
 
     await Promise.all([ensureFunctions(meta), ensureFunctions(meta)]);
     await ensureFunctions(meta);
 
-    expect(loadFunctions).toHaveBeenCalledOnce();
+    expect(getFunctions).toHaveBeenCalledOnce();
     expect(meta.functions["lazyFn"]).toEqual(fn);
   });
 
@@ -209,7 +209,7 @@ describe("a lazy schema", () => {
   function lazyMeta(): { meta: SchemaMeta; loaded: string[] } {
     const loaded: string[] = [];
 
-    const tableLoaders = Object.fromEntries(
+    const tableGetters = Object.fromEntries(
       Object.entries(schema.meta.tables).map(([key, table]) => [
         key,
         () => {
@@ -221,7 +221,7 @@ describe("a lazy schema", () => {
     );
 
     return {
-      meta: { ...schema.meta, tables: {}, lazyTables: true, tableLoaders },
+      meta: { ...schema.meta, tables: {}, lazyTables: true, tableGetters },
       loaded,
     };
   }

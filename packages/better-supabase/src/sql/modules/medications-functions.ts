@@ -42,7 +42,7 @@ const ORDER_FIELDS = `
  * PL/pgSQL that reads the order fields from `attrs` (a jsonb expression) into
  * the `ORDER_FIELDS` variables; a missing key keeps `fallback(field)`.
  */
-function readOrderFields(
+function getOrderFields(
   attrs: string,
   fallback: (field: string) => string,
 ): string {
@@ -348,7 +348,7 @@ ${userGrant(`${fn("approve_medication_order")}(uuid, uuid)`)}
     returning * into v_row;${writeFields(options.attrs)}`;
 
   const newFields = (attrs: string, unit: string): string =>
-    readOrderFields(attrs, (field) => {
+    getOrderFields(attrs, (field) => {
       switch (field) {
         case "doseUnit": {
           return unit;
@@ -365,7 +365,7 @@ ${userGrant(`${fn("approve_medication_order")}(uuid, uuid)`)}
     });
 
   const rowFields = (attrs: string): string =>
-    readOrderFields(attrs, (field) =>
+    getOrderFields(attrs, (field) =>
       has("orders", field) ? `v_row.${o(field)}` : "null",
     );
 
@@ -387,8 +387,8 @@ ${userGrant(`${fn("approve_medication_order")}(uuid, uuid)`)}
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-${medicationFields.drop(fn("save_medication"), `${idType}, text, text, text, text, text, text, boolean, uuid`)}
-create or replace function ${fn("save_medication")}(tenant ${idType}, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null${medicationFields.param})
+${medicationFields.drop(fn("upsert_medication"), `${idType}, text, text, text, text, text, text, boolean, uuid`)}
+create or replace function ${fn("upsert_medication")}(tenant ${idType}, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null${medicationFields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -398,41 +398,41 @@ as $$
 declare
   v_medication ${medications}%rowtype;${medicationVars}
 begin
-  if not ${allowed("save_medication.tenant", prescribe)} then
+  if not ${allowed("upsert_medication.tenant", prescribe)} then
     ${forbidden("not allowed to change the medication catalog")}
   end if;
-  v_name := nullif(trim(save_medication.name), '');
-  v_med_unit := nullif(trim(save_medication.unit), '');
-  v_system := coalesce(nullif(trim(save_medication.code_system), ''), 'custom');
-  v_code := nullif(trim(save_medication.code), '');
-  v_form := nullif(trim(save_medication.form), '');
-  v_strength := nullif(trim(save_medication.strength), '');
-  v_high_risk := coalesce(save_medication.high_risk, false);
+  v_name := nullif(trim(upsert_medication.name), '');
+  v_med_unit := nullif(trim(upsert_medication.unit), '');
+  v_system := coalesce(nullif(trim(upsert_medication.code_system), ''), 'custom');
+  v_code := nullif(trim(upsert_medication.code), '');
+  v_form := nullif(trim(upsert_medication.form), '');
+  v_strength := nullif(trim(upsert_medication.strength), '');
+  v_high_risk := coalesce(upsert_medication.high_risk, false);
   ${medicationChecks}
   if exists (
     select 1 from ${medications} x
-    where x.${m("tenant")} = save_medication.tenant and x.${m("codeSystem")} = v_system and x.${m("code")} = v_code
-      and x.${m("id")} is distinct from save_medication.medication_id
+    where x.${m("tenant")} = upsert_medication.tenant and x.${m("codeSystem")} = v_system and x.${m("code")} = v_code
+      and x.${m("id")} is distinct from upsert_medication.medication_id
   ) then
     ${invalid("the catalog already has a medication with this code")}
   end if;
-  if save_medication.medication_id is null then
+  if upsert_medication.medication_id is null then
     insert into ${medications} (${m("tenant")}, ${m("name")}, ${m("codeSystem")}, ${m("code")}${insertCol("medications", "form")}${insertCol("medications", "strength")}, ${m("unit")}, ${m("highRisk")})
-    values (save_medication.tenant, v_name, v_system, v_code${insertVal("medications", "form", "v_form")}${insertVal("medications", "strength", "v_strength")}, v_med_unit, v_high_risk)
+    values (upsert_medication.tenant, v_name, v_system, v_code${insertVal("medications", "form", "v_form")}${insertVal("medications", "strength", "v_strength")}, v_med_unit, v_high_risk)
     returning * into v_medication;
   else
     update ${medications} x set
     ${medicationSets}
-    where x.${m("id")} = save_medication.medication_id and x.${m("tenant")} = save_medication.tenant
+    where x.${m("id")} = upsert_medication.medication_id and x.${m("tenant")} = upsert_medication.tenant
     returning x.* into v_medication;
     if not found then
       ${medicationNotFound}
     end if;
-  end if;${writeExtraColumns(medications, medicationExtras, "save_medication.fields", `x.${m("id")} = v_medication.${m("id")}`, "v_medication")}
+  end if;${writeExtraColumns(medications, medicationExtras, "upsert_medication.fields", `x.${m("id")} = v_medication.${m("id")}`, "v_medication")}
   return ${medicationJson(ctx, "v_medication")};
 end;
 $$;
-${userGrant(`${fn("save_medication")}(${idType}, text, text, text, text, text, text, boolean, uuid${medicationFields.type})`)}
+${userGrant(`${fn("upsert_medication")}(${idType}, text, text, text, text, text, text, boolean, uuid${medicationFields.type})`)}
 
 -- Archives a medication: new orders can't use it; its orders stay.
 create or replace function ${fn("archive_medication")}(medication_id uuid)

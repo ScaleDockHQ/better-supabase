@@ -2,11 +2,8 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { LEAVE_TAG } from "@/features/leave/leave-cache";
-import { ONBOARDING_TAG } from "@/features/onboarding/onboarding-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PEOPLE_TAG } from "../people-cache";
 
 export interface OnboardingStepRow {
   readonly id: string;
@@ -45,12 +42,12 @@ export interface EmployeeDesk {
  * their steps, the leave balances and the programs a new hire can start on. A
  * run or balance the caller cannot read is left out.
  */
-export async function loadEmployeeDesk(
+export async function getEmployeeDesk(
   id: string,
 ): Promise<EmployeeDesk | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, ONBOARDING_TAG, LEAVE_TAG);
+  cacheTag(tags.people(), tags.onboarding(), tags.leave());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -109,12 +106,12 @@ export async function loadEmployeeDesk(
 }
 
 /** The enabled onboarding programs, for the dialog that onboards a new hire. */
-export async function loadOnboardingPrograms(): Promise<
+export async function getOnboardingPrograms(): Promise<
   readonly { readonly value: string; readonly label: string }[] | null
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(ONBOARDING_TAG);
+  cacheTag(tags.onboarding());
 
   if (!tenantOf(session)) {
     return null;

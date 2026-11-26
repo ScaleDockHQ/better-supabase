@@ -701,7 +701,7 @@ export function createCompliance<
       ),
     saveFramework: ({ organizationId, input }) =>
       call(
-        "save_control_framework",
+        "upsert_control_framework",
         {
           tenant: organizationId,
           key: input.key,
@@ -710,7 +710,7 @@ export function createCompliance<
           description: input.description ?? null,
           kind: input.kind ?? "standard",
         },
-        (value) => frameworkOf(value, "save_control_framework"),
+        (value) => frameworkOf(value, "upsert_control_framework"),
       ),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     frameworks: (organizationId) =>
@@ -762,7 +762,7 @@ export function createCompliance<
         .args(input.fields)
         .andThen((checked) =>
           call(
-            "save_control",
+            "upsert_control",
             {
               framework_id: input.frameworkId,
               code: input.code,
@@ -775,7 +775,7 @@ export function createCompliance<
               jurisdiction: input.jurisdiction ?? null,
               ...(checked === undefined ? {} : { fields: checked }),
             },
-            (value) => controlOf(value, "save_control"),
+            (value) => controlOf(value, "upsert_control"),
           ).andThen(fields.row),
         ),
     getControl: (controlId) =>
@@ -796,7 +796,7 @@ export function createCompliance<
       ).andThen(fields.rows),
     addEvidence: ({ controlId, input }) =>
       call(
-        "add_control_evidence",
+        "create_control_evidence",
         {
           control_id: controlId,
           attachment_id: input.attachmentId ?? null,
@@ -804,15 +804,15 @@ export function createCompliance<
           valid_until: input.validUntil?.toString() ?? null,
           task_id: input.evidenceTaskId ?? null,
         },
-        (value) => evidenceOf(value, "add_control_evidence"),
+        (value) => evidenceOf(value, "create_control_evidence"),
       ),
     removeEvidence: (evidenceId) =>
-      call("remove_control_evidence", { evidence_id: evidenceId }, (value) =>
-        evidenceOf(value, "remove_control_evidence"),
+      call("delete_control_evidence", { evidence_id: evidenceId }, (value) =>
+        evidenceOf(value, "delete_control_evidence"),
       ),
     saveEvidenceTask: ({ controlId, input }) =>
       call(
-        "save_evidence_task",
+        "upsert_evidence_task",
         {
           control_id: controlId,
           title: input.title,
@@ -822,7 +822,7 @@ export function createCompliance<
           active: input.active ?? true,
           task_id: input.evidenceTaskId ?? null,
         },
-        (value) => taskOf(value, "save_evidence_task"),
+        (value) => taskOf(value, "upsert_evidence_task"),
       ),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     evidenceTasks: ({ organizationId, ...list }) =>
@@ -845,7 +845,7 @@ export function createCompliance<
     notifyOverdue: () => call("notify_overdue_evidence_tasks", {}, numberOf),
     savePolicy: ({ organizationId, input }) =>
       call(
-        "save_compliance_policy",
+        "upsert_compliance_policy",
         {
           tenant: organizationId,
           key: input.key,
@@ -854,7 +854,7 @@ export function createCompliance<
           requires_acknowledgement: input.requiresAcknowledgement ?? true,
           policy_id: input.policyId ?? null,
         },
-        policy("save_compliance_policy"),
+        policy("upsert_compliance_policy"),
       ),
     publishPolicy: ({ policyId, content, label }) =>
       call(

@@ -13,7 +13,7 @@ import type { ExecResult } from "../../../src/cli/exec.ts";
 import {
   artifactFiles,
   findArtifact,
-  readManifest,
+  getManifest,
 } from "../../../src/cli/baseline/artifact.ts";
 import { pgmqQueues } from "../../../src/cli/baseline/catalog.ts";
 import {
@@ -120,7 +120,7 @@ describe("findArtifact", () => {
     );
 
     await expect(
-      readManifest(artifactFiles(dir, "a-broken").manifest),
+      getManifest(artifactFiles(dir, "a-broken").manifest),
     ).resolves.toBeUndefined();
     await expect(findArtifact(dir, [migration], versions)).resolves.toEqual({
       found: undefined,

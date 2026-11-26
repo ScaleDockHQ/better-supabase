@@ -465,7 +465,7 @@ export function createAiSchedules<
         }
 
         return call(
-          "save_ai_task",
+          "upsert_ai_task",
           {
             tenant: organizationId,
             id: taskId,
@@ -478,7 +478,7 @@ export function createAiSchedules<
       .andThen((value) => withFields(fields, value, taskOf(value)))
       .andThen((saved) => scheduleNow(saved));
 
-  // save_ai_task ignores next_run_at from users; with a service transport the
+  // upsert_ai_task ignores next_run_at from users; with a service transport the
   // next occurrence is set right away instead of on the next tick.
   const scheduleNow = <T extends AiTask>(task: T): AsyncResult<T> => {
     if (

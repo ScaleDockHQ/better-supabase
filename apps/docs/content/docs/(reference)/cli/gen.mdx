@@ -765,6 +765,27 @@ Block tables appear under their final names, such as `tasksSearchParams`.
 `load<Name>` parses a URL, a `Request` or `searchParams`, and
 `serialize<Name>` writes the params into a link.
 
+## Tag functions
+
+`tags()` from `better-supabase/generators/tags` writes `<output>.tags.ts`: one
+`defineTags` call over the table keys, so `tags.customers(org)` is the cache
+tag a read and an action share. A reader lists it in
+`bsb.tenant(org, permission, { tags: [tags.customers(org.id)] })`, and an action
+in `tags: ({ tenant }) => [tags.customers(tenant)]`.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+import { tags } from "better-supabase/generators/tags";
+
+export default defineConfig({ gen: { generators: [tags()] } });
+```
+
+| Option    | What it does                                                          |
+| --------- | --------------------------------------------------------------------- |
+| `tables`  | The table keys to write tags for; defaults to every table             |
+| `domains` | Feature tags such as `crm` (camelCase) written next to the table tags |
+| `output`  | The file path; defaults to `<output>.tags.ts`                         |
+
 ## Standard Schema without a validation library
 
 `standardSchema()` writes `<output>.standard.ts`: a schema per table for its

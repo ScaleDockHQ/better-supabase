@@ -465,8 +465,8 @@ describe("channels and simple products", () => {
 
     expect(created.product.id).toBe("p1");
     expect(calls.map((call) => call.fn)).toEqual([
-      "save_product",
-      "save_variant",
+      "upsert_product",
+      "upsert_variant",
       "set_price",
     ]);
   });

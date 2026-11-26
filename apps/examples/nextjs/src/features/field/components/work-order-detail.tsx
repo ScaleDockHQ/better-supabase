@@ -23,7 +23,7 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { loadWorkOrder } from "../field-queries";
+import { getWorkOrder } from "../field-queries";
 import { AdvanceWorkOrderButton } from "./advance-work-order-button";
 import { FieldLoadError } from "./field-load-error";
 import {
@@ -47,7 +47,7 @@ export async function WorkOrderDetail({
 
   const [t, loaded, fmtDate, canWork] = await Promise.all([
     getExtracted("field"),
-    settle(() => loadWorkOrder(id)),
+    settle(() => getWorkOrder(id)),
     dateFormatter(),
     holds("dispatch.work"),
   ]);

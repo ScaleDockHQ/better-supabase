@@ -1,4 +1,4 @@
-import { loadDomainPage } from "@/features/domains/domains-queries";
+import { getDomainPage } from "@/features/domains/domains-queries";
 import { domainList } from "@/features/domains/domains-list";
 import { bsb } from "@/lib/supabase/server";
 
@@ -12,7 +12,7 @@ export const GET = bsb.route(
   async (request, { db, tenant }) => {
     const query = domainList.parse(request.nextUrl.searchParams);
 
-    return Response.json(await loadDomainPage(db, tenant, query.value));
+    return Response.json(await getDomainPage(db, tenant, query.value));
   },
   { requireTenant: true, permission: "domains.read" },
 );

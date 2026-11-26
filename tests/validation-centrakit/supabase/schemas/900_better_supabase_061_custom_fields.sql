@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:50939af8480175f1c05725418215435e85b14e01fbd0fe56d12e4838656c8a14
+-- @bsb-hash sha256:c8d57e704ebfe01b12e725fc48293fdaac92a200f759772dafe6448217a3888b
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -53,7 +53,7 @@ grant select on "centrakit"."field_values" to authenticated;
 grant all on "centrakit"."field_values" to service_role;
 create index if not exists field_values_definition_idx on "centrakit"."field_values" ("definition_id");
 
-create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "better_supabase"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -69,28 +69,28 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
-  if save_field_definition.entity is null or save_field_definition.entity <> all (array['message', 'conversation', 'file_node', 'task', 'project', 'customer']::text[]) then
+  if upsert_field_definition.entity is null or upsert_field_definition.entity <> all (array['message', 'conversation', 'file_node', 'task', 'project', 'customer']::text[]) then
     raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'CUSTOM_FIELD_ENTITY_UNKNOWN';
   end if;
   insert into "centrakit"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false))
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false))
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
   if v_inserted then
-    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'domain');
+    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', upsert_field_definition.tenant, 'id', v_id, 'entity', upsert_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, upsert_field_definition.key), (upsert_field_definition.tenant)::text, null, 'domain');
   else
-    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'domain');
+    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', upsert_field_definition.tenant, 'id', v_id, 'entity', upsert_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, upsert_field_definition.key), (upsert_field_definition.tenant)::text, null, 'domain');
   end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
+revoke execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "better_supabase"."get_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
 stable
@@ -104,17 +104,17 @@ begin
   into v_values
   from "centrakit"."field_values" v
   left join "centrakit"."field_definitions" d on d."id" = v."definition_id"
-  where v."tenant_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
+  where v."tenant_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
-revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_field_values"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."get_field_values"(uuid, text, text) to authenticated, service_role;
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text)
 returns jsonb
 language plpgsql

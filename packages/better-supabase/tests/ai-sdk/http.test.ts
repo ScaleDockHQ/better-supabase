@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { badRequest, readJson, sse } from "../../src/ai-sdk/http.ts";
+import { badRequest, getJson, sse } from "../../src/ai-sdk/http.ts";
 
 describe("ai-sdk http helpers", () => {
   it("answers a bad request as a problem response", async () => {
@@ -16,8 +16,8 @@ describe("ai-sdk http helpers", () => {
     });
 
     const bad = new Request("https://x.test", { method: "POST", body: "nope" });
-    expect(await readJson(good)).toEqual({ a: 1 });
-    expect(await readJson(bad)).toBeUndefined();
+    expect(await getJson(good)).toEqual({ a: 1 });
+    expect(await getJson(bad)).toBeUndefined();
   });
 
   it("streams with the UI message headers plus extra headers", async () => {

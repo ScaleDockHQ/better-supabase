@@ -26,12 +26,14 @@ import type {
   ContextOptions,
   ServerContext,
 } from "../server/server-types.ts";
+import type { AuthFlowDeps } from "./sign-in.ts";
 import type {
   Bootstrap,
   BootstrapOptions,
   BetterNext,
   CachedOptions,
   CacheScope,
+  NextActions,
   NextOptions,
   ScopeOptions,
 } from "./types.ts";
@@ -49,7 +51,7 @@ import { isReadSet, readSetTables } from "../core/read-set.ts";
 import { err } from "../core/result.ts";
 import { isFunctionSpec, isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
-import { byteSizeOf, EMPTY_STATS } from "../core/stats.ts";
+import { byteSizeOf } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
 import { ACCOUNT_PARTS } from "../server/account-parts.ts";
 import { adapterBase } from "../server/adapter-base.ts";
@@ -67,7 +69,6 @@ import {
   requireCaller,
   formDataObject,
 } from "../server/kit.ts";
-import { resourceRouter } from "../server/resources.ts";
 import { guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
@@ -81,6 +82,12 @@ import {
   validateBound,
   withReadSetTables,
 } from "./action-bound.ts";
+import {
+  adoptValue,
+  applyActionEffects,
+  finishOutcome,
+  firstRefusal,
+} from "./action-effects.ts";
 import { applyCacheTags } from "./cache-tags.ts";
 import {
   invalidateAll,
@@ -92,7 +99,7 @@ import {
   tagCallCollectors,
 } from "./cache.ts";
 import { timeFirst } from "./cold-start.ts";
-import { debugRefusal, logActionStats, requestIdOf } from "./collector.ts";
+import { debugRoute, logActionStats, requestIdOf } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
 import { applyCacheEntry, awaitStage, endBootstrap } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
@@ -104,10 +111,11 @@ import { handOff, noteFill, takeHandoff } from "./remote-handoff.ts";
 import { remoteKeyOf } from "./remote-key.ts";
 import { requestRecording } from "./request-recording.ts";
 import { adminForRequest, verifyOption } from "./request-stats.ts";
-import { resourceRoutes } from "./resources.ts";
+import { RESOURCES_HOST } from "./resources.ts";
+import { scopeMembers } from "./scope.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
-import { authFlows } from "./sign-in.ts";
+import { AUTH_FLOWS_HOST } from "./sign-in.ts";
 import { taintObject, taintResolution, taintedAdmin } from "./taint.ts";
 import { gateUserOf } from "./user.ts";
 import { withContextFactory } from "./with-context.ts";
@@ -133,13 +141,15 @@ export function createNext<
   A extends AnyAuthorizer<V> | undefined = undefined,
   B = unknown,
   V extends AuthzVersionCache = AuthzVersionCache,
+  Ex = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: NextOptions & {
     readonly authorizer?: A;
     readonly versions?: V;
+    readonly actions?: NextActions<Ex>;
   } = {},
-): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D> {
+): BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D, Ex> {
   const createStarted = performance.now();
 
   // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
@@ -473,7 +483,7 @@ export function createNext<
     },
   });
 
-  const flows = authFlows<C, P>({
+  const authFlowDeps: AuthFlowDeps<C, P> = {
     env: () => base.env,
     auth: options.auth,
     cookieScopes: options.cookieScopes,
@@ -491,7 +501,7 @@ export function createNext<
       invalidate(userTags(userId));
       forget(userId);
     },
-  });
+  };
 
   /**
    * The context of a cache scope: the request's in `'use cache: private'`, the
@@ -642,6 +652,8 @@ export function createNext<
     userTags,
     waitUntil,
   });
+
+  const scoped = scopeMembers(() => next, current, options, base.authorizer);
 
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
@@ -840,7 +852,7 @@ export function createNext<
 
     locale: () => rootParam(options.rootParams?.locale),
     brand: () => rootParam(options.rootParams?.brand),
-    tenant: () => rootParam(options.rootParams?.tenant),
+    ...scoped,
     heldPermissions: options.heldPermissions,
 
     async liveCount(spec, db) {
@@ -925,75 +937,29 @@ export function createNext<
       };
     },
 
-    resources(map, resourcesOptions = {}) {
-      const { basePath, ...guardOptions } = resourcesOptions;
-
-      const router = resourceRouter(betterSupabase, map, {
-        ...(basePath === undefined ? {} : { basePath }),
-        ...(base.authorizer === undefined
-          ? {}
-          : { authorizer: base.authorizer }),
-      });
-
-      return resourceRoutes(async (request) => {
-        const route = router.match(request);
-
-        if (route instanceof Response) {
-          return route;
-        }
-
-        return handle(
-          base,
-          request,
-          (ctx) =>
-            route.handler.serve(request, ctx.db, route.segments, {
-              instance: route.instance,
-              expose,
-            }),
-          {
-            ...guardOptions,
-            expose,
-            instance: route.instance,
-            context: statsFor(request),
-            waitUntil,
-            rethrow: rethrowNextControlFlow,
-          },
-        );
-      });
+    [RESOURCES_HOST]: {
+      instance: betterSupabase,
+      authorizer: base.authorizer,
+      expose,
+      serve: (request, run, serveOptions) =>
+        handle(base, request, (ctx) => run(ctx.db), {
+          ...serveOptions,
+          expose,
+          context: statsFor(request),
+          waitUntil,
+          rethrow: rethrowNextControlFlow,
+        }),
     },
 
     waitUntil,
 
-    debugRoute() {
-      return (request) => {
-        const id = new URL(request.url).searchParams.get("id");
-
-        if (!collector || !id) {
-          return Promise.resolve(debugRefusal(collector !== undefined));
-        }
-
-        // A render served entirely from cache entries records nothing: it made
-        // no calls. A fill records on the request that started it, remote
-        // fills through bsb.remote() included, raw ctx.supabase calls too.
-        const stats = collector.get(id) ?? EMPTY_STATS;
-
-        return Promise.resolve(
-          Response.json(stats, {
-            headers: {
-              [statsHeader]: statsValue(stats),
-              "cache-control": "no-store",
-            },
-          }),
-        );
-      };
-    },
+    debugRoute: () => debugRoute(collector, statsHeader, statsValue),
 
     action(actionOptions, fn, mapData) {
       type Out = ActionResult<Unwrapped<Awaited<ReturnType<typeof fn>>>>;
 
-      // SAFETY: `result` keeps the data type.
-      const mapped = async (o: Out): Promise<Out> =>
-        ((await actionOptions.result?.(o)) ?? o) as Out;
+      const mapped = (o: Out): Promise<Out> =>
+        finishOutcome(o, actionOptions.result, options.actions?.envelope);
 
       const run = async (...args: unknown[]) => {
         const input = args.at(-1);
@@ -1060,7 +1026,11 @@ export function createNext<
           return mapped({ ok: false, data: null, error: caller });
         }
 
-        const refused = await actionOptions.guard?.(tenant, ctx);
+        const refused = await firstRefusal(
+          [options.actions?.guard, actionOptions.guard],
+          tenant,
+          ctx,
+        );
 
         if (refused) {
           return mapped({ ok: false, data: null, error: refused });
@@ -1071,11 +1041,14 @@ export function createNext<
         try {
           // SAFETY: parsed is the validated input, or the raw input when the
           // action has no schema; requireTenant refused a missing tenant.
-          settled = await recording.settleIn("action", () =>
-            fn(
-              parsed as never,
-              withExtra(ctx, caller) as never,
-              bound as never,
+          settled = await recording.settleIn("action", async () =>
+            adoptValue(
+              options.actions?.from,
+              await fn(
+                parsed as never,
+                withExtra(ctx, caller) as never,
+                bound as never,
+              ),
             ),
           );
         } finally {
@@ -1090,12 +1063,16 @@ export function createNext<
           );
         }
 
-        if (settled.ok && actionOptions.invalidates) {
-          invalidate(
-            actionOptions.invalidates.flatMap((table) =>
-              tableTags(table, { tenant: "*" }),
-            ),
+        if (settled.ok) {
+          applyActionEffects(
+            actionOptions,
+            { tenant, input: parsed, data: settled.data },
+            invalidate,
           );
+
+          if (actionOptions.evictSession && ctx.auth.kind === "user") {
+            await evictSession(ctx.auth.user.id);
+          }
         }
 
         if (settled.ok && mapData) {
@@ -1191,7 +1168,7 @@ export function createNext<
         : { ok: false, data: null, error: stopped.error };
     },
 
-    ...flows,
+    [AUTH_FLOWS_HOST]: authFlowDeps,
 
     tag(table, id, tagOptions = {}) {
       applyCacheTags([
@@ -1270,5 +1247,5 @@ export function createNext<
 
   // SAFETY: the contexts differ only in `supabase`, which the server builds as SupabaseClient<D>
   // from the same BetterSupabase<…, D>; its untyped default is the same client.
-  return next as BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D>;
+  return next as BetterNext<M, F, E, C, P, PermissionRef<A>, B, V, D, Ex>;
 }

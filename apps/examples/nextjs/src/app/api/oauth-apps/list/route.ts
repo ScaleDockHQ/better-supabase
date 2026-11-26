@@ -1,4 +1,4 @@
-import { loadAdminList } from "../../../../features/admin-lists/admin-list-load";
+import { getAdminList } from "../../../../features/admin-lists/admin-list-load";
 import { oauthAppList } from "../../../../features/oauth-apps/oauth-apps-list";
 import { oauthAppSource } from "../../../../features/oauth-apps/oauth-apps-source";
 import { bsbCore as bsb } from "../../../../lib/supabase/server-core";
@@ -9,7 +9,7 @@ export const GET = bsb.route(
     const query = oauthAppList.parse(request.nextUrl.searchParams);
 
     return Response.json(
-      await loadAdminList({
+      await getAdminList({
         session,
         tenant,
         list: oauthAppList,

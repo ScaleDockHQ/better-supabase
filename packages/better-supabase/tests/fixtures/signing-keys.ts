@@ -34,7 +34,7 @@ export function signingKeysStore(): SigningKeysStore {
     `${String(args["owner_type"])}:${String(args["owner_id"])}`;
 
   const fns: Record<string, (args: Record<string, unknown>) => unknown> = {
-    add_signing_key(args) {
+    create_signing_key(args) {
       const previous = rows.find(
         (row) => row.owner === owner(args) && row.state === "active",
       );

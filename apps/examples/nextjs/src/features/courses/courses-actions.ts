@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COURSES_TAG } from "./courses-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -28,8 +26,10 @@ export const createSampleCourse = bsb.action(
     }),
     requireTenant: true,
     permission: "courses.manage",
+    tags: () => [tags.courses()],
+    refresh: true,
   },
-  async ({ title, lessons }, { db, auth }) => {
+  async ({ title, lessons }, { db }) => {
     const { courses } = db;
 
     const course = await courses.upsert({
@@ -74,8 +74,6 @@ export const createSampleCourse = bsb.action(
       return published;
     }
 
-    await refreshCaller(auth, [COURSES_TAG]);
-
     return ok({ id: course.data.id });
   },
 );
@@ -86,15 +84,15 @@ export const enrollInCourse = bsb.action(
     input: v.object({ courseId: Id }),
     requireTenant: true,
     permission: "courses.read",
+    tags: () => [tags.courses()],
+    refresh: true,
   },
-  async ({ courseId }, { db, auth }) => {
+  async ({ courseId }, { db }) => {
     const learner = await db.courses.enroll({ courseId });
 
     if (!learner.ok) {
       return learner;
     }
-
-    await refreshCaller(auth, [COURSES_TAG]);
 
     return ok({ status: learner.data.status });
   },
@@ -106,15 +104,15 @@ export const completeLesson = bsb.action(
     input: v.object({ lessonId: Id }),
     requireTenant: true,
     permission: "courses.read",
+    tags: () => [tags.courses()],
+    refresh: true,
   },
-  async ({ lessonId }, { db, auth }) => {
+  async ({ lessonId }, { db }) => {
     const learner = await db.courses.complete(lessonId);
 
     if (!learner.ok) {
       return learner;
     }
-
-    await refreshCaller(auth, [COURSES_TAG]);
 
     return ok({ status: learner.data.status });
   },
@@ -136,15 +134,15 @@ export const submitQuiz = bsb.action(
     }),
     requireTenant: true,
     permission: "courses.read",
+    tags: () => [tags.courses()],
+    refresh: true,
   },
-  async ({ lessonId, answers }, { db, auth }) => {
+  async ({ lessonId, answers }, { db }) => {
     const result = await db.courses.submitQuiz({ lessonId, answers });
 
     if (!result.ok) {
       return result;
     }
-
-    await refreshCaller(auth, [COURSES_TAG]);
 
     const entry = result.data.progress.lessons.find(
       (lesson) => lesson.lessonId === lessonId,

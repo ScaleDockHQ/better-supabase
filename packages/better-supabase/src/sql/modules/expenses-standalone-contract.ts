@@ -66,7 +66,7 @@ export function standaloneContract(
 
   return [
     {
-      name: "save_expense_category",
+      name: "upsert_expense_category",
       args: ["{id}", "text", "text", "text", "bigint", "bigint"],
       returns: "jsonb",
     },

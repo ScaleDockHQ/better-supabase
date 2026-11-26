@@ -1,7 +1,7 @@
 import type { DeclaredFile, DeclaredRow } from "./read.ts";
 
 import { migrationFile } from "../sql/migration-names.ts";
-import { deleteStatement, readDeclaredFile, rowLabel } from "./read.ts";
+import { deleteStatement, getDeclaredFile, rowLabel } from "./read.ts";
 
 /** The line a data migration carries, so a later run finds it. */
 const STAMP = /^-- @bsb-rows (\S+) sha256:([0-9a-f]{64})$/m;
@@ -59,7 +59,7 @@ async function rowsOf(
 ): Promise<readonly DeclaredRow[]> {
   const statements = text.split(REMOVALS)[0] ?? "";
 
-  const file = await readDeclaredFile(
+  const file = await getDeclaredFile(
     name,
     statements
       .split("\n")
@@ -118,7 +118,7 @@ export async function planRows(
   for (const [name, text] of [...files].toSorted(([a], [b]) =>
     a.localeCompare(b),
   )) {
-    const file = await readDeclaredFile(name, text);
+    const file = await getDeclaredFile(name, text);
     const stamped = stampedFor(name, migrations);
     const latest = stamped.at(-1);
 

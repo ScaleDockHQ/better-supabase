@@ -15,8 +15,8 @@ set local role authenticated;
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated;
 insert into ids values
-  ('company', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "By id Co"}') ->> 'id')::uuid),
-  ('person', (better_supabase.save_person('00000000-0000-4000-8000-000000000001', null, '{"name": "By id Person"}') ->> 'id')::uuid);
+  ('company', (better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "By id Co"}') ->> 'id')::uuid),
+  ('person', (better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null, '{"name": "By id Person"}') ->> 'id')::uuid);
 
 select is(
   better_supabase.get_company((select id from ids where name = 'company')) ->> 'name',

@@ -21,7 +21,7 @@ export type AccountingSqlOptions = {
    * Default 1.
    */
   readonly fiscalYearStartMonth?: number;
-  /** The account subtypes `save_accounting_account` accepts. */
+  /** The account subtypes `upsert_accounting_account` accepts. */
   readonly subtypes?: readonly string[];
   /**
    * Whether the entries other blocks book (invoices, expenses, stock, rent,

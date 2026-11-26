@@ -123,7 +123,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "AI_DOCUMENT_VERSION_NOT_FOUND": "Ai document version not found.",
   "AI_EVAL_DATASET_FULL": "A dataset holds at most 5000 items.",
   "AI_EVAL_DATASET_NOT_FOUND": "Ai eval dataset not found.",
-  "AI_EVAL_FEEDBACK_UNAVAILABLE": "Add_eval_items_from_feedback needs the ai-chat block.",
+  "AI_EVAL_FEEDBACK_UNAVAILABLE": "Create_eval_items_from_feedback needs the ai-chat block.",
   "AI_EVAL_INVALID": "Id is a uuid.",
   "AI_EVAL_ITEM_NOT_FOUND": "Ai eval item not found.",
   "AI_EVAL_RUN_CLOSED": "Ai eval run closed.",

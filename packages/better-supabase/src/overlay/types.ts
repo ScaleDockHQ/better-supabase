@@ -98,7 +98,7 @@ export type Overlay = Overlay10 | Overlay11 | Overlay12;
 /**
  * The JSONPath engine `applyOverlay` runs targets with. `paths` returns the RFC
  * 9535 normalized paths (`$['paths']['/a'][0]`) of the selected nodes and
- * throws for an invalid query. `loadJsonPath()` returns the `jsonpath-rfc9535`
+ * throws for an invalid query. `getJsonPath()` returns the `jsonpath-rfc9535`
  * engine; any RFC 9535 implementation fits.
  */
 export interface JsonPathEngine {

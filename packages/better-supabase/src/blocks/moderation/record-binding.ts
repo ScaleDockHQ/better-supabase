@@ -10,6 +10,6 @@ export const moderationBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "moderation",
-  load: (client: Moderation, subject) => client.item(subject),
+  get: (client: Moderation, subject) => client.item(subject),
   events: ["moderation_report.created", "moderation_item.decided"],
 });

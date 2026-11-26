@@ -444,8 +444,8 @@ describe("approval calls", () => {
         policy,
         { ...policy, id: "p2", conditions: null },
       ],
-      save_approval_policy: { ...policy, fields: null },
-      remove_approval_policy: true,
+      upsert_approval_policy: { ...policy, fields: null },
+      delete_approval_policy: true,
     });
 
     const approvals = createApprovals({ transport: fake, tenant: "o" });
@@ -486,7 +486,7 @@ describe("approval calls", () => {
 
   it("refuses a stored policy whose conditions are not a filter group", async () => {
     const fake = transport({
-      save_approval_policy: {
+      upsert_approval_policy: {
         id: "p1",
         subjectType: "*",
         action: "*",

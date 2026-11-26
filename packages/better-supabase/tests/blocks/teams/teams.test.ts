@@ -51,8 +51,8 @@ describe("teams.setMembers and setArchived", () => {
     expect(changed).toEqual({ added: ["u3"], removed: ["u1"] });
     expect(calls.map(([fn]) => fn)).toEqual([
       "list_teams",
-      "add_team_member",
-      "remove_team_member",
+      "create_team_member",
+      "delete_team_member",
     ]);
   });
 
@@ -97,11 +97,11 @@ describe("teams.setMembers and setArchived", () => {
     });
     expect(calls).toEqual([
       ["list_teams", { tenant: "o", filters: { limit: 200 } }],
-      ["remove_team_member", { team: "t1", member: "u1" }],
+      ["delete_team_member", { team: "t1", member: "u1" }],
       ["list_teams", { tenant: "o", filters: { limit: 200 } }],
-      ["add_team_member", { team: "t1", employee: "e2" }],
-      ["add_team_member", { team: "t1", employee: "e3" }],
-      ["remove_team_member", { team: "t1", employee: "e1" }],
+      ["create_team_member", { team: "t1", employee: "e2" }],
+      ["create_team_member", { team: "t1", employee: "e3" }],
+      ["delete_team_member", { team: "t1", employee: "e1" }],
     ]);
   });
 

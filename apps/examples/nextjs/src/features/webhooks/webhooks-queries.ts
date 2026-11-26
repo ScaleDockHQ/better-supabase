@@ -4,12 +4,12 @@ import { cacheTag } from "next/cache";
 import * as v from "valibot";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { WebhookDeliveryRow, WebhookEndpointRow } from "./webhook-types";
 
 import { WebhookStatus } from "./webhook-types";
-import { WEBHOOKS_TAG } from "./webhooks-cache";
 
 interface EndpointRecord {
   readonly id: string;
@@ -44,10 +44,10 @@ export interface WebhooksOverview {
  * members with `webhooks.read` see them. A failed read throws, so it is never
  * cached and Retry reads again. `null` without an organization.
  */
-export async function loadWebhooks(): Promise<WebhooksOverview | null> {
+export async function getWebhooks(): Promise<WebhooksOverview | null> {
   "use cache: private";
   const { session } = await bsbCore.cached();
-  cacheTag(WEBHOOKS_TAG);
+  cacheTag(tags.webhooks());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -117,12 +117,12 @@ export interface WebhookDetail {
  * One endpoint with its latest deliveries; `undefined` when it does not exist
  * or RLS hides it, `null` without an organization.
  */
-export async function loadWebhook(
+export async function getWebhook(
   id: string,
 ): Promise<WebhookDetail | undefined | null> {
   "use cache: private";
   const { session } = await bsbCore.cached();
-  cacheTag(WEBHOOKS_TAG);
+  cacheTag(tags.webhooks());
   const tenant = tenantOf(session);
 
   if (!tenant) {

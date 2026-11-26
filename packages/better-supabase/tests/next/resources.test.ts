@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { defineAuthorizer } from "../../src/core/authorizer.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { createNext, defineAction } from "../../src/next/index.ts";
-import { resourceRoutes } from "../../src/next/resources.ts";
+import { createResources, resourceRoutes } from "../../src/next/resources.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -55,7 +55,7 @@ describe("resourceRoutes", () => {
   });
 });
 
-describe("bsb.resources()", () => {
+describe("createResources(bsb)", () => {
   const authorizer = defineAuthorizer<"invite" | "export">({
     name: "test",
     key: (ref) => ref,
@@ -71,7 +71,7 @@ describe("bsb.resources()", () => {
     authorizer,
   });
 
-  const routes = bsb.resources(
+  const routes = createResources(bsb)(
     {
       customers: {
         actions: {
@@ -168,6 +168,6 @@ describe("bsb.resources()", () => {
     // @ts-expect-error "delete" is not a permission of this authorizer
     bsb.route(() => null, { permission: "delete" });
     // @ts-expect-error "delete" is not a permission of this authorizer
-    bsb.resources({ customers: { permissions: { list: "delete" } } });
+    createResources(bsb)({ customers: { permissions: { list: "delete" } } });
   });
 });

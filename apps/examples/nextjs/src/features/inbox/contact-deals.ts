@@ -28,7 +28,7 @@ const DEAL_LIMIT = 5;
  * contact is a CRM person, so no lookup table links them; the party core names
  * each deal's company through `subjects.label`.
  */
-export async function loadContactDeals(
+export async function getContactDeals(
   db: Db,
   contactId: string,
   locale: string,

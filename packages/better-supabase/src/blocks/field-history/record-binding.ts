@@ -11,7 +11,7 @@ export const fieldHistoryBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read" },
   module: "field-history",
-  load: (
+  get: (
     client: FieldHistory,
     subject,
     options?: {

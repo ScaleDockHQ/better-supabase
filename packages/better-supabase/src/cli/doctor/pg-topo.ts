@@ -42,7 +42,7 @@ function schemaFiles(context: DoctorContext): readonly TextFile[] {
  * use, so it loads on first use to keep CLI startup fast (invariant 12). An
  * install that lacks it skips the group.
  */
-async function loadPgTopo(): Promise<PgTopo | undefined> {
+async function getPgTopo(): Promise<PgTopo | undefined> {
   try {
     return await import("@supabase/pg-topo");
   } catch {
@@ -59,7 +59,7 @@ function analysisOf(context: DoctorContext): Promise<Analysis | undefined> {
     analysis =
       files.length === 0
         ? Promise.resolve(undefined)
-        : loadPgTopo().then(async (topo) =>
+        : getPgTopo().then(async (topo) =>
             topo === undefined
               ? undefined
               : {

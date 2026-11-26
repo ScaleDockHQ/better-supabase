@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:096450596fd138ea0f233a3b26456ceb529fad9b350924780ad3b5461b4167c9
+-- @bsb-hash sha256:a252890c0270e1ad15f3e27eeadcc3a1018b5fe00ce6eb1f1deef04d32cb44ca
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -666,7 +666,7 @@ revoke execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, 
 grant execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Removes a user from a meeting.
-create or replace function "better_supabase"."remove_meeting_attendee"(meeting_id uuid, user_id uuid)
+create or replace function "better_supabase"."delete_meeting_attendee"(meeting_id uuid, user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -680,7 +680,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = remove_meeting_attendee.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = delete_meeting_attendee.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -688,7 +688,7 @@ begin
     raise exception 'not allowed to change who attends this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
   delete from "better_supabase"."meeting_attendees" x
-  where x."meeting_id" = v_row."id" and x."user_id" = remove_meeting_attendee.user_id
+  where x."meeting_id" = v_row."id" and x."user_id" = delete_meeting_attendee.user_id
   returning * into v_attendee;
   if not found then
     raise exception 'that user is not an attendee' using errcode = 'P0002', hint = 'MEETING_ATTENDEE_NOT_FOUND';
@@ -696,13 +696,13 @@ begin
   return jsonb_build_object('meetingId', v_attendee."meeting_id", 'userId', v_attendee."user_id", 'role', v_attendee."role", 'attendance', v_attendee."attendance");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) to authenticated, service_role;
 
 -- Adds an agenda item, or with item.id changes one. item is { id, title,
 -- notes, presenterId, minutes, status, outcome, ordinal }. Without an ordinal
 -- a new item goes last; with one, the items from there move down.
-create or replace function "better_supabase"."save_meeting_agenda_item"(meeting_id uuid, item jsonb)
+create or replace function "better_supabase"."upsert_meeting_agenda_item"(meeting_id uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -719,7 +719,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = save_meeting_agenda_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = upsert_meeting_agenda_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -729,35 +729,35 @@ begin
   if v_row."status" = 'cancelled' then
     raise exception 'a cancelled meeting takes no changes' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if jsonb_typeof(save_meeting_agenda_item.item) is distinct from 'object' then
+  if jsonb_typeof(upsert_meeting_agenda_item.item) is distinct from 'object' then
     raise exception 'item must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   begin
-    v_id := nullif(save_meeting_agenda_item.item ->> 'id', '')::uuid;
-    v_ordinal := (save_meeting_agenda_item.item ->> 'ordinal')::integer;
+    v_id := nullif(upsert_meeting_agenda_item.item ->> 'id', '')::uuid;
+    v_ordinal := (upsert_meeting_agenda_item.item ->> 'ordinal')::integer;
   exception when invalid_text_representation then
     raise exception 'id is a uuid and ordinal an integer' using errcode = '22023', hint = 'MEETING_INVALID';
   end;
-  v_status := save_meeting_agenda_item.item ->> 'status';
+  v_status := upsert_meeting_agenda_item.item ->> 'status';
   if v_status is not null and v_status not in ('open', 'covered', 'skipped') then
     raise exception 'status is open, covered or skipped' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_ordinal is not null and v_ordinal < 1 then
     raise exception 'ordinal starts at 1' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if length(save_meeting_agenda_item.item ->> 'minutes') > 50000 then
+  if length(upsert_meeting_agenda_item.item ->> 'minutes') > 50000 then
     raise exception 'minutes is at most 50000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_id is null then
-    if coalesce(length(trim(save_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
+    if coalesce(length(trim(upsert_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
       raise exception 'an agenda item needs a title of 1 to 300 characters' using errcode = '22023', hint = 'MEETING_INVALID';
     end if;
     v_ordinal := coalesce(v_ordinal, (select coalesce(max(y."ordinal"), 0) + 1 from "better_supabase"."meeting_agenda_items" y where y."meeting_id" = v_row."id"));
     update "better_supabase"."meeting_agenda_items" y set "ordinal" = y."ordinal" + 1
     where y."meeting_id" = v_row."id" and y."ordinal" >= v_ordinal;
     insert into "better_supabase"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal", "title", "notes", "presenter_id", "minutes", "status", "outcome")
-    values (v_row."tenant_id", v_row."id", v_ordinal, trim(save_meeting_agenda_item.item ->> 'title'), nullif(trim(save_meeting_agenda_item.item ->> 'notes'), ''),
-      nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(save_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), ''))
+    values (v_row."tenant_id", v_row."id", v_ordinal, trim(upsert_meeting_agenda_item.item ->> 'title'), nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), ''),
+      nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(upsert_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), ''))
     returning * into v_item;
   else
     select * into v_item from "better_supabase"."meeting_agenda_items" y where y."id" = v_id and y."meeting_id" = v_row."id" for update;
@@ -770,12 +770,12 @@ begin
     end if;
     update "better_supabase"."meeting_agenda_items" y set
       "ordinal" = coalesce(v_ordinal, y."ordinal"),
-      "title" = case when save_meeting_agenda_item.item ? 'title' then trim(save_meeting_agenda_item.item ->> 'title') else y."title" end,
-      "notes" = case when save_meeting_agenda_item.item ? 'notes' then nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
-      "presenter_id" = case when save_meeting_agenda_item.item ? 'presenterId' then nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
-      "minutes" = case when save_meeting_agenda_item.item ? 'minutes' then nullif(save_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
+      "title" = case when upsert_meeting_agenda_item.item ? 'title' then trim(upsert_meeting_agenda_item.item ->> 'title') else y."title" end,
+      "notes" = case when upsert_meeting_agenda_item.item ? 'notes' then nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
+      "presenter_id" = case when upsert_meeting_agenda_item.item ? 'presenterId' then nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
+      "minutes" = case when upsert_meeting_agenda_item.item ? 'minutes' then nullif(upsert_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
       "status" = coalesce(v_status, y."status"),
-      "outcome" = case when save_meeting_agenda_item.item ? 'outcome' then nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
+      "outcome" = case when upsert_meeting_agenda_item.item ? 'outcome' then nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
     where y."id" = v_item."id"
     returning * into v_item;
   end if;
@@ -786,8 +786,8 @@ begin
   return jsonb_build_object('id', v_item."id", 'meetingId', v_item."meeting_id", 'ordinal', v_item."ordinal", 'title', v_item."title", 'notes', v_item."notes", 'presenterId', v_item."presenter_id", 'minutes', v_item."minutes", 'status', v_item."status", 'outcome', v_item."outcome");
 end;
 $$;
-revoke execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
 
 -- Removes an agenda item and closes the gap in the numbering. Decisions and
 -- tasks that named it keep existing without it.
@@ -950,7 +950,7 @@ grant execute on function "better_supabase"."decide_meeting_decision"(uuid, text
 -- Opens a task from a meeting. task and assignees are what create_task takes;
 -- the task keeps living in the tasks block, and this only records where it
 -- came from, with the agenda item and the decision it follows from.
-create or replace function "better_supabase"."add_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function "better_supabase"."create_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -964,32 +964,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = add_meeting_action_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = create_meeting_action_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.write'), false) and (coalesce(v_row."created_by" = auth.uid(), false) or coalesce("better_supabase"."meeting_role"(v_row."id") in ('chair', 'secretary'), false)))) then
     raise exception 'not allowed to add action items to this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
-  if add_meeting_action_item.agenda_item_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = add_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.agenda_item_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = create_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the agenda item belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if add_meeting_action_item.decision_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_decisions" y where y."id" = add_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.decision_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_decisions" y where y."id" = create_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the decision belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  v_task := "better_supabase"."create_task"(v_row."tenant_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
+  v_task := "better_supabase"."create_task"(v_row."tenant_id", create_meeting_action_item.task, coalesce(create_meeting_action_item.assignees, '{}'));
   insert into "better_supabase"."meeting_action_items" ("task_id", "tenant_id", "meeting_id", "agenda_item_id", "decision_id")
-  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
+  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", create_meeting_action_item.agenda_item_id, create_meeting_action_item.decision_id);
   null;
-  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
+  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', create_meeting_action_item.agenda_item_id, 'decisionId', create_meeting_action_item.decision_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
 
 
 -- A meeting with its attendees, agenda, decisions (with their vote tally when
@@ -1445,7 +1445,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:7b8b2b9e2e36de04c6ba1fc6e9ecf64ba9f57f219b7c94a2cbf5ddcdf8646909
+-- @bsb-hash sha256:77a3bcf06c08ecb311d3559a992ed342510296437780e48a09e344f6f0e69742
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2190,7 +2190,7 @@ revoke execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, 
 grant execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Removes a user from a meeting.
-create or replace function "better_supabase"."remove_meeting_attendee"(meeting_id uuid, user_id uuid)
+create or replace function "better_supabase"."delete_meeting_attendee"(meeting_id uuid, user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -2204,7 +2204,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = remove_meeting_attendee.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = delete_meeting_attendee.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -2212,7 +2212,7 @@ begin
     raise exception 'not allowed to change who attends this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
   delete from "better_supabase"."meeting_attendees" x
-  where x."meeting_id" = v_row."id" and x."user_id" = remove_meeting_attendee.user_id
+  where x."meeting_id" = v_row."id" and x."user_id" = delete_meeting_attendee.user_id
   returning * into v_attendee;
   if not found then
     raise exception 'that user is not an attendee' using errcode = 'P0002', hint = 'MEETING_ATTENDEE_NOT_FOUND';
@@ -2220,13 +2220,13 @@ begin
   return jsonb_build_object('meetingId', v_attendee."meeting_id", 'userId', v_attendee."user_id", 'role', v_attendee."role", 'attendance', v_attendee."attendance");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) to authenticated, service_role;
 
 -- Adds an agenda item, or with item.id changes one. item is { id, title,
 -- notes, presenterId, minutes, status, outcome, ordinal }. Without an ordinal
 -- a new item goes last; with one, the items from there move down.
-create or replace function "better_supabase"."save_meeting_agenda_item"(meeting_id uuid, item jsonb)
+create or replace function "better_supabase"."upsert_meeting_agenda_item"(meeting_id uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2243,7 +2243,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = save_meeting_agenda_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = upsert_meeting_agenda_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -2253,35 +2253,35 @@ begin
   if v_row."status" = 'cancelled' then
     raise exception 'a cancelled meeting takes no changes' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if jsonb_typeof(save_meeting_agenda_item.item) is distinct from 'object' then
+  if jsonb_typeof(upsert_meeting_agenda_item.item) is distinct from 'object' then
     raise exception 'item must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   begin
-    v_id := nullif(save_meeting_agenda_item.item ->> 'id', '')::uuid;
-    v_ordinal := (save_meeting_agenda_item.item ->> 'ordinal')::integer;
+    v_id := nullif(upsert_meeting_agenda_item.item ->> 'id', '')::uuid;
+    v_ordinal := (upsert_meeting_agenda_item.item ->> 'ordinal')::integer;
   exception when invalid_text_representation then
     raise exception 'id is a uuid and ordinal an integer' using errcode = '22023', hint = 'MEETING_INVALID';
   end;
-  v_status := save_meeting_agenda_item.item ->> 'status';
+  v_status := upsert_meeting_agenda_item.item ->> 'status';
   if v_status is not null and v_status not in ('open', 'covered', 'skipped') then
     raise exception 'status is open, covered or skipped' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_ordinal is not null and v_ordinal < 1 then
     raise exception 'ordinal starts at 1' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if length(save_meeting_agenda_item.item ->> 'minutes') > 50000 then
+  if length(upsert_meeting_agenda_item.item ->> 'minutes') > 50000 then
     raise exception 'minutes is at most 50000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_id is null then
-    if coalesce(length(trim(save_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
+    if coalesce(length(trim(upsert_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
       raise exception 'an agenda item needs a title of 1 to 300 characters' using errcode = '22023', hint = 'MEETING_INVALID';
     end if;
     v_ordinal := coalesce(v_ordinal, (select coalesce(max(y."ordinal"), 0) + 1 from "better_supabase"."meeting_agenda_items" y where y."meeting_id" = v_row."id"));
     update "better_supabase"."meeting_agenda_items" y set "ordinal" = y."ordinal" + 1
     where y."meeting_id" = v_row."id" and y."ordinal" >= v_ordinal;
     insert into "better_supabase"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal", "title", "notes", "presenter_id", "minutes", "status", "outcome")
-    values (v_row."tenant_id", v_row."id", v_ordinal, trim(save_meeting_agenda_item.item ->> 'title'), nullif(trim(save_meeting_agenda_item.item ->> 'notes'), ''),
-      nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(save_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), ''))
+    values (v_row."tenant_id", v_row."id", v_ordinal, trim(upsert_meeting_agenda_item.item ->> 'title'), nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), ''),
+      nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(upsert_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), ''))
     returning * into v_item;
   else
     select * into v_item from "better_supabase"."meeting_agenda_items" y where y."id" = v_id and y."meeting_id" = v_row."id" for update;
@@ -2294,12 +2294,12 @@ begin
     end if;
     update "better_supabase"."meeting_agenda_items" y set
       "ordinal" = coalesce(v_ordinal, y."ordinal"),
-      "title" = case when save_meeting_agenda_item.item ? 'title' then trim(save_meeting_agenda_item.item ->> 'title') else y."title" end,
-      "notes" = case when save_meeting_agenda_item.item ? 'notes' then nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
-      "presenter_id" = case when save_meeting_agenda_item.item ? 'presenterId' then nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
-      "minutes" = case when save_meeting_agenda_item.item ? 'minutes' then nullif(save_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
+      "title" = case when upsert_meeting_agenda_item.item ? 'title' then trim(upsert_meeting_agenda_item.item ->> 'title') else y."title" end,
+      "notes" = case when upsert_meeting_agenda_item.item ? 'notes' then nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
+      "presenter_id" = case when upsert_meeting_agenda_item.item ? 'presenterId' then nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
+      "minutes" = case when upsert_meeting_agenda_item.item ? 'minutes' then nullif(upsert_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
       "status" = coalesce(v_status, y."status"),
-      "outcome" = case when save_meeting_agenda_item.item ? 'outcome' then nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
+      "outcome" = case when upsert_meeting_agenda_item.item ? 'outcome' then nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
     where y."id" = v_item."id"
     returning * into v_item;
   end if;
@@ -2310,8 +2310,8 @@ begin
   return jsonb_build_object('id', v_item."id", 'meetingId', v_item."meeting_id", 'ordinal', v_item."ordinal", 'title', v_item."title", 'notes', v_item."notes", 'presenterId', v_item."presenter_id", 'minutes', v_item."minutes", 'status', v_item."status", 'outcome', v_item."outcome");
 end;
 $$;
-revoke execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
 
 -- Removes an agenda item and closes the gap in the numbering. Decisions and
 -- tasks that named it keep existing without it.
@@ -2492,7 +2492,7 @@ grant execute on function "better_supabase"."decide_meeting_decision"(uuid, text
 -- Opens a task from a meeting. task and assignees are what create_task takes;
 -- the task keeps living in the tasks block, and this only records where it
 -- came from, with the agenda item and the decision it follows from.
-create or replace function "better_supabase"."add_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function "better_supabase"."create_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2506,32 +2506,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = add_meeting_action_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = create_meeting_action_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.write'), false) and (coalesce(v_row."created_by" = auth.uid(), false) or coalesce("better_supabase"."meeting_role"(v_row."id") in ('chair', 'secretary'), false)))) then
     raise exception 'not allowed to add action items to this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
-  if add_meeting_action_item.agenda_item_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = add_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.agenda_item_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = create_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the agenda item belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if add_meeting_action_item.decision_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_decisions" y where y."id" = add_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.decision_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_decisions" y where y."id" = create_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the decision belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  v_task := "better_supabase"."create_task"(v_row."tenant_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
+  v_task := "better_supabase"."create_task"(v_row."tenant_id", create_meeting_action_item.task, coalesce(create_meeting_action_item.assignees, '{}'));
   insert into "better_supabase"."meeting_action_items" ("task_id", "tenant_id", "meeting_id", "agenda_item_id", "decision_id")
-  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
+  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", create_meeting_action_item.agenda_item_id, create_meeting_action_item.decision_id);
   perform "better_supabase".emit_event('meeting_action_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'meetingId', v_row."id", 'taskId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title'), 'meetings/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/meetings');
-  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
+  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', create_meeting_action_item.agenda_item_id, 'decisionId', create_meeting_action_item.decision_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
 
 
 -- A meeting with its attendees, agenda, decisions (with their vote tally when
@@ -3037,7 +3037,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:ec73082bf4a31109d2d014003e9b64f6199374dfa9b1326a28df96d0b90cd749
+-- @bsb-hash sha256:7950a3d53599c45db6eb14eb97a46b6ee94d38b3eaeca3429c2cf9094b013d8c
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3707,7 +3707,7 @@ revoke execute on function "app_private"."set_meeting_attendee"(uuid, uuid, text
 grant execute on function "app_private"."set_meeting_attendee"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Removes a user from a meeting.
-create or replace function "app_private"."remove_meeting_attendee"(meeting_id uuid, user_id uuid)
+create or replace function "app_private"."delete_meeting_attendee"(meeting_id uuid, user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -3721,7 +3721,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."meetings" x where x."id" = remove_meeting_attendee.meeting_id for update;
+  select * into v_row from "app_private"."meetings" x where x."id" = delete_meeting_attendee.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "app_private"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -3729,7 +3729,7 @@ begin
     raise exception 'not allowed to change who attends this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
   delete from "app_private"."meeting_attendees" x
-  where x."meeting_id" = v_row."id" and x."user_id" = remove_meeting_attendee.user_id
+  where x."meeting_id" = v_row."id" and x."user_id" = delete_meeting_attendee.user_id
   returning * into v_attendee;
   if not found then
     raise exception 'that user is not an attendee' using errcode = 'P0002', hint = 'MEETING_ATTENDEE_NOT_FOUND';
@@ -3737,13 +3737,13 @@ begin
   return jsonb_build_object('meetingId', v_attendee."meeting_id", 'userId', v_attendee."user_id", 'role', v_attendee."role", 'attendance', v_attendee."attendance");
 end;
 $$;
-revoke execute on function "app_private"."remove_meeting_attendee"(uuid, uuid) from public, anon;
-grant execute on function "app_private"."remove_meeting_attendee"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_meeting_attendee"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."delete_meeting_attendee"(uuid, uuid) to authenticated, service_role;
 
 -- Adds an agenda item, or with item.id changes one. item is { id, title,
 -- notes, presenterId, minutes, status, outcome, ordinal }. Without an ordinal
 -- a new item goes last; with one, the items from there move down.
-create or replace function "app_private"."save_meeting_agenda_item"(meeting_id uuid, item jsonb)
+create or replace function "app_private"."upsert_meeting_agenda_item"(meeting_id uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3760,7 +3760,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."meetings" x where x."id" = save_meeting_agenda_item.meeting_id for update;
+  select * into v_row from "app_private"."meetings" x where x."id" = upsert_meeting_agenda_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "app_private"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -3770,35 +3770,35 @@ begin
   if v_row."status" = 'cancelled' then
     raise exception 'a cancelled meeting takes no changes' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if jsonb_typeof(save_meeting_agenda_item.item) is distinct from 'object' then
+  if jsonb_typeof(upsert_meeting_agenda_item.item) is distinct from 'object' then
     raise exception 'item must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   begin
-    v_id := nullif(save_meeting_agenda_item.item ->> 'id', '')::uuid;
-    v_ordinal := (save_meeting_agenda_item.item ->> 'ordinal')::integer;
+    v_id := nullif(upsert_meeting_agenda_item.item ->> 'id', '')::uuid;
+    v_ordinal := (upsert_meeting_agenda_item.item ->> 'ordinal')::integer;
   exception when invalid_text_representation then
     raise exception 'id is a uuid and ordinal an integer' using errcode = '22023', hint = 'MEETING_INVALID';
   end;
-  v_status := save_meeting_agenda_item.item ->> 'status';
+  v_status := upsert_meeting_agenda_item.item ->> 'status';
   if v_status is not null and v_status not in ('open', 'covered', 'skipped') then
     raise exception 'status is open, covered or skipped' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_ordinal is not null and v_ordinal < 1 then
     raise exception 'ordinal starts at 1' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if length(save_meeting_agenda_item.item ->> 'minutes') > 50000 then
+  if length(upsert_meeting_agenda_item.item ->> 'minutes') > 50000 then
     raise exception 'minutes is at most 50000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_id is null then
-    if coalesce(length(trim(save_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
+    if coalesce(length(trim(upsert_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
       raise exception 'an agenda item needs a title of 1 to 300 characters' using errcode = '22023', hint = 'MEETING_INVALID';
     end if;
     v_ordinal := coalesce(v_ordinal, (select coalesce(max(y."ordinal"), 0) + 1 from "app_private"."meeting_agenda_items" y where y."meeting_id" = v_row."id"));
     update "app_private"."meeting_agenda_items" y set "ordinal" = y."ordinal" + 1
     where y."meeting_id" = v_row."id" and y."ordinal" >= v_ordinal;
     insert into "app_private"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal", "title", "notes", "presenter_id", "minutes", "status", "outcome")
-    values (v_row."tenant_id", v_row."id", v_ordinal, trim(save_meeting_agenda_item.item ->> 'title'), nullif(trim(save_meeting_agenda_item.item ->> 'notes'), ''),
-      nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(save_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), ''))
+    values (v_row."tenant_id", v_row."id", v_ordinal, trim(upsert_meeting_agenda_item.item ->> 'title'), nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), ''),
+      nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(upsert_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), ''))
     returning * into v_item;
   else
     select * into v_item from "app_private"."meeting_agenda_items" y where y."id" = v_id and y."meeting_id" = v_row."id" for update;
@@ -3811,12 +3811,12 @@ begin
     end if;
     update "app_private"."meeting_agenda_items" y set
       "ordinal" = coalesce(v_ordinal, y."ordinal"),
-      "title" = case when save_meeting_agenda_item.item ? 'title' then trim(save_meeting_agenda_item.item ->> 'title') else y."title" end,
-      "notes" = case when save_meeting_agenda_item.item ? 'notes' then nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
-      "presenter_id" = case when save_meeting_agenda_item.item ? 'presenterId' then nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
-      "minutes" = case when save_meeting_agenda_item.item ? 'minutes' then nullif(save_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
+      "title" = case when upsert_meeting_agenda_item.item ? 'title' then trim(upsert_meeting_agenda_item.item ->> 'title') else y."title" end,
+      "notes" = case when upsert_meeting_agenda_item.item ? 'notes' then nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
+      "presenter_id" = case when upsert_meeting_agenda_item.item ? 'presenterId' then nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
+      "minutes" = case when upsert_meeting_agenda_item.item ? 'minutes' then nullif(upsert_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
       "status" = coalesce(v_status, y."status"),
-      "outcome" = case when save_meeting_agenda_item.item ? 'outcome' then nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
+      "outcome" = case when upsert_meeting_agenda_item.item ? 'outcome' then nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
     where y."id" = v_item."id"
     returning * into v_item;
   end if;
@@ -3827,8 +3827,8 @@ begin
   return jsonb_build_object('id', v_item."id", 'meetingId', v_item."meeting_id", 'ordinal', v_item."ordinal", 'title', v_item."title", 'notes', v_item."notes", 'presenterId', v_item."presenter_id", 'minutes', v_item."minutes", 'status', v_item."status", 'outcome', v_item."outcome");
 end;
 $$;
-revoke execute on function "app_private"."save_meeting_agenda_item"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_meeting_agenda_item"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
 
 -- Removes an agenda item and closes the gap in the numbering. Decisions and
 -- tasks that named it keep existing without it.
@@ -3991,7 +3991,7 @@ grant execute on function "app_private"."decide_meeting_decision"(uuid, text) to
 -- Opens a task from a meeting. task and assignees are what create_task takes;
 -- the task keeps living in the tasks block, and this only records where it
 -- came from, with the agenda item and the decision it follows from.
-create or replace function "app_private"."add_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function "app_private"."create_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4005,32 +4005,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."meetings" x where x."id" = add_meeting_action_item.meeting_id for update;
+  select * into v_row from "app_private"."meetings" x where x."id" = create_meeting_action_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "app_private"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.write'), false) and (coalesce(v_row."created_by" = auth.uid(), false) or coalesce("app_private"."meeting_role"(v_row."id") in ('chair', 'secretary'), false)))) then
     raise exception 'not allowed to add action items to this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
-  if add_meeting_action_item.agenda_item_id is not null and not exists (
-    select 1 from "app_private"."meeting_agenda_items" y where y."id" = add_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.agenda_item_id is not null and not exists (
+    select 1 from "app_private"."meeting_agenda_items" y where y."id" = create_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the agenda item belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if add_meeting_action_item.decision_id is not null and not exists (
-    select 1 from "app_private"."meeting_decisions" y where y."id" = add_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.decision_id is not null and not exists (
+    select 1 from "app_private"."meeting_decisions" y where y."id" = create_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the decision belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  v_task := "better_supabase"."create_task"(v_row."tenant_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
+  v_task := "better_supabase"."create_task"(v_row."tenant_id", create_meeting_action_item.task, coalesce(create_meeting_action_item.assignees, '{}'));
   insert into "app_private"."meeting_action_items" ("task_id", "tenant_id", "meeting_id", "agenda_item_id", "decision_id")
-  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
+  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", create_meeting_action_item.agenda_item_id, create_meeting_action_item.decision_id);
   null;
-  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
+  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', create_meeting_action_item.agenda_item_id, 'decisionId', create_meeting_action_item.decision_id);
 end;
 $$;
-revoke execute on function "app_private"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
-grant execute on function "app_private"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
+grant execute on function "app_private"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
 
 
 -- A meeting with its attendees, agenda, decisions (with their vote tally when
@@ -4486,7 +4486,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:fc328c5295638431873c4b296e3aa181c67abaf96c3293735cea0d6b4804f829
+-- @bsb-hash sha256:e1f65815d43fd9c7a3b0a91770d2562febafd8d122d796d8ed20a76d9673e728
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5151,7 +5151,7 @@ revoke execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, 
 grant execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Removes a user from a meeting.
-create or replace function "better_supabase"."remove_meeting_attendee"(meeting_id uuid, user_id uuid)
+create or replace function "better_supabase"."delete_meeting_attendee"(meeting_id uuid, user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -5165,7 +5165,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = remove_meeting_attendee.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = delete_meeting_attendee.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -5173,7 +5173,7 @@ begin
     raise exception 'not allowed to change who attends this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
   delete from "better_supabase"."meeting_attendees" x
-  where x."meeting_id" = v_row."id" and x."user_id" = remove_meeting_attendee.user_id
+  where x."meeting_id" = v_row."id" and x."user_id" = delete_meeting_attendee.user_id
   returning * into v_attendee;
   if not found then
     raise exception 'that user is not an attendee' using errcode = 'P0002', hint = 'MEETING_ATTENDEE_NOT_FOUND';
@@ -5181,13 +5181,13 @@ begin
   return jsonb_build_object('meetingId', v_attendee."meeting_id", 'userId', v_attendee."user_id", 'role', v_attendee."role", 'attendance', v_attendee."attendance");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) to authenticated, service_role;
 
 -- Adds an agenda item, or with item.id changes one. item is { id, title,
 -- notes, presenterId, minutes, status, outcome, ordinal }. Without an ordinal
 -- a new item goes last; with one, the items from there move down.
-create or replace function "better_supabase"."save_meeting_agenda_item"(meeting_id uuid, item jsonb)
+create or replace function "better_supabase"."upsert_meeting_agenda_item"(meeting_id uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5204,7 +5204,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = save_meeting_agenda_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = upsert_meeting_agenda_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -5214,35 +5214,35 @@ begin
   if v_row."status" = 'cancelled' then
     raise exception 'a cancelled meeting takes no changes' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if jsonb_typeof(save_meeting_agenda_item.item) is distinct from 'object' then
+  if jsonb_typeof(upsert_meeting_agenda_item.item) is distinct from 'object' then
     raise exception 'item must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   begin
-    v_id := nullif(save_meeting_agenda_item.item ->> 'id', '')::uuid;
-    v_ordinal := (save_meeting_agenda_item.item ->> 'ordinal')::integer;
+    v_id := nullif(upsert_meeting_agenda_item.item ->> 'id', '')::uuid;
+    v_ordinal := (upsert_meeting_agenda_item.item ->> 'ordinal')::integer;
   exception when invalid_text_representation then
     raise exception 'id is a uuid and ordinal an integer' using errcode = '22023', hint = 'MEETING_INVALID';
   end;
-  v_status := save_meeting_agenda_item.item ->> 'status';
+  v_status := upsert_meeting_agenda_item.item ->> 'status';
   if v_status is not null and v_status not in ('open', 'covered', 'skipped') then
     raise exception 'status is open, covered or skipped' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_ordinal is not null and v_ordinal < 1 then
     raise exception 'ordinal starts at 1' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if length(save_meeting_agenda_item.item ->> 'minutes') > 50000 then
+  if length(upsert_meeting_agenda_item.item ->> 'minutes') > 50000 then
     raise exception 'minutes is at most 50000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_id is null then
-    if coalesce(length(trim(save_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
+    if coalesce(length(trim(upsert_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
       raise exception 'an agenda item needs a title of 1 to 300 characters' using errcode = '22023', hint = 'MEETING_INVALID';
     end if;
     v_ordinal := coalesce(v_ordinal, (select coalesce(max(y."ordinal"), 0) + 1 from "better_supabase"."meeting_agenda_items" y where y."meeting_id" = v_row."id"));
     update "better_supabase"."meeting_agenda_items" y set "ordinal" = y."ordinal" + 1
     where y."meeting_id" = v_row."id" and y."ordinal" >= v_ordinal;
     insert into "better_supabase"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal", "title", "notes", "presenter_id", "minutes", "status", "outcome")
-    values (v_row."tenant_id", v_row."id", v_ordinal, trim(save_meeting_agenda_item.item ->> 'title'), nullif(trim(save_meeting_agenda_item.item ->> 'notes'), ''),
-      nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(save_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), ''))
+    values (v_row."tenant_id", v_row."id", v_ordinal, trim(upsert_meeting_agenda_item.item ->> 'title'), nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), ''),
+      nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(upsert_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), ''))
     returning * into v_item;
   else
     select * into v_item from "better_supabase"."meeting_agenda_items" y where y."id" = v_id and y."meeting_id" = v_row."id" for update;
@@ -5255,12 +5255,12 @@ begin
     end if;
     update "better_supabase"."meeting_agenda_items" y set
       "ordinal" = coalesce(v_ordinal, y."ordinal"),
-      "title" = case when save_meeting_agenda_item.item ? 'title' then trim(save_meeting_agenda_item.item ->> 'title') else y."title" end,
-      "notes" = case when save_meeting_agenda_item.item ? 'notes' then nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
-      "presenter_id" = case when save_meeting_agenda_item.item ? 'presenterId' then nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
-      "minutes" = case when save_meeting_agenda_item.item ? 'minutes' then nullif(save_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
+      "title" = case when upsert_meeting_agenda_item.item ? 'title' then trim(upsert_meeting_agenda_item.item ->> 'title') else y."title" end,
+      "notes" = case when upsert_meeting_agenda_item.item ? 'notes' then nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
+      "presenter_id" = case when upsert_meeting_agenda_item.item ? 'presenterId' then nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
+      "minutes" = case when upsert_meeting_agenda_item.item ? 'minutes' then nullif(upsert_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
       "status" = coalesce(v_status, y."status"),
-      "outcome" = case when save_meeting_agenda_item.item ? 'outcome' then nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
+      "outcome" = case when upsert_meeting_agenda_item.item ? 'outcome' then nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
     where y."id" = v_item."id"
     returning * into v_item;
   end if;
@@ -5271,8 +5271,8 @@ begin
   return jsonb_build_object('id', v_item."id", 'meetingId', v_item."meeting_id", 'ordinal', v_item."ordinal", 'title', v_item."title", 'notes', v_item."notes", 'presenterId', v_item."presenter_id", 'minutes', v_item."minutes", 'status', v_item."status", 'outcome', v_item."outcome");
 end;
 $$;
-revoke execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
 
 -- Removes an agenda item and closes the gap in the numbering. Decisions and
 -- tasks that named it keep existing without it.
@@ -5435,7 +5435,7 @@ grant execute on function "better_supabase"."decide_meeting_decision"(uuid, text
 -- Opens a task from a meeting. task and assignees are what create_task takes;
 -- the task keeps living in the tasks block, and this only records where it
 -- came from, with the agenda item and the decision it follows from.
-create or replace function "better_supabase"."add_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function "better_supabase"."create_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5449,32 +5449,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = add_meeting_action_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = create_meeting_action_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.write'), false) and (coalesce(v_row."created_by" = auth.uid(), false) or coalesce("better_supabase"."meeting_role"(v_row."id") in ('chair', 'secretary'), false)))) then
     raise exception 'not allowed to add action items to this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
-  if add_meeting_action_item.agenda_item_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = add_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.agenda_item_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = create_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the agenda item belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if add_meeting_action_item.decision_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_decisions" y where y."id" = add_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.decision_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_decisions" y where y."id" = create_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the decision belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  v_task := "better_supabase"."create_task"(v_row."tenant_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
+  v_task := "better_supabase"."create_task"(v_row."tenant_id", create_meeting_action_item.task, coalesce(create_meeting_action_item.assignees, '{}'));
   insert into "better_supabase"."meeting_action_items" ("task_id", "tenant_id", "meeting_id", "agenda_item_id", "decision_id")
-  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
+  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", create_meeting_action_item.agenda_item_id, create_meeting_action_item.decision_id);
   null;
-  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
+  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', create_meeting_action_item.agenda_item_id, 'decisionId', create_meeting_action_item.decision_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
 
 
 -- A meeting with its attendees, agenda, decisions (with their vote tally when
@@ -6017,23 +6017,23 @@ as $$ select "better_supabase"."set_meeting_attendee"($1, $2, $3, $4) $$;
 revoke execute on function "api"."set_meeting_attendee"(uuid, uuid, text, text) from public, anon;
 grant execute on function "api"."set_meeting_attendee"(uuid, uuid, text, text) to authenticated, service_role;
 
-create or replace function "api"."remove_meeting_attendee"(meeting_id uuid, user_id uuid)
+create or replace function "api"."delete_meeting_attendee"(meeting_id uuid, user_id uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_meeting_attendee"($1, $2) $$;
-revoke execute on function "api"."remove_meeting_attendee"(uuid, uuid) from public, anon;
-grant execute on function "api"."remove_meeting_attendee"(uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_meeting_attendee"($1, $2) $$;
+revoke execute on function "api"."delete_meeting_attendee"(uuid, uuid) from public, anon;
+grant execute on function "api"."delete_meeting_attendee"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."save_meeting_agenda_item"(meeting_id uuid, item jsonb)
+create or replace function "api"."upsert_meeting_agenda_item"(meeting_id uuid, item jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_meeting_agenda_item"($1, $2) $$;
-revoke execute on function "api"."save_meeting_agenda_item"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_meeting_agenda_item"($1, $2) $$;
+revoke execute on function "api"."upsert_meeting_agenda_item"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_meeting_agenda_item"(item_id uuid)
 returns jsonb
@@ -6062,14 +6062,14 @@ as $$ select "better_supabase"."decide_meeting_decision"($1, $2) $$;
 revoke execute on function "api"."decide_meeting_decision"(uuid, text) from public, anon;
 grant execute on function "api"."decide_meeting_decision"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."add_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function "api"."create_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_meeting_action_item"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
-grant execute on function "api"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."create_meeting_action_item"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
+grant execute on function "api"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."get_meeting"(meeting_id uuid)
 returns jsonb
@@ -6106,7 +6106,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:cc0592d0336bea0f18b91dcf3d22a19107cf43d0ef73a253a8253e0e936f7c1d
+-- @bsb-hash sha256:272591a15a71232dbe7c3b83bc02aaa01b65eca9a359f097fd851e6494a84755
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6751,7 +6751,7 @@ revoke execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, 
 grant execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Removes a user from a meeting.
-create or replace function "better_supabase"."remove_meeting_attendee"(meeting_id uuid, user_id uuid)
+create or replace function "better_supabase"."delete_meeting_attendee"(meeting_id uuid, user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -6765,7 +6765,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = remove_meeting_attendee.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = delete_meeting_attendee.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -6773,7 +6773,7 @@ begin
     raise exception 'not allowed to change who attends this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
   delete from "better_supabase"."meeting_attendees" x
-  where x."meeting_id" = v_row."id" and x."user_id" = remove_meeting_attendee.user_id
+  where x."meeting_id" = v_row."id" and x."user_id" = delete_meeting_attendee.user_id
   returning * into v_attendee;
   if not found then
     raise exception 'that user is not an attendee' using errcode = 'P0002', hint = 'MEETING_ATTENDEE_NOT_FOUND';
@@ -6781,13 +6781,13 @@ begin
   return jsonb_build_object('meetingId', v_attendee."meeting_id", 'userId', v_attendee."user_id", 'role', v_attendee."role", 'attendance', v_attendee."attendance");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) to authenticated, service_role;
 
 -- Adds an agenda item, or with item.id changes one. item is { id, title,
 -- notes, presenterId, minutes, status, outcome, ordinal }. Without an ordinal
 -- a new item goes last; with one, the items from there move down.
-create or replace function "better_supabase"."save_meeting_agenda_item"(meeting_id uuid, item jsonb)
+create or replace function "better_supabase"."upsert_meeting_agenda_item"(meeting_id uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6804,7 +6804,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = save_meeting_agenda_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = upsert_meeting_agenda_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -6814,35 +6814,35 @@ begin
   if v_row."status" = 'cancelled' then
     raise exception 'a cancelled meeting takes no changes' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if jsonb_typeof(save_meeting_agenda_item.item) is distinct from 'object' then
+  if jsonb_typeof(upsert_meeting_agenda_item.item) is distinct from 'object' then
     raise exception 'item must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   begin
-    v_id := nullif(save_meeting_agenda_item.item ->> 'id', '')::uuid;
-    v_ordinal := (save_meeting_agenda_item.item ->> 'ordinal')::integer;
+    v_id := nullif(upsert_meeting_agenda_item.item ->> 'id', '')::uuid;
+    v_ordinal := (upsert_meeting_agenda_item.item ->> 'ordinal')::integer;
   exception when invalid_text_representation then
     raise exception 'id is a uuid and ordinal an integer' using errcode = '22023', hint = 'MEETING_INVALID';
   end;
-  v_status := save_meeting_agenda_item.item ->> 'status';
+  v_status := upsert_meeting_agenda_item.item ->> 'status';
   if v_status is not null and v_status not in ('open', 'covered', 'skipped') then
     raise exception 'status is open, covered or skipped' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_ordinal is not null and v_ordinal < 1 then
     raise exception 'ordinal starts at 1' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if length(save_meeting_agenda_item.item ->> 'minutes') > 50000 then
+  if length(upsert_meeting_agenda_item.item ->> 'minutes') > 50000 then
     raise exception 'minutes is at most 50000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_id is null then
-    if coalesce(length(trim(save_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
+    if coalesce(length(trim(upsert_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
       raise exception 'an agenda item needs a title of 1 to 300 characters' using errcode = '22023', hint = 'MEETING_INVALID';
     end if;
     v_ordinal := coalesce(v_ordinal, (select coalesce(max(y."ordinal"), 0) + 1 from "better_supabase"."meeting_agenda_items" y where y."meeting_id" = v_row."id"));
     update "better_supabase"."meeting_agenda_items" y set "ordinal" = y."ordinal" + 1
     where y."meeting_id" = v_row."id" and y."ordinal" >= v_ordinal;
     insert into "better_supabase"."meeting_agenda_items" ("tenant_id", "meeting_id", "ordinal", "title", "notes", "presenter_id", "minutes", "status", "outcome")
-    values (v_row."tenant_id", v_row."id", v_ordinal, trim(save_meeting_agenda_item.item ->> 'title'), nullif(trim(save_meeting_agenda_item.item ->> 'notes'), ''),
-      nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(save_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), ''))
+    values (v_row."tenant_id", v_row."id", v_ordinal, trim(upsert_meeting_agenda_item.item ->> 'title'), nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), ''),
+      nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(upsert_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), ''))
     returning * into v_item;
   else
     select * into v_item from "better_supabase"."meeting_agenda_items" y where y."id" = v_id and y."meeting_id" = v_row."id" for update;
@@ -6855,12 +6855,12 @@ begin
     end if;
     update "better_supabase"."meeting_agenda_items" y set
       "ordinal" = coalesce(v_ordinal, y."ordinal"),
-      "title" = case when save_meeting_agenda_item.item ? 'title' then trim(save_meeting_agenda_item.item ->> 'title') else y."title" end,
-      "notes" = case when save_meeting_agenda_item.item ? 'notes' then nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
-      "presenter_id" = case when save_meeting_agenda_item.item ? 'presenterId' then nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
-      "minutes" = case when save_meeting_agenda_item.item ? 'minutes' then nullif(save_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
+      "title" = case when upsert_meeting_agenda_item.item ? 'title' then trim(upsert_meeting_agenda_item.item ->> 'title') else y."title" end,
+      "notes" = case when upsert_meeting_agenda_item.item ? 'notes' then nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
+      "presenter_id" = case when upsert_meeting_agenda_item.item ? 'presenterId' then nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
+      "minutes" = case when upsert_meeting_agenda_item.item ? 'minutes' then nullif(upsert_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
       "status" = coalesce(v_status, y."status"),
-      "outcome" = case when save_meeting_agenda_item.item ? 'outcome' then nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
+      "outcome" = case when upsert_meeting_agenda_item.item ? 'outcome' then nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
     where y."id" = v_item."id"
     returning * into v_item;
   end if;
@@ -6871,8 +6871,8 @@ begin
   return jsonb_build_object('id', v_item."id", 'meetingId', v_item."meeting_id", 'ordinal', v_item."ordinal", 'title', v_item."title", 'notes', v_item."notes", 'presenterId', v_item."presenter_id", 'minutes', v_item."minutes", 'status', v_item."status", 'outcome', v_item."outcome");
 end;
 $$;
-revoke execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
 
 -- Removes an agenda item and closes the gap in the numbering. Decisions and
 -- tasks that named it keep existing without it.
@@ -7035,7 +7035,7 @@ grant execute on function "better_supabase"."decide_meeting_decision"(uuid, text
 -- Opens a task from a meeting. task and assignees are what create_task takes;
 -- the task keeps living in the tasks block, and this only records where it
 -- came from, with the agenda item and the decision it follows from.
-create or replace function "better_supabase"."add_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function "better_supabase"."create_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7049,32 +7049,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = add_meeting_action_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = create_meeting_action_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'meetings.write'), false) and (coalesce(v_row."created_by" = auth.uid(), false) or coalesce("better_supabase"."meeting_role"(v_row."id") in ('chair', 'secretary'), false)))) then
     raise exception 'not allowed to add action items to this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
-  if add_meeting_action_item.agenda_item_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = add_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.agenda_item_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = create_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the agenda item belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if add_meeting_action_item.decision_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_decisions" y where y."id" = add_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.decision_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_decisions" y where y."id" = create_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the decision belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  v_task := "better_supabase"."create_task"(v_row."tenant_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
+  v_task := "better_supabase"."create_task"(v_row."tenant_id", create_meeting_action_item.task, coalesce(create_meeting_action_item.assignees, '{}'));
   insert into "better_supabase"."meeting_action_items" ("task_id", "tenant_id", "meeting_id", "agenda_item_id", "decision_id")
-  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
+  values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", create_meeting_action_item.agenda_item_id, create_meeting_action_item.decision_id);
   null;
-  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
+  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', create_meeting_action_item.agenda_item_id, 'decisionId', create_meeting_action_item.decision_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
 
 
 -- A meeting with its attendees, agenda, decisions (with their vote tally when
@@ -7530,7 +7530,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:becc33a25d3842e69c6d6641766c55abab1b215a10539d1016c8cb2856b9c752
+-- @bsb-hash sha256:44e41c3304f1fc4163313fbd954b18d4fcded61cb02790afb14b62e9469682d2
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8195,7 +8195,7 @@ revoke execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, 
 grant execute on function "better_supabase"."set_meeting_attendee"(uuid, uuid, text, text) to authenticated, service_role;
 
 -- Removes a user from a meeting.
-create or replace function "better_supabase"."remove_meeting_attendee"(meeting_id uuid, user_id uuid)
+create or replace function "better_supabase"."delete_meeting_attendee"(meeting_id uuid, user_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -8209,7 +8209,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = remove_meeting_attendee.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = delete_meeting_attendee.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -8217,7 +8217,7 @@ begin
     raise exception 'not allowed to change who attends this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
   delete from "better_supabase"."meeting_attendees" x
-  where x."meeting_id" = v_row."id" and x."user_id" = remove_meeting_attendee.user_id
+  where x."meeting_id" = v_row."id" and x."user_id" = delete_meeting_attendee.user_id
   returning * into v_attendee;
   if not found then
     raise exception 'that user is not an attendee' using errcode = 'P0002', hint = 'MEETING_ATTENDEE_NOT_FOUND';
@@ -8225,13 +8225,13 @@ begin
   return jsonb_build_object('meetingId', v_attendee."meeting_id", 'userId', v_attendee."user_id", 'role', v_attendee."role", 'attendance', v_attendee."attendance");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_meeting_attendee"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_meeting_attendee"(uuid, uuid) to authenticated, service_role;
 
 -- Adds an agenda item, or with item.id changes one. item is { id, title,
 -- notes, presenterId, minutes, status, outcome, ordinal }. Without an ordinal
 -- a new item goes last; with one, the items from there move down.
-create or replace function "better_supabase"."save_meeting_agenda_item"(meeting_id uuid, item jsonb)
+create or replace function "better_supabase"."upsert_meeting_agenda_item"(meeting_id uuid, item jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -8248,7 +8248,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = save_meeting_agenda_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = upsert_meeting_agenda_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
@@ -8258,35 +8258,35 @@ begin
   if v_row."status" = 'cancelled' then
     raise exception 'a cancelled meeting takes no changes' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if jsonb_typeof(save_meeting_agenda_item.item) is distinct from 'object' then
+  if jsonb_typeof(upsert_meeting_agenda_item.item) is distinct from 'object' then
     raise exception 'item must be an object' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   begin
-    v_id := nullif(save_meeting_agenda_item.item ->> 'id', '')::uuid;
-    v_ordinal := (save_meeting_agenda_item.item ->> 'ordinal')::integer;
+    v_id := nullif(upsert_meeting_agenda_item.item ->> 'id', '')::uuid;
+    v_ordinal := (upsert_meeting_agenda_item.item ->> 'ordinal')::integer;
   exception when invalid_text_representation then
     raise exception 'id is a uuid and ordinal an integer' using errcode = '22023', hint = 'MEETING_INVALID';
   end;
-  v_status := save_meeting_agenda_item.item ->> 'status';
+  v_status := upsert_meeting_agenda_item.item ->> 'status';
   if v_status is not null and v_status not in ('open', 'covered', 'skipped') then
     raise exception 'status is open, covered or skipped' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_ordinal is not null and v_ordinal < 1 then
     raise exception 'ordinal starts at 1' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if length(save_meeting_agenda_item.item ->> 'minutes') > 50000 then
+  if length(upsert_meeting_agenda_item.item ->> 'minutes') > 50000 then
     raise exception 'minutes is at most 50000 characters' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   if v_id is null then
-    if coalesce(length(trim(save_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
+    if coalesce(length(trim(upsert_meeting_agenda_item.item ->> 'title')), 0) not between 1 and 300 then
       raise exception 'an agenda item needs a title of 1 to 300 characters' using errcode = '22023', hint = 'MEETING_INVALID';
     end if;
     v_ordinal := coalesce(v_ordinal, (select coalesce(max(y."ordinal"), 0) + 1 from "better_supabase"."meeting_agenda_items" y where y."meeting_id" = v_row."id"));
     update "better_supabase"."meeting_agenda_items" y set "ordinal" = y."ordinal" + 1
     where y."meeting_id" = v_row."id" and y."ordinal" >= v_ordinal;
     insert into "better_supabase"."meeting_agenda_items" ("org_id", "meeting_id", "ordinal", "title", "notes", "presenter_id", "minutes", "status", "outcome")
-    values (v_row."org_id", v_row."id", v_ordinal, trim(save_meeting_agenda_item.item ->> 'title'), nullif(trim(save_meeting_agenda_item.item ->> 'notes'), ''),
-      nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(save_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), ''))
+    values (v_row."org_id", v_row."id", v_ordinal, trim(upsert_meeting_agenda_item.item ->> 'title'), nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), ''),
+      nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid, nullif(upsert_meeting_agenda_item.item ->> 'minutes', ''), coalesce(v_status, 'open'), nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), ''))
     returning * into v_item;
   else
     select * into v_item from "better_supabase"."meeting_agenda_items" y where y."id" = v_id and y."meeting_id" = v_row."id" for update;
@@ -8299,12 +8299,12 @@ begin
     end if;
     update "better_supabase"."meeting_agenda_items" y set
       "ordinal" = coalesce(v_ordinal, y."ordinal"),
-      "title" = case when save_meeting_agenda_item.item ? 'title' then trim(save_meeting_agenda_item.item ->> 'title') else y."title" end,
-      "notes" = case when save_meeting_agenda_item.item ? 'notes' then nullif(trim(save_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
-      "presenter_id" = case when save_meeting_agenda_item.item ? 'presenterId' then nullif(save_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
-      "minutes" = case when save_meeting_agenda_item.item ? 'minutes' then nullif(save_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
+      "title" = case when upsert_meeting_agenda_item.item ? 'title' then trim(upsert_meeting_agenda_item.item ->> 'title') else y."title" end,
+      "notes" = case when upsert_meeting_agenda_item.item ? 'notes' then nullif(trim(upsert_meeting_agenda_item.item ->> 'notes'), '') else y."notes" end,
+      "presenter_id" = case when upsert_meeting_agenda_item.item ? 'presenterId' then nullif(upsert_meeting_agenda_item.item ->> 'presenterId', '')::uuid else y."presenter_id" end,
+      "minutes" = case when upsert_meeting_agenda_item.item ? 'minutes' then nullif(upsert_meeting_agenda_item.item ->> 'minutes', '') else y."minutes" end,
       "status" = coalesce(v_status, y."status"),
-      "outcome" = case when save_meeting_agenda_item.item ? 'outcome' then nullif(trim(save_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
+      "outcome" = case when upsert_meeting_agenda_item.item ? 'outcome' then nullif(trim(upsert_meeting_agenda_item.item ->> 'outcome'), '') else y."outcome" end
     where y."id" = v_item."id"
     returning * into v_item;
   end if;
@@ -8315,8 +8315,8 @@ begin
   return jsonb_build_object('id', v_item."id", 'meetingId', v_item."meeting_id", 'ordinal', v_item."ordinal", 'title', v_item."title", 'notes', v_item."notes", 'presenterId', v_item."presenter_id", 'minutes', v_item."minutes", 'status', v_item."status", 'outcome', v_item."outcome");
 end;
 $$;
-revoke execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_meeting_agenda_item"(uuid, jsonb) to authenticated, service_role;
 
 -- Removes an agenda item and closes the gap in the numbering. Decisions and
 -- tasks that named it keep existing without it.
@@ -8479,7 +8479,7 @@ grant execute on function "better_supabase"."decide_meeting_decision"(uuid, text
 -- Opens a task from a meeting. task and assignees are what create_task takes;
 -- the task keeps living in the tasks block, and this only records where it
 -- came from, with the agenda item and the decision it follows from.
-create or replace function "better_supabase"."add_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
+create or replace function "better_supabase"."create_meeting_action_item"(meeting_id uuid, task jsonb, assignees uuid[] default '{}', agenda_item_id uuid default null, decision_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8493,32 +8493,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."meetings" x where x."id" = add_meeting_action_item.meeting_id for update;
+  select * into v_row from "better_supabase"."meetings" x where x."id" = create_meeting_action_item.meeting_id for update;
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'meetings.read'), false))) or "better_supabase"."meeting_role"(v_row."id") is not null) then
     raise exception 'no such meeting' using errcode = 'P0002', hint = 'MEETING_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'meetings.manage'), false))) or (auth.uid() is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'meetings.write'), false) and (coalesce(v_row."created_by" = auth.uid(), false) or coalesce("better_supabase"."meeting_role"(v_row."id") in ('chair', 'secretary'), false)))) then
     raise exception 'not allowed to add action items to this meeting' using errcode = '42501', hint = 'MEETING_FORBIDDEN';
   end if;
-  if add_meeting_action_item.agenda_item_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = add_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.agenda_item_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_agenda_items" y where y."id" = create_meeting_action_item.agenda_item_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the agenda item belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if add_meeting_action_item.decision_id is not null and not exists (
-    select 1 from "better_supabase"."meeting_decisions" y where y."id" = add_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
+  if create_meeting_action_item.decision_id is not null and not exists (
+    select 1 from "better_supabase"."meeting_decisions" y where y."id" = create_meeting_action_item.decision_id and y."meeting_id" = v_row."id"
   ) then
     raise exception 'the decision belongs to another meeting' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  v_task := "better_supabase"."create_task"(v_row."org_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
+  v_task := "better_supabase"."create_task"(v_row."org_id", create_meeting_action_item.task, coalesce(create_meeting_action_item.assignees, '{}'));
   insert into "better_supabase"."meeting_action_items" ("task_id", "org_id", "meeting_id", "agenda_item_id", "decision_id")
-  values ((v_task ->> 'id')::uuid, v_row."org_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
+  values ((v_task ->> 'id')::uuid, v_row."org_id", v_row."id", create_meeting_action_item.agenda_item_id, create_meeting_action_item.decision_id);
   null;
-  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
+  return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', create_meeting_action_item.agenda_item_id, 'decisionId', create_meeting_action_item.decision_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."add_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."create_meeting_action_item"(uuid, jsonb, uuid[], uuid, uuid) to authenticated, service_role;
 
 
 -- A meeting with its attendees, agenda, decisions (with their vote tally when

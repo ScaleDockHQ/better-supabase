@@ -220,7 +220,7 @@ describe("block instances on db", () => {
         ...schema.meta,
         tables: rest,
         lazyTables: true,
-        tableLoaders: { customers: () => Promise.resolve(customers) },
+        tableGetters: { customers: () => Promise.resolve(customers) },
       }),
     ).blocks(
       defineBlocks(

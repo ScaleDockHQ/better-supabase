@@ -140,7 +140,7 @@ async function renderEmit(
  * a snapshot. Throws `MetadataRejectedError` for a document that can't be read
  * or that `parseMetadataDocument` refuses.
  */
-export async function readMetadataSnapshot(
+export async function getMetadataSnapshot(
   source: string,
   cwd: string,
   io: CliIo,
@@ -261,7 +261,7 @@ export async function runMetadataGen(
   let snapshot: Snapshot;
 
   try {
-    snapshot = await readMetadataSnapshot(options.metadata, options.cwd, io);
+    snapshot = await getMetadataSnapshot(options.metadata, options.cwd, io);
   } catch (cause) {
     if (cause instanceof MetadataRejectedError) {
       return {

@@ -184,7 +184,7 @@ declare
   v_moved jsonb;
 begin
   ${SERVICE}
-  v_product := better_supabase.save_product('${TENANT}', null, 'Chair', null, null, 'digital');
+  v_product := better_supabase.upsert_product('${TENANT}', null, 'Chair', null, null, 'digital');
   v_id := (v_product ->> 'id')::uuid;
   if v_product ->> 'status' <> 'active' or (select item_type::text from public.items where id = v_id) <> 'digital' then
     raise exception 'saved %', v_product;
@@ -240,39 +240,39 @@ declare
   v_category jsonb;
 begin
   ${SERVICE}
-  v_product := (better_supabase.save_product('${TENANT}', null, 'Shirt', null, null, 'physical', 990, 'usd', false) ->> 'id')::uuid;
+  v_product := (better_supabase.upsert_product('${TENANT}', null, 'Shirt', null, null, 'physical', 990, 'usd', false) ->> 'id')::uuid;
   if (select row(default_price_cents, currency, track_inventory)::text from public.items where id = v_product) <> '(990,USD,f)' then
     raise exception 'product settings %', (select row_to_json(i) from public.items i where id = v_product);
   end if;
-  perform better_supabase.save_product('${TENANT}', v_product, 'Shirt', null, null, null, null, 'eur', null);
+  perform better_supabase.upsert_product('${TENANT}', v_product, 'Shirt', null, null, null, null, 'eur', null);
   if (select row(default_price_cents, currency, track_inventory)::text from public.items where id = v_product) <> '(990,EUR,f)' then
     raise exception 'kept settings %', (select row_to_json(i) from public.items i where id = v_product);
   end if;
-  v_category := better_supabase.save_category('${TENANT}', null, null, 'Shirts', null, null, '{"icon": "Shirt"}');
+  v_category := better_supabase.upsert_category('${TENANT}', null, null, 'Shirts', null, null, '{"icon": "Shirt"}');
   if v_category -> 'fields' ->> 'icon' <> 'Shirt' or (select icon from public.item_categories) <> 'Shirt' then
     raise exception 'category %', v_category;
   end if;
-  perform better_supabase.save_category('${TENANT}', (v_category ->> 'id')::uuid, null, 'Tops', null, null, null);
+  perform better_supabase.upsert_category('${TENANT}', (v_category ->> 'id')::uuid, null, 'Tops', null, null, null);
   if (select icon from public.item_categories) <> 'Shirt' then
     raise exception 'kept icon %', (select icon from public.item_categories);
   end if;
-  v_option := better_supabase.save_product_option(v_product, null, 'Size', array['S', 'L']);
+  v_option := better_supabase.upsert_product_option(v_product, null, 'Size', array['S', 'L']);
   if (select position from public.item_options where item_id = v_product) <> 1
     or (select array_agg(position order by value desc) from public.item_option_values) <> array[1, 2] then
     raise exception 'option ranks %', v_option;
   end if;
-  v_variant := better_supabase.save_variant(v_product, null, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null,
+  v_variant := better_supabase.upsert_variant(v_product, null, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null,
     fields => '{"manufacturer_part_number": "MPN-1", "purchase_price_cents": 400, "is_default": true}');
   v_small := (v_variant ->> 'id')::uuid;
   if v_variant -> 'fields' ->> 'manufacturer_part_number' <> 'MPN-1'
     or (select row(purchase_price_cents, is_default)::text from public.item_variants where id = v_small) <> '(400,t)' then
     raise exception 'variant fields %', v_variant;
   end if;
-  perform better_supabase.save_variant(v_product, v_small, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null, fields => '{"is_default": false}');
+  perform better_supabase.upsert_variant(v_product, v_small, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null, fields => '{"is_default": false}');
   if (select row(manufacturer_part_number, is_default)::text from public.item_variants where id = v_small) <> '(MPN-1,f)' then
     raise exception 'variant update %', (select row_to_json(v) from public.item_variants v where id = v_small);
   end if;
-  v_large := (better_supabase.save_variant(v_product, null, 'SHIRT-L', array[(v_option -> 'values' -> 1 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
+  v_large := (better_supabase.upsert_variant(v_product, null, 'SHIRT-L', array[(v_option -> 'values' -> 1 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
   if (select position from public.item_variants where id = v_large) <> 2 then
     raise exception 'variant rank %', (select position from public.item_variants where id = v_large);
   end if;
@@ -298,7 +298,7 @@ begin
     end if;
   end;
   begin
-    perform better_supabase.save_variant(v_product, v_small, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, false, null);
+    perform better_supabase.upsert_variant(v_product, v_small, 'SHIRT-S', array[(v_option -> 'values' -> 0 ->> 'id')::uuid], null, null, null, false, null);
     raise exception 'a variant tracking flag was accepted';
   exception when others then
     if sqlerrm = 'a variant tracking flag was accepted' then
@@ -339,18 +339,18 @@ declare
   v_option jsonb;
 begin
   ${SERVICE}
-  v_product := (better_supabase.save_product('${TENANT}', null, 'Mug', null, null, 'physical', 990, 'eur', true) ->> 'id')::uuid;
-  perform better_supabase.save_product('${TENANT}', v_product, 'Mug', null, null, null, null, null, null, clear => array['price']);
+  v_product := (better_supabase.upsert_product('${TENANT}', null, 'Mug', null, null, 'physical', 990, 'eur', true) ->> 'id')::uuid;
+  perform better_supabase.upsert_product('${TENANT}', v_product, 'Mug', null, null, null, null, null, null, clear => array['price']);
   if (select default_price_cents from public.items where id = v_product) is not null
     or (select currency from public.items where id = v_product) <> 'EUR' then
     raise exception 'cleared %', (select row_to_json(i) from public.items i where id = v_product);
   end if;
-  v_variant := (better_supabase.save_variant(v_product, null, 'MUG', null, null, null, null, null, true) ->> 'id')::uuid;
-  v_option := better_supabase.save_product_option(v_product, null, 'Colour', array['White', 'Black']);
+  v_variant := (better_supabase.upsert_variant(v_product, null, 'MUG', null, null, null, null, null, true) ->> 'id')::uuid;
+  v_option := better_supabase.upsert_product_option(v_product, null, 'Colour', array['White', 'Black']);
   if (select count(*) from better_supabase.product_variant_values where variant_id = v_variant) <> 1 then
     raise exception 'default variant got no value %', v_option;
   end if;
-  perform better_supabase.save_variant(v_product, v_variant, null, null, null, null, null, null, null);
+  perform better_supabase.upsert_variant(v_product, v_variant, null, null, null, null, null, null, null);
   if (select row(sku, allow_backorder)::text from public.item_variants where id = v_variant) <> '(MUG,t)'
     or (select count(*) from better_supabase.product_variant_values where variant_id = v_variant) <> 1 then
     raise exception 'patched %', (select row_to_json(v) from public.item_variants v where id = v_variant);
@@ -436,30 +436,30 @@ declare
   v_pinned uuid;
 begin
   ${SERVICE}
-  v_digital := (better_supabase.save_product('${TENANT}', null, 'Manual', null, 'A guide', 'digital', null, null, null, fields => '{"digital_delivery": "download"}') ->> 'id')::uuid;
+  v_digital := (better_supabase.upsert_product('${TENANT}', null, 'Manual', null, 'A guide', 'digital', null, null, null, fields => '{"digital_delivery": "download"}') ->> 'id')::uuid;
   if (select digital_delivery from public.items where id = v_digital) <> 'download' then
     raise exception 'digital %', (select row_to_json(i) from public.items i where id = v_digital);
   end if;
-  perform better_supabase.save_product('${TENANT}', v_digital, null, 'user-guide', null, null, null, null, null);
+  perform better_supabase.upsert_product('${TENANT}', v_digital, null, 'user-guide', null, null, null, null, null);
   if (select row(name, slug, description)::text from public.items where id = v_digital) <> '(Manual,user-guide,"A guide")' then
     raise exception 'patched %', (select row_to_json(i) from public.items i where id = v_digital);
   end if;
-  perform better_supabase.save_product('${TENANT}', v_digital, 'Handbook', null, null, null, null, null, null, clear => array['description', 'slug']);
+  perform better_supabase.upsert_product('${TENANT}', v_digital, 'Handbook', null, null, null, null, null, null, clear => array['description', 'slug']);
   if (select row(name, slug, description)::text from public.items where id = v_digital) <> '(Handbook,handbook,)' then
     raise exception 'cleared %', (select row_to_json(i) from public.items i where id = v_digital);
   end if;
-  perform better_supabase.save_product('${TENANT}', v_digital, null, null, null, 'physical', null, null, null, fields => '{"digital_delivery": null}');
-  perform better_supabase.save_product('${TENANT}', v_digital, null, null, null, 'digital', null, null, null, fields => '{"digital_delivery": "email"}');
+  perform better_supabase.upsert_product('${TENANT}', v_digital, null, null, null, 'physical', null, null, null, fields => '{"digital_delivery": null}');
+  perform better_supabase.upsert_product('${TENANT}', v_digital, null, null, null, 'digital', null, null, null, fields => '{"digital_delivery": "email"}');
   if (select row(item_type, digital_delivery)::text from public.items where id = v_digital) <> '(digital,email)' then
     raise exception 'switched kind %', (select row_to_json(i) from public.items i where id = v_digital);
   end if;
-  v_product := (better_supabase.save_product('${TENANT}', null, 'Tee', null, null, 'physical', null, null, null) ->> 'id')::uuid;
-  v_size := better_supabase.save_product_option(v_product, null, 'Size', array['S', 'M', 'L']);
-  v_colour := better_supabase.save_product_option(v_product, null, 'Colour', array['Red']);
-  v_small := (better_supabase.save_variant(v_product, null, 'TEE-S', array[(v_size -> 'values' -> 0 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, '871', null, null, null) ->> 'id')::uuid;
-  v_medium := (better_supabase.save_variant(v_product, null, 'TEE-M', array[(v_size -> 'values' -> 1 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
-  v_large := (better_supabase.save_variant(v_product, null, 'TEE-L', array[(v_size -> 'values' -> 2 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
-  perform better_supabase.save_variant(v_product, v_small, null, null, null, null, null, null, null, clear => array['sku', 'barcode']);
+  v_product := (better_supabase.upsert_product('${TENANT}', null, 'Tee', null, null, 'physical', null, null, null) ->> 'id')::uuid;
+  v_size := better_supabase.upsert_product_option(v_product, null, 'Size', array['S', 'M', 'L']);
+  v_colour := better_supabase.upsert_product_option(v_product, null, 'Colour', array['Red']);
+  v_small := (better_supabase.upsert_variant(v_product, null, 'TEE-S', array[(v_size -> 'values' -> 0 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, '871', null, null, null) ->> 'id')::uuid;
+  v_medium := (better_supabase.upsert_variant(v_product, null, 'TEE-M', array[(v_size -> 'values' -> 1 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
+  v_large := (better_supabase.upsert_variant(v_product, null, 'TEE-L', array[(v_size -> 'values' -> 2 ->> 'id')::uuid, (v_colour -> 'values' -> 0 ->> 'id')::uuid], null, null, null, null, null) ->> 'id')::uuid;
+  perform better_supabase.upsert_variant(v_product, v_small, null, null, null, null, null, null, null, clear => array['sku', 'barcode']);
   if (select row(sku, ean)::text from public.item_variants where id = v_small) <> '(,)' then
     raise exception 'variant cleared %', (select row_to_json(v) from public.item_variants v where id = v_small);
   end if;
@@ -469,14 +469,14 @@ begin
   end if;
   insert into public.order_lines (variant_id) values (v_medium);
   insert into public.pinned_variants (variant_id) values (v_large);
-  perform better_supabase.save_product_option(v_product, (v_size ->> 'id')::uuid, 'Size', array['XL']);
+  perform better_supabase.upsert_product_option(v_product, (v_size ->> 'id')::uuid, 'Size', array['XL']);
   if exists (select 1 from public.item_variants where id = v_small)
     or (select status::text from public.item_variants where id = v_medium) <> 'archived'
     or (select status::text from public.item_variants where id = v_large) <> 'archived'
     or (select array_agg(value) from public.item_option_values where option_id = (v_size ->> 'id')::uuid) <> array['XL'] then
     raise exception 'retired %', (select jsonb_agg(row_to_json(v)) from public.item_variants v);
   end if;
-  v_hoodie := (better_supabase.save_product('${TENANT}', null, 'Hoodie', null, null, 'physical', null, null, null) ->> 'id')::uuid;
+  v_hoodie := (better_supabase.upsert_product('${TENANT}', null, 'Hoodie', null, null, 'physical', null, null, null) ->> 'id')::uuid;
   v_matrix := better_supabase.set_product_options(v_hoodie, '[{"name": "Size", "values": ["S", "M"]}, {"name": "Colour", "values": ["Red", "Blue"]}]');
   if jsonb_array_length(v_matrix -> 'variants') <> 4 or v_matrix #>> '{options,0,name}' <> 'Size' or v_matrix #>> '{options,1,values,1,value}' <> 'Blue' then
     raise exception 'matrix %', v_matrix;
@@ -583,7 +583,7 @@ declare
   v_category uuid;
 begin
   ${asMember}
-  v_product := (better_supabase.save_product('${TENANT}', null, 'Tee', null, null, 'physical', null, null, null) ->> 'id')::uuid;
+  v_product := (better_supabase.upsert_product('${TENANT}', null, 'Tee', null, null, 'physical', null, null, null) ->> 'id')::uuid;
   v_matrix := better_supabase.set_product_options(v_product, '[{"name": "Size", "values": ["S", "M"]}]');
   v_small := (v_matrix #>> '{variants,0,id}')::uuid;
   v_moved := better_supabase.set_variant_status(v_small, 'discontinued');
@@ -592,7 +592,7 @@ begin
     raise exception 'discontinued %', v_moved;
   end if;
   perform better_supabase.set_variant_status(v_small, 'archived');
-  perform better_supabase.save_variant(v_product, v_small, 'TEE-S-OLD', null, null, null, null, null, null);
+  perform better_supabase.upsert_variant(v_product, v_small, 'TEE-S-OLD', null, null, null, null, null, null);
   v_matrix := better_supabase.set_product_options(v_product, '[{"name": "Size", "values": ["S", "M"]}]');
   if jsonb_array_length(v_matrix -> 'variants') <> 2 or (select count(*) from public.item_variants where item_id = v_product) <> 3 then
     raise exception 'archived counted as live %', v_matrix;
@@ -605,7 +605,7 @@ begin
   if (select status::text from public.item_variants where id = v_small) <> 'active' then
     raise exception 'reactivated %', (select row_to_json(v) from public.item_variants v where id = v_small);
   end if;
-  v_category := (better_supabase.save_category('${TENANT}', null, null, 'Shirts', null, null) ->> 'id')::uuid;
+  v_category := (better_supabase.upsert_category('${TENANT}', null, null, 'Shirts', null, null) ->> 'id')::uuid;
   perform better_supabase.move_category(v_category, null, '0');
   ${refused("better_supabase.delete_category(v_category)")}
   insert into public.denied values ('product.update');
@@ -631,7 +631,7 @@ $$;`,
           ),
         );
 
-      expect(body("save_category")).toContain("'catalog.manage'");
+      expect(body("upsert_category")).toContain("'catalog.manage'");
       expect(body("move_category")).toContain("'catalog.manage'");
       expect(body("delete_category")).toContain("'catalog.manage'");
       expect(body("set_variant_status")).toContain(
@@ -697,7 +697,7 @@ declare
   v_hint text;
 begin
   ${SERVICE}
-  v_product := (better_supabase.save_product('${TENANT}', null, 'Shirt', null, null, null) ->> 'id')::uuid;
+  v_product := (better_supabase.upsert_product('${TENANT}', null, 'Shirt', null, null, null) ->> 'id')::uuid;
   if (select description from public.items where id = v_product) <> '' then
     raise exception 'product description %', (select description from public.items where id = v_product);
   end if;
@@ -707,18 +707,18 @@ begin
     raise exception 'option titles %', (select jsonb_agg(title) from public.item_variants where item_id = v_product);
   end if;
   perform better_supabase.set_product_options(v_product, '[{"name": "Size", "values": ["S", "M"]}]', null);
-  v_other := (better_supabase.save_product('${TENANT}', null, 'Mug', null, null, null) ->> 'id')::uuid;
-  v_variant := better_supabase.save_variant(v_other, null, 'MUG-1', null, null, 'abc', null, null, null);
+  v_other := (better_supabase.upsert_product('${TENANT}', null, 'Mug', null, null, null) ->> 'id')::uuid;
+  v_variant := better_supabase.upsert_variant(v_other, null, 'MUG-1', null, null, 'abc', null, null, null);
   if (select title from public.item_variants where id = (v_variant ->> 'id')::uuid) <> '' then
     raise exception 'variant title %', v_variant;
   end if;
-  if (better_supabase.save_category('${TENANT}', null, null, 'Tops', null, null) ->> 'id') is null
+  if (better_supabase.upsert_category('${TENANT}', null, null, 'Tops', null, null) ->> 'id') is null
     or (select description from public.item_categories where slug = 'tops') <> '' then
     raise exception 'category description';
   end if;
-  v_third := (better_supabase.save_product('${TENANT}', null, 'Cup', null, null, null) ->> 'id')::uuid;
+  v_third := (better_supabase.upsert_product('${TENANT}', null, 'Cup', null, null, null) ->> 'id')::uuid;
   begin
-    perform better_supabase.save_variant(v_third, null, 'MUG-2', null, null, 'ABC', null, null, null);
+    perform better_supabase.upsert_variant(v_third, null, 'MUG-2', null, null, 'ABC', null, null, null);
     raise exception 'duplicate barcode passed';
   exception when unique_violation then
     get stacked diagnostics v_constraint = constraint_name, v_hint = pg_exception_hint;
@@ -727,7 +727,7 @@ begin
     end if;
   end;
   begin
-    perform better_supabase.save_variant(v_third, null, 'MUG-1', null, null, null, null, null, null);
+    perform better_supabase.upsert_variant(v_third, null, 'MUG-1', null, null, null, null, null, null);
     raise exception 'duplicate sku passed';
   exception when unique_violation then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -738,7 +738,7 @@ begin
   update public.items set ean = 'dup' where id = v_product;
   alter table public.items alter column ean set default 'dup';
   begin
-    perform better_supabase.save_product('${TENANT}', null, 'Hat', null, null, null);
+    perform better_supabase.upsert_product('${TENANT}', null, 'Hat', null, null, null);
     raise exception 'duplicate ean passed';
   exception when unique_violation then
     get stacked diagnostics v_constraint = constraint_name, v_hint = pg_exception_hint;
@@ -747,7 +747,7 @@ begin
     end if;
   end;
   begin
-    perform better_supabase.save_product('${TENANT}', null, 'Shirt', null, null, null);
+    perform better_supabase.upsert_product('${TENANT}', null, 'Shirt', null, null, null);
     raise exception 'duplicate slug passed';
   exception when unique_violation then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -786,8 +786,8 @@ $$;`,
         sql.indexOf("$$;", sql.indexOf(`function "better_supabase"."${name}"`)),
       );
 
-    expect(body("save_product")).toContain("'product.create'");
-    expect(body("save_product")).toContain("'product.update'");
+    expect(body("upsert_product")).toContain("'product.create'");
+    expect(body("upsert_product")).toContain("'product.update'");
     expect(body("set_product_status")).toContain("'product.update'");
     expect(body("purge_product")).toContain("'product.purge'");
     expect(body("purge_variant")).toContain("'product.purge'");

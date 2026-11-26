@@ -89,7 +89,7 @@ ${userGrant(`${fn(`${verb}_variant`)}(uuid)`)}
         return `
   if exists (select 1 from ${variants} x where x.${v("id")} = set_variant_status.variant and ${live}) then
     if (select count(*) from ${options} o where o.${o("product")} = v_product) <> (select count(*) from ${variantValues} y where y.${vv("variant")} = set_variant_status.variant) then
-      ${fail("CATALOG_VARIANT_OPTIONS", "a live variant needs one value of each product option; set them with save_variant", "22023")}
+      ${fail("CATALOG_VARIANT_OPTIONS", "a live variant needs one value of each product option; set them with upsert_variant", "22023")}
     end if;
     if exists (
       select 1 from ${variants} x

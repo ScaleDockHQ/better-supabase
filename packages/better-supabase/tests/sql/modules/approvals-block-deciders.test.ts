@@ -228,9 +228,9 @@ declare
   v_hint text;
 begin
   perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
-  perform better_supabase.save_approval_policy('${TENANT}', '{"subjectType": "timesheet", "action": "approve", "name": "Chain", "steps": [{"approvers": {"decider": true}}]}');
+  perform better_supabase.upsert_approval_policy('${TENANT}', '{"subjectType": "timesheet", "action": "approve", "name": "Chain", "steps": [{"approvers": {"decider": true}}]}');
   begin
-    perform better_supabase.save_approval_policy('${TENANT}', '{"subjectType": "contract", "action": "approve", "name": "Chain", "steps": [{"approvers": {"decider": true}}]}');
+    perform better_supabase.upsert_approval_policy('${TENANT}', '{"subjectType": "contract", "action": "approve", "name": "Chain", "steps": [{"approvers": {"decider": true}}]}');
     raise exception 'allowed';
   exception when sqlstate '22023' then
     get stacked diagnostics v_hint = pg_exception_hint;

@@ -370,7 +370,7 @@ describe.skipIf(!live)("field encryption", () => {
     await s.asRole(ann);
 
     const definition = await s.value<string>(
-      "(better_supabase.save_field_definition($1, 'contact', 'iban', 'IBAN', 'iban', false) ->> 'id')",
+      "(better_supabase.upsert_field_definition($1, 'contact', 'iban', 'IBAN', 'iban', false) ->> 'id')",
       [annOrg],
     );
 
@@ -390,7 +390,7 @@ describe.skipIf(!live)("field encryption", () => {
     await s.asRole(ann);
 
     const definition = await s.value<string>(
-      "(better_supabase.save_field_definition($1, 'contact', 'notes', 'Notes', 'text', false) ->> 'id')",
+      "(better_supabase.upsert_field_definition($1, 'contact', 'notes', 'Notes', 'text', false) ->> 'id')",
       [annOrg],
     );
 
@@ -418,7 +418,7 @@ describe.skipIf(!live)("field encryption", () => {
     await s.asRole(ann);
     expect(
       await s.value<string>(
-        "(better_supabase.read_field_values($1, 'contact', 'c-1') -> 0 ->> 'text')",
+        "(better_supabase.get_field_values($1, 'contact', 'c-1') -> 0 ->> 'text')",
         [annOrg],
       ),
     ).toBe("before");
@@ -436,7 +436,7 @@ describe.skipIf(!live)("field encryption", () => {
     ]);
     expect(
       await s.value<string | null>(
-        "(better_supabase.read_field_values($1, 'contact', 'c-2') -> 0 ->> 'text')",
+        "(better_supabase.get_field_values($1, 'contact', 'c-2') -> 0 ->> 'text')",
         [annOrg],
       ),
     ).toBeNull();

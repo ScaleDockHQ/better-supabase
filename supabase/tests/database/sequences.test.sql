@@ -28,28 +28,28 @@ select 'box', (api.connect_mail_account(
 ) ->> 'id')::uuid;
 
 select throws_ok(
-  $$select api.save_sequence('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_sequence('00000000-0000-4000-8000-000000000001',
     '{"key":"bad","name":"Bad","steps":[{"id":"s1","kind":"call"}]}')$$,
   '22023',
   null,
   'a step kind is email, task or wait'
 );
 select throws_ok(
-  $$select api.save_sequence('00000000-0000-4000-8000-000000000001',
+  $$select api.upsert_sequence('00000000-0000-4000-8000-000000000001',
     '{"key":"bad","name":"Bad","steps":[{"id":"s1","kind":"wait","minutes":5},{"id":"s1","kind":"wait","minutes":5}]}')$$,
   '22023',
   null,
   'step ids are unique'
 );
 select throws_ok(
-  $$select api.save_sequence('00000000-0000-4000-8000-000000000001', '{"key":"empty","name":"Empty","status":"active"}')$$,
+  $$select api.upsert_sequence('00000000-0000-4000-8000-000000000001', '{"key":"empty","name":"Empty","status":"active"}')$$,
   '22023',
   null,
   'an active sequence needs a step'
 );
 
 insert into ids
-select 'seq', (api.save_sequence('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+select 'seq', (api.upsert_sequence('00000000-0000-4000-8000-000000000001', jsonb_build_object(
   'key', 'intro', 'name', 'Intro', 'status', 'active', 'accountId', (select id from ids where name = 'box'),
   'steps', '[
     {"id":"hello","kind":"email","subject":"Hi {{firstName}}","text":"Hello"},
@@ -71,7 +71,7 @@ select set_config(
 );
 
 select throws_ok(
-  $$select api.save_sequence('00000000-0000-4000-8000-000000000001', '{"key":"mine","name":"Mine"}')$$,
+  $$select api.upsert_sequence('00000000-0000-4000-8000-000000000001', '{"key":"mine","name":"Mine"}')$$,
   '42501',
   null,
   'a member can''t manage sequences'
@@ -247,7 +247,7 @@ select is(
 reset role;
 insert into ids
 select 'ann2', (better_supabase.enroll_in_sequence((select id from ids where name = 'seq'), 'person', '00000000-0000-4000-8000-00000000f101') ->> 'id')::uuid;
-select better_supabase.save_sequence('00000000-0000-4000-8000-000000000001',
+select better_supabase.upsert_sequence('00000000-0000-4000-8000-000000000001',
   jsonb_build_object('id', (select id from ids where name = 'seq'), 'status', 'archived'));
 
 select is(

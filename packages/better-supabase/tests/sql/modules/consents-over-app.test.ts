@@ -140,7 +140,7 @@ declare
   v_next jsonb;
 begin
   ${SERVICE}
-  v_purpose := better_supabase.save_consent_purpose('${TENANT}', 'marketing.email', 'Marketing email', valid_months => 12);
+  v_purpose := better_supabase.upsert_consent_purpose('${TENANT}', 'marketing.email', 'Marketing email', valid_months => 12);
   if v_purpose ->> 'key' <> 'marketing.email' or v_purpose -> 'description' <> 'null'::jsonb then
     raise exception 'purpose %', v_purpose;
   end if;
@@ -180,7 +180,7 @@ $$;`),
       run(`do $$
 begin
   ${SERVICE}
-  perform better_supabase.save_consent_purpose('${TENANT}', 'terms', 'Terms');
+  perform better_supabase.upsert_consent_purpose('${TENANT}', 'terms', 'Terms');
   perform better_supabase.record_consent('customer', '${CUSTOMER}', 'terms', 'granted', evidence => '{"signatureId": "${TENANT}"}'::jsonb);
 end;
 $$;`),

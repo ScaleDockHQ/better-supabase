@@ -6,10 +6,8 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { OPTION_SETS_TAG } from "./option-sets-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -29,10 +27,12 @@ export const ensureOptionSet = bsb.action(
       subjectType: v.pipe(v.string(), v.maxLength(63)),
       field: v.pipe(v.string(), v.maxLength(63)),
     }),
+    tags: () => [tags.optionSets()],
+    refresh: true,
   },
   async (
     { subjectType, field },
-    { tenant, session, auth },
+    { tenant, session },
   ): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
@@ -56,8 +56,6 @@ export const ensureOptionSet = bsb.action(
       return ensured;
     }
 
-    await refreshCaller(auth, [OPTION_SETS_TAG]);
-
     return ok(true);
   },
 );
@@ -72,10 +70,12 @@ export const editOptionItem = bsb.action(
       label: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
       color: v.pipe(v.string(), v.trim(), v.maxLength(50)),
     }),
+    tags: () => [tags.optionSets()],
+    refresh: true,
   },
   async (
     { setId, itemId, label, color },
-    { tenant, session, auth },
+    { tenant, session },
   ): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
@@ -104,7 +104,7 @@ export const editOptionItem = bsb.action(
       }
 
       await sql.queryRaw(
-        "select better_supabase.save_option_set_item($1, $2, $3, $4, $5, $6, $7, $8)",
+        "select better_supabase.upsert_option_set_item($1, $2, $3, $4, $5, $6, $7, $8)",
         [
           setId,
           itemId,
@@ -128,16 +128,19 @@ export const editOptionItem = bsb.action(
       return err(dbError("not_found", "Option not found"));
     }
 
-    await refreshCaller(auth, [OPTION_SETS_TAG]);
-
     return ok(true);
   },
 );
 
 /** Archives an item; one that records still use needs a replacement first. */
 export const archiveOptionItem = bsb.action(
-  { ...manage, input: v.object({ itemId: Id }) },
-  async ({ itemId }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ itemId: Id }),
+    tags: () => [tags.optionSets()],
+    refresh: true,
+  },
+  async ({ itemId }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -157,8 +160,6 @@ export const archiveOptionItem = bsb.action(
     if (!archived.ok) {
       return archived;
     }
-
-    await refreshCaller(auth, [OPTION_SETS_TAG]);
 
     return ok(true);
   },

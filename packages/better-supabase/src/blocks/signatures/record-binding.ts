@@ -10,7 +10,7 @@ export const signaturesBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read" },
   module: "signatures",
-  load: (client: Signatures, subject) =>
+  get: (client: Signatures, subject) =>
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     client.list({ subjectType: subject.type, subjectId: subject.id }),
   timeline: (requests) =>

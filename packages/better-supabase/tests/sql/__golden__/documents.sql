@@ -538,7 +538,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:a228382cfe3f564babd627c3ad99cc09282eb3bedd0d1fbfa1cfb158355a789a
+-- @bsb-hash sha256:897430eddafefd6961f47c878a12d1e1894340875dd5332dc6fdef13592612a6
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1052,7 +1052,7 @@ revoke execute on function "better_supabase"."documents_to_compact"(integer, int
 grant execute on function "better_supabase"."documents_to_compact"(integer, integer) to service_role;
 
 -- Saves the client's merged state as a version of subject 'document'.
-create or replace function "better_supabase"."save_document_version"(document_id uuid, state text, label text default null)
+create or replace function "better_supabase"."upsert_document_version"(document_id uuid, state text, label text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1062,7 +1062,7 @@ as $$
 declare
   v_doc "better_supabase"."documents"%rowtype;
 begin
-  select * into v_doc from "better_supabase"."documents" d where d."id" = save_document_version.document_id;
+  select * into v_doc from "better_supabase"."documents" d where d."id" = upsert_document_version.document_id;
   if not found then
     raise exception 'document not found' using errcode = 'P0002', hint = 'DOCUMENT_NOT_FOUND';
   end if;
@@ -1070,12 +1070,12 @@ begin
     raise exception 'not allowed to edit this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   return "better_supabase"."version_insert"(v_doc."tenant_id", 'document', v_doc."id"::text,
-    jsonb_build_object('state', save_document_version.state, 'name', v_doc."name"),
-    null, nullif(trim(save_document_version.label), ''), 'manual', false, auth.uid());
+    jsonb_build_object('state', upsert_document_version.state, 'name', v_doc."name"),
+    null, nullif(trim(upsert_document_version.label), ''), 'manual', false, auth.uid());
 end;
 $$;
-revoke execute on function "better_supabase"."save_document_version"(uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_document_version"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_document_version"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_document_version"(uuid, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_document_versions"(document_id uuid)
 returns jsonb

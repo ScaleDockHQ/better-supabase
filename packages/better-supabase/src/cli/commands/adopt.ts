@@ -30,7 +30,7 @@ import {
   setPathInJson,
 } from "../sql/config-edit.ts";
 import { plain } from "../style.ts";
-import { loadSnapshot } from "./snapshot.ts";
+import { getSnapshot } from "./snapshot.ts";
 
 export const ADOPT_ARGS = {
   block: {
@@ -120,14 +120,14 @@ async function withMigrationSince(
       };
 }
 
-/** The tables `loadSnapshot` reads, for the adopt commands. */
+/** The tables `getSnapshot` reads, for the adopt commands. */
 export function snapshotTables(
   config: ResolvedConfig,
   env: CliEnv,
   source: SnapshotSource,
 ): () => Promise<readonly ExistingTable[]> {
   return async () =>
-    existingTables(toCatalog(await loadSnapshot(config, env, source)).tables);
+    existingTables(toCatalog(await getSnapshot(config, env, source)).tables);
 }
 
 /**

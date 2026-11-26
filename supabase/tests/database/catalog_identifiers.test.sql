@@ -12,37 +12,37 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.p', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Valve', 'valve', null, 'physical', null) ->> 'id', true);
-select set_config('t.a', better_supabase.save_variant(current_setting('t.p')::uuid, null, 'VALVE-A', null, 'Valve A', null, null, true, false, null) ->> 'id', true);
-select set_config('t.p2', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Valve B', 'valve-b', null, 'physical', null) ->> 'id', true);
-select set_config('t.b', better_supabase.save_variant(current_setting('t.p2')::uuid, null, 'VALVE-B', null, 'Valve B', null, null, true, false, null) ->> 'id', true);
+select set_config('t.p', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Valve', 'valve', null, 'physical', null) ->> 'id', true);
+select set_config('t.a', better_supabase.upsert_variant(current_setting('t.p')::uuid, null, 'VALVE-A', null, 'Valve A', null, null, true, false, null) ->> 'id', true);
+select set_config('t.p2', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Valve B', 'valve-b', null, 'physical', null) ->> 'id', true);
+select set_config('t.b', better_supabase.upsert_variant(current_setting('t.p2')::uuid, null, 'VALVE-B', null, 'Valve B', null, null, true, false, null) ->> 'id', true);
 select set_config('t.party', '00000000-0000-4000-8000-00000000c001', true);
 
 -- Identifiers.
 select is(
-  (better_supabase.save_product_identifier('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, 'ean', '4006381333931') ->> 'created')::boolean,
+  (better_supabase.upsert_product_identifier('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, 'ean', '4006381333931') ->> 'created')::boolean,
   true,
   'an EAN is stored on the variant'
 );
 select is(
-  (better_supabase.save_product_identifier('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, 'ean', '4006381333931') ->> 'created')::boolean,
+  (better_supabase.upsert_product_identifier('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, 'ean', '4006381333931') ->> 'created')::boolean,
   false,
   'the same identifier is stored once'
 );
 select throws_ok(
-  format($$select better_supabase.save_product_identifier('00000000-0000-4000-8000-000000000001', %L, 'ean', '123')$$, current_setting('t.a')),
+  format($$select better_supabase.upsert_product_identifier('00000000-0000-4000-8000-000000000001', %L, 'ean', '123')$$, current_setting('t.a')),
   '22023',
   null,
   'an EAN needs 8, 12, 13 or 14 digits'
 );
 select throws_ok(
-  format($$select better_supabase.save_product_identifier('00000000-0000-4000-8000-000000000001', %L, 'barcode', '123')$$, current_setting('t.a')),
+  format($$select better_supabase.upsert_product_identifier('00000000-0000-4000-8000-000000000001', %L, 'barcode', '123')$$, current_setting('t.a')),
   '22023',
   null,
   'the type must be one of the allowed ones'
 );
 select is(
-  (better_supabase.save_product_identifier('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, 'supplier', 'AC-9', current_setting('t.party')::uuid) ->> 'created')::boolean,
+  (better_supabase.upsert_product_identifier('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, 'supplier', 'AC-9', current_setting('t.party')::uuid) ->> 'created')::boolean,
   true,
   'a supplier code is stored with its party'
 );
@@ -59,12 +59,12 @@ select is(
 
 -- Relations.
 select is(
-  (better_supabase.save_product_relation('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, current_setting('t.b')::uuid, 'alternative') ->> 'created')::boolean,
+  (better_supabase.upsert_product_relation('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, current_setting('t.b')::uuid, 'alternative') ->> 'created')::boolean,
   true,
   'an alternative links two variants'
 );
 select is(
-  (better_supabase.save_product_relation('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, current_setting('t.b')::uuid, 'alternative') ->> 'created')::boolean,
+  (better_supabase.upsert_product_relation('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, current_setting('t.b')::uuid, 'alternative') ->> 'created')::boolean,
   false,
   'the same relation is stored once'
 );
@@ -79,18 +79,18 @@ select is(
   'the alternative sees the relation incoming'
 );
 select throws_ok(
-  format($$select better_supabase.save_product_relation('00000000-0000-4000-8000-000000000001', %L, %L, 'accessory')$$, current_setting('t.a'), current_setting('t.a')),
+  format($$select better_supabase.upsert_product_relation('00000000-0000-4000-8000-000000000001', %L, %L, 'accessory')$$, current_setting('t.a'), current_setting('t.a')),
   '22023',
   null,
   'a variant can''t relate to itself'
 );
 select is(
-  (better_supabase.save_product_relation('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, current_setting('t.b')::uuid, 'superseded_by') ->> 'created')::boolean,
+  (better_supabase.upsert_product_relation('00000000-0000-4000-8000-000000000001', current_setting('t.a')::uuid, current_setting('t.b')::uuid, 'superseded_by') ->> 'created')::boolean,
   true,
   'a variant is superseded by another'
 );
 select throws_ok(
-  format($$select better_supabase.save_product_relation('00000000-0000-4000-8000-000000000001', %L, %L, 'superseded_by')$$, current_setting('t.b'), current_setting('t.a')),
+  format($$select better_supabase.upsert_product_relation('00000000-0000-4000-8000-000000000001', %L, %L, 'superseded_by')$$, current_setting('t.b'), current_setting('t.a')),
   '22023',
   null,
   'a replacement can''t point back along its own chain'
@@ -128,9 +128,9 @@ select is(
   1250::bigint,
   'a lone comma is the decimal separator'
 );
-select set_config('t.i', better_supabase.save_supplier_item('00000000-0000-4000-8000-000000000001', null, current_setting('t.s')::uuid, 'GV-100', 'Gate valve brass', 123450, 'EUR', 'pcs', 'Acme valves') ->> 'id', true);
+select set_config('t.i', better_supabase.upsert_supplier_item('00000000-0000-4000-8000-000000000001', null, current_setting('t.s')::uuid, 'GV-100', 'Gate valve brass', 123450, 'EUR', 'pcs', 'Acme valves') ->> 'id', true);
 select throws_ok(
-  format($$select better_supabase.save_supplier_item('00000000-0000-4000-8000-000000000001', null, %L, 'GV-100', 'Again', null, null, null, null)$$, current_setting('t.s')),
+  format($$select better_supabase.upsert_supplier_item('00000000-0000-4000-8000-000000000001', null, %L, 'GV-100', 'Again', null, null, null, null)$$, current_setting('t.s')),
   '23505',
   null,
   'a supplier has a code once'
@@ -174,7 +174,7 @@ select throws_ok(
   null,
   'a trade code is 4 to 10 digits'
 );
-select set_config('t.loc', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH9', 'Warehouse 9', null, null) ->> 'id', true);
+select set_config('t.loc', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'WH9', 'Warehouse 9', null, null) ->> 'id', true);
 select throws_ok(
   format($$select better_supabase.set_location_address(%L, '{"country": "Netherlands"}')$$, current_setting('t.loc')),
   '22023',
@@ -219,7 +219,7 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  format($$select better_supabase.save_product_identifier('00000000-0000-4000-8000-000000000001', %L, 'other', 'X1')$$, current_setting('t.a')),
+  format($$select better_supabase.upsert_product_identifier('00000000-0000-4000-8000-000000000001', %L, 'other', 'X1')$$, current_setting('t.a')),
   '42501',
   null,
   'a member without catalog.manage can''t add an identifier'

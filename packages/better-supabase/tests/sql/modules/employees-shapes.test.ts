@@ -120,7 +120,7 @@ describe("employees over app tables with their own shapes", () => {
     expect(sql).toContain("'staff.create'");
     expect(sql).toContain("'staff.contracts_read'");
     expect(sql).toContain("'staff.contracts_write'");
-    expect(sql).not.toContain("save_employee_private_details");
+    expect(sql).not.toContain("upsert_employee_private_details");
   });
 
   it("refuses an overlap option without editable contracts", () => {
@@ -182,8 +182,8 @@ begin
     or (select status::text from public.staff where id = v_id) <> 'offboarding' then
     raise exception 'update %', v_result;
   end if;
-  perform better_supabase.add_employee_contract(v_id, '{"startsOn": "2026-01-01", "salary": "540000", "currency": "eur"}'::jsonb);
-  perform better_supabase.add_employee_contract(v_id, '{"startsOn": "2025-06-01", "salary": "1000", "currency": "jpy"}'::jsonb);
+  perform better_supabase.create_employee_contract(v_id, '{"startsOn": "2026-01-01", "salary": "540000", "currency": "eur"}'::jsonb);
+  perform better_supabase.create_employee_contract(v_id, '{"startsOn": "2025-06-01", "salary": "1000", "currency": "jpy"}'::jsonb);
   if (select pay from public.staff_contracts where currency = 'EUR') <> 5400
     or (select pay from public.staff_contracts where currency = 'JPY') <> 1000
     or exists (select 1 from public.staff_contracts where ends_on is not null) then
@@ -230,7 +230,7 @@ declare
 begin
   ${SERVICE}
   v_id := (better_supabase.create_employee('${TENANT}', '{"name": "Grace"}'::jsonb) ->> 'id')::uuid;
-  v_contract := better_supabase.add_employee_contract(v_id, '{"startsOn": "2026-01-01", "hoursPerWeek": 32}'::jsonb);
+  v_contract := better_supabase.create_employee_contract(v_id, '{"startsOn": "2026-01-01", "hoursPerWeek": 32}'::jsonb);
   v_contract := better_supabase.update_employee_contract((v_contract ->> 'id')::uuid, '{"hoursPerWeek": 36}'::jsonb);
   if (select hours_per_week from public.staff_contracts) <> 36 or (select kind::text from public.staff) <> 'staff' then
     raise exception 'contract %', v_contract;
@@ -350,12 +350,12 @@ begin
     or v_employee ->> 'start_date' <> '2026-01-01' then
     raise exception 'employee %', v_employee;
   end if;
-  v_contract := better_supabase.add_employee_contract(v_id, '{"startsOn": "2026-01-01", "fields": {"weekly_hours": 38}}'::jsonb);
+  v_contract := better_supabase.create_employee_contract(v_id, '{"startsOn": "2026-01-01", "fields": {"weekly_hours": 38}}'::jsonb);
   if (select currency from public.people_contracts) <> 'EUR'
     or (select weekly_hours from public.people_contracts) <> 38 then
     raise exception 'contract %', (select jsonb_agg(c) from public.people_contracts c);
   end if;
-  v_contract := better_supabase.add_employee_contract(v_id, '{"startsOn": "2026-06-01", "salary": "420000", "currency": "usd", "fields": {"is_flexible": true}}'::jsonb);
+  v_contract := better_supabase.create_employee_contract(v_id, '{"startsOn": "2026-06-01", "salary": "420000", "currency": "usd", "fields": {"is_flexible": true}}'::jsonb);
   if v_contract ->> 'salary' <> '420000' or v_contract ->> 'tenant_id' <> '${TENANT}' or v_contract ->> 'currency' <> 'USD' then
     raise exception 'read %', v_contract;
   end if;

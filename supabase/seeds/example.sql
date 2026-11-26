@@ -77,8 +77,8 @@ select better_supabase.sync_rule_fields('company', jsonb_build_array(jsonb_build
 -- Commission plans, their assignments per rep, and one referral code. The accrued
 -- commissions and the referral attributed to the code are generated seeds of the
 -- commissions and referrals pages (`pnpm db:seed:pages`, ADR 1032).
-select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Standard 5 percent', 'flat', 500, null, null, false);
-select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Tiered quota', 'tiered', null,
+select better_supabase.upsert_commission_plan('00000000-0000-4000-8000-000000000001', 'Standard 5 percent', 'flat', 500, null, null, false);
+select better_supabase.upsert_commission_plan('00000000-0000-4000-8000-000000000001', 'Tiered quota', 'tiered', null,
   '[{"upTo": 1000000, "bps": 300}, {"bps": 600}]'::jsonb, null, false);
 
 select better_supabase.assign_commission_plan('00000000-0000-4000-8000-000000000001', plan.id, s.seller_id, null, null, current_date - 60, null)
@@ -125,8 +125,8 @@ insert into better_supabase.inventory_locations (id, tenant_id, code, name, kind
   ('00000000-0000-4000-8000-0000000b2002', '00000000-0000-4000-8000-000000000001', 'STORE', 'Amsterdam store', 'store');
 
 select better_supabase.set_stock_item('00000000-0000-4000-8000-0000000b1001', 'item', 0::smallint, 'lot', true, 'none', null);
-select better_supabase.save_lot('00000000-0000-4000-8000-0000000b1001', 'BEANS-2611', current_date + 25);
-select better_supabase.save_lot('00000000-0000-4000-8000-0000000b1001', 'BEANS-2701', current_date + 120);
+select better_supabase.upsert_lot('00000000-0000-4000-8000-0000000b1001', 'BEANS-2611', current_date + 25);
+select better_supabase.upsert_lot('00000000-0000-4000-8000-0000000b1001', 'BEANS-2701', current_date + 120);
 
 select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1001', '00000000-0000-4000-8000-0000000b2001', 40, 'receipt', 'First delivery', jsonb_build_object('lotId', (select id from better_supabase.stock_lots where code = 'BEANS-2611')));
 select better_supabase.adjust_stock('00000000-0000-4000-8000-0000000b1001', '00000000-0000-4000-8000-0000000b2001', 60, 'receipt', 'Second delivery', jsonb_build_object('lotId', (select id from better_supabase.stock_lots where code = 'BEANS-2701')));
@@ -344,13 +344,13 @@ declare
 begin
   -- The laboratory's instrument holds a calibration qualification, which the
   -- block requires on every result.
-  perform better_supabase.save_qualification_type(t, 'calibration', 'Calibration', array['asset'], 12);
+  perform better_supabase.upsert_qualification_type(t, 'calibration', 'Calibration', array['asset'], 12);
   meter := (better_supabase.create_asset(t, 'instrument', 'Bench pH meter PH-100', null, 'LAB-PH-100') ->> 'id')::uuid;
   perform better_supabase.grant_qualification(t, 'calibration', 'asset', meter::text, current_date - 30);
 
-  ph := (better_supabase.save_lims_method(t, jsonb_build_object('key', 'ph', 'name', 'pH', 'lowerLimit', 6, 'upperLimit', 8)) ->> 'id')::uuid;
-  assay := (better_supabase.save_lims_method(t, jsonb_build_object('key', 'assay', 'name', 'Active ingredient', 'unit', '%', 'lowerLimit', 98, 'upperLimit', 102)) ->> 'id')::uuid;
-  moisture := (better_supabase.save_lims_method(t, jsonb_build_object('key', 'moisture', 'name', 'Moisture', 'unit', '%', 'upperLimit', 5)) ->> 'id')::uuid;
+  ph := (better_supabase.upsert_lims_method(t, jsonb_build_object('key', 'ph', 'name', 'pH', 'lowerLimit', 6, 'upperLimit', 8)) ->> 'id')::uuid;
+  assay := (better_supabase.upsert_lims_method(t, jsonb_build_object('key', 'assay', 'name', 'Active ingredient', 'unit', '%', 'lowerLimit', 98, 'upperLimit', 102)) ->> 'id')::uuid;
+  moisture := (better_supabase.upsert_lims_method(t, jsonb_build_object('key', 'moisture', 'name', 'Moisture', 'unit', '%', 'upperLimit', 5)) ->> 'id')::uuid;
 
   for spec in
     select * from (values
@@ -440,13 +440,13 @@ declare
 begin
   -- The stock ledger seed above already made the main warehouse.
   select l.id into loc from better_supabase.inventory_locations l where l.tenant_id = t and l.code = 'MAIN';
-  perform better_supabase.save_location(t, null, 'RET', 'Returns warehouse', null, null);
-  bin_a := (better_supabase.save_bin(loc, null, 'A-01', 'Fast movers', false, true) ->> 'id')::uuid;
-  bin_b := (better_supabase.save_bin(loc, null, 'B-04', 'Shelving', false, true) ->> 'id')::uuid;
-  bin_c := (better_supabase.save_bin(loc, null, 'C-12', 'Overflow', false, true) ->> 'id')::uuid;
-  perform better_supabase.save_bin_slot(t, jsonb_build_object('binId', bin_a, 'walkRank', 1, 'capacity', 200));
-  perform better_supabase.save_bin_slot(t, jsonb_build_object('binId', bin_b, 'walkRank', 2, 'capacity', 500));
-  perform better_supabase.save_bin_slot(t, jsonb_build_object('binId', bin_c, 'walkRank', 3));
+  perform better_supabase.upsert_location(t, null, 'RET', 'Returns warehouse', null, null);
+  bin_a := (better_supabase.upsert_bin(loc, null, 'A-01', 'Fast movers', false, true) ->> 'id')::uuid;
+  bin_b := (better_supabase.upsert_bin(loc, null, 'B-04', 'Shelving', false, true) ->> 'id')::uuid;
+  bin_c := (better_supabase.upsert_bin(loc, null, 'C-12', 'Overflow', false, true) ->> 'id')::uuid;
+  perform better_supabase.upsert_bin_slot(t, jsonb_build_object('binId', bin_a, 'walkRank', 1, 'capacity', 200));
+  perform better_supabase.upsert_bin_slot(t, jsonb_build_object('binId', bin_b, 'walkRank', 2, 'capacity', 500));
+  perform better_supabase.upsert_bin_slot(t, jsonb_build_object('binId', bin_c, 'walkRank', 3));
 
   for spec in
     select * from (values
@@ -457,16 +457,16 @@ begin
       ('Strapping band', 'WH-STRAP', 60, 'C-12')
     ) as x(title, sku, qty, bin_code)
   loop
-    prod := (better_supabase.save_product(t, null, spec.title, lower(spec.sku), null, 'physical', null) ->> 'id')::uuid;
-    var := (better_supabase.save_variant(prod, null, spec.sku, null, spec.title, null, null, true, false, null) ->> 'id')::uuid;
+    prod := (better_supabase.upsert_product(t, null, spec.title, lower(spec.sku), null, 'physical', null) ->> 'id')::uuid;
+    var := (better_supabase.upsert_variant(prod, null, spec.sku, null, spec.title, null, null, true, false, null) ->> 'id')::uuid;
     vars := vars || var;
     perform better_supabase.adjust_stock(var, loc, spec.qty, 'receipt', null,
       jsonb_build_object('binId', (select b.id from better_supabase.stock_bins b where b.location_id = loc and b.code = spec.bin_code)));
   end loop;
 
-  perform better_supabase.save_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_a, 'variantId', vars[1], 'priority', 10, 'maxQuantity', 150));
-  perform better_supabase.save_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_b, 'variantId', vars[2], 'priority', 10));
-  perform better_supabase.save_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_c, 'priority', 90));
+  perform better_supabase.upsert_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_a, 'variantId', vars[1], 'priority', 10, 'maxQuantity', 150));
+  perform better_supabase.upsert_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_b, 'variantId', vars[2], 'priority', 10));
+  perform better_supabase.upsert_putaway_rule(t, jsonb_build_object('locationId', loc, 'binId', bin_c, 'priority', 90));
 
   -- Pick lists for four orders: one open, one half picked, one done, one in a wave.
   for spec in select * from (values ('SO-1001', 'open'), ('SO-1002', 'partial'), ('SO-1003', 'done'), ('SO-1004', 'wave')) as x(doc, target)
@@ -534,7 +534,7 @@ insert into better_supabase.leave_requests (id, tenant_id, user_id, type_id, sta
   ('00000000-0000-4000-8000-0000000e1101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000e1002', current_date - 12, current_date - 11, 2, 'Flu', now() - interval '12 days'),
   ('00000000-0000-4000-8000-0000000e1102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000e1003', current_date + 30, current_date + 31, 2, 'Moving house', null);
 
-select better_supabase.save_enrollment_program('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+select better_supabase.upsert_enrollment_program('00000000-0000-4000-8000-000000000001', jsonb_build_object(
   'key', 'new-hire', 'name', 'New hire', 'description', 'What a new employee finishes in the first weeks.',
   'subjectTypes', jsonb_build_array('employee'),
   'steps', jsonb_build_array(
@@ -722,20 +722,20 @@ insert into public.customers (id, organization_id, name, status) values
   ('00000000-0000-4000-8000-0000000ca002', '00000000-0000-4000-8000-000000000001', 'Jan de Vries', 'active')
 on conflict do nothing;
 
-select better_supabase.save_consent_purpose('00000000-0000-4000-8000-000000000001', 'medication', 'Medication records', '1', 'Records and shares the medication chart of the client.', 'consent');
+select better_supabase.upsert_consent_purpose('00000000-0000-4000-8000-000000000001', 'medication', 'Medication records', '1', 'Records and shares the medication chart of the client.', 'consent');
 select better_supabase.record_consent('customer', '00000000-0000-4000-8000-0000000ca001', 'medication', 'granted');
 
-select better_supabase.save_medication('00000000-0000-4000-8000-000000000001', 'Paracetamol', 'mg', 'custom', null, 'tablet', '500 mg');
-select better_supabase.save_medication('00000000-0000-4000-8000-000000000001', 'Ibuprofen', 'mg', 'custom', null, 'tablet', '400 mg');
+select better_supabase.upsert_medication('00000000-0000-4000-8000-000000000001', 'Paracetamol', 'mg', 'custom', null, 'tablet', '500 mg');
+select better_supabase.upsert_medication('00000000-0000-4000-8000-000000000001', 'Ibuprofen', 'mg', 'custom', null, 'tablet', '400 mg');
 
 with plan as (
   select better_supabase.create_care_plan('00000000-0000-4000-8000-000000000001', jsonb_build_object(
     'subjectType', 'customer', 'subjectId', '00000000-0000-4000-8000-0000000ca001',
     'title', 'Mobility and pain plan', 'startsOn', current_date::text, 'reviewOn', (current_date + 42)::text)) as row
 ), problem as (
-  select better_supabase.add_care_plan_problem((plan.row ->> 'id')::uuid, jsonb_build_object('title', 'Pain when walking', 'codeSystem', 'custom')) as row, plan.row as plan_row from plan
+  select better_supabase.create_care_plan_problem((plan.row ->> 'id')::uuid, jsonb_build_object('title', 'Pain when walking', 'codeSystem', 'custom')) as row, plan.row as plan_row from plan
 ), goal as (
-  select better_supabase.add_care_plan_goal((problem.row ->> 'id')::uuid, jsonb_build_object('title', 'Walk to the garden without pain')) as row, problem.plan_row from problem
+  select better_supabase.create_care_plan_goal((problem.row ->> 'id')::uuid, jsonb_build_object('title', 'Walk to the garden without pain')) as row, problem.plan_row from problem
 )
 select better_supabase.publish_care_plan((goal.plan_row ->> 'id')::uuid) from goal;
 
@@ -755,7 +755,7 @@ select set_config('request.jwt.claims', '', false);
 -- organization has none, so a seed that adds its own default keeps it.
 select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
 
-select better_supabase.save_risk_matrix(
+select better_supabase.upsert_risk_matrix(
   '00000000-0000-4000-8000-000000000001', 'story-matrix', '5 by 5 matrix',
   '[{"label":"Rare","value":1},{"label":"Unlikely","value":2},{"label":"Possible","value":3},{"label":"Likely","value":4},{"label":"Almost certain","value":5}]'::jsonb,
   '[{"label":"Insignificant","value":1},{"label":"Minor","value":2},{"label":"Moderate","value":3},{"label":"Major","value":4},{"label":"Severe","value":5}]'::jsonb,
@@ -773,8 +773,8 @@ with created as (
 )
 select better_supabase.assess_risk((created.row ->> 'id')::uuid, 4, 4, 2, 3, 'A second provider is on the roadmap.') from created;
 
-select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31001', 'Remote code execution in the image resizer', null, null, null, '3.1', 9.8, null);
-select better_supabase.save_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31002', 'Open redirect in the login callback', null, null, null, '3.1', 5.4, null);
+select better_supabase.upsert_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31001', 'Remote code execution in the image resizer', null, null, null, '3.1', 9.8, null);
+select better_supabase.upsert_vulnerability('00000000-0000-4000-8000-000000000001', 'CVE-2026-31002', 'Open redirect in the login callback', null, null, null, '3.1', 5.4, null);
 
 select set_config('request.jwt.claims', '', false);
 
@@ -799,13 +799,13 @@ begin
     return;
   end if;
 
-  v_support := (better_supabase.save_job(v_tenant, null, jsonb_build_object(
+  v_support := (better_supabase.upsert_job(v_tenant, null, jsonb_build_object(
     'title', 'Support agent', 'location', 'Amsterdam', 'employmentType', 'full_time',
     'description', 'Answer customers in the shared inbox and the helpdesk.', 'status', 'open')) ->> 'id')::uuid;
-  v_sales := (better_supabase.save_job(v_tenant, null, jsonb_build_object(
+  v_sales := (better_supabase.upsert_job(v_tenant, null, jsonb_build_object(
     'title', 'Account executive', 'location', 'Remote', 'employmentType', 'full_time',
     'description', 'Own deals from first call to signed contract.', 'status', 'open')) ->> 'id')::uuid;
-  perform better_supabase.save_job(v_tenant, null, jsonb_build_object(
+  perform better_supabase.upsert_job(v_tenant, null, jsonb_build_object(
     'title', 'Warehouse planner', 'location', 'Rotterdam', 'status', 'draft'));
 
   select array_agg(c.id order by c.name) into v_customers
@@ -817,13 +817,13 @@ begin
     perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[3]), 'linkedin', null);
     perform better_supabase.apply_to_job(v_sales, jsonb_build_object('type', 'customer', 'id', v_customers[4]), 'careers page', null);
 
-    v_pipeline := (better_supabase.save_pipeline(v_tenant, null, 'application', 'hiring', 'Hiring', null, true) ->> 'id')::uuid;
-    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'applied', 'Applied', 'active', null, null, null, null);
-    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'screen', 'Screen', 'active', null, null, null, null);
-    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'interview', 'Interview', 'active', null, null, null, null);
-    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'offer', 'Offer', 'active', null, null, null, null);
-    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'hired', 'Hired', 'hired', null, null, null, null);
-    perform better_supabase.save_pipeline_stage(v_pipeline, null, 'rejected', 'Rejected', 'rejected', null, null, null, null);
+    v_pipeline := (better_supabase.upsert_pipeline(v_tenant, null, 'application', 'hiring', 'Hiring', null, true) ->> 'id')::uuid;
+    perform better_supabase.upsert_pipeline_stage(v_pipeline, null, 'applied', 'Applied', 'active', null, null, null, null);
+    perform better_supabase.upsert_pipeline_stage(v_pipeline, null, 'screen', 'Screen', 'active', null, null, null, null);
+    perform better_supabase.upsert_pipeline_stage(v_pipeline, null, 'interview', 'Interview', 'active', null, null, null, null);
+    perform better_supabase.upsert_pipeline_stage(v_pipeline, null, 'offer', 'Offer', 'active', null, null, null, null);
+    perform better_supabase.upsert_pipeline_stage(v_pipeline, null, 'hired', 'Hired', 'hired', null, null, null, null);
+    perform better_supabase.upsert_pipeline_stage(v_pipeline, null, 'rejected', 'Rejected', 'rejected', null, null, null, null);
     update better_supabase.applications a set pipeline_id = v_pipeline where a.tenant_id = v_tenant and a.pipeline_id is null;
 
     update better_supabase.applications a set stage_id = ranked.id
@@ -837,13 +837,13 @@ begin
       and ranked.pipeline_id = a.pipeline_id and ranked.n = v_pos.n;
   end if;
 
-  v_course := (better_supabase.save_course(v_tenant, jsonb_build_object(
+  v_course := (better_supabase.upsert_course(v_tenant, jsonb_build_object(
     'key', 'security-basics', 'title', 'Security basics', 'summary', 'Passwords, phishing and how to report an incident.',
     'status', 'published', 'certificate', true)) ->> 'id')::uuid;
-  v_module := (better_supabase.save_course_module(v_course, jsonb_build_object('title', 'Start here')) ->> 'id')::uuid;
-  perform better_supabase.save_course_lesson(v_course, jsonb_build_object(
+  v_module := (better_supabase.upsert_course_module(v_course, jsonb_build_object('title', 'Start here')) ->> 'id')::uuid;
+  perform better_supabase.upsert_course_lesson(v_course, jsonb_build_object(
     'moduleId', v_module, 'title', 'Spot a phishing mail', 'kind', 'content', 'required', true, 'minutes', 10));
-  perform better_supabase.save_course_lesson(v_course, jsonb_build_object(
+  perform better_supabase.upsert_course_lesson(v_course, jsonb_build_object(
     'moduleId', v_module, 'title', 'Report an incident', 'kind', 'content', 'required', true, 'minutes', 5));
   perform better_supabase.enroll_in_course(v_course, '00000000-0000-4000-8000-0000000000a2');
   perform better_supabase.enroll_in_course(v_course, '00000000-0000-4000-8000-0000000000a1');

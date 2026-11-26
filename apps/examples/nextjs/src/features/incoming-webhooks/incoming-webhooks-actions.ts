@@ -6,10 +6,8 @@ import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { INCOMING_WEBHOOKS_TAG } from "./incoming-webhooks-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -34,10 +32,12 @@ export const createIncomingWebhook = bsb.action(
         "shared-secret",
       ]),
     }),
+    tags: () => [tags.incomingWebhooks()],
+    refresh: true,
   },
   async (
     { name, verify },
-    { tenant, session, auth },
+    { tenant, session },
   ): Promise<Result<CreatedIncomingWebhook>> => {
     const caller = requireCaller(session);
 
@@ -66,16 +66,19 @@ export const createIncomingWebhook = bsb.action(
       return err(dbError("not_found", "The endpoint was not created"));
     }
 
-    await refreshCaller(auth, [INCOMING_WEBHOOKS_TAG]);
-
     return ok({ token: first.row.token, secret: first.row.secret });
   },
 );
 
 /** Turns an endpoint on or off. */
 export const setIncomingWebhookEnabled = bsb.action(
-  { ...manage, input: v.object({ id: Id, enabled: v.boolean() }) },
-  async ({ id, enabled }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id, enabled: v.boolean() }),
+    tags: () => [tags.incomingWebhooks()],
+    refresh: true,
+  },
+  async ({ id, enabled }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -97,16 +100,19 @@ export const setIncomingWebhookEnabled = bsb.action(
       return set;
     }
 
-    await refreshCaller(auth, [INCOMING_WEBHOOKS_TAG]);
-
     return ok(enabled);
   },
 );
 
 /** Deletes an endpoint with its secrets. */
 export const deleteIncomingWebhook = bsb.action(
-  { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id }),
+    tags: () => [tags.incomingWebhooks()],
+    refresh: true,
+  },
+  async ({ id }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -131,8 +137,6 @@ export const deleteIncomingWebhook = bsb.action(
     if (deleted.data[0]?.deleted !== true) {
       return err(dbError("not_found", "Endpoint not found"));
     }
-
-    await refreshCaller(auth, [INCOMING_WEBHOOKS_TAG]);
 
     return ok(true);
   },

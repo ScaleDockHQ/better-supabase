@@ -6,7 +6,6 @@ import type { AuthState } from "../auth/resolve.ts";
 import type { CookieScope } from "../auth/session.ts";
 import type {
   AuthorizeUrlParams,
-  ExistingAccount,
   OtpParams,
   SignOutScope,
 } from "../auth/sign-in.ts";
@@ -45,7 +44,6 @@ import type {
   ResourceLoaderContext,
   Unwrapped,
 } from "../server/kit.ts";
-import type { ResourceMap } from "../server/resources.ts";
 import type { GuardOptions } from "../server/respond.ts";
 import type {
   AdminDb,
@@ -58,8 +56,41 @@ import type {
 import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
 import type { RecordAt, RecordServer } from "./record.ts";
-import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
+import type { RESOURCES_HOST, ResourcesHost } from "./resources.ts";
+import type { AUTH_FLOWS_HOST, AuthFlowDeps } from "./sign-in.ts";
 import type { GateUser } from "./user.ts";
+
+/**
+ * App-wide settings of every `bsb.action` (ADR 1256). `Ex` is what `envelope`
+ * adds to each outcome.
+ */
+export interface NextActions<Ex = unknown> {
+  /**
+   * Fields merged into every outcome, success or error, after the action's own
+   * `result`: a translated `message`, `fieldErrors` or a `code`. The actions'
+   * return type carries them as `ActionResult<O> & Ex`.
+   */
+  readonly envelope?: (outcome: ActionResult<unknown>) => Ex | Promise<Ex>;
+  /**
+   * Runs before each action's own `guard`, for rules every action shares (a
+   * read-only support session, a suspended brand). Return an error to refuse.
+   */
+  readonly guard?: (
+    tenant: string | undefined,
+    ctx: Parameters<NonNullable<ActionOptions<undefined>["guard"]>>[1],
+  ) => DbError | undefined | Promise<DbError | undefined>;
+  /**
+   * Turns what a handler returned into a settled outcome, for a result type the
+   * library does not know (a `better-result` `Result`). Return `undefined` to
+   * leave the value to the default handling.
+   */
+  readonly from?: (
+    value: unknown,
+  ) =>
+    | { readonly ok: true; readonly data: unknown }
+    | { readonly ok: false; readonly error: DbError }
+    | undefined;
+}
 
 export interface NextOptions extends ServerOptions {
   /**
@@ -94,9 +125,26 @@ export interface NextOptions extends ServerOptions {
    */
   readonly rootParams?: NextRootParams;
   /**
+   * How `bsb.tenant(ref)` and `bsb.activeTenant()` find the tenant record: `by`
+   * is the kind a plain string ref is read as (default `id`), and `resolve` has
+   * one function per kind. A resolver returns the record (it needs an `id`) or
+   * `null` for an unknown tenant, which ends the render with `notFound()`.
+   *
+   * ```ts
+   * createNext(betterSupabase, {
+   *   rootParams,
+   *   tenants: {
+   *     by: "slug",
+   *     resolve: { slug: (slug) => getOrganizationBySlug(slug) },
+   *   },
+   * });
+   * ```
+   */
+  readonly tenants?: NextTenants;
+  /**
    * The caller's keys in the active tenant from a source that costs no database
    * call, such as the token's `permissions` claim or the shell's bootstrap
-   * entry. `bsb.record(...).load()` and `recordListServer` use it for their
+   * entry. `bsb.record(...).get()` and `recordListServer` use it for their
    * `can` flags and call `my_permissions` only when it returns `undefined` or
    * `null`. The keys must be the full set: a set that omits a key the record
    * type checks denies it.
@@ -303,6 +351,28 @@ export interface ActionOptions<
    * with them, such as `reads.deals.board.tables`.
    */
   readonly invalidates?: readonly string[];
+  /**
+   * Cache tags a successful call expires, computed from the tenant, the
+   * validated input and the data the action returned. Declare a tag once as a
+   * function of the tenant and use it here and in `bsb.tenant(..., { tags })`.
+   */
+  readonly tags?: (scope: {
+    readonly tenant: string | undefined;
+    readonly input: ActionParsed<S>;
+    readonly data: unknown;
+  }) => readonly string[];
+  /**
+   * Calls `refresh()` from `next/cache` after a successful call, so the client
+   * router shows the write without each caller doing it.
+   */
+  readonly refresh?: boolean;
+  /**
+   * Drops every `bsb.cached()` entry of the caller after a successful call
+   * (`bsb.evictSession`), which also re-renders the caller's page. Use it for a
+   * write that changes what other domains read, such as a membership, role or
+   * profile change; prefer `tags` when the write reaches one domain.
+   */
+  readonly evictSession?: boolean;
 }
 
 /**
@@ -403,6 +473,8 @@ export interface BetterNext<
   V extends AuthzVersionCache = AuthzVersionCache,
   // oxlint-disable-next-line typescript/no-explicit-any -- as ServerContext
   D = any,
+  /** What `NextOptions.actions.envelope` adds to every action's outcome. */
+  Ex = unknown,
 > extends BetterServer<M, F, E, C, P, B, V> {
   /** `proxy.ts`: refreshes sessions for page loads and server actions. */
   proxy(request: NextRequest, options?: ProxyOptions<C, P>): Promise<Response>;
@@ -659,8 +731,73 @@ export interface BetterNext<
   locale(): Promise<string | undefined>;
   /** `rootParams.brand()`, or `undefined` without one or outside a render. */
   brand(): Promise<string | undefined>;
-  /** `rootParams.tenant()`, or `undefined` without one or outside a render. */
+  /**
+   * Without arguments: `rootParams.tenant()`, or `undefined` without one or
+   * outside a render.
+   *
+   * With a ref: the scope for a cached read, for a signed-in member of that
+   * tenant. The ref is resolved through `NextOptions.tenants`, the caller's
+   * membership and `permission` are checked, and a refusal ends the render with
+   * `unauthorized()`, `notFound()` or `forbidden()` (ADR 1252), so the read has
+   * no `null` ladder. `options` are those of `bsb.cached()`.
+   *
+   * ```ts
+   * export const getAgendaItem = cache(async (org: string, id: string) => {
+   *   "use cache: private";
+   *   const { db } = await bsb.tenant(org, permissions.agenda.read, {
+   *     tables: ["agenda_items"],
+   *   });
+   *   return await db.agendaItems.get(id).orNull();
+   * });
+   * ```
+   */
   tenant(): Promise<string | undefined>;
+  tenant(
+    ref: TenantRef,
+    permission?: Ref,
+    options?: ScopeCallOptions<Extract<keyof M, string>>,
+  ): Promise<TenantScope<M, F, E, C, P, B, D, Ref>>;
+  /**
+   * `bsb.tenant(ref, ...)` for the tenant `rootParams.tenant` names. Pass the
+   * tenant as an argument of your cached function when the root param is not
+   * readable there (a Server Action, a cache key).
+   */
+  activeTenant(
+    permission?: Ref,
+    options?: ScopeCallOptions<Extract<keyof M, string>>,
+  ): Promise<TenantScope<M, F, E, C, P, B, D, Ref>>;
+  /**
+   * Checks the caller's membership and `permission` in the tenant `ref` names,
+   * outside any cache, then returns `read(tenant)`. Make `read` a `"use cache"`
+   * function of the tenant: reference data costs one database read per tenant
+   * instead of one per user, and a caller who fails the check never reaches it.
+   * A refusal ends the render like `bsb.tenant()` (ADR 1255).
+   *
+   * ```ts
+   * async function readRoles(tenantId: string) {
+   *   "use cache";
+   *   cacheTag(`roles@${tenantId}`);
+   *   return bsb.admin().roles.list({ where: { tenantId } }).orThrow();
+   * }
+   *
+   * export const getRoles = (org: string) =>
+   *   bsb.shared(org, permissions.roles.read, (t) => readRoles(t.id));
+   * ```
+   */
+  shared<T>(
+    ref: TenantRef,
+    permission: Ref | undefined,
+    read: (tenant: TenantRecord) => Promise<T>,
+  ): Promise<T>;
+  /**
+   * The cached context for a signed-in caller without a tenant: `db`,
+   * `session`, `user` and `can`. A caller without a session ends the render
+   * with `unauthorized()`, one without `permission` with `forbidden()`.
+   */
+  auth(
+    permission?: Ref,
+    options?: ScopeCallOptions<Extract<keyof M, string>>,
+  ): Promise<AuthScope<M, F, E, C, P, B, D, Ref>>;
   /**
    * `NextOptions.heldPermissions`, which record servers read before they ask
    * the database for the caller's keys.
@@ -750,7 +887,7 @@ export interface BetterNext<
       bound: BoundOutput<Bd>,
     ) => Promise<T> | T,
     map?: ActionMapper<Unwrapped<Awaited<T>>, O>,
-  ): (...args: BoundOptions<Bd, S>) => Promise<ActionResult<O>>;
+  ): (...args: BoundOptions<Bd, S>) => Promise<ActionResult<O> & Ex>;
   /**
    * A server action that calls one block method as the caller, with the same
    * guard, validation and authorize checks as `action`.
@@ -785,7 +922,7 @@ export interface BetterNext<
       >,
   ): (
     input: ActionInput<S>,
-  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>>>;
+  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>> & Ex>;
   /**
    * One record type's server binding (`defineRecordType`, which `gen` writes to
    * `records/<type>.ts`): `load` settles each block's binding for a record in a
@@ -795,7 +932,7 @@ export interface BetterNext<
    *
    * ```ts
    * const customer = bsb.record(customerRecord);
-   * const { bindings, can } = await customer.load(id, {
+   * const { bindings, can } = await customer.get(id, {
    *   bindings: ["tags"],
    * });
    * ```
@@ -840,22 +977,17 @@ export interface BetterNext<
     options?: RequireOptions<C, P, R, Ref, NextResource<M, F, E, C, P, B>>,
   ): Promise<ServerContext<M, F, E, C, P, B, D> & AuthorizedContext<C, P, R>>;
   /**
-   * REST resources for a catch-all route, matching the API model: collections,
-   * items and actions, as the caller (RLS), behind the guard in `options`, with
-   * Problem Details errors. An unknown path answers 404 before auth resolves.
-   *
-   * ```ts
-   * // app/api/[...path]/route.ts
-   * export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
-   *   { customers: true },
-   *   { basePath: "/api" },
-   * );
-   * ```
+   * What `createResources(bsb)` from `better-supabase/next/resources` reads. It
+   * is not an API of its own.
    */
-  resources(
-    map: ResourceMap<M, Ref, ServerContext<M, F, E, C, P, B, D>["db"]>,
-    options?: NextResourcesOptions,
-  ): NextResourceRoutes;
+  readonly [RESOURCES_HOST]: ResourcesHost<
+    M,
+    unknown,
+    F,
+    E,
+    Ref,
+    ServerContext<M, F, E, C, P, B, D>["db"]
+  >;
   /**
    * Tags the current `"use cache"` scope with a table (and row) tag. With a
    * `tenant`, mutations in other tenants leave the entry cached.
@@ -904,96 +1036,10 @@ export interface BetterNext<
    */
   stopSupport(): Promise<ActionResult<{ readonly ended: boolean }>>;
   /**
-   * Signs in with an email and a password from a server action. It writes the
-   * session cookies, stores the verified session for the next render and
-   * returns `redirectTo`: `credentials.next` when it is a same-origin path,
-   * else `options.fallback` (`/`). Reads later in the same request
-   * (`getClaims()`, `claims()`, `context()`) see the new session.
+   * What `createAuthFlows(bsb)` from `better-supabase/next/sign-in` reads. It
+   * is not an API of its own.
    */
-  signInWithPassword(
-    credentials: SignInCredentials,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Verifies an email link's `token_hash` (sign-up, invite, magic link,
-   * recovery, email change) or an emailed code, then commits the session like
-   * `signInWithPassword`. The new session replaces any session the request
-   * carried.
-   */
-  verifyOtp(
-    params: VerifyOtpParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * The Auth server's OAuth URL for `provider`, for a `redirect()`, from
-   * auth-js's `signInWithOAuth`. auth-js stores the PKCE verifier in a cookie
-   * through `@supabase/ssr`, where `exchangeCodeForSession` reads it. `next`
-   * rides on `redirectTo` as `?next=` when it is a same-origin path.
-   */
-  signInWithOAuth(
-    params: SignInWithOAuthParams,
-  ): Promise<{ readonly url: string }>;
-  /**
-   * Exchanges the callback's `?code=` and the PKCE verifier cookie for a
-   * session with auth-js, and commits it like `signInWithPassword`.
-   */
-  exchangeCodeForSession(
-    params: ExchangeCodeParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Challenges and verifies an MFA factor for the signed-in user and commits
-   * the `aal2` session; `mfa` is then false.
-   */
-  verifyMfa(
-    params: MfaVerification,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Ends the session on the Auth server first (`scope`, `local` by default),
-   * then clears the session cookies (also at `cookieScopes`), forgets the
-   * verified sessions and expires its cache tags. `others` keeps this session
-   * and its cookies, and still forgets the verified sessions. Reads later in
-   * the same request are signed out.
-   */
-  signOut(
-    params?: SignOutParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn>>;
-  /**
-   * Emails a magic link and a code. It writes the PKCE verifier cookie like
-   * `signInWithOAuth`, so the link's `?code=` goes to `exchangeCodeForSession`,
-   * and the code to `verifyOtp` with `type: "email"`. Returns `null`: nothing
-   * is signed in yet.
-   */
-  signInWithOtp(params: SignInWithOtpParams): Promise<ActionResult<null>>;
-  /**
-   * Emails a password reset link with the PKCE verifier cookie.
-   * `exchangeCodeForSession` on the callback signs the user in; the app then
-   * asks for the new password. Auth answers the same whether or not an account
-   * has the email.
-   */
-  resetPasswordForEmail(
-    params: ResetPasswordParams,
-  ): Promise<ActionResult<null>>;
-  /**
-   * Signs up with an email and a password. With email confirmation on, it
-   * emails the confirmation link with the PKCE verifier cookie and returns
-   * `null`. With it off, Auth returns a session, committed like
-   * `signInWithPassword`. When the email already has a confirmed account, Auth
-   * sends nothing and this returns `{ existingAccount: true }`, so the app can
-   * email the owner itself. Show the user the same screen either way, so the
-   * page doesn't tell who has an account.
-   */
-  signUp(
-    params: SignUpParams,
-    options?: SignInOptions,
-  ): Promise<ActionResult<SignedIn | ExistingAccount | null>>;
-  /**
-   * Emails the sign-up confirmation or the email change link again, with a new
-   * PKCE verifier.
-   */
-  resend(params: ResendParams): Promise<ActionResult<null>>;
+  readonly [AUTH_FLOWS_HOST]: AuthFlowDeps<C, P>;
 }
 
 export interface SignInCredentials {
@@ -1416,6 +1462,78 @@ export type BootstrapOptions<
   };
 
 export type { Access, Bootstrap } from "../server/bootstrap.ts";
+
+/** A tenant record: what a resolver returns, and what `scope.tenant` is. */
+export interface TenantRecord {
+  readonly id: string;
+}
+
+export interface NextTenants {
+  /** The kind a string `TenantRef` is read as. Defaults to `"id"`. */
+  readonly by?: string;
+  /** One resolver per kind; `id` needs none and reads the id as given. */
+  readonly resolve: Readonly<
+    Record<
+      string,
+      (value: string) => Promise<TenantRecord | null> | TenantRecord | null
+    >
+  >;
+}
+
+/**
+ * Names a tenant: a string read as `NextTenants.by`, `{ id }`, or `{ <kind>:
+ * string }` for a resolver kind.
+ */
+export type TenantRef = string | { readonly [kind: string]: string };
+
+/** `PrivateCachedOptions` minus what the helpers fill in. */
+export type ScopeCallOptions<T extends string = string> = Omit<
+  PrivateCachedOptions<T>,
+  "scope" | "tenant"
+> & {
+  /**
+   * Start the permission check without waiting for it and gate `db` instead: a
+   * read starts at once under RLS and settles after the check, so a cold call
+   * costs one round trip. A refusal settles the read with a `forbidden`,
+   * `not_found` or `unauthorized` error Result. Do not read `can` or `granted`
+   * as proof before the first read settles.
+   */
+  readonly gate?: boolean;
+};
+
+/** What `bsb.auth()` returns: the cached context plus the caller. */
+export type AuthScope<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+  D,
+  Ref,
+> = CachedContext<M, F, E, C, P, B, D> & {
+  /** The signed-in user. */
+  readonly user: Extract<AuthSession<C, P>, { kind: "user" }>["user"];
+  /** Whether the caller holds `permission` in the scope's tenant. */
+  can(permission: Ref): Promise<boolean>;
+};
+
+/** What `bsb.tenant(ref)` and `bsb.activeTenant()` return. */
+export type TenantScope<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+  D,
+  Ref,
+> = AuthScope<M, F, E, C, P, B, D, Ref> & {
+  /** The record the app's resolver returned. */
+  readonly tenant: TenantRecord;
+  /** Whether the permission check passed; `true` when none was asked for. */
+  readonly granted: true;
+};
 
 export interface NextRootParams {
   /** `locale` from `next/root-params`. */

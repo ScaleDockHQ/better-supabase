@@ -612,7 +612,7 @@ export function createCollections<
       ),
     add: ({ id, subjectIds: ids }) =>
       call(
-        "add_collection_entries",
+        "create_collection_entries",
         { collection: id, subject_ids: [...ids], subject_type: null },
         (value) => ({
           added: isRecord(value) ? [...stringsOf(value["added"])] : [],
@@ -620,7 +620,7 @@ export function createCollections<
       ),
     remove: ({ id, subjectIds: ids }) =>
       call(
-        "remove_collection_entries",
+        "delete_collection_entries",
         { collection: id, subject_ids: [...ids] },
         Number,
       ),
@@ -704,7 +704,7 @@ export function createCollections<
     },
     saveForLater: ({ organizationId, subject, input = {} }) =>
       call(
-        "save_for_later",
+        "upsert_for_later",
         {
           tenant: organizationId,
           subject_type: subject.type,
@@ -721,7 +721,7 @@ export function createCollections<
         (value) => value === true,
       ),
     removeSaved: (id) =>
-      call("remove_saved_item", { item: id }, (value) => value === true),
+      call("delete_saved_item", { item: id }, (value) => value === true),
     saved: ({ organizationId, options: savedOptions = {} }) => {
       const { limit, cursor } = pageOf(savedOptions);
 

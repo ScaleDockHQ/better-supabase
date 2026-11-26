@@ -247,7 +247,7 @@ ${userGrant(`${fn("set_variant_discount_group")}(uuid, uuid)`)}
 -- Creates a discount group (group null) or renames one. kind is customer or
 -- product and can't change; the code is unique per tenant and kind. Returns
 -- its id and whether it was created.
-create or replace function ${fn("save_discount_group")}(tenant ${ctx.idType}, "group" uuid, kind text, code text, name text)
+create or replace function ${fn("upsert_discount_group")}(tenant ${ctx.idType}, "group" uuid, kind text, code text, name text)
 returns jsonb
 language plpgsql
 security definer
@@ -255,24 +255,24 @@ set search_path = ''
 as $$
 declare
   v_id uuid;
-  v_created boolean := save_discount_group."group" is null;
-  v_code text := btrim(save_discount_group.code);
+  v_created boolean := upsert_discount_group."group" is null;
+  v_code text := btrim(upsert_discount_group.code);
 begin
-  ${guard(names, "save_discount_group.tenant")}
-  if save_discount_group.kind is null or save_discount_group.kind not in (${KINDS}) then
+  ${guard(names, "upsert_discount_group.tenant")}
+  if upsert_discount_group.kind is null or upsert_discount_group.kind not in (${KINDS}) then
     ${fail("CATALOG_DISCOUNT_GROUP_INVALID", "the kind is customer or product", "22023")}
   end if;
-  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(save_discount_group.name, ''))) not between 1 and 200 then
+  if v_code is null or length(v_code) not between 1 and 50 or length(btrim(coalesce(upsert_discount_group.name, ''))) not between 1 and 200 then
     ${fail("CATALOG_DISCOUNT_GROUP_INVALID", "a group needs a code of up to 50 and a name of up to 200 characters", "22023")}
   end if;
   begin
     if v_created then
       insert into ${groups} as x (${g("tenant")}, ${g("kind")}, ${g("code")}, ${g("name")})
-      values (save_discount_group.tenant, save_discount_group.kind, v_code, btrim(save_discount_group.name))
+      values (upsert_discount_group.tenant, upsert_discount_group.kind, v_code, btrim(upsert_discount_group.name))
       returning x.${g("id")} into v_id;
     else
-      update ${groups} x set ${g("code")} = v_code, ${g("name")} = btrim(save_discount_group.name), ${g("updatedAt")} = now()
-      where x.${g("id")} = save_discount_group."group" and x.${g("tenant")} = save_discount_group.tenant and x.${g("kind")} = save_discount_group.kind
+      update ${groups} x set ${g("code")} = v_code, ${g("name")} = btrim(upsert_discount_group.name), ${g("updatedAt")} = now()
+      where x.${g("id")} = upsert_discount_group."group" and x.${g("tenant")} = upsert_discount_group.tenant and x.${g("kind")} = upsert_discount_group.kind
       returning x.${g("id")} into v_id;
       if v_id is null then
         ${fail("CATALOG_DISCOUNT_GROUP_NOT_FOUND", "discount group not found", "P0002")}
@@ -284,7 +284,7 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-${userGrant(`${fn("save_discount_group")}(${ctx.idType}, uuid, text, text, text)`)}
+${userGrant(`${fn("upsert_discount_group")}(${ctx.idType}, uuid, text, text, text)`)}
 
 -- Deletes a group no rule uses. Its customers leave it and its variants lose
 -- the group.
@@ -390,26 +390,26 @@ revoke execute on function ${fn("discount_rule_check")}(${ctx.idType}, jsonb) fr
 -- discountBps?, fixedPrice? (minor units as text), currency? }. A rule with the
 -- same groups, start date and minimum quantity is one rule: the call updates
 -- it. Returns its id and whether it was created.
-create or replace function ${fn("save_discount_rule")}(tenant ${ctx.idType}, rule uuid, attrs jsonb)
+create or replace function ${fn("upsert_discount_rule")}(tenant ${ctx.idType}, rule uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_attrs jsonb := coalesce(save_discount_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_discount_rule.attrs, '{}'::jsonb);
   v_id uuid;
   v_created boolean := true;
 begin
-  ${guard(names, "save_discount_rule.tenant")}
-  perform ${fn("discount_rule_check")}(save_discount_rule.tenant, v_attrs);
-  if save_discount_rule.rule is not null then
+  ${guard(names, "upsert_discount_rule.tenant")}
+  perform ${fn("discount_rule_check")}(upsert_discount_rule.tenant, v_attrs);
+  if upsert_discount_rule.rule is not null then
     update ${rules} x set
       ${r("customerGroup")} = nullif(v_attrs ->> 'customerGroupId', '')::uuid, ${r("productGroup")} = nullif(v_attrs ->> 'productGroupId', '')::uuid,
       ${r("validFrom")} = (v_attrs ->> 'validFrom')::date, ${r("validTo")} = (v_attrs ->> 'validTo')::date,
       ${r("minQuantity")} = coalesce((v_attrs ->> 'minQuantity')::numeric, 0), ${r("discountBps")} = coalesce((v_attrs ->> 'discountBps')::integer, 0),
       ${r("fixedPrice")} = (v_attrs ->> 'fixedPrice')::bigint, ${r("currency")} = v_attrs ->> 'currency', ${r("updatedAt")} = now()
-    where x.${r("id")} = save_discount_rule.rule and x.${r("tenant")} = save_discount_rule.tenant
+    where x.${r("id")} = upsert_discount_rule.rule and x.${r("tenant")} = upsert_discount_rule.tenant
     returning x.${r("id")} into v_id;
     if v_id is null then
       ${fail("CATALOG_DISCOUNT_RULE_NOT_FOUND", "discount rule not found", "P0002")}
@@ -417,7 +417,7 @@ begin
     return jsonb_build_object('id', v_id, 'created', false);
   end if;
   insert into ${rules} as x (${r("tenant")}, ${r("customerGroup")}, ${r("productGroup")}, ${r("validFrom")}, ${r("validTo")}, ${r("minQuantity")}, ${r("discountBps")}, ${r("fixedPrice")}, ${r("currency")})
-  values (save_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
+  values (upsert_discount_rule.tenant, nullif(v_attrs ->> 'customerGroupId', '')::uuid, nullif(v_attrs ->> 'productGroupId', '')::uuid,
     (v_attrs ->> 'validFrom')::date, (v_attrs ->> 'validTo')::date, coalesce((v_attrs ->> 'minQuantity')::numeric, 0),
     coalesce((v_attrs ->> 'discountBps')::integer, 0), (v_attrs ->> 'fixedPrice')::bigint, v_attrs ->> 'currency')
   on conflict (${r("tenant")}, coalesce(${r("customerGroup")}, ${NO_GROUP}), coalesce(${r("productGroup")}, ${NO_GROUP}), coalesce(${r("validFrom")}, date '0001-01-01'), ${r("minQuantity")}) do update set
@@ -427,7 +427,7 @@ begin
   return jsonb_build_object('id', v_id, 'created', v_created);
 end;
 $$;
-${userGrant(`${fn("save_discount_rule")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_discount_rule")}(${ctx.idType}, uuid, jsonb)`)}
 
 -- Deletes a rule of the matrix.
 create or replace function ${fn("delete_discount_rule")}(rule uuid)
@@ -718,7 +718,7 @@ export function discountContract(
 
   return [
     {
-      name: "save_discount_group",
+      name: "upsert_discount_group",
       args: ["{id}", "uuid", "text", "text", "text"],
       returns: "jsonb",
     },
@@ -734,7 +734,7 @@ export function discountContract(
       returns: "jsonb",
     },
     {
-      name: "save_discount_rule",
+      name: "upsert_discount_rule",
       args: ["{id}", "uuid", "jsonb"],
       returns: "jsonb",
     },

@@ -1,6 +1,6 @@
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:c70e60ace3fca4284dce0a067d50baace83d3a5ae31ba5c1adb9f2a2b6ef6ee6
+-- @bsb-hash sha256:6f18887508e7a40e30fd8419dbc3516ec57de38d72f08ba3ab47cfcfcbede26f
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -375,7 +375,7 @@ grant execute on function "better_supabase"."get_ai_provider_key"(uuid) to authe
 -- Adds or replaces a tenant's key for a provider ('ai_keys.manage' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
-create or replace function "better_supabase"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
+create or replace function "better_supabase"."upsert_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -390,20 +390,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
-    and (jsonb_typeof(save_ai_provider_key.credential_ref -> 'tenant') is distinct from 'string' or (save_ai_provider_key.credential_ref ->> 'tenant') is distinct from (save_ai_provider_key.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_ai_provider_key.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_ai_provider_key.credential_ref is not null and jsonb_typeof(upsert_ai_provider_key.credential_ref) <> 'null'
+    and (jsonb_typeof(upsert_ai_provider_key.credential_ref -> 'tenant') is distinct from 'string' or (upsert_ai_provider_key.credential_ref ->> 'tenant') is distinct from (upsert_ai_provider_key.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_ai_provider_key.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
-  where x."tenant_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
+  where x."tenant_id" = upsert_ai_provider_key.tenant and x."provider" = upsert_ai_provider_key.provider and x."name" = coalesce(upsert_ai_provider_key.name, 'default')
   for update;
   v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("tenant_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
-  values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
+  values (upsert_ai_provider_key.tenant, upsert_ai_provider_key.provider, coalesce(upsert_ai_provider_key.name, 'default'), upsert_ai_provider_key.credential_ref, coalesce(upsert_ai_provider_key.settings, '{}'), coalesce(upsert_ai_provider_key.enabled, true), auth.uid())
   on conflict ("tenant_id", "provider", "name") do update set
     "credential_ref" = excluded."credential_ref",
     "settings" = excluded."settings",
@@ -436,8 +436,8 @@ begin
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
-revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
-grant execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
 -- Deletes a key ('ai_keys.manage' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
@@ -615,7 +615,7 @@ grant execute on function "better_supabase"."due_ai_batches"(integer, integer) t
 
 -- Saves result items: { "items": [{ "request_id", "status", "output",
 -- "usage", "error" }] } (service role). Returns how many were written.
-create or replace function "better_supabase"."save_ai_batch_items"(id uuid, items jsonb)
+create or replace function "better_supabase"."upsert_ai_batch_items"(id uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -623,15 +623,15 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_items jsonb := case when jsonb_typeof(save_ai_batch_items.items) = 'object' then save_ai_batch_items.items -> 'items' else save_ai_batch_items.items end;
+  v_items jsonb := case when jsonb_typeof(upsert_ai_batch_items.items) = 'object' then upsert_ai_batch_items.items -> 'items' else upsert_ai_batch_items.items end;
   v_count integer;
 begin
-  select x."tenant_id" into v_tenant from "better_supabase"."ai_batches" x where x."id" = save_ai_batch_items.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."ai_batches" x where x."id" = upsert_ai_batch_items.id;
   if not found then
-    raise exception 'batch % not found', save_ai_batch_items.id using errcode = 'P0002', hint = 'AI_BATCH_NOT_FOUND';
+    raise exception 'batch % not found', upsert_ai_batch_items.id using errcode = 'P0002', hint = 'AI_BATCH_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_batch_items" ("batch_id", "request_id", "tenant_id", "status", "output", "usage", "error")
-  select save_ai_batch_items.id, item ->> 'request_id', v_tenant, item ->> 'status', item -> 'output', item -> 'usage', left(item ->> 'error', 4000)
+  select upsert_ai_batch_items.id, item ->> 'request_id', v_tenant, item ->> 'status', item -> 'output', item -> 'usage', left(item ->> 'error', 4000)
   from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) item
   on conflict ("batch_id", "request_id") do update set
     "status" = excluded."status",
@@ -642,8 +642,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."save_ai_batch_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."save_ai_batch_items"(uuid, jsonb) to service_role;
+revoke execute on function "better_supabase"."upsert_ai_batch_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."upsert_ai_batch_items"(uuid, jsonb) to service_role;
 
 create or replace function "better_supabase"."get_ai_batch"(id uuid)
 returns jsonb
@@ -1029,14 +1029,14 @@ as $$ select "better_supabase"."get_ai_provider_key"($1) $$;
 revoke execute on function "api"."get_ai_provider_key"(uuid) from public, anon;
 grant execute on function "api"."get_ai_provider_key"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
+create or replace function "api"."upsert_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_ai_provider_key"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
-grant execute on function "api"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_ai_provider_key"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
+grant execute on function "api"."upsert_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
 create or replace function "api"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -1093,14 +1093,14 @@ as $$ select "better_supabase"."due_ai_batches"($1, $2) $$;
 revoke execute on function "api"."due_ai_batches"(integer, integer) from public, anon, authenticated;
 grant execute on function "api"."due_ai_batches"(integer, integer) to service_role;
 
-create or replace function "api"."save_ai_batch_items"(id uuid, items jsonb)
+create or replace function "api"."upsert_ai_batch_items"(id uuid, items jsonb)
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_ai_batch_items"($1, $2) $$;
-revoke execute on function "api"."save_ai_batch_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "api"."save_ai_batch_items"(uuid, jsonb) to service_role;
+as $$ select "better_supabase"."upsert_ai_batch_items"($1, $2) $$;
+revoke execute on function "api"."upsert_ai_batch_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."upsert_ai_batch_items"(uuid, jsonb) to service_role;
 
 create or replace function "api"."get_ai_batch"(id uuid)
 returns jsonb

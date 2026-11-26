@@ -8,7 +8,7 @@ import { blockFileState } from "../../sql/index.ts";
 import { fileDiff } from "../diff.ts";
 import { plain } from "../style.ts";
 import { CliError } from "./errors.ts";
-import { display, readIfExists, sameText } from "./io.ts";
+import { display, getIfExists, sameText } from "./io.ts";
 
 /**
  * `path` resolved under `root`, or an error when it leaves the root (an
@@ -355,7 +355,7 @@ export async function applyPlan(
 
     seen.add(path);
     const shown = display(base, path);
-    const current = await readIfExists(path);
+    const current = await getIfExists(path);
     const decided = outcomeOf(file, current, force);
     let { outcome } = decided;
     let { reason } = decided;
@@ -422,7 +422,7 @@ export async function applyPlan(
   for (const entry of plan.remove ?? []) {
     const item = typeof entry === "string" ? { path: entry } : entry;
     const path = insideRoot(plan.root, item.path, "path");
-    const current = await readIfExists(path);
+    const current = await getIfExists(path);
 
     if (current === undefined) {
       continue;

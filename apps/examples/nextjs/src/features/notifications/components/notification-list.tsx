@@ -20,7 +20,7 @@ import type { NotificationRow } from "../notification-types";
 
 import { loadNotifications } from "../notifications-actions";
 
-async function loadRows(): Promise<readonly NotificationRow[]> {
+async function getRows(): Promise<readonly NotificationRow[]> {
   const result = await loadNotifications({});
 
   return result.ok ? result.data : [];
@@ -38,7 +38,7 @@ export function NotificationList() {
 
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
-    load: loadRows,
+    load: getRows,
   });
 
   if (items === undefined) {

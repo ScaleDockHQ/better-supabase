@@ -72,7 +72,7 @@ function methodFunctions(ctx: BlockSqlContext, q: LimsSql): string {
       : `if v_input ->> 'formId' is not null and not exists (
     select 1 from ${q.forms.table("forms")} y
     where y.${q.forms.col("forms", "id")} = (v_input ->> 'formId')::uuid
-      and y.${q.forms.col("forms", "tenant")}::text = save_lims_method.tenant::text
+      and y.${q.forms.col("forms", "tenant")}::text = upsert_lims_method.tenant::text
   ) then
     ${q.invalid("the form is not a form of this organization")}
   end if;`;
@@ -84,7 +84,7 @@ function methodFunctions(ctx: BlockSqlContext, q: LimsSql): string {
 -- A result below lowerLimit or above upperLimit is out of specification. formId
 -- names the form that captures the raw readings. Pass method_id to update.
 -- Needs lims.manage.
-create or replace function ${fn("save_lims_method")}(tenant ${idType}, input jsonb, method_id uuid default null)
+create or replace function ${fn("upsert_lims_method")}(tenant ${idType}, input jsonb, method_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -93,10 +93,10 @@ as $$
 #variable_conflict use_variable
 declare
   v_row ${methods};
-  v_input jsonb := coalesce(save_lims_method.input, '{}'::jsonb);
-  v_created boolean := save_lims_method.method_id is null;
+  v_input jsonb := coalesce(upsert_lims_method.input, '{}'::jsonb);
+  v_created boolean := upsert_lims_method.method_id is null;
 begin
-  if not ${q.allowed("save_lims_method.tenant", q.manage)} then
+  if not ${q.allowed("upsert_lims_method.tenant", q.manage)} then
     ${q.forbidden("not allowed to save test methods")}
   end if;
   if jsonb_typeof(v_input) is distinct from 'object' then
@@ -104,16 +104,16 @@ begin
   end if;
   ${formCheck}
   begin
-    if save_lims_method.method_id is null then
+    if upsert_lims_method.method_id is null then
       insert into ${methods} (${m("tenant")}, ${m("key")}, ${m("name")}, ${m("unit")}, ${m("lowerLimit")}, ${m("upperLimit")}, ${m("form")})
-      values (save_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
+      values (upsert_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
         (v_input ->> 'lowerLimit')::numeric, (v_input ->> 'upperLimit')::numeric, (v_input ->> 'formId')::uuid)
       returning * into v_row;
     else
       update ${methods} x set ${m("name")} = trim(v_input ->> 'name'), ${m("unit")} = nullif(trim(v_input ->> 'unit'), ''),
         ${m("lowerLimit")} = (v_input ->> 'lowerLimit')::numeric, ${m("upperLimit")} = (v_input ->> 'upperLimit')::numeric,
         ${m("form")} = (v_input ->> 'formId')::uuid, ${m("updatedAt")} = now()
-      where x.${m("id")} = save_lims_method.method_id and x.${m("tenant")} = save_lims_method.tenant
+      where x.${m("id")} = upsert_lims_method.method_id and x.${m("tenant")} = upsert_lims_method.tenant
       returning * into v_row;
       if not found then
         ${q.methodMissing}
@@ -132,7 +132,7 @@ begin
   return ${q.methodJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_lims_method")}(${idType}, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_lims_method")}(${idType}, jsonb, uuid)`)}
 
 -- Archives a method so no new result can use it. Its results stay. Needs
 -- lims.manage.

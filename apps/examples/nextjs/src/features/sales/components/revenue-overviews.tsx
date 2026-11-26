@@ -9,7 +9,7 @@ import { connection } from "next/server";
 
 import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
-import { loadMemberOptions } from "../member/member-queries";
+import { getMemberOptions } from "../member/member-queries";
 import {
   buildCommissionStatement,
   createCommissionPlan,
@@ -29,7 +29,7 @@ export type CommissionTab = "plans" | "commissions" | "statements";
 export type ReferralTab = "codes" | "referrals";
 
 async function namesOf(): Promise<(userId: string) => string> {
-  const members = await loadMemberOptions();
+  const members = await getMemberOptions();
   const names = new Map(members.map((member) => [member.userId, member.name]));
 
   return (userId) => names.get(userId) ?? userId;
@@ -64,7 +64,7 @@ export async function CreatePlanDialog() {
 // skeleton: the page's Suspense fallback is the skeleton of this view
 export async function BuildStatementDialog() {
   const t = await getExtracted("sales");
-  const members = await loadMemberOptions();
+  const members = await getMemberOptions();
   // The default period reads the clock, which a prerender may not.
   await connection();
   const today = new Date();
@@ -364,7 +364,7 @@ export async function ReferralOverview({
     dateFormatter(),
     namesOf(),
     holds("referrals.write"),
-    loadMemberOptions(),
+    getMemberOptions(),
   ]);
 
   const referrers = Object.fromEntries(

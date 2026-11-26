@@ -18,11 +18,11 @@ import {
   PLAN_ARGS,
   planResult,
 } from "../core/files.ts";
-import { display, readIfExists } from "../core/io.ts";
+import { display, getIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { detectProject, publicPrefix } from "../project/detect.ts";
 import { applyEnvMap, prefixFromFlag, stackEnvValues } from "../stack-env.ts";
-import { parseStackStatus, readStackStatus } from "../stack-status.ts";
+import { parseStackStatus, getStackStatus } from "../stack-status.ts";
 
 const ARGS = {
   out: {
@@ -53,7 +53,7 @@ export type EnvFlags = CliOptions<
   typeof ARGS & Pick<typeof PLAN_ARGS, "dry-run" | "check">
 >;
 
-async function readStatus(
+async function getStatus(
   config: ResolvedConfig,
   args: Pick<EnvFlags, "status-file">,
   env: CliEnv,
@@ -76,7 +76,7 @@ async function readStatus(
     return status;
   }
 
-  const result = await readStackStatus(config.root, env, { signal });
+  const result = await getStackStatus(config.root, env, { signal });
 
   if (!result.ok) {
     throw new CliError(
@@ -125,13 +125,13 @@ export interface StackEnv {
 }
 
 /** The running stack's variables, as `env` writes them and `run` sets them. */
-export async function readStackEnv(
+export async function getStackEnv(
   config: ResolvedConfig,
   args: Pick<EnvFlags, "prefix" | "status-file">,
   env: CliEnv,
   signal?: AbortSignal,
 ): Promise<StackEnv> {
-  const status = await readStatus(config, args, env, signal);
+  const status = await getStatus(config, args, env, signal);
   const prefix = await browserPrefix(config, args.prefix);
 
   const values = stackEnvValues(status, prefix);
@@ -193,7 +193,7 @@ export async function runEnv(
   env: CliEnv,
   signal?: AbortSignal,
 ): Promise<CommandResult> {
-  const status = await readStatus(config, args, env, signal);
+  const status = await getStatus(config, args, env, signal);
   const prefix = await browserPrefix(config, args.prefix);
 
   const stackValues = stackEnvValues(status, prefix);
@@ -222,7 +222,7 @@ export async function runEnv(
 
   const out = write ?? config.env.file;
   const path = insideRoot(config.root, out, write ? "--out" : "env.file");
-  const current = (await readIfExists(path)) ?? "";
+  const current = (await getIfExists(path)) ?? "";
   const file = display(config.root, out);
 
   const plan: FilePlan = {

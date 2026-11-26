@@ -27,7 +27,7 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  $$select api.save_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Customers",
+  $$select api.upsert_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Customers",
     "conditions":{"id":"root","type":"group","combinator":"and","rules":[]}}')$$,
   '42501',
   null,
@@ -44,12 +44,12 @@ select set_config(
 set local role authenticated;
 
 insert into ids
-select 'customers', (api.save_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Customers",
+select 'customers', (api.upsert_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Customers",
   "conditions":{"id":"root","type":"group","combinator":"and","rules":[
     {"id":"r1","type":"rule","path":["lifecycle"],"operator":"is","value":"customer"},
     {"id":"r2","type":"rule","path":["archivedAt"],"operator":"empty"}]}}') ->> 'id')::uuid;
 insert into ids
-select 'leads', (api.save_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Leads",
+select 'leads', (api.upsert_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Leads",
   "conditions":{"id":"root","type":"group","combinator":"and","rules":[
     {"id":"r1","type":"rule","path":["lifecycle"],"operator":"is","value":"lead"}]}}') ->> 'id')::uuid;
 
@@ -63,21 +63,21 @@ select ok(
   'a new segment is due'
 );
 select throws_ok(
-  $$select api.save_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Customers",
+  $$select api.upsert_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Customers",
     "conditions":{"id":"root","type":"group","combinator":"and","rules":[]}}')$$,
   '23505',
   null,
   'two segments in one organization cannot share a name'
 );
 select throws_ok(
-  $$select api.save_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"planet","name":"Planets",
+  $$select api.upsert_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"planet","name":"Planets",
     "conditions":{"id":"root","type":"group","combinator":"and","rules":[]}}')$$,
   '22023',
   null,
   'a subject type outside config.subjects is refused'
 );
 select throws_ok(
-  $$select api.save_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Bad",
+  $$select api.upsert_segment('00000000-0000-4000-8000-000000000001', '{"subjectType":"company","name":"Bad",
     "conditions":{"id":"root","type":"group","combinator":"and","rules":[
       {"id":"r1","type":"rule","path":["revenue"],"operator":"gt","value":1}]}}')$$,
   '22023',
@@ -189,7 +189,7 @@ select is(
   'the job refreshes the segment that was never refreshed'
 );
 select is(
-  api.remove_segment((select id from ids where name = 'customers')),
+  api.delete_segment((select id from ids where name = 'customers')),
   true,
   'the service role removes a segment'
 );

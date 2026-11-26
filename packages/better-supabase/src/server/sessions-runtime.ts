@@ -1,4 +1,4 @@
-import { getEnv } from "@supabase/middleware";
+import { getEnv as getMiddlewareEnv } from "@supabase/middleware";
 
 import type { AuthResolution, VerifiedUser } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
@@ -12,7 +12,7 @@ import type { ResolveRequestOptions, ServerOptions } from "./server-types.ts";
 
 import { prefetchJwks, resolveAuth } from "../auth/resolve.ts";
 import { processSessionMemo } from "../auth/snapshot.ts";
-import { loadEnv } from "../env/index.ts";
+import { getEnv } from "../env/index.ts";
 import { liteBackend } from "./lite.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
 import { countVerifications } from "./verify-count.ts";
@@ -21,7 +21,8 @@ import { countVerifications } from "./verify-count.ts";
 const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
   {},
   {
-    get: (_target, key) => (typeof key === "string" ? getEnv(key) : undefined),
+    get: (_target, key) =>
+      typeof key === "string" ? getMiddlewareEnv(key) : undefined,
   },
 );
 
@@ -31,10 +32,10 @@ const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
  */
 function envOf(env: ServerOptions["env"]): BetterSupabaseEnv {
   if (env === undefined) {
-    return loadEnv(RUNTIME_ENV);
+    return getEnv(RUNTIME_ENV);
   }
 
-  return isLoadedEnv(env) ? env : loadEnv(env);
+  return isLoadedEnv(env) ? env : getEnv(env);
 }
 
 /**

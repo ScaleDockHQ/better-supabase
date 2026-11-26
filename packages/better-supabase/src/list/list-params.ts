@@ -51,7 +51,7 @@ export function isSearchParams(value: object): value is ListSearchParams {
   );
 }
 
-export function readRecord(
+export function getRecord(
   input: ListSearchParams,
 ): Record<string, string | readonly string[] | undefined> {
   if (!(input instanceof URLSearchParams)) {

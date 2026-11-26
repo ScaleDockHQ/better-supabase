@@ -21,7 +21,7 @@ better-supabase add flags   # adds tenant as well
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `flags`          | `key`, `type`, `description`, `variants`, `default_variant`, `enabled`, `archived`, `rules`, `rollout_percentage`, `rollout_variants`, `rollout_schedule` |
 | `flag_overrides` | A variant for one `organization_id`, one `user_id` or one custom context value (`context`, `context_key`)                                                 |
-| `flag_revisions` | Every state `save_flag` left, numbered per flag, with a message and who changed it                                                                        |
+| `flag_revisions` | Every state `upsert_flag` left, numbered per flag, with a message and who changed it                                                                      |
 | `flag_segments`  | Named audiences that rules reuse, each one condition                                                                                                      |
 
 Only the service role reads and writes these tables. Manage flags from a
@@ -170,7 +170,7 @@ OpenFeature provider evaluates them without another query.
 
 ### History and restore
 
-Each `save_flag` records a revision: the flag as it was left, a message and
+Each `upsert_flag` records a revision: the flag as it was left, a message and
 the user who saved it. `history(key)` lists them newest first, and
 `restore(key, revision)` saves that revision again as a new one, so a
 restore is itself in the history:
@@ -201,7 +201,7 @@ checks it gets the default instead of an unknown flag.
 `createFlags` manages flags for platform staff with `flags.manage` (the
 module's `manage` permission, checked with `is_platform()` when the
 [access](/docs/repository/permissions) module is installed) or the service role. It
-calls `list_flags`, `save_flag`, `delete_flag`, `set_flag_override`,
+calls `list_flags`, `upsert_flag`, `delete_flag`, `set_flag_override`,
 `flag_history`, `restore_flag` and the segment functions,
 which are granted to `authenticated`, so an app that only reaches the
 database through the Data API manages flags with `blocks.flags.api`

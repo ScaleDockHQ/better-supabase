@@ -12,17 +12,17 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('test.course', better_supabase.save_course(
+select set_config('test.course', better_supabase.upsert_course(
   '00000000-0000-4000-8000-000000000001',
   '{"key":"onboarding","title":"Onboarding","validForMonths":12}'
 ) ->> 'id', true);
 select throws_ok(
-  $$select better_supabase.save_course('00000000-0000-4000-8000-000000000001', '{"key":"onboarding","title":"Onboarding","validForMonths":300}')$$,
+  $$select better_supabase.upsert_course('00000000-0000-4000-8000-000000000001', '{"key":"onboarding","title":"Onboarding","validForMonths":300}')$$,
   '22023',
   'validForMonths must be a whole number of months from 1 to 240, or null',
   'a validity over 240 months is refused'
 );
-select set_config('test.module', better_supabase.save_course_module(
+select set_config('test.module', better_supabase.upsert_course_module(
   current_setting('test.course')::uuid, '{"title":"Basics"}'
 ) ->> 'id', true);
 select set_config('test.form', better_supabase.create_form(
@@ -34,11 +34,11 @@ select better_supabase.publish_form_version(
 );
 select better_supabase.update_form(current_setting('test.form')::uuid, null, null, 'open');
 
-select set_config('test.intro', better_supabase.save_course_lesson(
+select set_config('test.intro', better_supabase.upsert_course_lesson(
   current_setting('test.course')::uuid,
   jsonb_build_object('moduleId', current_setting('test.module'), 'title', 'Welcome', 'body', '{"text":"Hello"}'::jsonb)
 ) ->> 'id', true);
-select set_config('test.quiz', better_supabase.save_course_lesson(
+select set_config('test.quiz', better_supabase.upsert_course_lesson(
   current_setting('test.course')::uuid,
   jsonb_build_object('moduleId', current_setting('test.module'), 'title', 'Check', 'kind', 'quiz', 'formId', current_setting('test.form'))
 ) ->> 'id', true);
@@ -49,14 +49,14 @@ select ok(
   'a new lesson ranks after the last one'
 );
 select throws_ok(
-  format($$select better_supabase.save_course_lesson(%L, jsonb_build_object('moduleId', %L, 'title', 'Bad', 'kind', 'quiz'))$$,
+  format($$select better_supabase.upsert_course_lesson(%L, jsonb_build_object('moduleId', %L, 'title', 'Bad', 'kind', 'quiz'))$$,
     current_setting('test.course'), current_setting('test.module')),
   '22023',
   null,
   'a quiz lesson needs a form'
 );
 select throws_ok(
-  format($$select better_supabase.save_course_lesson(%L, jsonb_build_object('moduleId', %L, 'title', 'Bad', 'rank', 'not a rank'))$$,
+  format($$select better_supabase.upsert_course_lesson(%L, jsonb_build_object('moduleId', %L, 'title', 'Bad', 'rank', 'not a rank'))$$,
     current_setting('test.course'), current_setting('test.module')),
   '22023',
   null,
@@ -69,7 +69,7 @@ select throws_ok(
   'a draft course takes no enrollments'
 );
 select is(
-  better_supabase.save_course(
+  better_supabase.upsert_course(
     '00000000-0000-4000-8000-000000000001',
     jsonb_build_object('id', current_setting('test.course'), 'status', 'published')
   ) ->> 'status',
@@ -98,7 +98,7 @@ select is(
   'a member lists the published course'
 );
 select throws_ok(
-  $$select better_supabase.save_course('00000000-0000-4000-8000-000000000001', '{"key":"other","title":"Other"}')$$,
+  $$select better_supabase.upsert_course('00000000-0000-4000-8000-000000000001', '{"key":"other","title":"Other"}')$$,
   '42501',
   null,
   'a member can''t manage courses'

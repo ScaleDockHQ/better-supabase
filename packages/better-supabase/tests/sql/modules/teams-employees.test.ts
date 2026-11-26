@@ -97,8 +97,8 @@ begin
     raise exception 'backfill % %', ${ROWS(SALES)}, ${ROWS(OPS)};
   end if;
 
-  perform better_supabase.add_team_member('${OPS}', employee => '${DAN}');
-  perform better_supabase.add_team_member('${OPS}', '${BOB}');
+  perform better_supabase.create_team_member('${OPS}', employee => '${DAN}');
+  perform better_supabase.create_team_member('${OPS}', '${BOB}');
   if ${ROWS(OPS)} <> '[[null, "${DAN}"], ["${ALICE}", "${ALICE_EMPLOYEE}"], ["${BOB}", null]]'::jsonb then
     raise exception 'add %', ${ROWS(OPS)};
   end if;
@@ -142,7 +142,7 @@ begin
     raise exception 'auth user delete %', ${ROWS(SALES)};
   end if;
 
-  perform better_supabase.remove_team_member('${SALES}', employee => '${DAN}');
+  perform better_supabase.delete_team_member('${SALES}', employee => '${DAN}');
   update better_supabase.employees set team_id = '${SALES}' where id = '${DAN}';
   update better_supabase.employees set team_id = '${SALES}' where id = '${ERIN}';
   if ${ROWS(SALES)} <> '[[null, "${DAN}"], [null, "${ALICE_EMPLOYEE}"]]'::jsonb then
@@ -155,7 +155,7 @@ begin
   end if;
 
   begin
-    perform better_supabase.add_team_member('${OPS}', employee => '${ERIN}');
+    perform better_supabase.create_team_member('${OPS}', employee => '${ERIN}');
     v_hint := 'none';
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -164,7 +164,7 @@ begin
     raise exception 'employee of another tenant: %', v_hint;
   end if;
   begin
-    perform better_supabase.add_team_member('${OPS}', '${BOB}', '${ALICE_EMPLOYEE}');
+    perform better_supabase.create_team_member('${OPS}', '${BOB}', '${ALICE_EMPLOYEE}');
     v_hint := 'none';
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -173,8 +173,8 @@ begin
     raise exception 'user and employee: %', v_hint;
   end if;
 
-  if not better_supabase.remove_team_member('${OPS}', employee => '${ALICE_EMPLOYEE}')
-    or better_supabase.remove_team_member('${OPS}', employee => '${ALICE_EMPLOYEE}') then
+  if not better_supabase.delete_team_member('${OPS}', employee => '${ALICE_EMPLOYEE}')
+    or better_supabase.delete_team_member('${OPS}', employee => '${ALICE_EMPLOYEE}') then
     raise exception 'remove';
   end if;
   if (select payload from better_supabase.outbox_events where type = 'team_member.deleted' order by position desc limit 1)

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:f5b7f368285a816a60e98fc1024fa96d2f2a603119a6b74e893b5dfa02b7c8e9
+-- @bsb-hash sha256:d7a43fc4308c3a31f9eae7523c76f35a958350a2923a1ecb3dd4973d8556d0de
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -636,7 +636,7 @@ $$;
 -- description, conditions, actions, enabled, stopProcessing }; keys left out keep
 -- their value. Creating or changing a disabled rule takes the edit permission;
 -- enabling one, or changing an enabled one, takes publish. version must be the stored one.
-create or replace function "better_supabase"."save_rule"(tenant uuid, rule jsonb)
+create or replace function "better_supabase"."upsert_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -666,7 +666,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = upsert_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -685,7 +685,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old."actions", '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.write'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -717,16 +717,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_rule.tenant, save_rule.rule;
+        using upsert_rule.tenant, upsert_rule.rule;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
-    values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
+    values (upsert_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
@@ -907,7 +907,7 @@ $$;
 
 -- Removes a rule with its versions and evaluations (admin permission);
 -- false when there is none the caller may remove.
-create or replace function "better_supabase"."remove_rule"(id uuid)
+create or replace function "better_supabase"."delete_rule"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -919,7 +919,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
+  select * into v_row from "better_supabase"."automations" x where x."id" = delete_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
@@ -931,7 +931,7 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using remove_rule.id;
+        using delete_rule.id;
     end if;
   end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
@@ -1192,8 +1192,8 @@ revoke execute on function "better_supabase"."rule_fields_list"(text) from publi
 grant execute on function "better_supabase"."rule_fields_list"(text) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_field_map"(text) from public, anon;
 grant execute on function "better_supabase"."rule_field_map"(text) to authenticated, service_role;
-revoke execute on function "better_supabase"."save_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_rule"(uuid, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_get"(uuid) from public, anon;
@@ -1204,8 +1204,8 @@ revoke execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) f
 grant execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
@@ -1238,7 +1238,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:9baba1e7076faa883d2aaaf46ac5a3663dfbe73b5f2a5955aaa51f2701d9e45f
+-- @bsb-hash sha256:77d6178ed97d5c523c374c01d619967a37723ffa09bc973e30d2594d5f9e5579
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1873,7 +1873,7 @@ $$;
 -- description, conditions, actions, enabled, stopProcessing }; keys left out keep
 -- their value. Creating or changing a disabled rule takes the edit permission;
 -- enabling one, or changing an enabled one, takes publish. version must be the stored one.
-create or replace function "better_supabase"."save_rule"(tenant uuid, rule jsonb)
+create or replace function "better_supabase"."upsert_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1903,7 +1903,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = upsert_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -1922,7 +1922,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old."actions", '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.write'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -1954,16 +1954,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_rule.tenant, save_rule.rule;
+        using upsert_rule.tenant, upsert_rule.rule;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
-    values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
+    values (upsert_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
@@ -2204,7 +2204,7 @@ $$;
 
 -- Removes a rule with its versions and evaluations (admin permission);
 -- false when there is none the caller may remove.
-create or replace function "better_supabase"."remove_rule"(id uuid)
+create or replace function "better_supabase"."delete_rule"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2216,7 +2216,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
+  select * into v_row from "better_supabase"."automations" x where x."id" = delete_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
@@ -2228,7 +2228,7 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using remove_rule.id;
+        using delete_rule.id;
     end if;
   end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
@@ -2509,8 +2509,8 @@ revoke execute on function "better_supabase"."rule_fields_list"(text) from publi
 grant execute on function "better_supabase"."rule_fields_list"(text) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_field_map"(text) from public, anon;
 grant execute on function "better_supabase"."rule_field_map"(text) to authenticated, service_role;
-revoke execute on function "better_supabase"."save_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_rule"(uuid, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_get"(uuid) from public, anon;
@@ -2521,8 +2521,8 @@ revoke execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) f
 grant execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
@@ -2558,7 +2558,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:6eb4bb0467df6e3dd2177114ceebd8139301fe1f7acadb5ec1583935007f60a6
+-- @bsb-hash sha256:7d369bc9764396cfd27f3cbe9d4b606d85a34b5241ee23eb8b10ea0f46d4aa2a
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3198,7 +3198,7 @@ $$;
 -- description, conditions, actions, enabled, stopProcessing }; keys left out keep
 -- their value. Creating or changing a disabled rule takes the edit permission;
 -- enabling one, or changing an enabled one, takes publish. version must be the stored one.
-create or replace function "app_private"."save_rule"(tenant uuid, rule jsonb)
+create or replace function "app_private"."upsert_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3228,7 +3228,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "app_private"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
+    select * into v_old from "app_private"."automations" x where x."id" = v_id and x."tenant_id" = upsert_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -3247,7 +3247,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old."actions", '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.write'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -3279,16 +3279,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_rule.tenant, save_rule.rule;
+        using upsert_rule.tenant, upsert_rule.rule;
     end if;
   end;
   if v_old."id" is null then
     insert into "app_private"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
-    values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
+    values (upsert_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "app_private"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
@@ -3469,7 +3469,7 @@ $$;
 
 -- Removes a rule with its versions and evaluations (admin permission);
 -- false when there is none the caller may remove.
-create or replace function "app_private"."remove_rule"(id uuid)
+create or replace function "app_private"."delete_rule"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3481,7 +3481,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."automations" x where x."id" = remove_rule.id;
+  select * into v_row from "app_private"."automations" x where x."id" = delete_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
@@ -3493,7 +3493,7 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using remove_rule.id;
+        using delete_rule.id;
     end if;
   end;
   delete from "app_private"."automations" x where x."id" = v_row."id";
@@ -3754,8 +3754,8 @@ revoke execute on function "app_private"."rule_fields_list"(text) from public, a
 grant execute on function "app_private"."rule_fields_list"(text) to authenticated, service_role;
 revoke execute on function "app_private"."rule_field_map"(text) from public, anon;
 grant execute on function "app_private"."rule_field_map"(text) to authenticated, service_role;
-revoke execute on function "app_private"."save_rule"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_rule"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_rule"(uuid, jsonb) to authenticated, service_role;
 revoke execute on function "app_private"."rules_list"(uuid, text, text, boolean) from public, anon;
 grant execute on function "app_private"."rules_list"(uuid, text, text, boolean) to authenticated, service_role;
 revoke execute on function "app_private"."rule_get"(uuid) from public, anon;
@@ -3766,8 +3766,8 @@ revoke execute on function "app_private"."set_rule_enabled"(uuid, boolean) from 
 grant execute on function "app_private"."set_rule_enabled"(uuid, boolean) to authenticated, service_role;
 revoke execute on function "app_private"."rank_rule"(uuid, text) from public, anon;
 grant execute on function "app_private"."rank_rule"(uuid, text) to authenticated, service_role;
-revoke execute on function "app_private"."remove_rule"(uuid) from public, anon;
-grant execute on function "app_private"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_rule"(uuid) from public, anon;
+grant execute on function "app_private"."delete_rule"(uuid) to authenticated, service_role;
 revoke execute on function "app_private"."reset_default_rule"(uuid) from public, anon;
 grant execute on function "app_private"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "app_private"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
@@ -3800,7 +3800,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:9754422089bdb769bd1477ee10594195aa96fcdeed4d4246ec6a639afa098e72
+-- @bsb-hash sha256:bffa54ada4e5dbca1141fc3dcb270899f8c94971fe84ea8a2884c3845c32e29f
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4435,7 +4435,7 @@ $$;
 -- description, conditions, actions, enabled, stopProcessing }; keys left out keep
 -- their value. Creating or changing a disabled rule takes the edit permission;
 -- enabling one, or changing an enabled one, takes publish. version must be the stored one.
-create or replace function "better_supabase"."save_rule"(tenant uuid, rule jsonb)
+create or replace function "better_supabase"."upsert_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4465,7 +4465,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = upsert_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -4484,7 +4484,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old."actions", '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.write'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -4516,16 +4516,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_rule.tenant, save_rule.rule;
+        using upsert_rule.tenant, upsert_rule.rule;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
-    values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
+    values (upsert_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
@@ -4706,7 +4706,7 @@ $$;
 
 -- Removes a rule with its versions and evaluations (admin permission);
 -- false when there is none the caller may remove.
-create or replace function "better_supabase"."remove_rule"(id uuid)
+create or replace function "better_supabase"."delete_rule"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4718,7 +4718,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
+  select * into v_row from "better_supabase"."automations" x where x."id" = delete_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
@@ -4730,7 +4730,7 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using remove_rule.id;
+        using delete_rule.id;
     end if;
   end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
@@ -4991,8 +4991,8 @@ revoke execute on function "better_supabase"."rule_fields_list"(text) from publi
 grant execute on function "better_supabase"."rule_fields_list"(text) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_field_map"(text) from public, anon;
 grant execute on function "better_supabase"."rule_field_map"(text) to authenticated, service_role;
-revoke execute on function "better_supabase"."save_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_rule"(uuid, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_get"(uuid) from public, anon;
@@ -5003,8 +5003,8 @@ revoke execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) f
 grant execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
@@ -5174,14 +5174,14 @@ as $$ select "better_supabase"."rule_field_map"($1) $$;
 revoke execute on function "api"."rule_field_map"(text) from public, anon;
 grant execute on function "api"."rule_field_map"(text) to authenticated, service_role;
 
-create or replace function "api"."save_rule"(tenant uuid, rule jsonb)
+create or replace function "api"."upsert_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_rule"($1, $2) $$;
-revoke execute on function "api"."save_rule"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_rule"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_rule"($1, $2) $$;
+revoke execute on function "api"."upsert_rule"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_rule"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."rules_list"(tenant uuid, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
@@ -5230,14 +5230,14 @@ as $$ select "better_supabase"."rank_rule"($1, $2) $$;
 revoke execute on function "api"."rank_rule"(uuid, text) from public, anon;
 grant execute on function "api"."rank_rule"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."remove_rule"(id uuid)
+create or replace function "api"."delete_rule"(id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_rule"($1) $$;
-revoke execute on function "api"."remove_rule"(uuid) from public, anon;
-grant execute on function "api"."remove_rule"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_rule"($1) $$;
+revoke execute on function "api"."delete_rule"(uuid) from public, anon;
+grant execute on function "api"."delete_rule"(uuid) to authenticated, service_role;
 
 create or replace function "api"."reset_default_rule"(id uuid)
 returns jsonb
@@ -5321,7 +5321,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:ca012d9d41c6f529f8feba5788f1b6322c74bc8699f9cf1991e59c303684e8c4
+-- @bsb-hash sha256:81a3e5677b31079c9bb3ef9ac5a448351e7864f3297fd44fe8fcc1a54da49590
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5946,7 +5946,7 @@ $$;
 -- description, conditions, actions, enabled, stopProcessing }; keys left out keep
 -- their value. Creating or changing a disabled rule takes the edit permission;
 -- enabling one, or changing an enabled one, takes publish. version must be the stored one.
-create or replace function "better_supabase"."save_rule"(tenant uuid, rule jsonb)
+create or replace function "better_supabase"."upsert_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5976,7 +5976,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."tenant_id" = upsert_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -5995,7 +5995,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old."actions", '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.write'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -6027,16 +6027,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_rule.tenant, save_rule.rule;
+        using upsert_rule.tenant, upsert_rule.rule;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("tenant_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
-    values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
+    values (upsert_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."tenant_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
@@ -6217,7 +6217,7 @@ $$;
 
 -- Removes a rule with its versions and evaluations (admin permission);
 -- false when there is none the caller may remove.
-create or replace function "better_supabase"."remove_rule"(id uuid)
+create or replace function "better_supabase"."delete_rule"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6229,7 +6229,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
+  select * into v_row from "better_supabase"."automations" x where x."id" = delete_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'automations.manage'), false)) then
     return false;
   end if;
@@ -6241,7 +6241,7 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using remove_rule.id;
+        using delete_rule.id;
     end if;
   end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
@@ -6502,8 +6502,8 @@ revoke execute on function "better_supabase"."rule_fields_list"(text) from publi
 grant execute on function "better_supabase"."rule_fields_list"(text) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_field_map"(text) from public, anon;
 grant execute on function "better_supabase"."rule_field_map"(text) to authenticated, service_role;
-revoke execute on function "better_supabase"."save_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_rule"(uuid, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_get"(uuid) from public, anon;
@@ -6514,8 +6514,8 @@ revoke execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) f
 grant execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
@@ -6548,7 +6548,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:ea82514627ed2830950748878cd8eeec0384059a4be47b82b98e424741a62a52
+-- @bsb-hash sha256:57183b1f5af47efea751a0e3f278799b1c050e9ec651cc4340e49af4047ce0d2
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7183,7 +7183,7 @@ $$;
 -- description, conditions, actions, enabled, stopProcessing }; keys left out keep
 -- their value. Creating or changing a disabled rule takes the edit permission;
 -- enabling one, or changing an enabled one, takes publish. version must be the stored one.
-create or replace function "better_supabase"."save_rule"(tenant uuid, rule jsonb)
+create or replace function "better_supabase"."upsert_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7213,7 +7213,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."org_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."org_id" = upsert_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -7232,7 +7232,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old."actions", '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.write'), false) end)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', upsert_rule.tenant, 'automations.write'), false) end)) then
     raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
@@ -7264,16 +7264,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_rule.tenant, save_rule.rule;
+        using upsert_rule.tenant, upsert_rule.rule;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."automations" ("org_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
-    values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
+    values (upsert_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."org_id" = upsert_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
@@ -7454,7 +7454,7 @@ $$;
 
 -- Removes a rule with its versions and evaluations (admin permission);
 -- false when there is none the caller may remove.
-create or replace function "better_supabase"."remove_rule"(id uuid)
+create or replace function "better_supabase"."delete_rule"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7466,7 +7466,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
+  select * into v_row from "better_supabase"."automations" x where x."id" = delete_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'automations.manage'), false)) then
     return false;
   end if;
@@ -7478,7 +7478,7 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
-        using remove_rule.id;
+        using delete_rule.id;
     end if;
   end;
   delete from "better_supabase"."automations" x where x."id" = v_row."id";
@@ -7739,8 +7739,8 @@ revoke execute on function "better_supabase"."rule_fields_list"(text) from publi
 grant execute on function "better_supabase"."rule_fields_list"(text) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_field_map"(text) from public, anon;
 grant execute on function "better_supabase"."rule_field_map"(text) to authenticated, service_role;
-revoke execute on function "better_supabase"."save_rule"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_rule"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_rule"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_rule"(uuid, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."rules_list"(uuid, text, text, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rule_get"(uuid) from public, anon;
@@ -7751,8 +7751,8 @@ revoke execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) f
 grant execute on function "better_supabase"."set_rule_enabled"(uuid, boolean) to authenticated, service_role;
 revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;

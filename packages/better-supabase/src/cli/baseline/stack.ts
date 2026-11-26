@@ -197,7 +197,7 @@ function superuserUrl(url: string): string {
 }
 
 /** Runs SQL files in order inside one transaction, so a failure keeps none. */
-export async function loadSql(
+export async function getSql(
   ctx: BaselineContext,
   url: string,
   files: readonly string[],

@@ -18,7 +18,7 @@ import {
   unpackBuckets,
   uploadBuckets,
 } from "./seeds.ts";
-import { cliVersion, loadSql, stepTimer } from "./stack.ts";
+import { cliVersion, getSql, stepTimer } from "./stack.ts";
 
 /** The database `apply` fills, and how to reach what runs on top of it. */
 interface ApplyTarget {
@@ -149,7 +149,7 @@ export async function applyBaseline(
   if (found !== undefined) {
     try {
       await timer.step("load baseline", () =>
-        loadSql(ctx, dbUrl, [found.files.schema, found.files.data]),
+        getSql(ctx, dbUrl, [found.files.schema, found.files.data]),
       );
 
       used = true;
@@ -177,7 +177,7 @@ export async function applyBaseline(
 
     if (found !== undefined && skipReason === undefined) {
       await timer.step("seed data", () =>
-        loadSql(ctx, dbUrl, [found.files.seedSchema, found.files.seedData]),
+        getSql(ctx, dbUrl, [found.files.seedSchema, found.files.seedData]),
       );
 
       if (

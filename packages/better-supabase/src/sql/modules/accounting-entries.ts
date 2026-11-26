@@ -71,7 +71,7 @@ export function accountingEntryFunctions(ctx: BlockSqlContext): string {
     .filter((logical) => ctx.has("entries", logical))
     .map(
       (logical) =>
-        ` ${e(logical)} = case when y.${e("memo")} is not distinct from nullif(trim(save_accounting_entry.memo), '') then y.${e(logical)} end,`,
+        ` ${e(logical)} = case when y.${e("memo")} is not distinct from nullif(trim(upsert_accounting_entry.memo), '') then y.${e(logical)} end,`,
     )
     .join("");
 
@@ -250,8 +250,8 @@ revoke execute on function ${fn("accounting_post")}(uuid, boolean) from public, 
 -- currency gives amountCurrency (signed, positive is a debit) and either the
 -- functional amount or an fxRate; without both, the rate on the entry date
 -- converts it.
-${extra.drop(fn("save_accounting_entry"), saveTypes)}
-create or replace function ${fn("save_accounting_entry")}(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null${extra.param})
+${extra.drop(fn("upsert_accounting_entry"), saveTypes)}
+create or replace function ${fn("upsert_accounting_entry")}(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -274,7 +274,7 @@ declare
   v_party uuid;
   v_dimensions jsonb;
 begin
-  select * into v_journal from ${journals} y where y.${j("id")} = save_accounting_entry.journal_id;
+  select * into v_journal from ${journals} y where y.${j("id")} = upsert_accounting_entry.journal_id;
   if not found then
     ${sql.notFound("ACCOUNTING_JOURNAL", "journal not found")}
   end if;
@@ -282,32 +282,32 @@ begin
     ${sql.forbidden("ACCOUNTING_ENTRY", "not allowed to write accounting entries")}
   end if;
   ${requireSettings(ctx, `v_journal.${j("tenant")}`)}
-  if save_accounting_entry.entry_date is null then
+  if upsert_accounting_entry.entry_date is null then
     ${invalid("an entry needs a date")}
   end if;
-  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+  if jsonb_typeof(upsert_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(upsert_accounting_entry.lines) < 2 then
     ${invalid("an entry needs at least two lines")}
   end if;
-  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
-    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if (upsert_accounting_entry.source_type is null) <> (upsert_accounting_entry.source_id is null)
+    or coalesce(upsert_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
     ${invalid("source_type (lower-case) and source_id go together")}
   end if;
-  if save_accounting_entry.source_type is not null and exists (
+  if upsert_accounting_entry.source_type is not null and exists (
     select 1 from ${entries} y
-    where y.${e("tenant")} = v_journal.${j("tenant")} and y.${e("sourceType")} = save_accounting_entry.source_type
-      and y.${e("sourceId")} = save_accounting_entry.source_id and y.${e("status")} <> 'reversed'
-      and y.${e("id")} is distinct from save_accounting_entry.entry_id
+    where y.${e("tenant")} = v_journal.${j("tenant")} and y.${e("sourceType")} = upsert_accounting_entry.source_type
+      and y.${e("sourceId")} = upsert_accounting_entry.source_id and y.${e("status")} <> 'reversed'
+      and y.${e("id")} is distinct from upsert_accounting_entry.entry_id
   ) then
     ${fail("ACCOUNTING_ENTRY_DUPLICATE", "the source already has an entry; reverse it first", "23505")}
   end if;
-  if save_accounting_entry.entry_id is null then
+  if upsert_accounting_entry.entry_id is null then
     insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("reference")}, ${e("sourceType")}, ${e("sourceId")}, ${e("memo")}, ${e("createdBy")}, ${e("period")})
-    values (v_journal.${j("tenant")}, v_journal.${j("id")}, save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
-      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
-      (select y.${p("id")} from ${periods} y where y.${p("tenant")} = v_journal.${j("tenant")} and save_accounting_entry.entry_date >= y.${p("startsOn")} and save_accounting_entry.entry_date <= y.${p("endsOn")}))
+    values (v_journal.${j("tenant")}, v_journal.${j("id")}, upsert_accounting_entry.entry_date, nullif(trim(upsert_accounting_entry.reference), ''),
+      upsert_accounting_entry.source_type, upsert_accounting_entry.source_id, nullif(trim(upsert_accounting_entry.memo), ''), auth.uid(),
+      (select y.${p("id")} from ${periods} y where y.${p("tenant")} = v_journal.${j("tenant")} and upsert_accounting_entry.entry_date >= y.${p("startsOn")} and upsert_accounting_entry.entry_date <= y.${p("endsOn")}))
     returning * into v_row;
   else
-    select * into v_row from ${entries} y where y.${e("id")} = save_accounting_entry.entry_id and y.${e("tenant")} = v_journal.${j("tenant")} for update;
+    select * into v_row from ${entries} y where y.${e("id")} = upsert_accounting_entry.entry_id and y.${e("tenant")} = v_journal.${j("tenant")} for update;
     if not found then
       ${entryNotFound}
     end if;
@@ -315,15 +315,15 @@ begin
       ${posted}
     end if;
     delete from ${lines} y where y.${l("entry")} = v_row.${e("id")};
-    update ${entries} y set ${e("journal")} = v_journal.${j("id")}, ${e("entryDate")} = save_accounting_entry.entry_date,
-      ${e("reference")} = nullif(trim(save_accounting_entry.reference), ''), ${e("sourceType")} = save_accounting_entry.source_type,
-      ${e("sourceId")} = save_accounting_entry.source_id, ${e("memo")} = nullif(trim(save_accounting_entry.memo), ''),${keptMemoKey}
-      ${e("period")} = (select z.${p("id")} from ${periods} z where z.${p("tenant")} = v_journal.${j("tenant")} and save_accounting_entry.entry_date >= z.${p("startsOn")} and save_accounting_entry.entry_date <= z.${p("endsOn")}),
+    update ${entries} y set ${e("journal")} = v_journal.${j("id")}, ${e("entryDate")} = upsert_accounting_entry.entry_date,
+      ${e("reference")} = nullif(trim(upsert_accounting_entry.reference), ''), ${e("sourceType")} = upsert_accounting_entry.source_type,
+      ${e("sourceId")} = upsert_accounting_entry.source_id, ${e("memo")} = nullif(trim(upsert_accounting_entry.memo), ''),${keptMemoKey}
+      ${e("period")} = (select z.${p("id")} from ${periods} z where z.${p("tenant")} = v_journal.${j("tenant")} and upsert_accounting_entry.entry_date >= z.${p("startsOn")} and upsert_accounting_entry.entry_date <= z.${p("endsOn")}),
       ${e("updatedAt")} = now()
     where y.${e("id")} = v_row.${e("id")}
     returning * into v_row;
   end if;
-  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(upsert_accounting_entry.lines) with ordinality q loop
     if jsonb_typeof(v_line.value) is distinct from 'object' then
       ${invalid("every line is an object")}
     end if;
@@ -362,7 +362,7 @@ begin
         ${invalid("a line in another currency needs a non-zero amountCurrency")}
       end if;
       v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
-        ${fn("accounting_fx_rate")}(v_journal.${j("tenant")}, v_currency, v_settings.${s("functionalCurrency")}, save_accounting_entry.entry_date));
+        ${fn("accounting_fx_rate")}(v_journal.${j("tenant")}, v_currency, v_settings.${s("functionalCurrency")}, upsert_accounting_entry.entry_date));
       if v_rate <= 0 then
         ${invalid("fxRate must be positive")}
       end if;
@@ -406,11 +406,11 @@ begin
       ${l("amountCurrency")}, ${l("fxRate")}, ${l("taxCode")}, ${l("taxAmount")}, ${l("party")}, ${l("dimensions")}, ${l("description")})
     values (v_journal.${j("tenant")}, v_row.${e("id")}, v_line.ordinality, v_account.${a("id")}, v_debit, v_credit, v_currency,
       v_amount, v_rate, v_tax, coalesce((v_line.value ->> 'taxAmount')::bigint, 0), v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
-  end loop;${writeExtraColumns(entries, extras, "save_accounting_entry.fields", `x.${e("id")} = v_row.${e("id")}`, "v_row")}
+  end loop;${writeExtraColumns(entries, extras, "upsert_accounting_entry.fields", `x.${e("id")} = v_row.${e("id")}`, "v_row")}
   return ${entryJson(ctx, "v_row", true)};
 end;
 $$;
-${userGrant(`${fn("save_accounting_entry")}(${saveTypes}${extra.type})`)}
+${userGrant(`${fn("upsert_accounting_entry")}(${saveTypes}${extra.type})`)}
 
 create or replace function ${fn("post_accounting_entry")}(entry_id uuid)
 returns jsonb

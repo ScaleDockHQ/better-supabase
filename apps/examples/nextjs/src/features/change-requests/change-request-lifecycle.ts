@@ -94,7 +94,7 @@ const returnsOf = (node: WorkflowGraphNode): readonly string[] => {
  * nodes without a stage, and to the stages its `returnsTo` lists. The trigger
  * still refuses any other move, so this only decides what the UI offers.
  */
-export function readLifecycle(graph: WorkflowGraph): ChangeLifecycle {
+export function getLifecycle(graph: WorkflowGraph): ChangeLifecycle {
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   const targets = new Map<string, string[]>();
 

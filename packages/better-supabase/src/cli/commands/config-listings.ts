@@ -20,7 +20,7 @@ import {
 } from "../doctor/function-shares.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import { schemaTagComments } from "../schema-tags.ts";
-import { loadSnapshot } from "./snapshot.ts";
+import { getSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
 /** `public.*_payload` as a pattern over `schema.name`. */
@@ -182,11 +182,7 @@ export const configFunctionsCommand: AnyCommand = defineCliCommand({
     },
   },
   run: async (args, { config, env, io }) => {
-    const snapshot = await loadSnapshot(
-      config,
-      env,
-      await sourceArgs(args, io),
-    );
+    const snapshot = await getSnapshot(config, env, await sourceArgs(args, io));
 
     if (args.shareable !== undefined) {
       return shareableReport(config, snapshot, args.shareable);

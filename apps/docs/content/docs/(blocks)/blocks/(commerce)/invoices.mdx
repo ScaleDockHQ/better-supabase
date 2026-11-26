@@ -204,19 +204,19 @@ The block also creates `invoices_tenant_status_idx` on the tenant, status and du
 
 `write` and `manage` cover several actions. Name a key per action in `permissions` to split them; an action without its own key checks `write` or `manage` as before, and `delete` checks `update`, then `write`.
 
-| Key        | Functions                                      | Without it |
-| ---------- | ---------------------------------------------- | ---------- |
-| `create`   | `create_invoice`, `invoice_from_quote`         | `write`    |
-| `update`   | `set_invoice_lines`, `update_invoice`          | `write`    |
-| `delete`   | `delete_invoice`                               | `update`   |
-| `issue`    | `issue_invoice`                                | `write`    |
-| `payment`  | `record_invoice_payment`                       | `write`    |
-| `settle`   | `record_invoice_payment` for the whole balance | `payment`  |
-| `credit`   | `credit_invoice`                               | `write`    |
-| `charge`   | `add_invoice_charge`, `remove_invoice_charge`  | `write`    |
-| `void`     | `void_invoice`                                 | `manage`   |
-| `writeOff` | `write_off_invoice`                            | `manage`   |
-| `reverse`  | `reverse_invoice_payment`                      | `manage`   |
+| Key        | Functions                                        | Without it |
+| ---------- | ------------------------------------------------ | ---------- |
+| `create`   | `create_invoice`, `invoice_from_quote`           | `write`    |
+| `update`   | `set_invoice_lines`, `update_invoice`            | `write`    |
+| `delete`   | `delete_invoice`                                 | `update`   |
+| `issue`    | `issue_invoice`                                  | `write`    |
+| `payment`  | `record_invoice_payment`                         | `write`    |
+| `settle`   | `record_invoice_payment` for the whole balance   | `payment`  |
+| `credit`   | `credit_invoice`                                 | `write`    |
+| `charge`   | `create_invoice_charge`, `delete_invoice_charge` | `write`    |
+| `void`     | `void_invoice`                                   | `manage`   |
+| `writeOff` | `write_off_invoice`                              | `manage`   |
+| `reverse`  | `reverse_invoice_payment`                        | `manage`   |
 
 Members who draft invoices but may not send them or book payments:
 

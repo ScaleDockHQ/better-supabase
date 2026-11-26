@@ -32,7 +32,7 @@ export function parseStackStatus(stdout: string): StackStatus | undefined {
  * (`[experimental] stack`) rejects `-o json` and prints the same keys with
  * `--env`. `stack` asks for a named stack (`supabase status --stack <name>`).
  */
-export async function readStackStatus(
+export async function getStackStatus(
   root: string,
   env: CliEnv,
   options: ExecOptions & { readonly stack?: string } = {},

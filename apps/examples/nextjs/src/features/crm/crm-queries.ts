@@ -7,12 +7,10 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { orMissing } from "@/lib/or-missing";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { CRM_TAG } from "./crm-cache";
 
 /** A loaded region: its data, no active organization, or a failed read. */
 export type Loaded<T> =
@@ -78,12 +76,10 @@ export interface ContactDetailData extends ContactSummary {
 const PAGE = 200;
 
 /** The first 200 companies and the first 200 people, by name. */
-export async function loadContacts(): Promise<
-  readonly ContactSummary[] | null
-> {
+export async function getContacts(): Promise<readonly ContactSummary[] | null> {
   "use cache: private";
   const cached = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.crm(), tags.customers());
 
   return readContacts(cached);
 }
@@ -129,12 +125,12 @@ export async function readContacts({
 }
 
 /** One company or person, `undefined` when it is gone or hidden. */
-export async function loadContact(
+export async function getContact(
   id: string,
 ): Promise<ContactDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.crm(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -142,6 +138,15 @@ export async function loadContact(
   }
 
   const { contacts: parties } = db.$blocks;
+
+  // The company's people and the picker start with the lookups, so a company
+  // page needs one wave less; a person page leaves both results unread.
+  const peopleRead = parties.peopleOf(id);
+
+  const everyoneRead = parties.personPage({
+    organizationId: tenant,
+    limit: PAGE,
+  });
 
   const [companyRead, personRead] = await Promise.all([
     parties.companyById(id),
@@ -153,8 +158,8 @@ export async function loadContact(
 
   if (company) {
     const [people, everyone] = await Promise.all([
-      parties.peopleOf(company.id).orThrow(),
-      parties.personPage({ organizationId: tenant, limit: PAGE }).orThrow(),
+      peopleRead.orThrow(),
+      everyoneRead.orThrow(),
     ]);
 
     const linked = new Set(people.map((member) => member.id));
@@ -225,13 +230,13 @@ export interface TimelineEntry {
 }
 
 /** A contact's calls, emails, meetings and notes, newest first. */
-export async function loadTimeline(
+export async function getTimeline(
   type: TimelineSubjectType,
   id: string,
 ): Promise<readonly TimelineEntry[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.crm(), tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -279,10 +284,10 @@ export interface DealBoardData {
 }
 
 /** The default deal pipeline's columns and its open deals. */
-export async function loadDealBoard(): Promise<DealBoardData | null> {
+export async function getDealBoard(): Promise<DealBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.crm(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -291,7 +296,7 @@ export async function loadDealBoard(): Promise<DealBoardData | null> {
 
   const { pipelines, deals } = db;
 
-  const all = await readAllPages((page) =>
+  const all = await getAllPages((page) =>
     pipelines.page({
       organizationId: tenant,
       filters: { subjectType: ["deal"] },
@@ -359,10 +364,10 @@ export interface TargetRow {
 }
 
 /** The organization's targets running today, with their progress. */
-export async function loadTargets(): Promise<readonly TargetRow[] | null> {
+export async function getTargets(): Promise<readonly TargetRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.crm(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -436,12 +441,12 @@ function quoteOf(quote: Quote): QuoteDetailData {
 }
 
 /** One quote, `undefined` when it is gone. */
-export async function loadQuote(
+export async function getQuote(
   id: string,
 ): Promise<QuoteDetailData | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.crm(), tags.customers());
 
   if (!tenantOf(session)) {
     return null;

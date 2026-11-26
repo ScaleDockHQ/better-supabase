@@ -225,7 +225,7 @@ export interface ReadStatusOptions {
 }
 
 /** Verifies a Status List Token and returns the bit at `index`. */
-export async function readStatus(
+export async function getStatus(
   token: string,
   options: ReadStatusOptions,
 ): Promise<StatusBit> {
@@ -338,7 +338,7 @@ export async function signBitstringStatusListCredential(
 }
 
 /** Verifies a `BitstringStatusListCredential` and returns the bit for `entry`. */
-export async function readBitstringStatus(
+export async function getBitstringStatus(
   token: string,
   entry: BitstringStatusEntry,
   jwks: Jwks,

@@ -8,7 +8,7 @@ import type { PruneAction, StackReport } from "../stacks.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { assertCliVersion, parseCliVersion, supabaseCli } from "../exec.ts";
-import { readSharedMemory } from "../shm.ts";
+import { getSharedMemory } from "../shm.ts";
 import { branchName, listStacks, prunePlan, reportStacks } from "../stacks.ts";
 
 export interface StackDeps {
@@ -30,7 +30,7 @@ export interface StackDeps {
 }
 
 const DEFAULT_DEPS: StackDeps = {
-  memory: (root, env) => readSharedMemory(root, env),
+  memory: (root, env) => getSharedMemory(root, env),
   stacks: async (root, env, memory) =>
     reportStacks(await listStacks(root, env), { root, env, memory }),
   supabase: (args, root, env) => supabaseCli(args, root, env),

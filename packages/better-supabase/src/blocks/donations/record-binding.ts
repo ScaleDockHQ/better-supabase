@@ -8,7 +8,7 @@ export const givingBinding: RecordBinding<Donations, GivingSummary> =
   defineRecordBinding({
     permissions: { read: "read", write: "manage" },
     module: "donations",
-    load: (client: Donations, subject) =>
+    get: (client: Donations, subject) =>
       client.givingSummary({ donor: subject }),
     events: ["donation.*", "donation_receipt.*"],
   });

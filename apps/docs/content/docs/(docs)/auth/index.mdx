@@ -12,9 +12,9 @@ who is calling? `resolveAuth(request)` answers it in this order:
 
 ```ts
 import { resolveAuth } from "better-supabase/server";
-import { loadEnv } from "better-supabase/env";
+import { getEnv } from "better-supabase/env";
 
-const env = loadEnv();
+const env = getEnv();
 const { auth } = await resolveAuth(request, { env });
 
 switch (auth.kind) {

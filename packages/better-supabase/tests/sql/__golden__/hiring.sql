@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:35bbcb7279b04b5ecea7c250a86a6973d62fc5cd1a52f872f65197e7aae03a62
+-- @bsb-hash sha256:c1ff6b028b95a6e56e190e74d25b6f40cf4d94ec14d9a5ce1675cf243ecc0de4
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -139,7 +139,7 @@ for each row execute function better_supabase.bsb_application_guard();
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -152,34 +152,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_job.tenant, 'hiring.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_job.tenant, 'hiring.manage'), false)) then
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
-  if save_job.job is not null then
-    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = upsert_job.job and x."tenant_id" = upsert_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+      values (upsert_job.tenant, upsert_job.attrs ->> 'title', (upsert_job.attrs ->> 'teamId')::uuid, upsert_job.attrs ->> 'location',
+        upsert_job.attrs ->> 'employmentType', upsert_job.attrs ->> 'description', (upsert_job.attrs ->> 'hiringManagerId')::uuid,
+        coalesce(upsert_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set
-        "title" = coalesce(save_job.attrs ->> 'title', x."title"),
-        "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
-        "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
-        "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
-        "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
-        "status" = coalesce(save_job.attrs ->> 'status', x."status"),
+        "title" = coalesce(upsert_job.attrs ->> 'title', x."title"),
+        "team_id" = case when upsert_job.attrs ? 'teamId' then (upsert_job.attrs ->> 'teamId')::uuid else x."team_id" end,
+        "location" = case when upsert_job.attrs ? 'location' then upsert_job.attrs ->> 'location' else x."location" end,
+        "employment_type" = case when upsert_job.attrs ? 'employmentType' then upsert_job.attrs ->> 'employmentType' else x."employment_type" end,
+        "description" = case when upsert_job.attrs ? 'description' then upsert_job.attrs ->> 'description' else x."description" end,
+        "hiring_manager_id" = case when upsert_job.attrs ? 'hiringManagerId' then (upsert_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
+        "status" = coalesce(upsert_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
-      where x."id" = save_job.job
+      where x."id" = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
@@ -197,8 +197,8 @@ begin
   return to_jsonb(v_job);
 end;
 $$;
-revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
@@ -545,7 +545,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:050fbfc564ed9929f66b608ac22f102499e3723e2a18383eef26aa1a275d1542
+-- @bsb-hash sha256:332a31f60b6b5c6b571ab7b7fb3dd26896a093d5a27fd7d9e9b2352168ed0b1c
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -683,7 +683,7 @@ for each row execute function better_supabase.bsb_application_guard();
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -696,34 +696,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_job.tenant, 'hiring.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_job.tenant, 'hiring.manage'), false)) then
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
-  if save_job.job is not null then
-    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = upsert_job.job and x."tenant_id" = upsert_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+      values (upsert_job.tenant, upsert_job.attrs ->> 'title', (upsert_job.attrs ->> 'teamId')::uuid, upsert_job.attrs ->> 'location',
+        upsert_job.attrs ->> 'employmentType', upsert_job.attrs ->> 'description', (upsert_job.attrs ->> 'hiringManagerId')::uuid,
+        coalesce(upsert_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set
-        "title" = coalesce(save_job.attrs ->> 'title', x."title"),
-        "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
-        "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
-        "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
-        "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
-        "status" = coalesce(save_job.attrs ->> 'status', x."status"),
+        "title" = coalesce(upsert_job.attrs ->> 'title', x."title"),
+        "team_id" = case when upsert_job.attrs ? 'teamId' then (upsert_job.attrs ->> 'teamId')::uuid else x."team_id" end,
+        "location" = case when upsert_job.attrs ? 'location' then upsert_job.attrs ->> 'location' else x."location" end,
+        "employment_type" = case when upsert_job.attrs ? 'employmentType' then upsert_job.attrs ->> 'employmentType' else x."employment_type" end,
+        "description" = case when upsert_job.attrs ? 'description' then upsert_job.attrs ->> 'description' else x."description" end,
+        "hiring_manager_id" = case when upsert_job.attrs ? 'hiringManagerId' then (upsert_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
+        "status" = coalesce(upsert_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
-      where x."id" = save_job.job
+      where x."id" = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
@@ -741,8 +741,8 @@ begin
   return to_jsonb(v_job);
 end;
 $$;
-revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
@@ -1098,7 +1098,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:e9804eefd98eb2922a69d424f004542b7eea7825b1bf8ee6b3149d00b5454651
+-- @bsb-hash sha256:409ec2923b407e6d1f4d362f69a5cd3bff85988da9edd1e63cb667bba451017f
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1241,7 +1241,7 @@ for each row execute function better_supabase.bsb_application_guard();
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function "app_private"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "app_private"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1254,34 +1254,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_job.tenant, 'hiring.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_job.tenant, 'hiring.manage'), false)) then
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
-  if save_job.job is not null then
-    select * into v_job from "app_private"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from "app_private"."job_openings" x where x."id" = upsert_job.job and x."tenant_id" = upsert_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into "app_private"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+      values (upsert_job.tenant, upsert_job.attrs ->> 'title', (upsert_job.attrs ->> 'teamId')::uuid, upsert_job.attrs ->> 'location',
+        upsert_job.attrs ->> 'employmentType', upsert_job.attrs ->> 'description', (upsert_job.attrs ->> 'hiringManagerId')::uuid,
+        coalesce(upsert_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
       update "app_private"."job_openings" x set
-        "title" = coalesce(save_job.attrs ->> 'title', x."title"),
-        "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
-        "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
-        "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
-        "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
-        "status" = coalesce(save_job.attrs ->> 'status', x."status"),
+        "title" = coalesce(upsert_job.attrs ->> 'title', x."title"),
+        "team_id" = case when upsert_job.attrs ? 'teamId' then (upsert_job.attrs ->> 'teamId')::uuid else x."team_id" end,
+        "location" = case when upsert_job.attrs ? 'location' then upsert_job.attrs ->> 'location' else x."location" end,
+        "employment_type" = case when upsert_job.attrs ? 'employmentType' then upsert_job.attrs ->> 'employmentType' else x."employment_type" end,
+        "description" = case when upsert_job.attrs ? 'description' then upsert_job.attrs ->> 'description' else x."description" end,
+        "hiring_manager_id" = case when upsert_job.attrs ? 'hiringManagerId' then (upsert_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
+        "status" = coalesce(upsert_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
-      where x."id" = save_job.job
+      where x."id" = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
@@ -1299,8 +1299,8 @@ begin
   return to_jsonb(v_job);
 end;
 $$;
-revoke execute on function "app_private"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
@@ -1647,7 +1647,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:249748fe8f98a53f080d1cdfd30ac99485e37493220ecffb7c0103d4fd3652ee
+-- @bsb-hash sha256:1b28b7b04e473cfe5714220ba0ed9be2ae2ba4712cff474dd96f1b8aa81b197e
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1785,7 +1785,7 @@ for each row execute function better_supabase.bsb_application_guard();
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1798,34 +1798,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_job.tenant, 'hiring.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_job.tenant, 'hiring.manage'), false)) then
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
-  if save_job.job is not null then
-    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = upsert_job.job and x."tenant_id" = upsert_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+      values (upsert_job.tenant, upsert_job.attrs ->> 'title', (upsert_job.attrs ->> 'teamId')::uuid, upsert_job.attrs ->> 'location',
+        upsert_job.attrs ->> 'employmentType', upsert_job.attrs ->> 'description', (upsert_job.attrs ->> 'hiringManagerId')::uuid,
+        coalesce(upsert_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set
-        "title" = coalesce(save_job.attrs ->> 'title', x."title"),
-        "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
-        "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
-        "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
-        "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
-        "status" = coalesce(save_job.attrs ->> 'status', x."status"),
+        "title" = coalesce(upsert_job.attrs ->> 'title', x."title"),
+        "team_id" = case when upsert_job.attrs ? 'teamId' then (upsert_job.attrs ->> 'teamId')::uuid else x."team_id" end,
+        "location" = case when upsert_job.attrs ? 'location' then upsert_job.attrs ->> 'location' else x."location" end,
+        "employment_type" = case when upsert_job.attrs ? 'employmentType' then upsert_job.attrs ->> 'employmentType' else x."employment_type" end,
+        "description" = case when upsert_job.attrs ? 'description' then upsert_job.attrs ->> 'description' else x."description" end,
+        "hiring_manager_id" = case when upsert_job.attrs ? 'hiringManagerId' then (upsert_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
+        "status" = coalesce(upsert_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
-      where x."id" = save_job.job
+      where x."id" = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
@@ -1843,8 +1843,8 @@ begin
   return to_jsonb(v_job);
 end;
 $$;
-revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
@@ -2178,14 +2178,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restr
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "api"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_job"($1, $2, $3) $$;
-revoke execute on function "api"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_job"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."apply_to_job"(job uuid, candidate jsonb, source text, owner uuid)
 returns jsonb
@@ -2280,7 +2280,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:617998afc801616d53dd281fc820eeff82fd59ad60e0adc40c44fe9199a01f9e
+-- @bsb-hash sha256:14de49b85d68ef5f39fb508a4696e43010631bde3eeb7f402554f2d089b697dd
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2408,7 +2408,7 @@ for each row execute function better_supabase.bsb_application_guard();
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2421,34 +2421,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_job.tenant, 'hiring.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_job.tenant, 'hiring.manage'), false)) then
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
-  if save_job.job is not null then
-    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = upsert_job.job and x."tenant_id" = upsert_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        better_supabase.as_column_type(coalesce(save_job.attrs ->> 'status', 'draft'), (null::"better_supabase"."job_openings")."status"))
+      values (upsert_job.tenant, upsert_job.attrs ->> 'title', (upsert_job.attrs ->> 'teamId')::uuid, upsert_job.attrs ->> 'location',
+        upsert_job.attrs ->> 'employmentType', upsert_job.attrs ->> 'description', (upsert_job.attrs ->> 'hiringManagerId')::uuid,
+        better_supabase.as_column_type(coalesce(upsert_job.attrs ->> 'status', 'draft'), (null::"better_supabase"."job_openings")."status"))
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set
-        "title" = coalesce(save_job.attrs ->> 'title', x."title"),
-        "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
-        "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
-        "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
-        "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
-        "status" = coalesce(better_supabase.as_column_type(save_job.attrs ->> 'status', (null::"better_supabase"."job_openings")."status"), x."status"),
+        "title" = coalesce(upsert_job.attrs ->> 'title', x."title"),
+        "team_id" = case when upsert_job.attrs ? 'teamId' then (upsert_job.attrs ->> 'teamId')::uuid else x."team_id" end,
+        "location" = case when upsert_job.attrs ? 'location' then upsert_job.attrs ->> 'location' else x."location" end,
+        "employment_type" = case when upsert_job.attrs ? 'employmentType' then upsert_job.attrs ->> 'employmentType' else x."employment_type" end,
+        "description" = case when upsert_job.attrs ? 'description' then upsert_job.attrs ->> 'description' else x."description" end,
+        "hiring_manager_id" = case when upsert_job.attrs ? 'hiringManagerId' then (upsert_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
+        "status" = coalesce(better_supabase.as_column_type(upsert_job.attrs ->> 'status', (null::"better_supabase"."job_openings")."status"), x."status"),
         "updated_at" = now()
-      where x."id" = save_job.job
+      where x."id" = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
@@ -2466,8 +2466,8 @@ begin
   return to_jsonb(v_job);
 end;
 $$;
-revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.
@@ -2821,7 +2821,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:bd086eb829d45b2264fe0be69aa88a4aacaf8b1b3f9d02e92f87073ecb5c8e56
+-- @bsb-hash sha256:8e8f94038666ce90cd0f41aa6ae9d08cb376589af06dc273c81e5c9e533a0d6b
 -- Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2959,7 +2959,7 @@ for each row execute function better_supabase.bsb_application_guard();
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and
 -- status draft, open or closed.
-create or replace function "better_supabase"."save_job"(tenant uuid, job uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_job"(tenant uuid, job uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2972,34 +2972,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_job.tenant, 'hiring.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_job.tenant, 'hiring.manage'), false)) then
     raise exception 'not allowed to manage jobs' using errcode = '42501', hint = 'HIRING_FORBIDDEN';
   end if;
-  if save_job.job is not null then
-    select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."org_id" = save_job.tenant;
+  if upsert_job.job is not null then
+    select * into v_job from "better_supabase"."job_openings" x where x."id" = upsert_job.job and x."org_id" = upsert_job.tenant;
     if v_job."id" is null then
       raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
   begin
-    if save_job.job is null then
+    if upsert_job.job is null then
       insert into "better_supabase"."job_openings" ("org_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
-      values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
-        save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
-        coalesce(save_job.attrs ->> 'status', 'draft'))
+      values (upsert_job.tenant, upsert_job.attrs ->> 'title', (upsert_job.attrs ->> 'teamId')::uuid, upsert_job.attrs ->> 'location',
+        upsert_job.attrs ->> 'employmentType', upsert_job.attrs ->> 'description', (upsert_job.attrs ->> 'hiringManagerId')::uuid,
+        coalesce(upsert_job.attrs ->> 'status', 'draft'))
       returning * into v_job;
     else
       update "better_supabase"."job_openings" x set
-        "title" = coalesce(save_job.attrs ->> 'title', x."title"),
-        "team_id" = case when save_job.attrs ? 'teamId' then (save_job.attrs ->> 'teamId')::uuid else x."team_id" end,
-        "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
-        "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
-        "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
-        "status" = coalesce(save_job.attrs ->> 'status', x."status"),
+        "title" = coalesce(upsert_job.attrs ->> 'title', x."title"),
+        "team_id" = case when upsert_job.attrs ? 'teamId' then (upsert_job.attrs ->> 'teamId')::uuid else x."team_id" end,
+        "location" = case when upsert_job.attrs ? 'location' then upsert_job.attrs ->> 'location' else x."location" end,
+        "employment_type" = case when upsert_job.attrs ? 'employmentType' then upsert_job.attrs ->> 'employmentType' else x."employment_type" end,
+        "description" = case when upsert_job.attrs ? 'description' then upsert_job.attrs ->> 'description' else x."description" end,
+        "hiring_manager_id" = case when upsert_job.attrs ? 'hiringManagerId' then (upsert_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
+        "status" = coalesce(upsert_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
-      where x."id" = save_job.job
+      where x."id" = upsert_job.job
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
@@ -3017,8 +3017,8 @@ begin
   return (to_jsonb(v_job) || jsonb_build_object('tenant_id', v_job."org_id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_job"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_job"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- An application of a candidate (a record in config.recordTypes, a person by
 -- default) to an open job. Applying again returns the same application.

@@ -61,7 +61,7 @@ export function crossSiteSimpleRequest(request: Request): boolean {
   return !/^application\/(?:[\w.+-]+\+)?json\b/iu.test(type);
 }
 
-export async function readBody(request: Request): Promise<Result<unknown>> {
+export async function getBody(request: Request): Promise<Result<unknown>> {
   try {
     const body: unknown = await request.json();
 
@@ -78,7 +78,7 @@ export async function readBody(request: Request): Promise<Result<unknown>> {
 }
 
 /** Any JSON body; an empty body is `undefined`. */
-export async function readJson(request: Request): Promise<Result<unknown>> {
+export async function getJson(request: Request): Promise<Result<unknown>> {
   const text = await request.text();
 
   if (text.trim() === "") {

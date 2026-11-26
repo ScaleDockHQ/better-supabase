@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import { readExtras } from "../../src/cli/introspect/extras.ts";
+import { getExtras } from "../../src/cli/introspect/extras.ts";
 import { catalogFingerprint } from "../../src/cli/introspect/fingerprint.ts";
 import { openPg } from "../fixtures/pg.ts";
 import { stackDbUrl } from "./stack-env.ts";
@@ -31,7 +31,7 @@ describe.skipIf(!source)("readExtras against the local stack", () => {
         grant introspect_probe_reader to current_user;
         set local role introspect_probe_reader;
       `);
-      const extras = await readExtras(db, ["introspect_probe"]);
+      const extras = await getExtras(db, ["introspect_probe"]);
       const items = extras.tables.find((table) => table.name === "items");
 
       expect(items?.uniques).toEqual([

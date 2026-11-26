@@ -3,6 +3,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { builderFor } from "@/features/workflows/builder/builder-server";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { ChangeLifecycle } from "./change-request-lifecycle";
@@ -10,9 +11,8 @@ import type { ChangeLifecycle } from "./change-request-lifecycle";
 import {
   CHANGE_SUBJECT,
   CHANGE_WORKFLOW,
-  readLifecycle,
+  getLifecycle,
 } from "./change-request-lifecycle";
-import { CHANGE_REQUESTS_TAG } from "./change-requests-cache";
 
 export interface ChangeRequestRow {
   readonly id: string;
@@ -34,7 +34,7 @@ export interface ChangeRequestsData {
 export async function getChangeRequests(): Promise<ChangeRequestsData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached({ tables: ["changeRequests"] });
-  cacheTag(CHANGE_REQUESTS_TAG);
+  cacheTag(tags.changeRequests());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -65,7 +65,7 @@ export async function getChangeRequests(): Promise<ChangeRequestsData | null> {
     lifecycle:
       version?.graph === undefined
         ? null
-        : { ...readLifecycle(version.graph), version: version.version },
+        : { ...getLifecycle(version.graph), version: version.version },
     rows: rows.map((row) => ({
       id: row.id,
       title: row.title,

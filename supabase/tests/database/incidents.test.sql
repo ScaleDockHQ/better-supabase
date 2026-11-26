@@ -43,10 +43,10 @@ set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 insert into ids values
-  ('api', (better_supabase.save_status_component('00000000-0000-4000-8000-000000000001', 'API') ->> 'id')::uuid),
-  ('db', (better_supabase.save_status_component('00000000-0000-4000-8000-000000000001', 'Internal DB', is_public => false) ->> 'id')::uuid);
+  ('api', (better_supabase.upsert_status_component('00000000-0000-4000-8000-000000000001', 'API') ->> 'id')::uuid),
+  ('db', (better_supabase.upsert_status_component('00000000-0000-4000-8000-000000000001', 'Internal DB', is_public => false) ->> 'id')::uuid);
 select lives_ok(
-  $$select better_supabase.save_status_page('00000000-0000-4000-8000-000000000001', 'acme', 'Acme status', published => true)$$,
+  $$select better_supabase.upsert_status_page('00000000-0000-4000-8000-000000000001', 'acme', 'Acme status', published => true)$$,
   'an owner publishes the status page'
 );
 insert into ids values
@@ -83,11 +83,11 @@ select lives_ok(
   'the Globex owner opens a public Globex incident'
 );
 select lives_ok(
-  $$select better_supabase.save_status_page('00000000-0000-4000-8000-000000000002', 'globex', 'Globex status')$$,
+  $$select better_supabase.upsert_status_page('00000000-0000-4000-8000-000000000002', 'globex', 'Globex status')$$,
   'the Globex owner saves an unpublished page'
 );
 select throws_ok(
-  $$select better_supabase.save_status_page('00000000-0000-4000-8000-000000000002', 'acme', 'Taken')$$,
+  $$select better_supabase.upsert_status_page('00000000-0000-4000-8000-000000000002', 'acme', 'Taken')$$,
   '23505',
   null,
   'another organization cannot take a slug'

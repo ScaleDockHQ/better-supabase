@@ -87,7 +87,7 @@ const unparsed = new Map<string, FileFacts>();
  * @param options - The file path for errors and the Postgres major version.
  * @returns What the file declares.
  */
-export async function readFileFacts(
+export async function getFileFacts(
   text: string,
   options: { path?: string; majorVersion?: number } = {},
 ): Promise<FileFacts> {
@@ -131,7 +131,7 @@ export async function readFileFacts(
  * @param options - The Postgres major version.
  * @returns The facts of each file, in the order of `files`.
  */
-export async function readSchemaFacts(
+export async function getSchemaFacts(
   files: readonly { readonly path: string; readonly text: string }[],
   options: { majorVersion?: number } = {},
 ): Promise<readonly FileFacts[]> {
@@ -139,7 +139,7 @@ export async function readSchemaFacts(
 
   // One file at a time, so only one parse tree is alive at once.
   for (const file of files) {
-    read.push(await readFileFacts(file.text, { ...options, path: file.path }));
+    read.push(await getFileFacts(file.text, { ...options, path: file.path }));
   }
 
   return read;
@@ -153,7 +153,7 @@ export async function readSchemaFacts(
  * @param options - The Postgres major version.
  * @returns The failures, one per file that did not parse.
  */
-export async function readSchemaFactsLeniently(
+export async function getSchemaFactsLeniently(
   files: readonly { readonly path: string; readonly text: string }[],
   options: { majorVersion?: number } = {},
 ): Promise<readonly SchemaReadError[]> {
@@ -161,7 +161,7 @@ export async function readSchemaFactsLeniently(
 
   for (const file of files) {
     try {
-      await readFileFacts(file.text, { ...options, path: file.path });
+      await getFileFacts(file.text, { ...options, path: file.path });
     } catch (error) {
       if (!(error instanceof SchemaReadFailure)) {
         throw error;
@@ -394,7 +394,7 @@ export async function primeCodeStatements(
 ): Promise<void> {
   for (const text of texts) {
     if (!coded.has(text)) {
-      coded.set(text, await readCodeStatements(text, options));
+      coded.set(text, await getCodeStatements(text, options));
     }
   }
 }
@@ -408,7 +408,7 @@ export async function primeCodeStatements(
  * @param options - The Postgres major version.
  * @returns Its statements, or none when the scanner rejects the text.
  */
-export async function readCodeStatements(
+export async function getCodeStatements(
   text: string,
   options: { majorVersion?: number } = {},
 ): Promise<readonly CodeStatement[]> {

@@ -15,11 +15,11 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.p1', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Bolt', 'bolt-po-cancel', null, 'physical', null) ->> 'id', true);
-select set_config('t.v1', better_supabase.save_variant(current_setting('t.p1')::uuid, null, 'BOLT-1', null, 'Bolt', null, null, true, false, null) ->> 'id', true);
-select set_config('t.location', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'POCAN', 'PO cancel dock', null, null) ->> 'id', true);
+select set_config('t.p1', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Bolt', 'bolt-po-cancel', null, 'physical', null) ->> 'id', true);
+select set_config('t.v1', better_supabase.upsert_variant(current_setting('t.p1')::uuid, null, 'BOLT-1', null, 'Bolt', null, null, true, false, null) ->> 'id', true);
+select set_config('t.location', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'POCAN', 'PO cancel dock', null, null) ->> 'id', true);
 
-select set_config('t.po1', better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, null, null, 'EUR', null,
+select set_config('t.po1', better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, null, null, 'EUR', null,
   jsonb_build_array(jsonb_build_object('variantId', current_setting('t.v1'), 'quantity', 10, 'unitCost', '100')),
   null, 'PO-100')::text, true);
 select is(
@@ -28,14 +28,14 @@ select is(
   'a draft keeps the number it was saved with'
 );
 select throws_ok(
-  format($$select better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', null, %L, null, null, 'EUR', null,
+  format($$select better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', null, %L, null, null, 'EUR', null,
     '[{"variantId": "%s", "quantity": 1, "unitCost": "100"}]', null, 'PO-100')$$, current_setting('t.location'), current_setting('t.v1')),
   '23505',
   'another purchase order has this number',
   'a number is used once per organization'
 );
 
-select set_config('t.po2', better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, null, null, 'EUR', null,
+select set_config('t.po2', better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, null, null, 'EUR', null,
   jsonb_build_array(jsonb_build_object('variantId', current_setting('t.v1'), 'quantity', 2, 'unitCost', '100')),
   null)::text, true);
 select is(

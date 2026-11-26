@@ -1,5 +1,5 @@
 import { templateList } from "@/features/document-templates/document-templates-list";
-import { loadTemplatePage } from "@/features/document-templates/document-templates-queries";
+import { getTemplatePage } from "@/features/document-templates/document-templates-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -11,7 +11,7 @@ export const GET = bsb.route(
   async (request, { db }) => {
     const query = templateList.parse(request.nextUrl.searchParams);
 
-    return Response.json(await loadTemplatePage(db, query.value));
+    return Response.json(await getTemplatePage(db, query.value));
   },
   { requireTenant: true, permission: "document_templates.read" },
 );

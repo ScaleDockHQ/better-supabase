@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:d1e32912366b5b1e248215db6d003e4a3c42080f5fc0d8305d86d6a4c4ee9db8
+-- @bsb-hash sha256:f77805693a1e5cd2836a06d59ba449317eb699d0b358e34b7b26da318a7a8824
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,7 +101,7 @@ create policy bsb_lims_results_read on "better_supabase"."lims_results"
 -- A result below lowerLimit or above upperLimit is out of specification. formId
 -- names the form that captures the raw readings. Pass method_id to update.
 -- Needs lims.manage.
-create or replace function "better_supabase"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
+create or replace function "better_supabase"."upsert_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -110,13 +110,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."lims_methods";
-  v_input jsonb := coalesce(save_lims_method.input, '{}'::jsonb);
-  v_created boolean := save_lims_method.method_id is null;
+  v_input jsonb := coalesce(upsert_lims_method.input, '{}'::jsonb);
+  v_created boolean := upsert_lims_method.method_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', save_lims_method.tenant, 'lims.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', upsert_lims_method.tenant, 'lims.manage'), false))) then
     raise exception 'not allowed to save test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
   if jsonb_typeof(v_input) is distinct from 'object' then
@@ -126,16 +126,16 @@ begin
     raise exception 'formId needs the forms block' using errcode = '22023', hint = 'LIMS_INVALID';
   end if;
   begin
-    if save_lims_method.method_id is null then
+    if upsert_lims_method.method_id is null then
       insert into "better_supabase"."lims_methods" ("tenant_id", "key", "name", "unit", "lower_limit", "upper_limit", "form_id")
-      values (save_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
+      values (upsert_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
         (v_input ->> 'lowerLimit')::numeric, (v_input ->> 'upperLimit')::numeric, (v_input ->> 'formId')::uuid)
       returning * into v_row;
     else
       update "better_supabase"."lims_methods" x set "name" = trim(v_input ->> 'name'), "unit" = nullif(trim(v_input ->> 'unit'), ''),
         "lower_limit" = (v_input ->> 'lowerLimit')::numeric, "upper_limit" = (v_input ->> 'upperLimit')::numeric,
         "form_id" = (v_input ->> 'formId')::uuid, "updated_at" = now()
-      where x."id" = save_lims_method.method_id and x."tenant_id" = save_lims_method.tenant
+      where x."id" = upsert_lims_method.method_id and x."tenant_id" = upsert_lims_method.tenant
       returning * into v_row;
       if not found then
         raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
@@ -154,8 +154,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Archives a method so no new result can use it. Its results stay. Needs
 -- lims.manage.
@@ -1191,7 +1191,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:799404c75e48a94d89b61f0725ede2c88945d6059beec83858e5cb51caa581ed
+-- @bsb-hash sha256:84a1c43f70e4925c860cccf470abc6ff0261997c88de67098b681601095d9e2f
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1291,7 +1291,7 @@ create policy bsb_lims_results_read on "better_supabase"."lims_results"
 -- A result below lowerLimit or above upperLimit is out of specification. formId
 -- names the form that captures the raw readings. Pass method_id to update.
 -- Needs lims.manage.
-create or replace function "better_supabase"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
+create or replace function "better_supabase"."upsert_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1300,13 +1300,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."lims_methods";
-  v_input jsonb := coalesce(save_lims_method.input, '{}'::jsonb);
-  v_created boolean := save_lims_method.method_id is null;
+  v_input jsonb := coalesce(upsert_lims_method.input, '{}'::jsonb);
+  v_created boolean := upsert_lims_method.method_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', save_lims_method.tenant, 'lims.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', upsert_lims_method.tenant, 'lims.manage'), false))) then
     raise exception 'not allowed to save test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
   if jsonb_typeof(v_input) is distinct from 'object' then
@@ -1315,21 +1315,21 @@ begin
   if v_input ->> 'formId' is not null and not exists (
     select 1 from "better_supabase"."forms" y
     where y."id" = (v_input ->> 'formId')::uuid
-      and y."tenant_id"::text = save_lims_method.tenant::text
+      and y."tenant_id"::text = upsert_lims_method.tenant::text
   ) then
     raise exception 'the form is not a form of this organization' using errcode = '22023', hint = 'LIMS_INVALID';
   end if;
   begin
-    if save_lims_method.method_id is null then
+    if upsert_lims_method.method_id is null then
       insert into "better_supabase"."lims_methods" ("tenant_id", "key", "name", "unit", "lower_limit", "upper_limit", "form_id")
-      values (save_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
+      values (upsert_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
         (v_input ->> 'lowerLimit')::numeric, (v_input ->> 'upperLimit')::numeric, (v_input ->> 'formId')::uuid)
       returning * into v_row;
     else
       update "better_supabase"."lims_methods" x set "name" = trim(v_input ->> 'name'), "unit" = nullif(trim(v_input ->> 'unit'), ''),
         "lower_limit" = (v_input ->> 'lowerLimit')::numeric, "upper_limit" = (v_input ->> 'upperLimit')::numeric,
         "form_id" = (v_input ->> 'formId')::uuid, "updated_at" = now()
-      where x."id" = save_lims_method.method_id and x."tenant_id" = save_lims_method.tenant
+      where x."id" = upsert_lims_method.method_id and x."tenant_id" = upsert_lims_method.tenant
       returning * into v_row;
       if not found then
         raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
@@ -1348,8 +1348,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Archives a method so no new result can use it. Its results stay. Needs
 -- lims.manage.
@@ -2481,7 +2481,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:09f2e3d4a2442dda48886cba5358a429c00e74f33611e8786ba9eba84d85cc99
+-- @bsb-hash sha256:3a1120cb625a80531494a7ee8dc426a8e8b5e8bc5b5c29ff9660c2a736246cc4
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2586,7 +2586,7 @@ create policy bsb_lims_results_read on "app_private"."lims_results"
 -- A result below lowerLimit or above upperLimit is out of specification. formId
 -- names the form that captures the raw readings. Pass method_id to update.
 -- Needs lims.manage.
-create or replace function "app_private"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
+create or replace function "app_private"."upsert_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2595,13 +2595,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "app_private"."lims_methods";
-  v_input jsonb := coalesce(save_lims_method.input, '{}'::jsonb);
-  v_created boolean := save_lims_method.method_id is null;
+  v_input jsonb := coalesce(upsert_lims_method.input, '{}'::jsonb);
+  v_created boolean := upsert_lims_method.method_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', save_lims_method.tenant, 'lims.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', upsert_lims_method.tenant, 'lims.manage'), false))) then
     raise exception 'not allowed to save test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
   if jsonb_typeof(v_input) is distinct from 'object' then
@@ -2611,16 +2611,16 @@ begin
     raise exception 'formId needs the forms block' using errcode = '22023', hint = 'LIMS_INVALID';
   end if;
   begin
-    if save_lims_method.method_id is null then
+    if upsert_lims_method.method_id is null then
       insert into "app_private"."lims_methods" ("tenant_id", "key", "name", "unit", "lower_limit", "upper_limit", "form_id")
-      values (save_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
+      values (upsert_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
         (v_input ->> 'lowerLimit')::numeric, (v_input ->> 'upperLimit')::numeric, (v_input ->> 'formId')::uuid)
       returning * into v_row;
     else
       update "app_private"."lims_methods" x set "name" = trim(v_input ->> 'name'), "unit" = nullif(trim(v_input ->> 'unit'), ''),
         "lower_limit" = (v_input ->> 'lowerLimit')::numeric, "upper_limit" = (v_input ->> 'upperLimit')::numeric,
         "form_id" = (v_input ->> 'formId')::uuid, "updated_at" = now()
-      where x."id" = save_lims_method.method_id and x."tenant_id" = save_lims_method.tenant
+      where x."id" = upsert_lims_method.method_id and x."tenant_id" = upsert_lims_method.tenant
       returning * into v_row;
       if not found then
         raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
@@ -2639,8 +2639,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_lims_method"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "app_private"."save_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_lims_method"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "app_private"."upsert_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Archives a method so no new result can use it. Its results stay. Needs
 -- lims.manage.
@@ -3676,7 +3676,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:73e0d88c3a29812eead619ae3e39fcfc63fe71af84a0f7ce2b9bc35475005091
+-- @bsb-hash sha256:e6d47b519e31ccb731d2fbf8547763ce3d6c49ee5c3549587ae27abf43c9e3af
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3776,7 +3776,7 @@ create policy bsb_lims_results_read on "better_supabase"."lims_results"
 -- A result below lowerLimit or above upperLimit is out of specification. formId
 -- names the form that captures the raw readings. Pass method_id to update.
 -- Needs lims.manage.
-create or replace function "better_supabase"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
+create or replace function "better_supabase"."upsert_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3785,13 +3785,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."lims_methods";
-  v_input jsonb := coalesce(save_lims_method.input, '{}'::jsonb);
-  v_created boolean := save_lims_method.method_id is null;
+  v_input jsonb := coalesce(upsert_lims_method.input, '{}'::jsonb);
+  v_created boolean := upsert_lims_method.method_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', save_lims_method.tenant, 'lims.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', upsert_lims_method.tenant, 'lims.manage'), false))) then
     raise exception 'not allowed to save test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
   if jsonb_typeof(v_input) is distinct from 'object' then
@@ -3801,16 +3801,16 @@ begin
     raise exception 'formId needs the forms block' using errcode = '22023', hint = 'LIMS_INVALID';
   end if;
   begin
-    if save_lims_method.method_id is null then
+    if upsert_lims_method.method_id is null then
       insert into "better_supabase"."lims_methods" ("tenant_id", "key", "name", "unit", "lower_limit", "upper_limit", "form_id")
-      values (save_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
+      values (upsert_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
         (v_input ->> 'lowerLimit')::numeric, (v_input ->> 'upperLimit')::numeric, (v_input ->> 'formId')::uuid)
       returning * into v_row;
     else
       update "better_supabase"."lims_methods" x set "name" = trim(v_input ->> 'name'), "unit" = nullif(trim(v_input ->> 'unit'), ''),
         "lower_limit" = (v_input ->> 'lowerLimit')::numeric, "upper_limit" = (v_input ->> 'upperLimit')::numeric,
         "form_id" = (v_input ->> 'formId')::uuid, "updated_at" = now()
-      where x."id" = save_lims_method.method_id and x."tenant_id" = save_lims_method.tenant
+      where x."id" = upsert_lims_method.method_id and x."tenant_id" = upsert_lims_method.tenant
       returning * into v_row;
       if not found then
         raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
@@ -3829,8 +3829,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Archives a method so no new result can use it. Its results stay. Needs
 -- lims.manage.
@@ -4853,14 +4853,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lims_results" as res
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
+create or replace function "api"."upsert_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_lims_method"($1, $2, $3) $$;
-revoke execute on function "api"."save_lims_method"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_lims_method"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_lims_method"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."archive_lims_method"(method_id uuid)
 returns jsonb
@@ -5012,7 +5012,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:ce9004ab7eba572b3a190bf66d340aa4f7154427ee58e410f0ac3f81d0709073
+-- @bsb-hash sha256:631bb04073165f3f208181be99993eb969c6c6f9bfcd8fc3de0ea7c6698b2b22
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5106,7 +5106,7 @@ create policy bsb_lims_results_read on "better_supabase"."lims_results"
 -- A result below lowerLimit or above upperLimit is out of specification. formId
 -- names the form that captures the raw readings. Pass method_id to update.
 -- Needs lims.manage.
-create or replace function "better_supabase"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
+create or replace function "better_supabase"."upsert_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5115,13 +5115,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."lims_methods";
-  v_input jsonb := coalesce(save_lims_method.input, '{}'::jsonb);
-  v_created boolean := save_lims_method.method_id is null;
+  v_input jsonb := coalesce(upsert_lims_method.input, '{}'::jsonb);
+  v_created boolean := upsert_lims_method.method_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', save_lims_method.tenant, 'lims.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', upsert_lims_method.tenant, 'lims.manage'), false))) then
     raise exception 'not allowed to save test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
   if jsonb_typeof(v_input) is distinct from 'object' then
@@ -5131,16 +5131,16 @@ begin
     raise exception 'formId needs the forms block' using errcode = '22023', hint = 'LIMS_INVALID';
   end if;
   begin
-    if save_lims_method.method_id is null then
+    if upsert_lims_method.method_id is null then
       insert into "better_supabase"."lims_methods" ("tenant_id", "key", "name", "unit", "lower_limit", "upper_limit", "form_id")
-      values (save_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
+      values (upsert_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
         (v_input ->> 'lowerLimit')::numeric, (v_input ->> 'upperLimit')::numeric, (v_input ->> 'formId')::uuid)
       returning * into v_row;
     else
       update "better_supabase"."lims_methods" x set "name" = trim(v_input ->> 'name'), "unit" = nullif(trim(v_input ->> 'unit'), ''),
         "lower_limit" = (v_input ->> 'lowerLimit')::numeric, "upper_limit" = (v_input ->> 'upperLimit')::numeric,
         "form_id" = (v_input ->> 'formId')::uuid, "updated_at" = now()
-      where x."id" = save_lims_method.method_id and x."tenant_id" = save_lims_method.tenant
+      where x."id" = upsert_lims_method.method_id and x."tenant_id" = upsert_lims_method.tenant
       returning * into v_row;
       if not found then
         raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
@@ -5159,8 +5159,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Archives a method so no new result can use it. Its results stay. Needs
 -- lims.manage.
@@ -6196,7 +6196,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:2bfda0e58aea21edd7ab1882c90bbaeec38093eab33838f403ab0d59c7941926
+-- @bsb-hash sha256:e934c525034e7163e87031f0186d814117a691c570f96482a8deb16ab82049f2
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6296,7 +6296,7 @@ create policy bsb_lims_results_read on "better_supabase"."lims_results"
 -- A result below lowerLimit or above upperLimit is out of specification. formId
 -- names the form that captures the raw readings. Pass method_id to update.
 -- Needs lims.manage.
-create or replace function "better_supabase"."save_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
+create or replace function "better_supabase"."upsert_lims_method"(tenant uuid, input jsonb, method_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6305,13 +6305,13 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."lims_methods";
-  v_input jsonb := coalesce(save_lims_method.input, '{}'::jsonb);
-  v_created boolean := save_lims_method.method_id is null;
+  v_input jsonb := coalesce(upsert_lims_method.input, '{}'::jsonb);
+  v_created boolean := upsert_lims_method.method_id is null;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', save_lims_method.tenant, 'lims.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_lims_method.tenant is not null and coalesce(better_supabase.can('tenant', upsert_lims_method.tenant, 'lims.manage'), false))) then
     raise exception 'not allowed to save test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
   end if;
   if jsonb_typeof(v_input) is distinct from 'object' then
@@ -6321,16 +6321,16 @@ begin
     raise exception 'formId needs the forms block' using errcode = '22023', hint = 'LIMS_INVALID';
   end if;
   begin
-    if save_lims_method.method_id is null then
+    if upsert_lims_method.method_id is null then
       insert into "better_supabase"."lims_methods" ("org_id", "key", "name", "unit", "lower_limit", "upper_limit", "form_id")
-      values (save_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
+      values (upsert_lims_method.tenant, v_input ->> 'key', trim(v_input ->> 'name'), nullif(trim(v_input ->> 'unit'), ''),
         (v_input ->> 'lowerLimit')::numeric, (v_input ->> 'upperLimit')::numeric, (v_input ->> 'formId')::uuid)
       returning * into v_row;
     else
       update "better_supabase"."lims_methods" x set "name" = trim(v_input ->> 'name'), "unit" = nullif(trim(v_input ->> 'unit'), ''),
         "lower_limit" = (v_input ->> 'lowerLimit')::numeric, "upper_limit" = (v_input ->> 'upperLimit')::numeric,
         "form_id" = (v_input ->> 'formId')::uuid, "updated_at" = now()
-      where x."id" = save_lims_method.method_id and x."org_id" = save_lims_method.tenant
+      where x."id" = upsert_lims_method.method_id and x."org_id" = upsert_lims_method.tenant
       returning * into v_row;
       if not found then
         raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
@@ -6349,8 +6349,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_lims_method"(uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Archives a method so no new result can use it. Its results stay. Needs
 -- lims.manage.

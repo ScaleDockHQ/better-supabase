@@ -52,7 +52,7 @@ describe("testRecordBinding", () => {
     const broken = {
       ...defineRecordBinding({
         permissions: { read: "" },
-        load: () => failed<number>("gone"),
+        get: () => failed<number>("gone"),
         count: () => resolved({ other: 1.5 }),
         events: [""],
       }),
@@ -73,7 +73,7 @@ describe("testRecordBinding", () => {
       "plain",
       defineRecordBinding({
         permissions: { read: "read" },
-        load: () => resolved(1),
+        get: () => resolved(1),
       }),
       { client: {}, subject: customer, subjects: [customer] },
     );
@@ -86,7 +86,7 @@ describe("testRecordBinding", () => {
   it("fails a count that errors", async () => {
     const binding = defineRecordBinding({
       permissions: { read: "read" },
-      load: () => resolved(1),
+      get: () => resolved(1),
       count: () => failed<Readonly<Record<string, number>>>("down"),
     });
 

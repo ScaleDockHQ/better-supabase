@@ -1,6 +1,6 @@
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:a34cb4c183831b70e50769416bf4f777d4ec6c494e95fb2760748ac52182b36d
+-- @bsb-hash sha256:72adad43a3a9cd3ceebe8c4a2f55c71eb8dd1e12d41749fd33127b201c1fc3c7
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,7 @@ grant all on "better_supabase"."signing_keys" to service_role;
 
 -- Adds a key and makes it the owner's active one; the key it replaces is
 -- retired and stays published until its last token expires.
-create or replace function "better_supabase"."add_signing_key"(owner_type text, owner_id text, kid text, alg text, public_jwk jsonb, private_jwk text)
+create or replace function "better_supabase"."create_signing_key"(owner_type text, owner_id text, kid text, alg text, public_jwk jsonb, private_jwk text)
 returns jsonb
 language plpgsql
 security definer
@@ -43,24 +43,24 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages signing keys' using errcode = '42501', hint = 'SIGNING_KEYS_FORBIDDEN';
   end if;
-  if add_signing_key.private_jwk is null or length(add_signing_key.private_jwk) = 0 then
+  if create_signing_key.private_jwk is null or length(create_signing_key.private_jwk) = 0 then
     raise exception 'a signing key needs its private JWK' using errcode = '22023', hint = 'SIGNING_KEY_INVALID';
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
-    'bs:signing:' || add_signing_key.owner_type || ':' || add_signing_key.owner_id, 0));
+    'bs:signing:' || create_signing_key.owner_type || ':' || create_signing_key.owner_id, 0));
   update "better_supabase"."signing_keys" k set "state" = 'retired', "retired_at" = now()
-  where k."owner_type" = add_signing_key.owner_type
-    and k."owner_id" = add_signing_key.owner_id
+  where k."owner_type" = create_signing_key.owner_type
+    and k."owner_id" = create_signing_key.owner_id
     and k."state" = 'active'
   returning k.* into v_old;
   v_vault := vault.create_secret(
-    add_signing_key.private_jwk,
-    'bs:signing:' || add_signing_key.kid,
+    create_signing_key.private_jwk,
+    'bs:signing:' || create_signing_key.kid,
     'better-supabase signing key'
   );
   insert into "better_supabase"."signing_keys" ("owner_type", "owner_id", "kid", "alg", "public_jwk", "vault_secret_id")
-  values (add_signing_key.owner_type, add_signing_key.owner_id, add_signing_key.kid, add_signing_key.alg,
-    add_signing_key.public_jwk, v_vault)
+  values (create_signing_key.owner_type, create_signing_key.owner_id, create_signing_key.kid, create_signing_key.alg,
+    create_signing_key.public_jwk, v_vault)
   returning * into v_row;
   if v_old."kid" is not null then
     perform "better_supabase".emit_event('signing_key.retired', jsonb_build_object('ownerType', v_old."owner_type", 'ownerId', v_old."owner_id", 'kid', v_old."kid"), 'signing-keys/' || v_old."kid", null, null, 'better-supabase/signing-keys');
@@ -83,8 +83,8 @@ begin
   return jsonb_build_object('kid', v_row."kid", 'alg', v_row."alg", 'retired', v_old."kid");
 end;
 $$;
-revoke execute on function "better_supabase"."add_signing_key"(text, text, text, text, jsonb, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_signing_key"(text, text, text, text, jsonb, text) to service_role;
+revoke execute on function "better_supabase"."create_signing_key"(text, text, text, text, jsonb, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_signing_key"(text, text, text, text, jsonb, text) to service_role;
 
 -- The owner's active key with its private JWK, or null.
 create or replace function "better_supabase"."signing_key"(owner_type text, owner_id text)
@@ -254,14 +254,14 @@ create trigger "bsb_signing_key_vault" after delete on "better_supabase"."signin
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."add_signing_key"(owner_type text, owner_id text, kid text, alg text, public_jwk jsonb, private_jwk text)
+create or replace function "api"."create_signing_key"(owner_type text, owner_id text, kid text, alg text, public_jwk jsonb, private_jwk text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_signing_key"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."add_signing_key"(text, text, text, text, jsonb, text) from public, anon, authenticated;
-grant execute on function "api"."add_signing_key"(text, text, text, text, jsonb, text) to service_role;
+as $$ select "better_supabase"."create_signing_key"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."create_signing_key"(text, text, text, text, jsonb, text) from public, anon, authenticated;
+grant execute on function "api"."create_signing_key"(text, text, text, text, jsonb, text) to service_role;
 
 create or replace function "api"."signing_key"(owner_type text, owner_id text)
 returns jsonb

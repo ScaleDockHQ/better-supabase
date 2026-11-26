@@ -219,7 +219,7 @@ ${tables(ctx)}${decisionSupportEvaluation(ctx)}${decisionSupportFunctions(ctx)}`
 
 function contract(): readonly BlockSqlContractFunction[] {
   return [
-    { name: "save_care_rule", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "upsert_care_rule", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "archive_care_rule", args: ["uuid"], returns: "jsonb" },
     { name: "restore_care_rule", args: ["uuid"], returns: "jsonb" },
     { name: "purge_care_rule", args: ["uuid"], returns: "jsonb" },

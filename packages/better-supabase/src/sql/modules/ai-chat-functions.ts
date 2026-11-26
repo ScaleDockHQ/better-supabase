@@ -139,7 +139,7 @@ function chats(ctx: BlockSqlContext, names: AiChatNames): string {
   ]);
 
   const [projectColumns, projectValues] = writtenPairs(ctx, "projects", [
-    ["tenant", "\n      save_ai_project.tenant"],
+    ["tenant", "\n      upsert_ai_project.tenant"],
     ["owner", "auth.uid()"],
     ["name", "v_fields ->> 'name'"],
     ["instructions", "coalesce(v_fields ->> 'instructions', '')"],
@@ -430,7 +430,7 @@ ${userGrant(`${fn("list_ai_chats")}(${ctx.idType}, text, uuid, boolean, boolean,
 
 -- Creates a project (id null, needs ${perm.create}) or changes the caller's
 -- own. fields may set name, instructions, default_model, pinned, archived${names.extras.projects.length > 0 ? ",\n-- and the app's extra columns" : ""}.
-create or replace function ${fn("save_ai_project")}(id uuid, tenant ${ctx.idType}, fields jsonb)
+create or replace function ${fn("upsert_ai_project")}(id uuid, tenant ${ctx.idType}, fields jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -438,11 +438,11 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_fields jsonb := coalesce(save_ai_project.fields, '{}'::jsonb);
+  v_fields jsonb := coalesce(upsert_ai_project.fields, '{}'::jsonb);
   v_row ${t.projects};
 begin
-  if save_ai_project.id is null then
-    if auth.uid() is null or not ${mayCreate("save_ai_project.tenant", perm.create)} then
+  if upsert_ai_project.id is null then
+    if auth.uid() is null or not ${mayCreate("upsert_ai_project.tenant", perm.create)} then
       ${raise("You may not create projects here", "42501", "AI_CHAT_FORBIDDEN")}
     end if;
     insert into ${t.projects} (${projectColumns})
@@ -456,15 +456,15 @@ begin
     ${p.instructions} = case when v_fields ? 'instructions' then coalesce(v_fields ->> 'instructions', '') else x.${p.instructions} end,
     ${p.model} = case when v_fields ? 'default_model' then v_fields ->> 'default_model' else x.${p.model} end,${flags("projects", "x")}
     ${p.updatedAt} = now()
-  where x.${p.id} = save_ai_project.id and x.${p.owner} = (select auth.uid())
+  where x.${p.id} = upsert_ai_project.id and x.${p.owner} = (select auth.uid())
   returning * into v_row;
   if not found then
-    ${raise("No project %", "P0002", "AI_PROJECT_NOT_FOUND", "save_ai_project.id")}
+    ${raise("No project %", "P0002", "AI_PROJECT_NOT_FOUND", "upsert_ai_project.id")}
   end if;${writeExtraColumns(t.projects, names.extras.projects, "v_fields", `x.${p.id} = v_row.${p.id}`, "v_row")}
   return ${projectJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_ai_project")}(uuid, ${ctx.idType}, jsonb)`)}
+${userGrant(`${fn("upsert_ai_project")}(uuid, ${ctx.idType}, jsonb)`)}
 
 -- Deletes the caller's project; its chats stay, outside any project.
 create or replace function ${fn("delete_ai_project")}(id uuid)

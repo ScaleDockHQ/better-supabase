@@ -104,7 +104,7 @@ export function bankingMatching(ctx: BlockSqlContext): string {
   const books = booksAccounting(ctx);
   const allowed = targets(ctx);
 
-  const loadTransaction = (arg: string, lock: boolean) => `
+  const getTransaction = (arg: string, lock: boolean) => `
   select * into v_row from ${q.transactions} x where x.${t("id")} = ${arg}${lock ? " for update" : ""};
   if not found then
     ${q.transactionMissing}
@@ -279,7 +279,7 @@ declare
   v_item jsonb;
   v_amount bigint;
   v_sum bigint := 0;
-begin${loadTransaction("match_bank_transaction.transaction_id", true)}
+begin${getTransaction("match_bank_transaction.transaction_id", true)}
   if v_row.${t("status")} <> 'unmatched' then
     ${q.statusInvalid("v_row", "matched")}
   end if;
@@ -331,7 +331,7 @@ as $$
 #variable_conflict use_column
 declare
   ${declares}
-begin${loadTransaction("unmatch_bank_transaction.transaction_id", true)}
+begin${getTransaction("unmatch_bank_transaction.transaction_id", true)}
   if v_row.${t("status")} <> 'matched' then
     ${q.statusInvalid("v_row", "unmatched")}
   end if;
@@ -362,7 +362,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${q.transactions}%rowtype;
-begin${loadTransaction("ignore_bank_transaction.transaction_id", true)}
+begin${getTransaction("ignore_bank_transaction.transaction_id", true)}
   if v_row.${t("status")} <> (case when ignore_bank_transaction.ignored then 'unmatched' else 'ignored' end) then
     ${q.statusInvalid("v_row", "ignored")}
   end if;
@@ -380,7 +380,7 @@ ${userGrant(`${fn("ignore_bank_transaction")}(uuid, boolean)`)}
 -- transaction), accountId, partyId, dimensions, priority, active }. A rule
 -- with an account books the transactions it matches there; one without sets
 -- them aside.
-create or replace function ${fn("save_bank_rule")}(tenant ${idType}, input jsonb, rule_id uuid default null)
+create or replace function ${fn("upsert_bank_rule")}(tenant ${idType}, input jsonb, rule_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -389,46 +389,46 @@ as $$
 #variable_conflict use_column
 declare
   v_rule ${q.rules}%rowtype;
-  v_tenant ${idType} := save_bank_rule.tenant;
+  v_tenant ${idType} := upsert_bank_rule.tenant;
   v_conditions jsonb;
   v_account uuid;
 begin
-  if not ${q.allowed("save_bank_rule.tenant", q.manage)} then
+  if not ${q.allowed("upsert_bank_rule.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage bank rules")}
   end if;
-  if jsonb_typeof(save_bank_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bank_rule.input) is distinct from 'object' then
     ${q.ruleInvalid("input must be an object")}
   end if;
-  if save_bank_rule.rule_id is not null then
+  if upsert_bank_rule.rule_id is not null then
     select * into v_rule from ${q.rules} x
-    where x.${r("id")} = save_bank_rule.rule_id and x.${r("tenant")} = save_bank_rule.tenant
+    where x.${r("id")} = upsert_bank_rule.rule_id and x.${r("tenant")} = upsert_bank_rule.tenant
     for update;
     if not found then
       ${q.ruleMissing}
     end if;
   end if;
-  v_conditions := coalesce(save_bank_rule.input -> 'conditions', v_rule.${r("conditions")}, '{"type":"group","combinator":"and","rules":[]}'::jsonb);
+  v_conditions := coalesce(upsert_bank_rule.input -> 'conditions', v_rule.${r("conditions")}, '{"type":"group","combinator":"and","rules":[]}'::jsonb);
   perform ${fn("bank_rule_condition")}(v_conditions, '{}'::jsonb);
-  v_account := case when save_bank_rule.input ? 'accountId'
-    then nullif(save_bank_rule.input ->> 'accountId', '')::uuid
+  v_account := case when upsert_bank_rule.input ? 'accountId'
+    then nullif(upsert_bank_rule.input ->> 'accountId', '')::uuid
     else v_rule.${r("account")} end;${ruleAccountCheck}
   if v_rule.${r("id")} is null then
     insert into ${q.rules} (${r("tenant")}, ${r("name")}, ${r("conditions")}, ${r("account")}, ${r("party")}, ${r("dimensions")}, ${r("priority")}, ${r("active")})
-    values (save_bank_rule.tenant, trim(save_bank_rule.input ->> 'name'), v_conditions, v_account,
-      nullif(save_bank_rule.input ->> 'partyId', '')::uuid,
-      coalesce(save_bank_rule.input -> 'dimensions', '{}'::jsonb),
-      coalesce((save_bank_rule.input ->> 'priority')::integer, 100),
-      coalesce((save_bank_rule.input ->> 'active')::boolean, true))
+    values (upsert_bank_rule.tenant, trim(upsert_bank_rule.input ->> 'name'), v_conditions, v_account,
+      nullif(upsert_bank_rule.input ->> 'partyId', '')::uuid,
+      coalesce(upsert_bank_rule.input -> 'dimensions', '{}'::jsonb),
+      coalesce((upsert_bank_rule.input ->> 'priority')::integer, 100),
+      coalesce((upsert_bank_rule.input ->> 'active')::boolean, true))
     returning * into v_rule;
   else
     update ${q.rules} x set
-      ${r("name")} = coalesce(trim(save_bank_rule.input ->> 'name'), x.${r("name")}),
+      ${r("name")} = coalesce(trim(upsert_bank_rule.input ->> 'name'), x.${r("name")}),
       ${r("conditions")} = v_conditions,
       ${r("account")} = v_account,
-      ${r("party")} = case when save_bank_rule.input ? 'partyId' then nullif(save_bank_rule.input ->> 'partyId', '')::uuid else x.${r("party")} end,
-      ${r("dimensions")} = coalesce(save_bank_rule.input -> 'dimensions', x.${r("dimensions")}),
-      ${r("priority")} = coalesce((save_bank_rule.input ->> 'priority')::integer, x.${r("priority")}),
-      ${r("active")} = coalesce((save_bank_rule.input ->> 'active')::boolean, x.${r("active")}),
+      ${r("party")} = case when upsert_bank_rule.input ? 'partyId' then nullif(upsert_bank_rule.input ->> 'partyId', '')::uuid else x.${r("party")} end,
+      ${r("dimensions")} = coalesce(upsert_bank_rule.input -> 'dimensions', x.${r("dimensions")}),
+      ${r("priority")} = coalesce((upsert_bank_rule.input ->> 'priority')::integer, x.${r("priority")}),
+      ${r("active")} = coalesce((upsert_bank_rule.input ->> 'active')::boolean, x.${r("active")}),
       ${r("updatedAt")} = now()
     where x.${r("id")} = v_rule.${r("id")}
     returning * into v_rule;
@@ -441,7 +441,7 @@ exception
     ${q.ruleInvalid("accountId and partyId are uuids, priority an integer and active a boolean")}
 end;
 $$;
-${userGrant(`${fn("save_bank_rule")}(${idType}, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_bank_rule")}(${idType}, jsonb, uuid)`)}
 
 create or replace function ${fn("list_bank_rules")}(tenant ${idType})
 returns jsonb

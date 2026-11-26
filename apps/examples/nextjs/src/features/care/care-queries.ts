@@ -9,7 +9,7 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { careOf } from "@/features/composites/composites";
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -45,7 +45,7 @@ const CLIENT_LIMIT = 200;
 async function loadClients(): Promise<readonly ClientRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -68,7 +68,7 @@ export function getClients(): Promise<Loaded<readonly ClientRow[]>> {
 async function loadClient(id: string): Promise<ClientRow | "missing" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -100,7 +100,7 @@ export interface ConsentRow {
 async function loadConsents(id: string): Promise<readonly ConsentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -145,7 +145,7 @@ export interface AccessRow {
 async function loadAccessLog(id: string): Promise<readonly AccessRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -210,7 +210,7 @@ export interface DossierSummary {
 async function loadDossierSummary(id: string): Promise<DossierSummary | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -249,7 +249,7 @@ async function loadMedicationOptions(): Promise<
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {

@@ -43,10 +43,10 @@ describe.skipIf(!live)("domains module", () => {
 
       await s.as(owner);
 
-      const added = await s.value<Row>("better_supabase.add_hostname($1, $2)", [
-        tenant,
-        ` ${name.toUpperCase()}. `,
-      ]);
+      const added = await s.value<Row>(
+        "better_supabase.create_hostname($1, $2)",
+        [tenant, ` ${name.toUpperCase()}. `],
+      );
 
       expect(added).toMatchObject({ hostname: name, kind: "custom" });
       expect(added.verification_token).toBeUndefined();
@@ -56,14 +56,14 @@ describe.skipIf(!live)("domains module", () => {
       );
       expect(
         (
-          await s.value<Row>("better_supabase.add_hostname($1, $2)", [
+          await s.value<Row>("better_supabase.create_hostname($1, $2)", [
             tenant,
             name,
           ])
         ).id,
       ).toBe(added.id);
       expect(
-        await s.hint("better_supabase.add_hostname($1, 'not a host')", [
+        await s.hint("better_supabase.create_hostname($1, 'not a host')", [
           tenant,
         ]),
       ).toBe("DOMAIN_INVALID");
@@ -76,10 +76,13 @@ describe.skipIf(!live)("domains module", () => {
         await s.value<Row[]>("better_supabase.list_hostnames($1)", [tenant]),
       ).toHaveLength(1);
       expect(
-        await s.hint("better_supabase.add_hostname($1, $2)", [tenant, host()]),
+        await s.hint("better_supabase.create_hostname($1, $2)", [
+          tenant,
+          host(),
+        ]),
       ).toBe("DOMAIN_FORBIDDEN");
       expect(
-        await s.value<boolean>("better_supabase.remove_hostname($1)", [
+        await s.value<boolean>("better_supabase.delete_hostname($1)", [
           added.id,
         ]),
       ).toBe(false);
@@ -90,10 +93,10 @@ describe.skipIf(!live)("domains module", () => {
       // A rival's pending claim doesn't block the owner from verifying.
       await s.as(rival);
 
-      const claim = await s.value<Row>("better_supabase.add_hostname($1, $2)", [
-        other,
-        name,
-      ]);
+      const claim = await s.value<Row>(
+        "better_supabase.create_hostname($1, $2)",
+        [other, name],
+      );
 
       await s.service();
       expect(
@@ -163,28 +166,28 @@ describe.skipIf(!live)("domains module", () => {
 
       await s.as(owner);
 
-      const sub = await s.value<Row>("better_supabase.add_hostname($1, $2)", [
-        tenant,
-        `${label}.${PLATFORM}`,
-      ]);
+      const sub = await s.value<Row>(
+        "better_supabase.create_hostname($1, $2)",
+        [tenant, `${label}.${PLATFORM}`],
+      );
 
       expect(sub.kind).toBe("subdomain");
       expect(sub.verified_at).not.toBeNull();
       expect(sub.record).toBeUndefined();
       expect(
-        await s.hint("better_supabase.add_hostname($1, $2)", [
+        await s.hint("better_supabase.create_hostname($1, $2)", [
           tenant,
           PLATFORM,
         ]),
       ).toBe("HOSTNAME_RESERVED");
       expect(
-        await s.hint("better_supabase.add_hostname($1, $2)", [
+        await s.hint("better_supabase.create_hostname($1, $2)", [
           tenant,
           `a.b.${PLATFORM}`,
         ]),
       ).toBe("DOMAIN_INVALID");
       expect(
-        await s.hint("better_supabase.add_hostname($1, $2)", [
+        await s.hint("better_supabase.create_hostname($1, $2)", [
           tenant,
           `admin.${PLATFORM}`,
         ]),
@@ -192,7 +195,7 @@ describe.skipIf(!live)("domains module", () => {
 
       await s.as(rival);
       expect(
-        await s.hint("better_supabase.add_hostname($1, $2)", [
+        await s.hint("better_supabase.create_hostname($1, $2)", [
           other,
           `${label}.${PLATFORM}`,
         ]),

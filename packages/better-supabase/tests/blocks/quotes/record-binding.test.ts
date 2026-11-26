@@ -25,7 +25,7 @@ describe("quotesBinding", () => {
       transport: transport(calls),
     });
 
-    const loaded = await quotesBinding.load(
+    const loaded = await quotesBinding.get(
       client,
       { type: "company", id: "c1" },
       undefined,

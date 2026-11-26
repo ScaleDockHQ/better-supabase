@@ -155,15 +155,15 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_category := (better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel', 'EUR') ->> 'id')::uuid;
-  perform better_supabase.save_expense_category('${TENANT}', 'travel', 'Trips', 'EUR');
+  v_category := (better_supabase.upsert_expense_category('${TENANT}', 'travel', 'Travel', 'EUR') ->> 'id')::uuid;
+  perform better_supabase.upsert_expense_category('${TENANT}', 'travel', 'Trips', 'EUR');
   if (select count(*) from public.spend_categories) <> 1 or (select title from public.spend_categories where id = v_category) <> 'Trips' then
     raise exception 'category upsert';
   end if;
   ${AS_ALICE}
   v_report := better_supabase.create_expense_report('${TENANT}', 'Conference', 'EUR');
   v_id := (v_report ->> 'id')::uuid;
-  perform better_supabase.add_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
+  perform better_supabase.create_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
   if jsonb_array_length(better_supabase.check_expense_report(v_id)) <> 0 then
     raise exception 'violations %', better_supabase.check_expense_report(v_id);
   end if;
@@ -193,10 +193,10 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_category := (better_supabase.save_expense_category('${TENANT}', null, 'Travel') ->> 'id')::uuid;
+  v_category := (better_supabase.upsert_expense_category('${TENANT}', null, 'Travel') ->> 'id')::uuid;
   ${AS_ALICE}
   v_id := (better_supabase.create_expense_report('${TENANT}', 'Conference', 'EUR') ->> 'id')::uuid;
-  perform better_supabase.add_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
+  perform better_supabase.create_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
   perform better_supabase.submit_expense_report(v_id);
   perform better_supabase.approve_expense_report(v_id);
   if (select approved_at from public.claims where id = v_id) is null then
@@ -230,7 +230,7 @@ $$;`,
       run(`do $$
 begin
   ${SERVICE}
-  perform better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel', 'EUR', 50000);
+  perform better_supabase.upsert_expense_category('${TENANT}', 'travel', 'Travel', 'EUR', 50000);
 end;
 $$;`),
     ).rejects.toThrow(/no limit column/);
@@ -248,10 +248,10 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_category := (better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel', 'EUR') ->> 'id')::uuid;
+  v_category := (better_supabase.upsert_expense_category('${TENANT}', 'travel', 'Travel', 'EUR') ->> 'id')::uuid;
   ${AS_ALICE}
   v_id := (better_supabase.create_expense_report('${TENANT}', 'Conference', 'EUR') ->> 'id')::uuid;
-  perform better_supabase.add_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
+  perform better_supabase.create_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
   v_report := better_supabase.submit_expense_report(v_id);
   if v_report ->> 'status' <> 'submitted' or v_report ->> 'approvalId' is not null then
     raise exception 'submitted %', v_report;
@@ -598,7 +598,7 @@ declare
   v_draft uuid;
 begin
   ${SERVICE}
-  v_category := (better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel') ->> 'id')::uuid;
+  v_category := (better_supabase.upsert_expense_category('${TENANT}', 'travel', 'Travel') ->> 'id')::uuid;
   ${AS(ALICE)}
   v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 900, 'EUR', v_category, 'Taxi') ->> 'id')::uuid;
   v_draft := (better_supabase.create_expense('${TENANT}', '2099-03-03', 400, 'EUR', v_category, 'Lunch') ->> 'id')::uuid;
@@ -610,7 +610,7 @@ begin
   ${refused("better_supabase.update_expense(v_draft, amount => 500)")}
   ${refused("better_supabase.submit_expense(v_draft)")}
   ${refused("better_supabase.purge_expense(v_draft)")}
-  ${refused(`better_supabase.save_expense_category('${TENANT}', 'meals', 'Meals')`)}
+  ${refused(`better_supabase.upsert_expense_category('${TENANT}', 'meals', 'Meals')`)}
   perform better_supabase.reimburse_expense(v_id, 'batch-1');
   if better_supabase.get_expense(v_id) ->> 'status' <> 'reimbursed' then
     raise exception 'reimbursed %', better_supabase.get_expense(v_id);
@@ -652,7 +652,7 @@ $$;`,
       "update_expense",
       "purge_expense",
       "reimburse_expense",
-      "save_expense_category",
+      "upsert_expense_category",
     ]) {
       expect(body(name)).toContain("'expenses.manage'");
     }
@@ -806,17 +806,17 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_category := better_supabase.save_expense_category('${TENANT}', null, 'Travel', fields => '{"gl_code": "4100"}');
+  v_category := better_supabase.upsert_expense_category('${TENANT}', null, 'Travel', fields => '{"gl_code": "4100"}');
   v_id := (v_category ->> 'id')::uuid;
   if v_category ->> 'key' <> v_id::text or v_category -> 'fields' ->> 'gl_code' <> '4100' then
     raise exception 'created %', v_category;
   end if;
-  v_category := better_supabase.save_expense_category('${TENANT}', v_id::text, 'Trips');
+  v_category := better_supabase.upsert_expense_category('${TENANT}', v_id::text, 'Trips');
   if (select row(name, gl_code)::text from public.expense_kinds where id = v_id) <> '(Trips,4100)'
     or (select count(*) from public.expense_kinds) <> 1 then
     raise exception 'updated %', v_category;
   end if;
-  ${refused(`better_supabase.save_expense_category('${TENANT}', null, 'Meals', 'EUR')`)}
+  ${refused(`better_supabase.upsert_expense_category('${TENANT}', null, 'Meals', 'EUR')`)}
   ${AS(ALICE)}
   perform better_supabase.create_expense('${TENANT}', '2099-03-02', 900, 'EUR', v_id, 'Taxi');
 end;
@@ -886,7 +886,7 @@ declare
   v_id uuid;
 begin
   ${SERVICE}
-  v_category := (better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel') ->> 'id')::uuid;
+  v_category := (better_supabase.upsert_expense_category('${TENANT}', 'travel', 'Travel') ->> 'id')::uuid;
   ${AS(ALICE)}
   v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 900, 'EUR', v_category, 'Taxi') ->> 'id')::uuid;
   perform better_supabase.submit_expense(v_id);

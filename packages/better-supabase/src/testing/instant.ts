@@ -71,7 +71,7 @@ type Instant = <T>(
  * apps that never call `expectInstant`, and a missing install returns
  * `undefined` so the caller can say how to add it.
  */
-async function loadInstant(): Promise<Instant | undefined> {
+async function getInstant(): Promise<Instant | undefined> {
   const module = await importOptionalPeer("@next/playwright");
 
   // SAFETY: @next/playwright exports `instant` with this signature.
@@ -114,7 +114,7 @@ export async function expectInstant(
   page: InstantPage,
   expectation: InstantExpectation,
 ): Promise<readonly MeasuredRender[]> {
-  const instant = await loadInstant();
+  const instant = await getInstant();
 
   if (!instant) {
     throw new Error(

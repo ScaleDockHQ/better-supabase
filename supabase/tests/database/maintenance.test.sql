@@ -171,7 +171,7 @@ select throws_ok(
   'the time zone must be an IANA name'
 );
 
-select better_supabase.save_qualification_type('00000000-0000-4000-8000-000000000001',
+select better_supabase.upsert_qualification_type('00000000-0000-4000-8000-000000000001',
   'welding', 'Welding', array['member']);
 select throws_ok(
   $$select better_supabase.create_maintenance_plan('00000000-0000-4000-8000-000000000001', '{"title": "Odd", "kind": "time", "everyDays": 5, "requiredQualifications": ["unknown"]}'::jsonb)$$,

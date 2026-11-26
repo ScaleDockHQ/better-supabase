@@ -1311,7 +1311,7 @@ describe("useMembers", () => {
     expect(load).not.toHaveBeenCalled();
     expect(view.result.members?.[0]?.name).toBe("Ada");
     await view.result.remove(OTHER);
-    expect(rpc).toHaveBeenCalledWith("remove_member", {
+    expect(rpc).toHaveBeenCalledWith("delete_member", {
       organization: "org-1",
       member: OTHER,
     });

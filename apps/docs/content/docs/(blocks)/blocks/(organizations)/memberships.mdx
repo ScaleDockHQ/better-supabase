@@ -96,7 +96,7 @@ With the option on:
 - the token claims carry the set (`roles` in the array format);
 - `can()` and `member_permissions()` grant the union of the permissions of
   every role;
-- the organizations block adds `add_member_role` and `remove_member_role`
+- the organizations block adds `create_member_role` and `delete_member_role`
   (`addMemberRole` and `removeMemberRole` from TypeScript), and
   `list_members` and `list_my_organizations` return a `roles` column;
 - invitations accept `onAccept.roles`, extra roles granted on accept.

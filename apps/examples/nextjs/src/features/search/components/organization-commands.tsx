@@ -19,7 +19,7 @@ import { useOrganizations } from "@/hooks/use-organizations";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
 
-async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
+async function getOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
 
   if (!result.ok) {
@@ -48,7 +48,7 @@ export function OrganizationCommands({
   const [pending, startTransition] = useTransition();
 
   const { organizations, activeId, switchTo } = useOrganizations({
-    load: loadOrganizations,
+    load: getOrganizations,
     schema: organizationsConfig.api,
     onSwitched: () => refreshSession("/"),
   });

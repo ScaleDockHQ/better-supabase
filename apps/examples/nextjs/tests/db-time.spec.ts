@@ -41,7 +41,7 @@ const user = perfUser();
 
 const BASELINE = `tests/db-time.baseline.${process.env["BSB_DB_TIME_TIER"] ?? "seed"}.json`;
 
-function readBaseline(): Record<string, number> {
+function getBaseline(): Record<string, number> {
   // SAFETY: this file is only written by writeBaseline, as route to buffers.
   return existsSync(BASELINE)
     ? (JSON.parse(readFileSync(BASELINE, "utf-8")) as Record<string, number>)
@@ -49,7 +49,7 @@ function readBaseline(): Record<string, number> {
 }
 
 function writeBaseline(route: string, buffers: number): void {
-  const known = { ...readBaseline(), [route]: buffers };
+  const known = { ...getBaseline(), [route]: buffers };
 
   const sorted = Object.fromEntries(
     Object.entries(known).toSorted(([a], [b]) => a.localeCompare(b)),
@@ -145,7 +145,7 @@ for (const entry of openableRoutes(ROUTES)) {
         writeBaseline(entry.route, buffers);
       }
     } else if (user === "admin") {
-      const baseline = readBaseline()[entry.route];
+      const baseline = getBaseline()[entry.route];
 
       if (baseline !== undefined) {
         expect(

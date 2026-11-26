@@ -39,7 +39,7 @@ function Mark({ name }: { name: string }) {
   );
 }
 
-async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
+async function getOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
 
   if (!result.ok) {
@@ -69,7 +69,7 @@ export function OrganizationSwitcherMenu({
   const [creating, setCreating] = useState(false);
 
   const { organizations, active, activeId, switchTo } = useOrganizations({
-    load: loadOrganizations,
+    load: getOrganizations,
     initial,
     activeId: serverActiveId,
     schema: organizationsConfig.api,

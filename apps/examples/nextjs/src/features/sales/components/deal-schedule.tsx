@@ -24,7 +24,7 @@ import { Link } from "@/i18n/navigation";
 
 import type { DealRow } from "../pipeline/pipeline-queries";
 
-import { loadDeals } from "../pipeline/pipeline-queries";
+import { getDeals } from "../pipeline/pipeline-queries";
 import { moneyFormatter, requirePermission } from "./overview-support";
 
 /** Deals shown in one calendar day before the rest fold into a count. */
@@ -77,7 +77,7 @@ export async function DealCalendar({
 
   const [t, loaded, format] = await Promise.all([
     getExtracted("sales"),
-    settle(loadDeals),
+    settle(getDeals),
     getFormatter(),
   ]);
 
@@ -220,7 +220,7 @@ export async function DealTimeline() {
 
   const [t, loaded, fmtMoney, format] = await Promise.all([
     getExtracted("sales"),
-    settle(loadDeals),
+    settle(getDeals),
     moneyFormatter(),
     getFormatter(),
   ]);

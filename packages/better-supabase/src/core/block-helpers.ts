@@ -501,7 +501,7 @@ export function run<T>(fn: () => Promise<T>): AsyncResult<T> {
  * bytes. A larger `Content-Length` is refused before reading; otherwise reading
  * stops at the limit, so a body without one can't fill memory.
  */
-export async function readBodyCapped(
+export async function getBodyCapped(
   request: Request,
   limit: number,
 ): Promise<string | undefined> {

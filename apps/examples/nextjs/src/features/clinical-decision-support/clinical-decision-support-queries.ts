@@ -41,7 +41,7 @@ export interface CareAlertRow {
   readonly source: string;
 }
 
-async function loadAlerts(): Promise<readonly CareAlertRow[] | null> {
+async function getAlerts(): Promise<readonly CareAlertRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
 
@@ -66,5 +66,5 @@ async function loadAlerts(): Promise<readonly CareAlertRow[] | null> {
 
 /** The organization's open and decided care alerts, serious ones first. */
 export function getCareAlerts(): Promise<Loaded<readonly CareAlertRow[]>> {
-  return settle(loadAlerts);
+  return settle(getAlerts);
 }

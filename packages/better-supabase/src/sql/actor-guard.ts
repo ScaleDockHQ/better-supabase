@@ -1,7 +1,7 @@
 import type { BlockSqlLayout } from "./module-types.ts";
 
 import { fillTemplate, templatePlaceholders } from "../core/access-sql.ts";
-import { closingParen, readPolicies } from "./policy.ts";
+import { closingParen, getPolicies } from "./policy.ts";
 import { SERVICE_CALLER } from "./shared.ts";
 
 /**
@@ -211,7 +211,7 @@ function grantedFunctionNames(sql: string): Set<string> {
 function guardPolicies(sql: string, expression: string): string {
   let out = sql;
 
-  for (const read of readPolicies(sql).toReversed()) {
+  for (const read of getPolicies(sql).toReversed()) {
     const { command, roles } = read.policy;
 
     if (

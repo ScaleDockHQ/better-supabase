@@ -626,7 +626,7 @@ export function createCalendar<
     );
 
   const saved = (value: unknown): SavedCalendarEvent => {
-    const row = recordOf(value, "save_calendar_event");
+    const row = recordOf(value, "upsert_calendar_event");
 
     return {
       id: textOf(row["id"]),
@@ -645,7 +645,7 @@ export function createCalendar<
   } & CalendarSaveOptions): AsyncResult<SavedCalendarEvent> =>
     checked(input).andThen((item) =>
       call(
-        "save_calendar_event",
+        "upsert_calendar_event",
         {
           calendar_id: calendarId,
           item,
@@ -981,13 +981,13 @@ export function createCalendar<
           ),
     removeAttendee: ({ eventId, email }) =>
       call(
-        "remove_calendar_attendee",
+        "delete_calendar_attendee",
         { event_id: eventId, email },
         (value) => value === true,
       ),
     removeAttendeeById: (attendeeId) =>
       call(
-        "remove_calendar_attendee",
+        "delete_calendar_attendee",
         { attendee_id: attendeeId },
         (value) => value === true,
       ),
@@ -999,7 +999,7 @@ export function createCalendar<
       ),
     removeGrant: ({ calendarId, userId }) =>
       call(
-        "remove_calendar_grant",
+        "delete_calendar_grant",
         { calendar_id: calendarId, user_id: userId },
         (value) => value === true,
       ),

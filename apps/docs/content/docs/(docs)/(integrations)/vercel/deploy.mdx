@@ -22,7 +22,7 @@ The integration syncs these names to each connected Vercel project:
 | `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`                                                        | the pooled and the direct connection string |
 | `POSTGRES_PRISMA_URL`, `POSTGRES_USER`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE` | not read                                    |
 
-`createPostgres`, `loadEnv` and the Workflow World read `POSTGRES_URL` and
+`createPostgres`, `getEnv` and the Workflow World read `POSTGRES_URL` and
 `POSTGRES_URL_NON_POOLING` after `SUPABASE_DB_URL` and `DATABASE_URL`. The CLI
 reads them too, after the same two names, with the direct string first,
 because `gen` and `db` introspect and need a session. The CLI never loads
@@ -42,7 +42,7 @@ Projects connected before the integration moved to the new key format may only
 have `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
 `SUPABASE_SERVICE_ROLE_KEY`. better-supabase reads the `sb_publishable_` and
 `sb_secret_` names only. When the publishable key is missing and a legacy name
-is set, `loadEnv` says so:
+is set, `getEnv` says so:
 
 ```text
 SUPABASE_PUBLISHABLE_KEY: is not set. SUPABASE_ANON_KEY is the legacy name and is not read; set SUPABASE_PUBLISHABLE_KEY to an sb_ key (Project Settings > API Keys)
@@ -59,9 +59,9 @@ When you connect a resource to a project you can set a custom prefix, such as
 to the environment loader, and prefixed names win over plain ones:
 
 ```ts title="lib/env.ts"
-import { loadEnv } from "better-supabase/env";
+import { getEnv } from "better-supabase/env";
 
-export const env = loadEnv(process.env, { prefix: "DB1" });
+export const env = getEnv(process.env, { prefix: "DB1" });
 ```
 
 `withEnvPrefix(process.env, "DB1")` returns the same source with the plain

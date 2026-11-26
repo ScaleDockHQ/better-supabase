@@ -233,7 +233,7 @@ import type { NotificationRow } from "../notification-types";
 
 import { loadNotifications } from "../notifications-actions";
 
-async function loadRows(): Promise<readonly NotificationRow[]> {
+async function getRows(): Promise<readonly NotificationRow[]> {
   const result = await loadNotifications({});
 
   return result.ok ? result.data : [];
@@ -251,7 +251,7 @@ export function NotificationList() {
 
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
-    load: loadRows,
+    load: getRows,
   });
 
   if (items === undefined) {
@@ -1517,7 +1517,7 @@ function Mark({ name }: { name: string }) {
   );
 }
 
-async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
+async function getOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
 
   if (!result.ok) {
@@ -1547,7 +1547,7 @@ export function OrganizationSwitcherMenu({
   const [creating, setCreating] = useState(false);
 
   const { organizations, active, activeId, switchTo } = useOrganizations({
-    load: loadOrganizations,
+    load: getOrganizations,
     initial,
     activeId: serverActiveId,
     schema: organizationsConfig.api,
@@ -1741,7 +1741,7 @@ import type { PlanOption } from "../billing-queries";
 
 import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
-async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
+async function getCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
 
   if (!result.ok) {
@@ -1768,7 +1768,7 @@ export function PlanPicker({
   const errorMessage = useErrorMessage();
 
   const { plans, current, pending, choose } = usePlanPicker({
-    load: loadCatalog,
+    load: getCatalog,
     initial,
     checkout: (plan) => startCheckout({ plan }),
     open: (url) => {
@@ -2741,7 +2741,7 @@ import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
 import { useSearchParam } from "@/lib/url-filters";
 
-async function loadOrganizationMembers(): Promise<readonly Member[]> {
+async function getOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
 
   if (!result.ok) {
@@ -2991,7 +2991,7 @@ export function MemberTable({
 
   const { members, pending, setRole, setRoles, remove } = useMembers({
     organizationId,
-    load: loadOrganizationMembers,
+    load: getOrganizationMembers,
     initial,
     schema: organizationsConfig.api,
     onChanged: async ({ userId }) => {
@@ -9142,7 +9142,7 @@ type Dashboard =
  * checks `metrics.read` on each read. It throws on a failed read, so a failure
  * is never cached and Retry reads again.
  */
-async function loadPanels(
+async function getPanels(
   organizationId: string,
 ): Promise<readonly MetricPanel[]> {
   "use cache: private";
@@ -9180,9 +9180,9 @@ async function loadPanels(
   );
 }
 
-async function loadDashboard(organizationId: string): Promise<Dashboard> {
+async function getDashboard(organizationId: string): Promise<Dashboard> {
   try {
-    return { kind: "ok", panels: await loadPanels(organizationId) };
+    return { kind: "ok", panels: await getPanels(organizationId) };
   } catch (error) {
     unstable_rethrow(error);
 
@@ -9205,7 +9205,7 @@ export async function MetricsDashboard() {
   }
 
   const [dashboard, t, format] = await Promise.all([
-    loadDashboard(organizationId),
+    getDashboard(organizationId),
     getExtracted("metrics"),
     getFormatter(),
   ]);
@@ -9381,7 +9381,7 @@ type FlagValues =
  * so the list only reads. A failed read throws, so it is never cached and Retry
  * reads again.
  */
-async function loadFlags(): Promise<readonly FlagValue[] | null> {
+async function getFlags(): Promise<readonly FlagValue[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
@@ -9398,9 +9398,9 @@ async function loadFlags(): Promise<readonly FlagValue[] | null> {
   );
 }
 
-async function loadFlagValues(): Promise<FlagValues> {
+async function getFlagValues(): Promise<FlagValues> {
   try {
-    const flags = await loadFlags();
+    const flags = await getFlags();
 
     return flags ? { kind: "ok", flags } : { kind: "no-organization" };
   } catch (error) {
@@ -9419,7 +9419,7 @@ async function retry() {
 /** Render inside `<Suspense>`: the flags that are on for this organization. */
 export async function FeatureFlagList() {
   const [values, t] = await Promise.all([
-    loadFlagValues(),
+    getFlagValues(),
     getExtracted("flags"),
   ]);
 
@@ -10945,7 +10945,7 @@ export async function SsoSettings() {
     getPermissions(),
     getExtracted("sso"),
     getFormatter(),
-    loadSettings(),
+    getSettings(),
   ]);
 
   if (!can(permissions, "sso.manage")) {
@@ -11153,7 +11153,7 @@ export async function AccessRequestsInbox() {
     getPermissions(),
     getExtracted("accessRequests"),
     getFormatter(),
-    loadInbox(),
+    getInbox(),
   ]);
 
   if (!can(permissions, "access_requests.create")) {
@@ -13118,7 +13118,7 @@ export async function ContactDetail({
     forbidden();
   }
 
-  const loaded = await settle(() => loadContact(id));
+  const loaded = await settle(() => getContact(id));
 
   if (loaded.kind === "no-organization") {
     return null;
@@ -13366,7 +13366,7 @@ export async function DealBoard() {
     forbidden();
   }
 
-  const board = await settle(loadDealBoard);
+  const board = await settle(getDealBoard);
 
   if (board.kind === "no-organization") {
     return null;
@@ -13655,7 +13655,7 @@ export async function ActivityTimeline({
     return null;
   }
 
-  const timeline = await settle(() => loadTimeline(subject.type, subject.id));
+  const timeline = await settle(() => getTimeline(subject.type, subject.id));
 
   if (timeline.kind === "no-organization") {
     return null;
@@ -13782,7 +13782,7 @@ export async function QuoteBuilder({ id }: { id: string }) {
     forbidden();
   }
 
-  const loaded = await settle(() => loadQuote(id));
+  const loaded = await settle(() => getQuote(id));
 
   if (loaded.kind === "no-organization") {
     return null;
@@ -13977,7 +13977,7 @@ export async function TargetsProgress() {
     return null;
   }
 
-  const targets = await settle(loadTargets);
+  const targets = await settle(getTargets);
 
   if (targets.kind === "no-organization") {
     return null;
@@ -15103,7 +15103,7 @@ export async function ApprovalsQueue() {
 
 ## My work
 
-What waits on the caller across the installed blocks, from `loadMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record. It loads its data on the server through the block's client; the [subjects](https://bettersupabase.com/blocks/subjects), [tasks](https://bettersupabase.com/blocks/tasks), [approvals](https://bettersupabase.com/blocks/approvals), [reminders](https://bettersupabase.com/blocks/reminders), [comments](https://bettersupabase.com/blocks/comments) blocks must be installed (`npx better-supabase add subjects tasks approvals reminders comments`). Page: https://bettersupabase.com/recipes/my-work.
+What waits on the caller across the installed blocks, from `getMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record. It loads its data on the server through the block's client; the [subjects](https://bettersupabase.com/blocks/subjects), [tasks](https://bettersupabase.com/blocks/tasks), [approvals](https://bettersupabase.com/blocks/approvals), [reminders](https://bettersupabase.com/blocks/reminders), [comments](https://bettersupabase.com/blocks/comments) blocks must be installed (`npx better-supabase add subjects tasks approvals reminders comments`). Page: https://bettersupabase.com/recipes/my-work.
 
 Web, with shadcn components:
 
@@ -15114,7 +15114,7 @@ npx shadcn add alert badge button card empty skeleton
 ```tsx title="apps/examples/nextjs/src/features/my-work/components/my-work-list.tsx"
 /**
  * Render inside `<Suspense>`: everything that waits on the caller, from
- * `loadMyWork`, newest first.
+ * `getMyWork`, newest first.
  */
 export async function MyWorkList() {
   // `relativeTime` reads the clock, which a prerender rejects unless the
@@ -17563,7 +17563,7 @@ export async function HiringBoard({
     forbidden();
   }
 
-  const board = await settle(loadHiringBoard);
+  const board = await settle(getHiringBoard);
 
   if (board.kind === "no-organization") {
     return null;
@@ -17719,7 +17719,7 @@ export async function Timesheet({
 
   const monday = mondayOf(query["week"]);
   const week = monday.toString();
-  const sheet = await settle(() => loadTimesheet(week));
+  const sheet = await settle(() => getTimesheet(week));
 
   if (sheet.kind === "no-organization") {
     return null;
@@ -17931,7 +17931,7 @@ export async function DispatchBoard({
 
   const manage = can(permissions, "dispatch.manage");
   const monday = mondayOf(query["week"]);
-  const board = await settle(() => loadDispatchWeek(monday.toString()));
+  const board = await settle(() => getDispatchWeek(monday.toString()));
 
   if (board.kind === "no-organization") {
     return null;
@@ -18146,7 +18146,7 @@ export async function TechnicianDay({
   }
 
   const day = dayOf(query["day"]);
-  const plan = await settle(() => loadTechnicianDay(day.toString()));
+  const plan = await settle(() => getTechnicianDay(day.toString()));
 
   if (plan.kind === "no-organization") {
     return null;
@@ -18287,7 +18287,7 @@ export async function ShipmentTracking({
   const picked = v.safeParse(ShipmentParam, query["shipment"]);
 
   const tracking = await settle(() =>
-    loadShipmentTracking(picked.success ? picked.output : undefined),
+    getShipmentTracking(picked.success ? picked.output : undefined),
   );
 
   if (tracking.kind === "no-organization") {
@@ -19997,7 +19997,7 @@ export async function CalendarView({
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(() => loadCalendarMonth(from.toString(), until.toString())),
+    settle(() => getCalendarMonth(from.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "calendar.read")) {
@@ -20205,7 +20205,7 @@ export async function BookingPage({
 
   const parsed = v.safeParse(v.pipe(v.string(), v.isoDate()), query["from"]);
   const from = parsed.success ? parsed.output : undefined;
-  const page = await settle(() => loadPublicBooking(token, from));
+  const page = await settle(() => getPublicBooking(token, from));
 
   if (page.kind === "missing") {
     notFound();
@@ -20308,7 +20308,7 @@ export async function AvailabilityEditor() {
   const [permissions, t, setup] = await Promise.all([
     getPermissions(),
     getExtracted("bookings"),
-    settle(loadBookingSetup),
+    settle(getBookingSetup),
   ]);
 
   if (!can(permissions, "bookings.manage")) {
@@ -20405,7 +20405,7 @@ export async function RemindersList({
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(() => loadUpcomingReminders(from.toString(), until.toString())),
+    settle(() => getUpcomingReminders(from.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "reminders.manage")) {
@@ -23614,9 +23614,9 @@ type WebhooksState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadWebhooksState(): Promise<WebhooksState> {
+async function getWebhooksState(): Promise<WebhooksState> {
   try {
-    const overview = await loadWebhooks();
+    const overview = await getWebhooks();
 
     return overview ? { kind: "ok", overview } : { kind: "no-organization" };
   } catch (error) {
@@ -23705,7 +23705,7 @@ export function EndpointStatusBadge({
  */
 export async function WebhookEndpoints() {
   const [state, t, format, permissions] = await Promise.all([
-    loadWebhooksState(),
+    getWebhooksState(),
     getExtracted("webhooks"),
     getFormatter(),
     getPermissions(),
@@ -23985,9 +23985,9 @@ type PrincipalsState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadPrincipalsState(): Promise<PrincipalsState> {
+async function getPrincipalsState(): Promise<PrincipalsState> {
   try {
-    const principals = await loadServicePrincipals();
+    const principals = await getServicePrincipals();
 
     return principals
       ? { kind: "ok", principals }
@@ -24021,7 +24021,7 @@ export async function ServicePrincipalsTable() {
     return null;
   }
 
-  const state = await loadPrincipalsState();
+  const state = await getPrincipalsState();
 
   if (state.kind === "no-organization") {
     return null;
@@ -24165,9 +24165,9 @@ type SigningKeysState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadSigningKeysState(): Promise<SigningKeysState> {
+async function getSigningKeysState(): Promise<SigningKeysState> {
   try {
-    const overview = await loadSigningKeys();
+    const overview = await getSigningKeys();
 
     return overview ? { kind: "ok", overview } : { kind: "no-organization" };
   } catch (error) {
@@ -24198,7 +24198,7 @@ export async function SigningKeysRotation() {
     forbidden();
   }
 
-  const state = await loadSigningKeysState();
+  const state = await getSigningKeysState();
 
   if (state.kind === "no-organization") {
     return null;
@@ -24352,7 +24352,7 @@ export async function PrivacySettings() {
   const [t, format, result] = await Promise.all([
     getExtracted("privacy"),
     getFormatter(),
-    loadSettings(),
+    getSettings(),
   ]);
 
   if (result.kind === "error") {
@@ -24556,9 +24556,9 @@ type JobRunsState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadJobRunsState(): Promise<JobRunsState> {
+async function getJobRunsState(): Promise<JobRunsState> {
   try {
-    const runs = await loadJobRuns();
+    const runs = await getJobRuns();
 
     return runs ? { kind: "ok", runs } : { kind: "no-organization" };
   } catch (error) {
@@ -24641,7 +24641,7 @@ export async function JobRunsTable() {
     dead: t("Failed"),
   };
 
-  const state = await loadJobRunsState();
+  const state = await getJobRunsState();
 
   if (state.kind === "no-organization") {
     return null;
@@ -25651,7 +25651,7 @@ export async function StatusPage({ slug }: { slug: string }) {
     getFormatter(),
   ]);
 
-  const page = await settle(() => loadStatusPage(slug));
+  const page = await settle(() => getStatusPage(slug));
 
   if (page.kind === "missing") {
     notFound();

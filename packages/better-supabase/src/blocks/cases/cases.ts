@@ -581,7 +581,7 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
     saveKind: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_case_kind",
+          "upsert_case_kind",
           {
             tenant: organizationId,
             key: input.key,
@@ -596,7 +596,7 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
             requires_revisions: input.requiresRevisions ?? false,
             kind_id: input.kindId ?? null,
           },
-          (value) => kindOf(value, "save_case_kind"),
+          (value) => kindOf(value, "upsert_case_kind"),
         ),
       ),
     archiveKind: (kindId) =>
@@ -704,9 +704,9 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     removeAction: (actionId) =>
       call(
-        "remove_case_action",
+        "delete_case_action",
         { action_id: actionId },
-        one("remove_case_action"),
+        one("delete_case_action"),
       ).andThen(fields.row),
     recordEffectiveness: ({ caseId, effective, ...record }) =>
       call(

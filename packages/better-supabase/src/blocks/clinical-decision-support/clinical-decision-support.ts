@@ -489,9 +489,9 @@ export function createClinicalDecisionSupport(
     saveRule: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_care_rule",
+          "upsert_care_rule",
           { tenant: organizationId, attrs: definedOf(input) },
-          (value) => ruleOf(value, "save_care_rule"),
+          (value) => ruleOf(value, "upsert_care_rule"),
         ),
       ),
     archiveRule: (ruleId) =>

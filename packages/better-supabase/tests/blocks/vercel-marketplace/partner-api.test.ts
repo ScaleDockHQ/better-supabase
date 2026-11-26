@@ -323,7 +323,7 @@ describe("partnerApi", () => {
             resourceRow({ tenant: "org_res", tenant_created: true }),
           ],
           delete_marketplace_resource: resourceRow({ status: "deleted" }),
-          remove_marketplace_installation: installationRow({
+          delete_marketplace_installation: installationRow({
             tenant: "org_install",
             tenant_created: true,
             status: "removed",
@@ -359,7 +359,7 @@ describe("partnerApi", () => {
         "marketplace_installation",
         "marketplace_resources",
         "delete_marketplace_resource",
-        "remove_marketplace_installation",
+        "delete_marketplace_installation",
       ]);
     });
 
@@ -370,7 +370,7 @@ describe("partnerApi", () => {
         {
           marketplace_installation: installationRow({ tenant: "org_1" }),
           marketplace_resources: [],
-          remove_marketplace_installation: installationRow({
+          delete_marketplace_installation: installationRow({
             tenant: "org_1",
             status: "removed",
           }),
@@ -753,7 +753,7 @@ describe("partnerApi", () => {
         marketplace_installation: installationRow(),
         marketplace_resources: [resourceRow()],
         delete_marketplace_resource: null,
-        remove_marketplace_installation: null,
+        delete_marketplace_installation: null,
       });
 
       const response = await send("DELETE", "/installations/icfg_1");

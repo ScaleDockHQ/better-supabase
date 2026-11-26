@@ -526,7 +526,7 @@ describe.skipIf(!live)("flags", () => {
       expect(await admin.removeSegment("staff").orThrow()).toBe(true);
       expect(
         await s.hint(
-          'select better_supabase.save_flag(\'ramp\', \'{"rollout_variants": [{"variant": "nope", "weight": 10}]}\')',
+          'select better_supabase.upsert_flag(\'ramp\', \'{"rollout_variants": [{"variant": "nope", "weight": 10}]}\')',
         ),
       ).toMatch(/FLAGS_ROLLOUT_VARIANTS/);
     } finally {

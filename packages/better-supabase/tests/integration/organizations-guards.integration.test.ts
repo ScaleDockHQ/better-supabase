@@ -466,13 +466,13 @@ describe.skipIf(!live)("organizations member guards", () => {
         ]),
       ).toBe("ORGANIZATION_ROLE_CEILING");
       expect(
-        await s.value(`${schema}.remove_member($1, $2)`, [
+        await s.value(`${schema}.delete_member($1, $2)`, [
           organization,
           member.id,
         ]),
       ).toBe(true);
       expect(
-        await s.hint(`${schema}.remove_member($1, $2)`, [
+        await s.hint(`${schema}.delete_member($1, $2)`, [
           organization,
           owner.id,
         ]),

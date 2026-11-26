@@ -186,7 +186,7 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
       },
     });
 
-  const loadLease = (id: string, permission: string, lock = false): string => `
+  const getLease = (id: string, permission: string, lock = false): string => `
   select * into v_row from ${leases} x where x.${l("id")} = ${id}${lock ? " for update" : ""};
   if not found or not ${can(`v_row.${l("tenant")}`, permission)} then
     ${notFound}
@@ -263,7 +263,7 @@ declare
   v_row ${leases}%rowtype;
   v_account uuid;
   v_hold ${holds}%rowtype;
-begin${loadLease("activate_lease.lease_id", manage, true)}
+begin${getLease("activate_lease.lease_id", manage, true)}
   if v_row.${l("status")} <> 'draft' then
     ${fail("LEASE_STATUS_INVALID", "only a draft lease can be activated", "55000")}
   end if;
@@ -306,7 +306,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${leases}%rowtype;
-begin${loadLease("renew_lease.lease_id", manage, true)}
+begin${getLease("renew_lease.lease_id", manage, true)}
   if v_row.${l("status")} <> 'active' then
     ${fail("LEASE_STATUS_INVALID", "only an active lease can be renewed", "55000")}
   end if;
@@ -345,7 +345,7 @@ declare
   v_on date := coalesce(terminate_lease.terminates_on, current_date);
   v_deduction bigint := coalesce(terminate_lease.deposit_deduction, 0);
   v_held bigint;
-begin${loadLease("terminate_lease.lease_id", manage, true)}
+begin${getLease("terminate_lease.lease_id", manage, true)}
   if v_row.${l("status")} not in ('draft', 'active') then
     ${fail("LEASE_STATUS_INVALID", "this lease has already ended", "55000")}
   end if;
@@ -395,7 +395,7 @@ set search_path = ''
 as $$
 declare
   v_row ${leases}%rowtype;
-begin${loadLease("get_lease.lease_id", read)}
+begin${getLease("get_lease.lease_id", read)}
   return ${leaseJson("v_row")};
 end;
 $$;
@@ -519,7 +519,7 @@ declare
   v_row ${leases}%rowtype;
   v_key text;
   v_tx uuid;
-begin${loadLease("record_rent_payment.lease_id", manage)}
+begin${getLease("record_rent_payment.lease_id", manage)}
   if v_row.${l("status")} = 'draft' then
     ${fail("LEASE_STATUS_INVALID", "a draft lease takes no payments", "55000")}
   end if;
@@ -568,7 +568,7 @@ set search_path = ''
 as $$
 declare
   v_row ${leases}%rowtype;
-begin${loadLease("list_lease_charges.lease_id", read)}
+begin${getLease("list_lease_charges.lease_id", read)}
   return (
     select coalesce(jsonb_agg(${chargeJson("q")} order by q.${c("periodStart")} desc), '[]'::jsonb)
     from (

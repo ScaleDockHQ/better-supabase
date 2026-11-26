@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:8e3c83a6c54b4a7b784362db97c100f5abd08234f7c239d8176571e90fbc587b
+-- @bsb-hash sha256:d883a0191653615fb71baad6aba2a1405ba481f2ad16a1e61284ef8d204c8c99
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -674,7 +674,7 @@ grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to ser
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
-create or replace function "better_supabase"."add_eval_items"(dataset uuid, items jsonb)
+create or replace function "better_supabase"."create_eval_items"(dataset uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -684,41 +684,41 @@ as $$
 declare
   v_count integer;
 begin
-  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
+  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = create_eval_items.dataset) then
+    raise exception 'No eval dataset %', create_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
-  if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
+  if jsonb_typeof(create_eval_items.items) is distinct from 'array' then
     raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
+  if exists (select 1 from jsonb_array_elements(create_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
     raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
+  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = create_eval_items.dataset) + jsonb_array_length(create_eval_items.items) > 5000 then
     raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
-  select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
-  from jsonb_array_elements(add_eval_items.items) e;
+  select create_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
+  from jsonb_array_elements(create_eval_items.items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items"(uuid, jsonb) to service_role;
+revoke execute on function "better_supabase"."create_eval_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items"(uuid, jsonb) to service_role;
 
 -- Needs the ai-chat block, which is not installed here.
-create or replace function "better_supabase"."add_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function "better_supabase"."create_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'create_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
+revoke execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
 
 -- The items of a dataset in id order after the given id. With pending_run,
 -- only the items that run has no result for yet, so a job can resume.
@@ -1029,7 +1029,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:aaefb3e95e1464fd119fa32772487183060a28f08b0bc511f2243ae610ea21b6
+-- @bsb-hash sha256:225cab4ae168859e2a7403175aa0e477daac6a918d06cfa1b44a7d42ef0b235b
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1702,7 +1702,7 @@ grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to ser
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
-create or replace function "better_supabase"."add_eval_items"(dataset uuid, items jsonb)
+create or replace function "better_supabase"."create_eval_items"(dataset uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -1712,33 +1712,33 @@ as $$
 declare
   v_count integer;
 begin
-  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
+  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = create_eval_items.dataset) then
+    raise exception 'No eval dataset %', create_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
-  if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
+  if jsonb_typeof(create_eval_items.items) is distinct from 'array' then
     raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
+  if exists (select 1 from jsonb_array_elements(create_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
     raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
+  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = create_eval_items.dataset) + jsonb_array_length(create_eval_items.items) > 5000 then
     raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
-  select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
-  from jsonb_array_elements(add_eval_items.items) e;
+  select create_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
+  from jsonb_array_elements(create_eval_items.items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items"(uuid, jsonb) to service_role;
+revoke execute on function "better_supabase"."create_eval_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items"(uuid, jsonb) to service_role;
 
 -- Copies rated ai-chat replies into a dataset: the user message before the
 -- reply is the input, the rating, reason and comment go to the metadata, and a
 -- thumbs up keeps the reply as the expected output. A reply that is already in
 -- the dataset is skipped. A tenant's dataset only takes that tenant's chats.
-create or replace function "better_supabase"."add_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function "better_supabase"."create_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
@@ -1749,11 +1749,11 @@ declare
   v_dataset "better_supabase"."eval_datasets"%rowtype;
   v_count integer;
 begin
-  select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = add_eval_items_from_feedback.dataset;
+  select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = create_eval_items_from_feedback.dataset;
   if not found then
-    raise exception 'No eval dataset %', add_eval_items_from_feedback.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', create_eval_items_from_feedback.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
-  if add_eval_items_from_feedback.rating not in (-1, 1) then
+  if create_eval_items_from_feedback.rating not in (-1, 1) then
     raise exception 'rating must be 1 or -1' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   with picked as materialized (
@@ -1766,16 +1766,16 @@ begin
     join "better_supabase"."ai_messages" a on a."chat_id" = fb."chat_id" and a."id" = fb."message_id"
     join "better_supabase"."ai_messages" q on q."chat_id" = a."chat_id" and q."id" = a."parent_id"
     join "better_supabase"."ai_chats" ch on ch."id" = fb."chat_id"
-    where fb."rating" = add_eval_items_from_feedback.rating
+    where fb."rating" = create_eval_items_from_feedback.rating
       and (v_dataset."tenant_id" is null or ch."tenant_id" = v_dataset."tenant_id")
-      and (add_eval_items_from_feedback.since is null or fb."updated_at" >= add_eval_items_from_feedback.since)
+      and (create_eval_items_from_feedback.since is null or fb."updated_at" >= create_eval_items_from_feedback.since)
     order by fb."updated_at" desc
-    limit least(greatest(coalesce(add_eval_items_from_feedback.max_rows, 100), 1), 1000)
+    limit least(greatest(coalesce(create_eval_items_from_feedback.max_rows, 100), 1), 1000)
   ), added as (
     insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata", "source_chat_id", "source_message_id")
     select v_dataset."id", jsonb_build_object('prompt', p.prompt),
-      case when add_eval_items_from_feedback.rating = 1 then jsonb_build_object('output', p.reply) end,
-      jsonb_build_object('source', 'ai-chat-feedback', 'rating', add_eval_items_from_feedback.rating, 'reason', p.reason, 'comment', p.comment, 'reply', p.reply),
+      case when create_eval_items_from_feedback.rating = 1 then jsonb_build_object('output', p.reply) end,
+      jsonb_build_object('source', 'ai-chat-feedback', 'rating', create_eval_items_from_feedback.rating, 'reason', p.reason, 'comment', p.comment, 'reply', p.reply),
       p.chat_id::text, p.message_id
     from picked p
     where p.prompt is not null
@@ -1786,8 +1786,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
+revoke execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
 
 -- The items of a dataset in id order after the given id. With pending_run,
 -- only the items that run has no result for yet, so a job can resume.
@@ -2098,7 +2098,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:0db01cf1b682ef0e5730e52559c1dbc2b102153d1400f513eb3ad3935a57233f
+-- @bsb-hash sha256:b3ba8ab87b3997fd7f2b8b477d6f0d6f1d5f17b145d9615870eec8f992ae841d
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2776,7 +2776,7 @@ grant execute on function "app_private"."page_eval_runs"(uuid, jsonb) to service
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
-create or replace function "app_private"."add_eval_items"(dataset uuid, items jsonb)
+create or replace function "app_private"."create_eval_items"(dataset uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -2786,41 +2786,41 @@ as $$
 declare
   v_count integer;
 begin
-  if not exists (select 1 from "app_private"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
+  if not exists (select 1 from "app_private"."eval_datasets" x where x."id" = create_eval_items.dataset) then
+    raise exception 'No eval dataset %', create_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
-  if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
+  if jsonb_typeof(create_eval_items.items) is distinct from 'array' then
     raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
+  if exists (select 1 from jsonb_array_elements(create_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
     raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if (select count(*) from "app_private"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
+  if (select count(*) from "app_private"."eval_items" x where x."dataset_id" = create_eval_items.dataset) + jsonb_array_length(create_eval_items.items) > 5000 then
     raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "app_private"."eval_items" ("dataset_id", "input", "expected", "metadata")
-  select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
-  from jsonb_array_elements(add_eval_items.items) e;
+  select create_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
+  from jsonb_array_elements(create_eval_items.items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-revoke execute on function "app_private"."add_eval_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "app_private"."add_eval_items"(uuid, jsonb) to service_role;
+revoke execute on function "app_private"."create_eval_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."create_eval_items"(uuid, jsonb) to service_role;
 
 -- Needs the ai-chat block, which is not installed here.
-create or replace function "app_private"."add_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function "app_private"."create_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'create_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
-revoke execute on function "app_private"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
-grant execute on function "app_private"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
+revoke execute on function "app_private"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
+grant execute on function "app_private"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
 
 -- The items of a dataset in id order after the given id. With pending_run,
 -- only the items that run has no result for yet, so a job can resume.
@@ -3131,7 +3131,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:0a3a84a6da167d1e49ced96dbb0a151b40df937541f4fb5c6762af8fd4dd4d23
+-- @bsb-hash sha256:a44db89e8afbdb7132ba00edba46ae1f1e6fabddff3f0638fe672ca6bf95e5aa
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3804,7 +3804,7 @@ grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to ser
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
-create or replace function "better_supabase"."add_eval_items"(dataset uuid, items jsonb)
+create or replace function "better_supabase"."create_eval_items"(dataset uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -3814,41 +3814,41 @@ as $$
 declare
   v_count integer;
 begin
-  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
+  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = create_eval_items.dataset) then
+    raise exception 'No eval dataset %', create_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
-  if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
+  if jsonb_typeof(create_eval_items.items) is distinct from 'array' then
     raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
+  if exists (select 1 from jsonb_array_elements(create_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
     raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
+  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = create_eval_items.dataset) + jsonb_array_length(create_eval_items.items) > 5000 then
     raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
-  select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
-  from jsonb_array_elements(add_eval_items.items) e;
+  select create_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
+  from jsonb_array_elements(create_eval_items.items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items"(uuid, jsonb) to service_role;
+revoke execute on function "better_supabase"."create_eval_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items"(uuid, jsonb) to service_role;
 
 -- Needs the ai-chat block, which is not installed here.
-create or replace function "better_supabase"."add_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function "better_supabase"."create_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'create_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
+revoke execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
 
 -- The items of a dataset in id order after the given id. With pending_run,
 -- only the items that run has no result for yet, so a job can resume.
@@ -4195,23 +4195,23 @@ as $$ select "better_supabase"."page_eval_runs"($1, $2) $$;
 revoke execute on function "api"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "api"."page_eval_runs"(uuid, jsonb) to service_role;
 
-create or replace function "api"."add_eval_items"(dataset uuid, items jsonb)
+create or replace function "api"."create_eval_items"(dataset uuid, items jsonb)
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_eval_items"($1, $2) $$;
-revoke execute on function "api"."add_eval_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "api"."add_eval_items"(uuid, jsonb) to service_role;
+as $$ select "better_supabase"."create_eval_items"($1, $2) $$;
+revoke execute on function "api"."create_eval_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."create_eval_items"(uuid, jsonb) to service_role;
 
-create or replace function "api"."add_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function "api"."create_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_eval_items_from_feedback"($1, $2, $3, $4) $$;
-revoke execute on function "api"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
-grant execute on function "api"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
+as $$ select "better_supabase"."create_eval_items_from_feedback"($1, $2, $3, $4) $$;
+revoke execute on function "api"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
+grant execute on function "api"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
 
 create or replace function "api"."list_eval_items"(dataset uuid, pending_run uuid default null, after uuid default null, max_rows integer default 100)
 returns jsonb
@@ -4317,7 +4317,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:74d24b6a7e5b66d64f0c34e5f39a461371a4b820b5e7e9e5429427b6c0b38552
+-- @bsb-hash sha256:2e011178791edbefb70b7711d206a4330b902e703a6f80fd48d2a6d683a46eac
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4981,7 +4981,7 @@ grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to ser
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
-create or replace function "better_supabase"."add_eval_items"(dataset uuid, items jsonb)
+create or replace function "better_supabase"."create_eval_items"(dataset uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -4991,41 +4991,41 @@ as $$
 declare
   v_count integer;
 begin
-  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
+  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = create_eval_items.dataset) then
+    raise exception 'No eval dataset %', create_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
-  if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
+  if jsonb_typeof(create_eval_items.items) is distinct from 'array' then
     raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
+  if exists (select 1 from jsonb_array_elements(create_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
     raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
+  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = create_eval_items.dataset) + jsonb_array_length(create_eval_items.items) > 5000 then
     raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
-  select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
-  from jsonb_array_elements(add_eval_items.items) e;
+  select create_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
+  from jsonb_array_elements(create_eval_items.items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items"(uuid, jsonb) to service_role;
+revoke execute on function "better_supabase"."create_eval_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items"(uuid, jsonb) to service_role;
 
 -- Needs the ai-chat block, which is not installed here.
-create or replace function "better_supabase"."add_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function "better_supabase"."create_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'create_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
+revoke execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
 
 -- The items of a dataset in id order after the given id. With pending_run,
 -- only the items that run has no result for yet, so a job can resume.
@@ -5336,7 +5336,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:2776c1f24a57e05f64303661ba5ba0fd040fffa39205846d05844b4e402390f2
+-- @bsb-hash sha256:ff9b9c95a9eff1a0aa0998b676e9ccfedaf8a820a35c28f5a974e58351839cbe
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6009,7 +6009,7 @@ grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to ser
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
-create or replace function "better_supabase"."add_eval_items"(dataset uuid, items jsonb)
+create or replace function "better_supabase"."create_eval_items"(dataset uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -6019,41 +6019,41 @@ as $$
 declare
   v_count integer;
 begin
-  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
+  if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = create_eval_items.dataset) then
+    raise exception 'No eval dataset %', create_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
-  if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
+  if jsonb_typeof(create_eval_items.items) is distinct from 'array' then
     raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
+  if exists (select 1 from jsonb_array_elements(create_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
     raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
-  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
+  if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = create_eval_items.dataset) + jsonb_array_length(create_eval_items.items) > 5000 then
     raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
-  select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
-  from jsonb_array_elements(add_eval_items.items) e;
+  select create_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
+  from jsonb_array_elements(create_eval_items.items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items"(uuid, jsonb) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items"(uuid, jsonb) to service_role;
+revoke execute on function "better_supabase"."create_eval_items"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items"(uuid, jsonb) to service_role;
 
 -- Needs the ai-chat block, which is not installed here.
-create or replace function "better_supabase"."add_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function "better_supabase"."create_eval_items_from_feedback"(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'create_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
-revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
+revoke execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."create_eval_items_from_feedback"(uuid, integer, timestamptz, integer) to service_role;
 
 -- The items of a dataset in id order after the given id. With pending_run,
 -- only the items that run has no result for yet, so a job can resume.

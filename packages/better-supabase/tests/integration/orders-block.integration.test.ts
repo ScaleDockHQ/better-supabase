@@ -156,7 +156,7 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     await session.as(owner);
 
     const product = await call<{ id: string }>(
-      "better_supabase.save_product($1, null, 'Tee', null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, 'Tee', null, null, 'physical')",
       [tenant],
     );
 
@@ -165,7 +165,7 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     ]);
     tee = (
       await call<{ id: string }>(
-        "better_supabase.save_variant($1, null, 'TEE', '{}'::uuid[], null, null, 200, true, false)",
+        "better_supabase.upsert_variant($1, null, 'TEE', '{}'::uuid[], null, null, 200, true, false)",
         [product.id],
       )
     ).id;
@@ -175,7 +175,7 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     );
     warehouse = (
       await call<{ id: string }>(
-        "better_supabase.save_location($1, null, 'WH', 'Warehouse', null)",
+        "better_supabase.upsert_location($1, null, 'WH', 'Warehouse', null)",
         [tenant],
       )
     ).id;

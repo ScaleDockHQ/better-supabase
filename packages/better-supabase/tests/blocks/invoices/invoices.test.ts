@@ -92,7 +92,7 @@ describe("invoices block", () => {
       issue_invoice: () => ROW,
       write_off_invoice: () => ({ ...ROW, status: "uncollectible" }),
       reverse_invoice_payment: () => ROW,
-      remove_invoice_charge: () => ROW,
+      delete_invoice_charge: () => ROW,
     });
 
     const invoices = createInvoices({ transport: t });
@@ -111,7 +111,7 @@ describe("invoices block", () => {
       ],
       ["write_off_invoice", { invoice: "i1", reason: "bankrupt" }],
       ["reverse_invoice_payment", { payment: "p1", reason: "bounced" }],
-      ["remove_invoice_charge", { charge: "c1" }],
+      ["delete_invoice_charge", { charge: "c1" }],
     ]);
   });
 
@@ -464,7 +464,7 @@ describe("invoices block, currencies", () => {
 
   it("adds a charge and reads charges and the charged total back", async () => {
     const t = transport({
-      add_invoice_charge: () => ({
+      create_invoice_charge: () => ({
         ...ROW,
         balance: "4400",
         charged_total: "4000",
@@ -492,7 +492,7 @@ describe("invoices block, currencies", () => {
       .orThrow();
 
     expect(t.calls[0]).toEqual([
-      "add_invoice_charge",
+      "create_invoice_charge",
       {
         invoice: "i1",
         amount: "4000",
@@ -520,9 +520,9 @@ describe("invoice call arguments", () => {
       create_invoice: () => ROW,
       issue_invoice: () => ROW,
       record_invoice_payment: () => ROW,
-      add_invoice_charge: () => ROW,
+      create_invoice_charge: () => ROW,
       reverse_invoice_payment: () => ROW,
-      remove_invoice_charge: () => ROW,
+      delete_invoice_charge: () => ROW,
     });
 
     const invoices = createInvoices({ transport: t });
@@ -580,7 +580,7 @@ describe("invoice call arguments", () => {
 
   it("sends null for what the caller leaves out and reads deposit and discount amounts", async () => {
     const t = transport({
-      add_invoice_charge: () => ({
+      create_invoice_charge: () => ({
         ...ROW,
         deposit_amount: "300",
         discount_amount: "50",

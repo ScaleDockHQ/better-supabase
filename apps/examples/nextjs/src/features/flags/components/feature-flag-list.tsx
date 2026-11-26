@@ -44,7 +44,7 @@ type FlagValues =
  * so the list only reads. A failed read throws, so it is never cached and Retry
  * reads again.
  */
-async function loadFlags(): Promise<readonly FlagValue[] | null> {
+async function getFlags(): Promise<readonly FlagValue[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
@@ -61,9 +61,9 @@ async function loadFlags(): Promise<readonly FlagValue[] | null> {
   );
 }
 
-async function loadFlagValues(): Promise<FlagValues> {
+async function getFlagValues(): Promise<FlagValues> {
   try {
-    const flags = await loadFlags();
+    const flags = await getFlags();
 
     return flags ? { kind: "ok", flags } : { kind: "no-organization" };
   } catch (error) {
@@ -82,7 +82,7 @@ async function retry() {
 /** Render inside `<Suspense>`: the flags that are on for this organization. */
 export async function FeatureFlagList() {
   const [values, t] = await Promise.all([
-    loadFlagValues(),
+    getFlagValues(),
     getExtracted("flags"),
   ]);
 

@@ -31,11 +31,7 @@ const approvalRequired = (message: string): string =>
  * Loads actions row `id` into `v_row` and its plan into `v_plan` for update,
  * checking the caller holds `permission` and can read the client.
  */
-const loadAction = (
-  q: CarePlansSql,
-  id: string,
-  permission: string,
-): string => `
+const getAction = (q: CarePlansSql, id: string, permission: string): string => `
   select * into v_row from ${q.actions} w where w.${q.a("id")} = ${id} for update;
   if not found then
     ${fail("CARE_PLAN_NOT_FOUND", "no such action on a care plan", "P0002")}
@@ -219,7 +215,7 @@ as $$
 declare
   v_row ${actions};
   v_plan ${plans};${approvals === undefined ? "" : "\n  v_status text;"}
-begin${loadAction(q, "start_care_plan_action.action_id", q.write)}
+begin${getAction(q, "start_care_plan_action.action_id", q.write)}
   if v_plan.${p("status")} <> 'active' then
     ${notActive}
   end if;
@@ -247,7 +243,7 @@ as $$
 declare
   v_row ${actions};
   v_plan ${plans};
-begin${loadAction(q, "end_care_plan_action.action_id", q.write)}
+begin${getAction(q, "end_care_plan_action.action_id", q.write)}
   if v_plan.${p("status")} = 'archived' then
     ${q.archived}
   end if;
@@ -276,7 +272,7 @@ as $$
 declare
   v_row ${actions};
   v_plan ${plans};
-begin${loadAction(q, "review_care_plan_action.action_id", q.evaluate)}
+begin${getAction(q, "review_care_plan_action.action_id", q.evaluate)}
   if v_row.${a("status")} <> 'active' then
     ${q.invalid("only an active action is reviewed")}
   end if;

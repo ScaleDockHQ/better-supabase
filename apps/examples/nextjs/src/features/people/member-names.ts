@@ -7,7 +7,7 @@ import { readMembers } from "@/features/organization/organization-queries";
  * The names of an organization's members by user id, for a loader that already
  * runs in a private scope. A member without a name shows their email.
  */
-export async function readMemberNames(
+export async function getMemberNames(
   scope: Awaited<ReturnType<typeof bsb.cached>>,
   organizationId: string,
 ): Promise<ReadonlyMap<string, string>> {

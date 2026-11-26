@@ -15,8 +15,8 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Consulting', 'consulting-staff-fields', null, 'service', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'CONSULT-HOUR', null, 'Consulting hour', null, null, false, false, null) ->> 'id', true);
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Consulting', 'consulting-staff-fields', null, 'service', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'CONSULT-HOUR', null, 'Consulting hour', null, null, false, false, null) ->> 'id', true);
 
 select set_config('t.order', better_supabase.order_from_lines('00000000-0000-4000-8000-000000000001',
   jsonb_build_array(jsonb_build_object('variantId', current_setting('t.v'), 'quantity', 2, 'unitAmount', '2500',

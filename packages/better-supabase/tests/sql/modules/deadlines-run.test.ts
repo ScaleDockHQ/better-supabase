@@ -152,7 +152,7 @@ declare
   v_version jsonb;
 begin
   ${SERVICE}
-  v_version := better_supabase.save_rule_version('az', 'lien', ${literal(AZ)}, '2020-01-01', 'Arizona');
+  v_version := better_supabase.upsert_rule_version('az', 'lien', ${literal(AZ)}, '2020-01-01', 'Arizona');
   if v_version ->> 'status' <> 'draft' or jsonb_array_length(v_version -> 'groups') <> 4 or v_version -> 'counting' ->> 'status' <> 'approved' then
     raise exception 'draft %', v_version;
   end if;
@@ -165,12 +165,12 @@ begin
   exception when sqlstate '55000' then null;
   end;
   begin
-    perform better_supabase.save_rule_version('AZ', 'lien', ${literal(AZ)});
+    perform better_supabase.upsert_rule_version('AZ', 'lien', ${literal(AZ)});
     raise exception 'upper case jurisdiction';
   exception when sqlstate '22023' then null;
   end;
   begin
-    perform better_supabase.save_rule_version('az', 'lien', '{"rules":[{"key":"x"}],"groups":[]}'::jsonb);
+    perform better_supabase.upsert_rule_version('az', 'lien', '{"rules":[{"key":"x"}],"groups":[]}'::jsonb);
     raise exception 'invalid rules saved';
   exception when sqlstate '22023' then null;
   end;
@@ -242,9 +242,9 @@ declare
   v_notice uuid;
 begin
   ${SERVICE}
-  v_version := better_supabase.save_rule_version('az', 'lien', ${literal(AZ)}, '2020-01-01');
+  v_version := better_supabase.upsert_rule_version('az', 'lien', ${literal(AZ)}, '2020-01-01');
   perform better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
-  v_version := better_supabase.save_rule_version('tx', 'lien', ${literal(TX)}, '2020-01-01');
+  v_version := better_supabase.upsert_rule_version('tx', 'lien', ${literal(TX)}, '2020-01-01');
   perform better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
 
   v_rows := better_supabase.compute_deadlines('${TENANT}', 'job', 'j1', 'az', 'lien', ${literal(COMMERCIAL_SUB)}, '${asOf}');
@@ -266,7 +266,7 @@ begin
   v_row := better_supabase.satisfy_deadline(v_notice, 'served');
   if v_row ->> 'state' <> 'satisfied' then raise exception 'satisfy %', v_row; end if;
 
-  v_version := better_supabase.save_rule_version('az', 'lien', ${literal(newer)}, '2020-01-02');
+  v_version := better_supabase.upsert_rule_version('az', 'lien', ${literal(newer)}, '2020-01-02');
   perform better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
   if better_supabase.recompute_deadlines('${TENANT}', 'job', 'j1', '{"full_payment_date":"2027-03-01"}') <> 3 then
     raise exception 'recompute changed other than the three pending rows';
@@ -354,14 +354,14 @@ declare
   v_rows jsonb;
 begin
   ${SERVICE}
-  v_version := better_supabase.save_rule_version('ca', 'lien', ${literal(v1)}, '2020-01-01');
+  v_version := better_supabase.upsert_rule_version('ca', 'lien', ${literal(v1)}, '2020-01-01');
   perform better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
   v_rows := better_supabase.compute_deadlines('${TENANT}', 'job', 'j1', 'ca', 'lien', ${facts}, '2026-02-01');
   if jsonb_array_length(v_rows) <> 3 then raise exception 'first compute %', v_rows; end if;
   perform better_supabase.compute_deadlines('${TENANT}', 'job', 'j2', 'ca', 'lien', ${facts}, '2026-02-01');
   perform better_supabase.satisfy_deadline((select id from better_supabase.deadlines where subject_id = 'j1' and group_key = 'business'), 'filed');
 
-  v_version := better_supabase.save_rule_version('ca', 'lien', ${literal(narrowed)}, '2026-01-15');
+  v_version := better_supabase.upsert_rule_version('ca', 'lien', ${literal(narrowed)}, '2026-01-15');
   perform better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
   v_rows := better_supabase.compute_deadlines('${TENANT}', 'job', 'j1', 'ca', 'lien', ${facts}, '2026-02-01');
   if (select array_agg(r ->> 'groupKey' order by r ->> 'groupKey') from jsonb_array_elements(v_rows) r) <> array['file_notice'] then
@@ -433,7 +433,7 @@ declare
   v_version jsonb;
 begin
   ${SERVICE}
-  v_version := better_supabase.save_rule_version('ca', 'notice', ${literal(v1Rules)}, '2020-01-01');
+  v_version := better_supabase.upsert_rule_version('ca', 'notice', ${literal(v1Rules)}, '2020-01-01');
   v_version := better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
   perform better_supabase.compute_deadline('${TENANT}', 'case', 'c1', 'ca', 'notice', 'file_notice', '{"first_day":"2026-01-02","state":"ca"}');
   create table public.v1_hash (hash text);

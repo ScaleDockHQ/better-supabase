@@ -73,7 +73,7 @@ describe("orders kitchen", () => {
 
   it("saves and lists stations", async () => {
     const { calls, kitchen } = kitchenWith({
-      save_kitchen_station: station,
+      upsert_kitchen_station: station,
       kitchen_stations: [station, { ...station, id: "s2", active: false }],
       delete_kitchen_station: true,
     });
@@ -98,7 +98,7 @@ describe("orders kitchen", () => {
     expect(await kitchen.deleteStation("s1").orThrow()).toBe(true);
     expect(calls).toEqual([
       {
-        fn: "save_kitchen_station",
+        fn: "upsert_kitchen_station",
         args: {
           tenant: "o1",
           station: null,
@@ -106,7 +106,7 @@ describe("orders kitchen", () => {
         },
       },
       {
-        fn: "save_kitchen_station",
+        fn: "upsert_kitchen_station",
         args: {
           tenant: "o1",
           station: "s1",

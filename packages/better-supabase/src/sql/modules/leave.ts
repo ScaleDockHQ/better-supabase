@@ -184,13 +184,13 @@ function build(ctx: BlockSqlContext): string {
     ${fail(`LEAVE_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`, `this leave types table has no ${thing} column`, "22023")}
   end if;`;
 
-  // The type's columns save_leave_type writes, with their arguments.
+  // The type's columns upsert_leave_type writes, with their arguments.
   const typeSettings = (
     [
-      ["allowance", "save_leave_type.allowance"],
-      ["carryoverMax", "save_leave_type.carryover_max"],
-      ["color", "save_leave_type.color"],
-      ["autoApprove", "coalesce(save_leave_type.auto_approve, false)"],
+      ["allowance", "upsert_leave_type.allowance"],
+      ["carryoverMax", "upsert_leave_type.carryover_max"],
+      ["color", "upsert_leave_type.color"],
+      ["autoApprove", "coalesce(upsert_leave_type.auto_approve, false)"],
     ] as const
   ).filter(([logical]) =>
     logical === "autoApprove" ? auto : ctx.has("types", logical),
@@ -205,30 +205,30 @@ function build(ctx: BlockSqlContext): string {
   const unitArg = ctx.cast(
     "types",
     "unit",
-    "coalesce(save_leave_type.unit, 'days')",
+    "coalesce(upsert_leave_type.unit, 'days')",
   );
 
-  // save_leave_type's write: an upsert by key, or by id without a key column.
+  // upsert_leave_type's write: an upsert by key, or by id without a key column.
   const typeUpsert = ctx.has("types", "key")
     ? `  insert into ${types} (${ty("tenant")}, ${ty("key")}, ${ty("name")}, ${ty("unit")}, ${ty("paid")}, ${ty("tracked")}${typeSettings.map(([logical]) => `, ${ty(logical)}`).join("")})
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, ${unitArg}, coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true)${typeSettings.map(([, arg]) => `, ${arg}`).join("")})
+  values (upsert_leave_type.tenant, upsert_leave_type.key, upsert_leave_type.name, ${unitArg}, coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true)${typeSettings.map(([, arg]) => `, ${arg}`).join("")})
   on conflict (${ty("tenant")}, ${ty("key")}) do update
     set ${ty("name")} = excluded.${ty("name")}, ${ty("unit")} = excluded.${ty("unit")}, ${ty("paid")} = excluded.${ty("paid")},
       ${ty("tracked")} = excluded.${ty("tracked")}${ctx.has("types", "allowance") ? `, ${ty("allowance")} = excluded.${ty("allowance")}` : ""},
       ${settingsLine === "" ? "" : `${settingsLine},\n      `}${ty("archivedAt")} = null, ${ty("updatedAt")} = now()
   returning * into v_row;`
     : `  select * into v_row from ${types} x
-    where x.${ty("tenant")} = save_leave_type.tenant and x.${ty("id")}::text = save_leave_type.key
+    where x.${ty("tenant")} = upsert_leave_type.tenant and x.${ty("id")}::text = upsert_leave_type.key
     for update;
   if found then
     update ${types} x
-      set ${ty("name")} = save_leave_type.name, ${ty("unit")} = ${unitArg}, ${ty("paid")} = coalesce(save_leave_type.paid, true),
-        ${ty("tracked")} = coalesce(save_leave_type.tracked, true)${typeSettings.map(([logical, arg]) => `, ${ty(logical)} = ${arg}`).join("")}, ${ty("archivedAt")} = null, ${ty("updatedAt")} = now()
+      set ${ty("name")} = upsert_leave_type.name, ${ty("unit")} = ${unitArg}, ${ty("paid")} = coalesce(upsert_leave_type.paid, true),
+        ${ty("tracked")} = coalesce(upsert_leave_type.tracked, true)${typeSettings.map(([logical, arg]) => `, ${ty(logical)} = ${arg}`).join("")}, ${ty("archivedAt")} = null, ${ty("updatedAt")} = now()
       where x.${ty("id")} = v_row.${ty("id")}
       returning * into v_row;
   else
     insert into ${types} (${ty("tenant")}, ${ty("name")}, ${ty("unit")}, ${ty("paid")}, ${ty("tracked")}${typeSettings.map(([logical]) => `, ${ty(logical)}`).join("")})
-    values (save_leave_type.tenant, save_leave_type.name, ${unitArg}, coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true)${typeSettings.map(([, arg]) => `, ${arg}`).join("")})
+    values (upsert_leave_type.tenant, upsert_leave_type.name, ${unitArg}, coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true)${typeSettings.map(([, arg]) => `, ${arg}`).join("")})
     returning * into v_row;
   end if;`;
 
@@ -1106,8 +1106,8 @@ ${userGrant(`${fn("leave_working_days")}(date, date)`)}
 -- Creates or updates a leave type by key. Without a key column, key is the
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
-drop function if exists ${fn("save_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text);
-create or replace function ${fn("save_leave_type")}(tenant ${idType}, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+drop function if exists ${fn("upsert_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text);
+create or replace function ${fn("upsert_leave_type")}(tenant ${idType}, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1117,13 +1117,13 @@ as $$
 declare
   v_row ${types}%rowtype;
 begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "save_leave_type.tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "upsert_leave_type.tenant", manage)}) then
     ${forbidden("not allowed to manage leave types")}
-  end if;${typeUnsupported("allowance", "save_leave_type.allowance", "allowance")}${typeUnsupported("carryoverMax", "save_leave_type.carryover_max", "carryover")}${typeUnsupported("color", "save_leave_type.color", "color")}${
+  end if;${typeUnsupported("allowance", "upsert_leave_type.allowance", "allowance")}${typeUnsupported("carryoverMax", "upsert_leave_type.carryover_max", "carryover")}${typeUnsupported("color", "upsert_leave_type.color", "color")}${
     auto
       ? ""
       : `
-  if save_leave_type.auto_approve is not null then
+  if upsert_leave_type.auto_approve is not null then
     ${fail("LEAVE_AUTO_APPROVE_UNSUPPORTED", "this leave types table has no auto_approve column", "22023")}
   end if;`
   }
@@ -1131,7 +1131,7 @@ ${typeUpsert}
   return ${typeJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text, boolean)`)}
+${userGrant(`${fn("upsert_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text, boolean)`)}
 
 ${typeArchiveFunctions({ ctx, fail, forbidden, manage, typeJson })}
 

@@ -26,7 +26,7 @@ select set_config(
 );
 set local role authenticated;
 
-select better_supabase.save_score_model('00000000-0000-4000-8000-000000000001', '{
+select better_supabase.upsert_score_model('00000000-0000-4000-8000-000000000001', '{
   "key": "lead",
   "name": "Lead score",
   "subjectType": "person",

@@ -378,7 +378,7 @@ function harness(ctx: BlockSqlContext, names: AiChatNames): string {
   end if;`;
 
   return `-- A harness session's state, or null (the service role only). Experimental.
-create or replace function ${fn("load_ai_harness_session")}(chat uuid, harness text)
+create or replace function ${fn("get_ai_harness_session")}(chat uuid, harness text)
 returns jsonb
 language plpgsql
 stable
@@ -392,21 +392,21 @@ begin
     ${serviceOnly}
   end if;
   select * into v_row from ${t.harness} x
-  where x.${h.chat} = load_ai_harness_session.chat and x.${h.harness} = load_ai_harness_session.harness;
+  where x.${h.chat} = get_ai_harness_session.chat and x.${h.harness} = get_ai_harness_session.harness;
   if not found then
     return null;
   end if;
   return ${harnessJson(ctx, names, "v_row")};
 end;
 $$;
-${serviceGrant(`${fn("load_ai_harness_session")}(uuid, text)`)}
+${serviceGrant(`${fn("get_ai_harness_session")}(uuid, text)`)}
 
 -- Saves a harness session (the service role only). fields may set
 -- resume_state, continue_state, sandbox_id (with sandbox_provider) and
 -- status; a key that is absent keeps its value. sandbox_id registers the
 -- session's sandbox in ai_sandboxes, and null marks it stopped. A session
 -- locked by another holder raises AI_HARNESS_LOCKED.
-create or replace function ${fn("save_ai_harness_session")}(chat uuid, harness text, fields jsonb, holder text default null)
+create or replace function ${fn("upsert_ai_harness_session")}(chat uuid, harness text, fields jsonb, holder text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -416,27 +416,27 @@ ${variableConflict(ctx, "harness", "sandboxes")}
 declare
   v_chat ${t.chats};
   v_row ${t.harness};
-  v_status text := save_ai_harness_session.fields ->> 'status';
+  v_status text := upsert_ai_harness_session.fields ->> 'status';
 begin
   if not ${SERVICE_CALLER} then
     ${serviceOnly}
-  end if;${validHarness("save_ai_harness_session")}
-  if jsonb_typeof(save_ai_harness_session.fields) is distinct from 'object'
+  end if;${validHarness("upsert_ai_harness_session")}
+  if jsonb_typeof(upsert_ai_harness_session.fields) is distinct from 'object'
     or (v_status is not null and v_status not in ('active', 'idle', 'stopped', 'error')) then
     ${raise("fields must be an object and status active, idle, stopped or error", "22023", "AI_HARNESS_INVALID")}
-  end if;${ensure("save_ai_harness_session")}
-  if v_row.${h.lockedUntil} > now() and v_row.${h.holder} is distinct from save_ai_harness_session.holder then
-    ${raise("Harness session % is locked", "55P03", "AI_HARNESS_LOCKED", "save_ai_harness_session.harness")}
+  end if;${ensure("upsert_ai_harness_session")}
+  if v_row.${h.lockedUntil} > now() and v_row.${h.holder} is distinct from upsert_ai_harness_session.holder then
+    ${raise("Harness session % is locked", "55P03", "AI_HARNESS_LOCKED", "upsert_ai_harness_session.harness")}
   end if;
   update ${t.harness} x set
-    ${h.resume} = case when save_ai_harness_session.fields ? 'resume_state' then save_ai_harness_session.fields -> 'resume_state' else x.${h.resume} end,${assignments(
+    ${h.resume} = case when upsert_ai_harness_session.fields ? 'resume_state' then upsert_ai_harness_session.fields -> 'resume_state' else x.${h.resume} end,${assignments(
       ctx,
       "harness",
       [
         [
           "continue",
           () =>
-            `case when save_ai_harness_session.fields ? 'continue_state' then save_ai_harness_session.fields -> 'continue_state' else x.${h.continue} end`,
+            `case when upsert_ai_harness_session.fields ? 'continue_state' then upsert_ai_harness_session.fields -> 'continue_state' else x.${h.continue} end`,
         ],
       ],
     )}
@@ -446,11 +446,11 @@ begin
     ${h.lastActiveAt} = now(),
     ${h.updatedAt} = now()
   where x.${h.chat} = v_row.${h.chat} and x.${h.harness} = v_row.${h.harness}
-  returning * into v_row;${harnessSandboxSave(ctx, names, "save_ai_harness_session.fields")}
+  returning * into v_row;${harnessSandboxSave(ctx, names, "upsert_ai_harness_session.fields")}
   return ${harnessJson(ctx, names, "v_row")};
 end;
 $$;
-${serviceGrant(`${fn("save_ai_harness_session")}(uuid, text, jsonb, text)`)}
+${serviceGrant(`${fn("upsert_ai_harness_session")}(uuid, text, jsonb, text)`)}
 
 -- Takes a harness session's lock for ttl_seconds (the service role only):
 -- true when the caller holds it, false when another holder does.

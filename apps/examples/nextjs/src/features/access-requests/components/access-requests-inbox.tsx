@@ -45,17 +45,17 @@ import { Link } from "@/i18n/navigation";
 import type { AccessRequestsData } from "../access-requests-queries";
 
 import { refreshAccessRequests } from "../access-requests-actions";
-import { loadAccessRequests } from "../access-requests-queries";
+import { getAccessRequests } from "../access-requests-queries";
 import {
   AccessRequestActions,
   RequestAccessForm,
 } from "./access-request-controls";
 
-async function loadInbox(): Promise<
+async function getInbox(): Promise<
   { kind: "ok"; data: AccessRequestsData | null } | { kind: "error" }
 > {
   try {
-    return { kind: "ok", data: await loadAccessRequests() };
+    return { kind: "ok", data: await getAccessRequests() };
   } catch (error) {
     unstable_rethrow(error);
 
@@ -85,7 +85,7 @@ export async function AccessRequestsInbox() {
     getPermissions(),
     getExtracted("accessRequests"),
     getFormatter(),
-    loadInbox(),
+    getInbox(),
   ]);
 
   if (!can(permissions, "access_requests.create")) {

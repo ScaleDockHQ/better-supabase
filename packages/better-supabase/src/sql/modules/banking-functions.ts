@@ -156,14 +156,14 @@ export function bankingFunctions(ctx: BlockSqlContext): string {
     ? `
   if v_journal is not null and not exists (
     select 1 from ${accounting.table("journals")} y
-    where y.${accounting.col("journals", "id")} = v_journal and y.${accounting.col("journals", "tenant")} = save_bank_account.tenant
+    where y.${accounting.col("journals", "id")} = v_journal and y.${accounting.col("journals", "tenant")} = upsert_bank_account.tenant
       and y.${accounting.col("journals", "type")} in ('bank', 'cash')
   ) then
     ${q.accountInvalid("the journal must be a bank or cash journal of the organization")}
   end if;`
     : "";
 
-  const loadAccount = (arg: string, permission: string, lock = false) => `
+  const getAccount = (arg: string, permission: string, lock = false) => `
   select * into v_account from ${q.accounts} x where x.${a("id")} = ${arg}${lock ? " for update" : ""};
   if not found then
     ${q.accountMissing}
@@ -197,7 +197,7 @@ export function bankingFunctions(ctx: BlockSqlContext): string {
 -- account primary clears the flag on the organization's other accounts in
 -- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
-create or replace function ${fn("save_bank_account")}(tenant ${idType}, input jsonb, account_id uuid default null)
+create or replace function ${fn("upsert_bank_account")}(tenant ${idType}, input jsonb, account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -215,34 +215,34 @@ declare
   v_archived boolean;
   v_position integer;
 begin
-  if not ${q.allowed("save_bank_account.tenant", q.manage)} then
+  if not ${q.allowed("upsert_bank_account.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage bank accounts")}
   end if;
-  if jsonb_typeof(save_bank_account.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bank_account.input) is distinct from 'object' then
     ${q.accountInvalid("input must be an object")}
   end if;
-  if save_bank_account.account_id is not null then
+  if upsert_bank_account.account_id is not null then
     select * into v_account from ${q.accounts} x
-    where x.${a("id")} = save_bank_account.account_id and x.${a("tenant")} = save_bank_account.tenant
+    where x.${a("id")} = upsert_bank_account.account_id and x.${a("tenant")} = upsert_bank_account.tenant
     for update;
     if not found then
       ${q.accountMissing}
     end if;
   end if;
-  v_iban := case when save_bank_account.input ? 'iban'
-    then nullif(upper(regexp_replace(save_bank_account.input ->> 'iban', '\\s', '', 'g')), '')
+  v_iban := case when upsert_bank_account.input ? 'iban'
+    then nullif(upper(regexp_replace(upsert_bank_account.input ->> 'iban', '\\s', '', 'g')), '')
     else v_account.${a("iban")} end;
   if v_iban is not null and (v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'
     or ${fn("bank_mod97")}(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1) then
     ${q.accountInvalid("the IBAN's check digits don't match")}
   end if;
-  v_bic := case when save_bank_account.input ? 'bic'
-    then nullif(upper(regexp_replace(save_bank_account.input ->> 'bic', '\\s', '', 'g')), '')
+  v_bic := case when upsert_bank_account.input ? 'bic'
+    then nullif(upper(regexp_replace(upsert_bank_account.input ->> 'bic', '\\s', '', 'g')), '')
     else v_account.${a("bic")} end;
   if v_bic is not null and v_bic !~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$' then
     ${q.accountInvalid("a BIC has 8 or 11 letters and digits")}
   end if;
-  v_currency := upper(coalesce(save_bank_account.input ->> 'currency', v_account.${a("currency")}));
+  v_currency := upper(coalesce(upsert_bank_account.input ->> 'currency', v_account.${a("currency")}));
   if ${noCurrency ? "" : "v_currency is null or "}v_currency !~ '^[A-Z]{3}$' then
     ${q.accountInvalid(noCurrency ? "a bank account's currency is an ISO 4217 code" : "a bank account has an ISO 4217 currency")}
   end if;
@@ -251,33 +251,33 @@ begin
   ) then
     ${q.accountInvalid("a bank account with transactions keeps its currency")}
   end if;
-  v_holder := case when save_bank_account.input ? 'holder'
-    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+  v_holder := case when upsert_bank_account.input ? 'holder'
+    then nullif(trim(upsert_bank_account.input ->> 'holder'), '')
     else v_account.${a("holder")} end;
-  v_archived := case when save_bank_account.input ? 'archived'
-    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+  v_archived := case when upsert_bank_account.input ? 'archived'
+    then coalesce((upsert_bank_account.input ->> 'archived')::boolean, false)
     else v_account.${a("archivedAt")} is not null end;
   v_primary := case when v_archived then false
-    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    when upsert_bank_account.input ? 'primary' then coalesce((upsert_bank_account.input ->> 'primary')::boolean, false)
     else coalesce(v_account.${a("isPrimary")}, false) end;
   if v_primary then
     update ${q.accounts} x set ${a("isPrimary")} = false, ${a("updatedAt")} = now()
-    where x.${a("tenant")} = save_bank_account.tenant${perOrganization ? "" : ` and x.${a("currency")} ${noCurrency ? "is not distinct from" : "="} v_currency`}
+    where x.${a("tenant")} = upsert_bank_account.tenant${perOrganization ? "" : ` and x.${a("currency")} ${noCurrency ? "is not distinct from" : "="} v_currency`}
       and x.${a("isPrimary")} and x.${a("id")} is distinct from v_account.${a("id")};
   end if;
-  v_position := case when save_bank_account.input ? 'position'
-    then coalesce((save_bank_account.input ->> 'position')::integer, 0)
+  v_position := case when upsert_bank_account.input ? 'position'
+    then coalesce((upsert_bank_account.input ->> 'position')::integer, 0)
     else coalesce(v_account.${a("position")}, 0) end;
-  v_journal := case when save_bank_account.input ? 'journalId'
-    then nullif(save_bank_account.input ->> 'journalId', '')::uuid
+  v_journal := case when upsert_bank_account.input ? 'journalId'
+    then nullif(upsert_bank_account.input ->> 'journalId', '')::uuid
     else v_account.${a("journal")} end;${journalCheck}
   if v_account.${a("id")} is null then
     insert into ${q.accounts} (${a("tenant")}, ${a("name")}, ${a("holder")}, ${a("isPrimary")}, ${a("position")}, ${a("iban")}, ${a("bic")}, ${a("currency")}, ${a("journal")})
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_position, v_iban, v_bic, v_currency, v_journal)
+    values (upsert_bank_account.tenant, trim(upsert_bank_account.input ->> 'name'), v_holder, v_primary, v_position, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update ${q.accounts} x set
-      ${a("name")} = coalesce(trim(save_bank_account.input ->> 'name'), x.${a("name")}),
+      ${a("name")} = coalesce(trim(upsert_bank_account.input ->> 'name'), x.${a("name")}),
       ${a("holder")} = v_holder,
       ${a("isPrimary")} = v_primary,
       ${a("position")} = v_position,
@@ -285,13 +285,13 @@ begin
       ${a("bic")} = v_bic,
       ${a("currency")} = v_currency,
       ${a("journal")} = v_journal,
-      ${a("archivedAt")} = case when save_bank_account.input ? 'archived'
-        then case when (save_bank_account.input ->> 'archived')::boolean then coalesce(x.${a("archivedAt")}, now()) end
+      ${a("archivedAt")} = case when upsert_bank_account.input ? 'archived'
+        then case when (upsert_bank_account.input ->> 'archived')::boolean then coalesce(x.${a("archivedAt")}, now()) end
         else x.${a("archivedAt")} end,
       ${a("updatedAt")} = now()
     where x.${a("id")} = v_account.${a("id")}
     returning * into v_account;
-  end if;${writeExtraColumns(q.accounts, q.extras, "coalesce(save_bank_account.input -> 'fields', '{}'::jsonb)", `x.${a("id")} = v_account.${a("id")}`, "v_account")}
+  end if;${writeExtraColumns(q.accounts, q.extras, "coalesce(upsert_bank_account.input -> 'fields', '{}'::jsonb)", `x.${a("id")} = v_account.${a("id")}`, "v_account")}
   return ${q.accountJson("v_account")};
 exception
   when check_violation or not_null_violation then
@@ -302,7 +302,7 @@ exception
     ${q.accountInvalid("journalId must be a uuid and position an integer")}
 end;
 $$;
-${userGrant(`${fn("save_bank_account")}(${idType}, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_bank_account")}(${idType}, jsonb, uuid)`)}
 
 create or replace function ${fn("list_bank_accounts")}(tenant ${idType}, include_archived boolean default false)
 returns jsonb
@@ -376,7 +376,7 @@ declare
   v_external text;
   v_imported integer := 0;
   v_total integer := 0;
-begin${loadAccount("import_bank_statement.account_id", q.import, true)}
+begin${getAccount("import_bank_statement.account_id", q.import, true)}
   if v_account.${a("archivedAt")} is not null then
     ${q.statementInvalid("an archived bank account takes no statements")}
   end if;
@@ -476,7 +476,7 @@ as $$
 #variable_conflict use_column
 declare
   v_account ${q.accounts}%rowtype;
-begin${loadAccount("list_bank_statements.account_id", q.read)}
+begin${getAccount("list_bank_statements.account_id", q.read)}
   return coalesce((
     select jsonb_agg(${q.statementJson("x")} order by x.${s("untilOn")} desc nulls last, x.${s("createdAt")} desc)
     from ${q.statements} x where x.${s("account")} = v_account.${a("id")}
@@ -498,7 +498,7 @@ as $$
 declare
   v_account ${q.accounts}%rowtype;
   v_filter jsonb := coalesce(list_bank_transactions.filter, '{}'::jsonb);
-begin${loadAccount("list_bank_transactions.account_id", q.read)}
+begin${getAccount("list_bank_transactions.account_id", q.read)}
   return coalesce((
     select jsonb_agg(${q.transactionJson("x")} order by x.${t("bookedOn")} desc, x.${t("createdAt")} desc, x.${t("id")})
     from (
@@ -560,7 +560,7 @@ declare
   v_unmatched integer;
   v_unmatched_total bigint;
   v_ledger bigint;
-begin${loadAccount("bank_reconciliation_status.account_id", q.read)}
+begin${getAccount("bank_reconciliation_status.account_id", q.read)}
   select * into v_statement from ${q.statements} x
   where x.${s("account")} = v_account.${a("id")} and x.${s("closingBalance")} is not null
     and coalesce(x.${s("untilOn")}, x.${s("createdAt")}::date) <= v_as_of

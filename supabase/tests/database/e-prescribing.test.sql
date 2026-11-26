@@ -24,7 +24,7 @@ select set_config(
 set local role authenticated;
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
-insert into ids values ('med', (better_supabase.save_medication(
+insert into ids values ('med', (better_supabase.upsert_medication(
   '00000000-0000-4000-8000-000000000001', 'Amoxicillin', 'mg') ->> 'id')::uuid);
 insert into ids values ('order', (better_supabase.prescribe_medication(
   '00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001',

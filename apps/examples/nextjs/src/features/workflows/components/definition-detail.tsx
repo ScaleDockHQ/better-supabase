@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 
-import { loadDefinitionDetail } from "../definition-detail/definition-detail-queries";
+import { getDefinitionDetail } from "../definition-detail/definition-detail-queries";
 import { formatDuration, statusBadge } from "../workflow-labels";
 
 /**
@@ -34,7 +34,7 @@ import { formatDuration, statusBadge } from "../workflow-labels";
  */
 export async function DefinitionDetail({ id }: { id: string }) {
   const [detail, t, format] = await Promise.all([
-    loadDefinitionDetail(id),
+    getDefinitionDetail(id),
     getExtracted("workflows"),
     getFormatter(),
   ]);

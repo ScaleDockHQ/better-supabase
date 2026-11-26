@@ -81,7 +81,7 @@ async function actions(s: BlockSession): Promise<string> {
   ]);
 
   const agent = await s.value<{ id: string }>(
-    "better_supabase.save_agent($1, null, $2)",
+    "better_supabase.upsert_agent($1, null, $2)",
     [organization, { slug: `agent-${suffix}`, name: "Agent" }],
   );
 
@@ -93,17 +93,17 @@ async function actions(s: BlockSession): Promise<string> {
     organization,
     `invitee-${suffix}@example.test`,
   ]);
-  await s.value("better_supabase.add_organization_domain($1, $2)", [
+  await s.value("better_supabase.create_organization_domain($1, $2)", [
     organization,
     `acme-${suffix}.test`,
   ]);
-  await s.value("better_supabase.add_hostname($1, $2)", [
+  await s.value("better_supabase.create_hostname($1, $2)", [
     organization,
     `app.acme-${suffix}.test`,
   ]);
 
   await s.service();
-  await s.value("better_supabase.save_flag($1, '{}')", [`beta-${suffix}`]);
+  await s.value("better_supabase.upsert_flag($1, '{}')", [`beta-${suffix}`]);
   await s.value("better_supabase.set_flag_override($1, 'on', $2)", [
     `beta-${suffix}`,
     organization,
@@ -125,14 +125,14 @@ async function actions(s: BlockSession): Promise<string> {
   ]);
 
   const server = await s.value<{ id: string }>(
-    "better_supabase.save_connector_server($1, null, $2)",
+    "better_supabase.upsert_connector_server($1, null, $2)",
     [organization, { name: "Docs", url: "https://mcp.example.com/mcp" }],
   );
 
   await s.value("better_supabase.delete_connector_server($1)", [server.id]);
 
   const key = await s.value<{ key: { id: string } }>(
-    "better_supabase.save_ai_provider_key($1, 'openai', $2)",
+    "better_supabase.upsert_ai_provider_key($1, 'openai', $2)",
     [organization, { provider: "vault", name: `openai-${suffix}` }],
   );
 
@@ -157,7 +157,7 @@ async function actions(s: BlockSession): Promise<string> {
   await s.value("better_supabase.rotate_webhook_secret($1)", [endpoint!.id]);
 
   const announcement = await s.value<{ id: string }>(
-    'better_supabase.save_announcement(null, \'{"title": "Hi", "body": "Hello"}\')',
+    'better_supabase.upsert_announcement(null, \'{"title": "Hi", "body": "Hello"}\')',
   );
 
   await s.value("better_supabase.archive_announcement($1)", [announcement.id]);
@@ -187,7 +187,7 @@ async function actions(s: BlockSession): Promise<string> {
   await s.as(owner);
 
   const rule = await s.value<{ id: string }>(
-    "better_supabase.save_rule($1, $2)",
+    "better_supabase.upsert_rule($1, $2)",
     [
       organization,
       {
@@ -200,7 +200,7 @@ async function actions(s: BlockSession): Promise<string> {
   );
 
   await s.value("better_supabase.set_rule_enabled($1, true)", [rule.id]);
-  await s.value("better_supabase.remove_rule($1)", [rule.id]);
+  await s.value("better_supabase.delete_rule($1)", [rule.id]);
 
   return organization;
 }

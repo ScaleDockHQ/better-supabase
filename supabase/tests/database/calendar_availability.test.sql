@@ -41,7 +41,7 @@ select set_config(
   true
 );
 select ok(
-  api.save_calendar_event(
+  api.upsert_calendar_event(
     current_setting('test.calendar')::uuid,
     '{"title":"Deep work","kind":"focus_time","startsAt":"2030-03-06T09:00:00Z","endsAt":"2030-03-06T11:00:00Z","tz":"Europe/Amsterdam"}'
   ) ->> 'id' is not null,

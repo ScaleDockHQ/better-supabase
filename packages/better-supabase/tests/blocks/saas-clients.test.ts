@@ -48,8 +48,8 @@ describe("saas block clients", () => {
         },
         archive_team: true,
         purge_team: false,
-        add_team_member: true,
-        remove_team_member: false,
+        create_team_member: true,
+        delete_team_member: false,
         list_teams: [
           {
             id: "t1",
@@ -250,7 +250,7 @@ describe("saas block clients", () => {
 
   it("saves and marks a reminder", async () => {
     const reminders = createReminders({
-      ...options({ save_reminder: { id: "r1" }, mark_reminder_sent: true }),
+      ...options({ upsert_reminder: { id: "r1" }, mark_reminder_sent: true }),
       tenant: "org",
     });
 
@@ -404,11 +404,11 @@ describe("saas block clients", () => {
   it("saves a field definition and a value", async () => {
     const fields = createCustomFields({
       ...options({
-        save_field_definition: { id: "d1" },
+        upsert_field_definition: { id: "d1" },
         purge_field_definition: true,
         archive_field_definition: { id: "d1" },
         restore_field_definition: { id: "d1" },
-        read_field_values: [{ key: "tier" }],
+        get_field_values: [{ key: "tier" }],
         set_field_value: { id: "v1" },
       }),
       tenant: "org",

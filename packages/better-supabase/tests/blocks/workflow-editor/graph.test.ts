@@ -19,7 +19,7 @@ import {
   evaluateCondition,
   graphOf,
   nodeOf,
-  readPath,
+  getPath,
   topologicalOrder,
   isBuiltinNodeKind,
   validateGraph,
@@ -52,9 +52,9 @@ describe("conditions", () => {
     evaluateCondition({ path, op, value }, scope);
 
   it("reads paths into input and results", () => {
-    expect(readPath(scope, "input.tags.1.n")).toBe(1);
-    expect(readPath(scope, "results.lookup.plan")).toBe("pro");
-    expect(readPath(scope, "results.lookup.plan.x")).toBeUndefined();
+    expect(getPath(scope, "input.tags.1.n")).toBe(1);
+    expect(getPath(scope, "results.lookup.plan")).toBe("pro");
+    expect(getPath(scope, "results.lookup.plan.x")).toBeUndefined();
   });
 
   it("evaluates every operator", () => {

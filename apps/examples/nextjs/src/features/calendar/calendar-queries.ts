@@ -4,10 +4,8 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { CALENDAR_TAG } from "./calendar-cache";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
 export type Loaded<T> =
@@ -88,13 +86,13 @@ export interface CalendarPage {
  * caller's reminders on them. Both cards read this entry, so the page makes one
  * database call for the calendar data instead of one per read.
  */
-async function loadCalendarPage(
+async function getCalendarPage(
   from: string,
   until: string,
 ): Promise<CalendarPage | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CALENDAR_TAG, BOOKINGS_TAG);
+  cacheTag(tags.calendar(), tags.bookings());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -193,11 +191,11 @@ async function loadCalendarPage(
 }
 
 /** The month part of `loadCalendarPage`. */
-export async function loadCalendarMonth(
+export async function getCalendarMonth(
   from: string,
   until: string,
 ): Promise<CalendarMonth | null> {
-  const page = await loadCalendarPage(from, until);
+  const page = await getCalendarPage(from, until);
 
   return page?.month ?? null;
 }
@@ -206,11 +204,11 @@ export async function loadCalendarMonth(
  * The next events in the coming two weeks, one entry per event (a series shows
  * once, at its next occurrence), with the caller's reminders on each.
  */
-export async function loadUpcomingReminders(
+export async function getUpcomingReminders(
   from: string,
   until: string,
 ): Promise<UpcomingReminders | null> {
-  const page = await loadCalendarPage(from, until);
+  const page = await getCalendarPage(from, until);
 
   return page?.upcoming ?? null;
 }

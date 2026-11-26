@@ -34,7 +34,7 @@ import type * as RecordBlocks from "./record-blocks.ts";
 
 import { dbError } from "../core/errors.ts";
 import { err } from "../core/result.ts";
-import { loadBindings } from "../records/bindings.ts";
+import { getBindings } from "../records/bindings.ts";
 import {
   bindingWrites,
   findBindingWrite,
@@ -45,7 +45,7 @@ import {
   recordWriteInput,
   runBindingWrite,
 } from "../records/record-type.ts";
-import { loadTimeline } from "../records/timeline.ts";
+import { getTimeline } from "../records/timeline.ts";
 import { isStorageApi } from "../storage/storage-api.ts";
 import { invalidateBinding, recordTag, bindingTag } from "./records.ts";
 
@@ -150,7 +150,7 @@ export interface RecordServer<
    * Loads one record's bindings and the caller's flags. It reads the request,
    * so call it outside `"use cache"`: a cached binding error would stick.
    */
-  load<const M extends N = N>(
+  get<const M extends N = N>(
     id: string,
     options?: RecordLoadOptions<B, M>,
   ): Promise<RecordView<T, B, N, M>>;
@@ -255,7 +255,7 @@ function readableSections(can: object): ReadonlyMap<string, boolean> {
  *
  * ```ts
  * const customer = bsb.record(customerRecord);
- * const view = await customer.load(id, { bindings: ["comments"] });
+ * const view = await customer.get(id, { bindings: ["comments"] });
  * ```
  */
 export function recordServer<
@@ -322,7 +322,7 @@ export function recordServer<
   ) as RecordServerActions<B, N>;
 
   return {
-    async load(id, options = {}) {
+    async get(id, options = {}) {
       const ctx = await bsb.context();
       const subject = recordSubject(feature, id);
 
@@ -339,7 +339,7 @@ export function recordServer<
       // `M` at its default `N`.
       const names = (options.bindings ?? feature.bindings) as readonly N[];
 
-      const loaded = await loadBindings(
+      const loaded = await getBindings(
         { blocks: feature.blocks, clients: await clientsOf(feature, ctx) },
         subject,
         names,
@@ -375,7 +375,7 @@ export function recordServer<
 
       const readable = readableSections(recordCan(feature, permissions.set));
 
-      const timeline = await loadTimeline(
+      const timeline = await getTimeline(
         { blocks: feature.blocks, clients: await clientsOf(feature, ctx) },
         recordSubject(feature, id),
         { ...options, can: ({ binding }) => readable.get(binding) ?? true },
@@ -533,7 +533,7 @@ export interface RecordListServer<
    * Parses the page's `searchParams` and loads the page with its binding
    * columns, over the caller's `Db`. Call it outside `"use cache"`.
    */
-  load(
+  get(
     input: ListSearchParams | undefined,
     options?: ListParseOptions,
   ): Promise<RecordListView<B, N, Q, P, Cols>>;
@@ -546,7 +546,7 @@ export interface RecordListServer<
  *
  * ```ts
  * const customers = recordListServer(bsb, customerRecordList);
- * const view = await customers.load(await searchParams);
+ * const view = await customers.get(await searchParams);
  * ```
  */
 export function recordListServer<
@@ -563,7 +563,7 @@ export function recordListServer<
   const { feature } = recordList;
 
   return {
-    async load(input, options) {
+    async get(input, options) {
       const ctx = await bsb.context();
 
       const permissions = await permissionsOf(
@@ -572,7 +572,7 @@ export function recordListServer<
         bsb.heldPermissions,
       );
 
-      const result = await recordList.load(
+      const result = await recordList.get(
         {
           db: ctx.db,
           clients: await clientsOf(feature, ctx),

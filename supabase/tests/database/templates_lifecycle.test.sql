@@ -47,7 +47,7 @@ select is(
 
 -- Recurring records.
 select isnt(
-  better_supabase.save_template_schedule(
+  better_supabase.upsert_template_schedule(
     null,
     (select id from better_supabase.templates where name = 'Acme kickoff'),
     '00000000-0000-4000-8000-000000000001',
@@ -123,8 +123,8 @@ select throws_ok(
 );
 select is(
   (better_supabase.publish_workflow_version(
-    (better_supabase.save_workflow_draft(
-      (better_supabase.save_workflow_definition('00000000-0000-4000-8000-000000000001', 'change-requests', 'Change requests') ->> 'id')::uuid,
+    (better_supabase.upsert_workflow_draft(
+      (better_supabase.upsert_workflow_definition('00000000-0000-4000-8000-000000000001', 'change-requests', 'Change requests') ->> 'id')::uuid,
       '{"nodes":[
         {"id":"t","kind":"trigger","config":{"stage":"draft"}},
         {"id":"r","kind":"approval","config":{"stage":"review","returnsTo":["draft"]}},
@@ -165,7 +165,7 @@ select is(
 );
 
 select better_supabase.publish_workflow_version(
-  (better_supabase.save_workflow_draft(
+  (better_supabase.upsert_workflow_draft(
     (select id from better_supabase.workflow_definitions where slug = 'change-requests'),
     '{"nodes":[
       {"id":"t","kind":"trigger","config":{"stage":"intake"}},

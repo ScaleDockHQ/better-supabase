@@ -1,7 +1,7 @@
 import type { Logger } from "../core/logger.ts";
 import type { DbStats } from "../core/stats.ts";
 
-import { StatsRecorder } from "../core/stats.ts";
+import { EMPTY_STATS, StatsRecorder } from "../core/stats.ts";
 
 /** Forwarded by the proxy so every scope of one render shares an id. */
 export const REQUEST_ID_HEADER = "x-bsb-request-id";
@@ -306,7 +306,7 @@ export function devBudget(waves: number | false): DbBudget | undefined {
 }
 
 /** The 404 of `bsb.debugRoute()`, with the reason as JSON. */
-export function debugRefusal(on: boolean): Response {
+function debugRefusal(on: boolean): Response {
   return Response.json(
     on
       ? {
@@ -321,4 +321,36 @@ export function debugRefusal(on: boolean): Response {
         },
     { status: 404, headers: { "cache-control": "no-store" } },
   );
+}
+
+/**
+ * The handler of `bsb.debugRoute()`: the request's database totals for `?id=`,
+ * or the refusal.
+ */
+export function debugRoute(
+  collector: Pick<StatsCollector, "get"> | undefined,
+  statsHeader: string,
+  statsValue: (stats: DbStats) => string,
+): (request: Request) => Promise<Response> {
+  return (request) => {
+    const id = new URL(request.url).searchParams.get("id");
+
+    if (!collector || !id) {
+      return Promise.resolve(debugRefusal(collector !== undefined));
+    }
+
+    // A render served entirely from cache entries records nothing: it made no
+    // calls. A fill records on the request that started it, remote fills
+    // through bsb.remote() included, raw ctx.supabase calls too.
+    const stats = collector.get(id) ?? EMPTY_STATS;
+
+    return Promise.resolve(
+      Response.json(stats, {
+        headers: {
+          [statsHeader]: statsValue(stats),
+          "cache-control": "no-store",
+        },
+      }),
+    );
+  };
 }

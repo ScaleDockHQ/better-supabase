@@ -15,9 +15,9 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.p', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Pump', 'pump', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.p')::uuid, null, 'PUMP-1', null, 'Pump', null, 500, true, false, null) ->> 'id', true);
-select set_config('t.loc', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH1', 'Warehouse', null, null) ->> 'id', true);
+select set_config('t.p', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Pump', 'pump', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.p')::uuid, null, 'PUMP-1', null, 'Pump', null, 500, true, false, null) ->> 'id', true);
+select set_config('t.loc', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'WH1', 'Warehouse', null, null) ->> 'id', true);
 select better_supabase.adjust_stock(current_setting('t.v')::uuid, current_setting('t.loc')::uuid, 10, 'receipt', 'in');
 
 select set_config(

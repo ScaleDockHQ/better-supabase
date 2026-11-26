@@ -105,7 +105,7 @@ function tableLines(table: GeneratorTable, limit: number): string[] {
     `export const ${name}Cache: ReturnType<typeof createSearchParamsCache<${map}>> = createSearchParamsCache(${name});`,
     "",
     `/** Parses \`${name}\` from a URL, a \`Request\` or \`searchParams\`. */`,
-    `export const load${pascal(name)}: LoaderFunction<${map}> = createLoader(${name});`,
+    `export const get${pascal(name)}: LoaderFunction<${map}> = createLoader(${name});`,
     "",
     `/** Writes \`${name}\` into a URL, for links. */`,
     `export const serialize${pascal(name)}: ReturnType<typeof createSerializer<${map}>> = createSerializer(${name});`,

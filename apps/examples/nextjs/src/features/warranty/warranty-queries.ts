@@ -10,11 +10,11 @@ import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
 import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { ClaimRow } from "./claim-row";
 
-import { WARRANTY_TAG } from "./warranty-cache";
 import { CLAIM_PAGE_SIZE, CLAIM_STATUSES, claimList } from "./warranty-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -36,7 +36,7 @@ async function assetNames(db: Db): Promise<ReadonlyMap<string, string>> {
  * `q` searches the title, and the keyset cursor `after` holds pages on. Shared
  * by the page and `/api/warranty/list`.
  */
-export async function loadClaimPage(
+export async function getClaimPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<ClaimRow>>> {
@@ -70,13 +70,13 @@ export async function loadClaimPage(
 export async function getClaims(): Promise<BlockPage<ClaimRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(WARRANTY_TAG);
+  cacheTag(tags.warranty());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const result = await loadClaimPage(db, claimList.defaults);
+  const result = await getClaimPage(db, claimList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);
@@ -94,7 +94,7 @@ export interface ClaimDetailData extends ClaimRow {
 export async function getClaim(id: string): Promise<ClaimDetailData | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(WARRANTY_TAG);
+  cacheTag(tags.warranty());
 
   const result = await db.warranty.get(id);
 
@@ -130,7 +130,7 @@ export interface ClaimFormOptions {
 export async function getClaimFormOptions(): Promise<ClaimFormOptions> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(WARRANTY_TAG);
+  cacheTag(tags.warranty());
 
   const assets = await db.assets.page({
     filters: { status: ["active"] },

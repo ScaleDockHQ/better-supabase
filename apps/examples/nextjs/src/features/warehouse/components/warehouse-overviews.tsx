@@ -31,10 +31,10 @@ import {
 } from "../warehouse-actions";
 import {
   countPlanRowOf,
-  loadLookups,
-  loadReceipts,
-  loadReceivableOrders,
-  loadSlotting,
+  getLookups,
+  getReceipts,
+  getReceivableOrders,
+  getSlotting,
   pickListRowOf,
   putawayRuleRowOf,
   waveRowOf,
@@ -53,7 +53,7 @@ export function WarehouseListSkeleton() {
 }
 
 async function names() {
-  const lookups = await settle(loadLookups);
+  const lookups = await settle(getLookups);
   const data = lookups.kind === "ok" ? lookups.data : undefined;
 
   return {
@@ -255,14 +255,14 @@ export async function PutawayOverview({
   const [t, lookup, receipts, fmtDate] = await Promise.all([
     getExtracted("warehouse"),
     names(),
-    settle(loadReceipts),
+    settle(getReceipts),
     dateFormatter(),
   ]);
 
   const firstLocation = lookup.options?.locations[0];
 
   const slotting = firstLocation
-    ? await settle(() => loadSlotting(firstLocation.id))
+    ? await settle(() => getSlotting(firstLocation.id))
     : undefined;
 
   return (
@@ -745,7 +745,7 @@ export async function CreatePickListDialog() {
 export async function ReceiveOrderDialog() {
   const [t, orders] = await Promise.all([
     getExtracted("warehouse"),
-    settle(loadReceivableOrders),
+    settle(getReceivableOrders),
   ]);
 
   return (

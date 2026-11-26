@@ -24,7 +24,7 @@ export function fakeFetch(
 ): { fetch: typeof fetch; calls: FetchCall[] } {
   const calls: FetchCall[] = [];
 
-  const fetchImpl = async (
+  const getImpl = async (
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
@@ -53,5 +53,5 @@ export function fakeFetch(
     });
   };
 
-  return { fetch: fetchImpl, calls };
+  return { fetch: getImpl, calls };
 }

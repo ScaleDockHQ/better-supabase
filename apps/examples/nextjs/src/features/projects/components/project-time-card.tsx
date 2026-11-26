@@ -12,7 +12,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { holds } from "@/features/sales/components/overview-support";
 
-import { loadProjectFinance } from "../projects-finance";
+import { getProjectFinance } from "../projects-finance";
 
 export function ProjectTimeCardSkeleton() {
   return <Skeleton className="h-40 rounded-xl" aria-busy="true" />;
@@ -32,7 +32,7 @@ export async function ProjectTimeCard({ id }: { id: string }) {
     getExtracted("projects"),
     getLocale(),
     getFormatter(),
-    loadProjectFinance(id),
+    getProjectFinance(id),
   ]);
 
   if (!finance) {

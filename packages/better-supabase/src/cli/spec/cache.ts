@@ -53,7 +53,7 @@ function cacheFile(root: string, output: string): string {
   return resolve(root, SPEC_CACHE_DIR, `${sha256(output).slice(0, 16)}.json`);
 }
 
-export async function readCachedRender(
+export async function getCachedRender(
   root: string,
   output: string,
   key: string,

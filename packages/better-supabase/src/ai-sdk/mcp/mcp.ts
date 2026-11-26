@@ -128,7 +128,7 @@ const isConnectMcp = (value: unknown): value is ConnectMcpModule =>
  * Loads `@vercel/connect/mcp` only for a server whose grant is a Connect
  * connector; it needs `@ai-sdk/mcp`, which this entry already imports.
  */
-const loadConnectMcp = (): Promise<unknown> =>
+const getConnectMcp = (): Promise<unknown> =>
   importOptionalPeer("@vercel/connect/mcp");
 
 /**
@@ -242,7 +242,7 @@ async function authOf(
         grant.credentialRef.provider === "vercel-connect" &&
         typeof connector === "string"
       ) {
-        const module = await (options.loadConnectMcp ?? loadConnectMcp)();
+        const module = await (options.loadConnectMcp ?? getConnectMcp)();
 
         if (!isConnectMcp(module)) {
           return {

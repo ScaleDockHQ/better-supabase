@@ -6,7 +6,7 @@ import { customerRecords } from "../../../../features/customers/customer-record-
  * `useCustomerListState().searchParams` builds the query.
  */
 export async function GET(request: Request): Promise<Response> {
-  const result = await customerRecords.load(new URL(request.url).searchParams);
+  const result = await customerRecords.get(new URL(request.url).searchParams);
 
   if (!result.ok) {
     return Response.json(

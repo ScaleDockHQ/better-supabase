@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:994198b6100f3638b38a5f458cd964b8871fa6f16271ac1a121b4c8d8dc14a29
+-- @bsb-hash sha256:c823d02e60fabe58fddcc9e95040589cf40fed2b2acc3a63f425af01395390a2
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -54,7 +54,7 @@ alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
--- Every state save_flag leaves, numbered per flag, so staff can see what
+-- Every state upsert_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
@@ -331,7 +331,7 @@ $$;
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
 
-create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
+create or replace function "better_supabase"."upsert_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -351,15 +351,15 @@ begin
   end if;
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
     select 1 from jsonb_array_elements(d -> 'rollout_variants') e
-    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = save_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
+    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = upsert_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
       or coalesce((e.value ->> 'weight')::numeric, -1) not between 0 and 100
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
-  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = save_flag.key);
+  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = upsert_flag.key);
   insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
   values (
-    save_flag.key,
+    upsert_flag.key,
     coalesce(d ->> 'type', 'boolean'),
     d ->> 'description',
     coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
@@ -383,13 +383,13 @@ begin
     "rollout_variants" = case when d ? 'rollout_variants' then excluded."rollout_variants" else x."rollout_variants" end,
     "rollout_schedule" = case when d ? 'rollout_schedule' then excluded."rollout_schedule" else x."rollout_schedule" end,
     "updated_at" = now();
-  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = save_flag.key);
+  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = upsert_flag.key);
   insert into "better_supabase"."flag_revisions" ("flag_key", "revision", "definition", "message", "changed_by")
   values (
-    save_flag.key,
-    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = save_flag.key), 0) + 1,
+    upsert_flag.key,
+    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = upsert_flag.key), 0) + 1,
     saved - 'overrides' - 'segments',
-    save_flag.message,
+    upsert_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
   if v_inserted then
@@ -439,7 +439,7 @@ begin
   if stored is null then
     return null;
   end if;
-  return "better_supabase"."save_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
+  return "better_supabase"."upsert_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
 end;
 $$;
 
@@ -462,7 +462,7 @@ end;
 $$;
 
 -- Creates or replaces a segment; rules naming it see the change at once.
-create or replace function "better_supabase"."save_flag_segment"(name text, description text, rules jsonb)
+create or replace function "better_supabase"."upsert_flag_segment"(name text, description text, rules jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -477,12 +477,12 @@ begin
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;
   insert into "better_supabase"."flag_segments" as g ("name", "description", "rules")
-  values (save_flag_segment.name, save_flag_segment.description, coalesce(save_flag_segment.rules, '{}'::jsonb))
+  values (upsert_flag_segment.name, upsert_flag_segment.description, coalesce(upsert_flag_segment.rules, '{}'::jsonb))
   on conflict ("name") do update set
     "description" = excluded."description",
     "rules" = excluded."rules",
     "updated_at" = now();
-  return jsonb_build_object('name', save_flag_segment.name, 'description', save_flag_segment.description, 'rules', coalesce(save_flag_segment.rules, '{}'::jsonb));
+  return jsonb_build_object('name', upsert_flag_segment.name, 'description', upsert_flag_segment.description, 'rules', coalesce(upsert_flag_segment.rules, '{}'::jsonb));
 end;
 $$;
 
@@ -568,21 +568,21 @@ end;
 $$;
 
 revoke execute on function "better_supabase"."list_flags"() from public, anon;
-revoke execute on function "better_supabase"."save_flag"(text, jsonb, text) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag"(text, jsonb, text) from public, anon;
 revoke execute on function "better_supabase"."delete_flag"(text) from public, anon;
 revoke execute on function "better_supabase"."flag_history"(text) from public, anon;
 revoke execute on function "better_supabase"."restore_flag"(text, integer) from public, anon;
 revoke execute on function "better_supabase"."list_flag_segments"() from public, anon;
-revoke execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) from public, anon;
 revoke execute on function "better_supabase"."delete_flag_segment"(text) from public, anon;
 revoke execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_flags"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag"(text, jsonb, text) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag"(text, jsonb, text) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_history"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."restore_flag"(text, integer) to authenticated, service_role;
 grant execute on function "better_supabase"."list_flag_segments"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag_segment"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_condition_matches"(jsonb, text, text, text, text[], jsonb) to anon, authenticated, service_role;
@@ -616,7 +616,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:f485233fa49c68a0a2730fb7dccef79b3feab82dee9c84561e037f61a5f64546
+-- @bsb-hash sha256:8e8d3a10abe44085ff43c1f420bafb541f5beaddf229bc3e3acc5272a3a262c1
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -669,7 +669,7 @@ alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
--- Every state save_flag leaves, numbered per flag, so staff can see what
+-- Every state upsert_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
@@ -946,7 +946,7 @@ $$;
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
 
-create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
+create or replace function "better_supabase"."upsert_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -966,15 +966,15 @@ begin
   end if;
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
     select 1 from jsonb_array_elements(d -> 'rollout_variants') e
-    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = save_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
+    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = upsert_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
       or coalesce((e.value ->> 'weight')::numeric, -1) not between 0 and 100
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
-  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = save_flag.key);
+  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = upsert_flag.key);
   insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
   values (
-    save_flag.key,
+    upsert_flag.key,
     coalesce(d ->> 'type', 'boolean'),
     d ->> 'description',
     coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
@@ -998,32 +998,32 @@ begin
     "rollout_variants" = case when d ? 'rollout_variants' then excluded."rollout_variants" else x."rollout_variants" end,
     "rollout_schedule" = case when d ? 'rollout_schedule' then excluded."rollout_schedule" else x."rollout_schedule" end,
     "updated_at" = now();
-  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = save_flag.key);
+  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = upsert_flag.key);
   insert into "better_supabase"."flag_revisions" ("flag_key", "revision", "definition", "message", "changed_by")
   values (
-    save_flag.key,
-    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = save_flag.key), 0) + 1,
+    upsert_flag.key,
+    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = upsert_flag.key), 0) + 1,
     saved - 'overrides' - 'segments',
-    save_flag.message,
+    upsert_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
   if v_inserted then
-    perform "better_supabase".emit_event('flag.created', jsonb_build_object('key', save_flag.key), 'flags/' || save_flag.key, null, null, 'better-supabase/flags');
+    perform "better_supabase".emit_event('flag.created', jsonb_build_object('key', upsert_flag.key), 'flags/' || upsert_flag.key, null, null, 'better-supabase/flags');
   perform better_supabase.audit_event(
     event_type => 'flag.created',
     category => 'configuration',
     target_type => 'flag',
-    record_id => save_flag.key,
-    metadata => jsonb_build_object('key', save_flag.key)
+    record_id => upsert_flag.key,
+    metadata => jsonb_build_object('key', upsert_flag.key)
   );
   else
-    perform "better_supabase".emit_event('flag.updated', jsonb_build_object('key', save_flag.key), 'flags/' || save_flag.key, null, null, 'better-supabase/flags');
+    perform "better_supabase".emit_event('flag.updated', jsonb_build_object('key', upsert_flag.key), 'flags/' || upsert_flag.key, null, null, 'better-supabase/flags');
   perform better_supabase.audit_event(
     event_type => 'flag.updated',
     category => 'configuration',
     target_type => 'flag',
-    record_id => save_flag.key,
-    metadata => jsonb_build_object('key', save_flag.key)
+    record_id => upsert_flag.key,
+    metadata => jsonb_build_object('key', upsert_flag.key)
   );
   end if;
   return saved;
@@ -1068,7 +1068,7 @@ begin
   if stored is null then
     return null;
   end if;
-  return "better_supabase"."save_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
+  return "better_supabase"."upsert_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
 end;
 $$;
 
@@ -1091,7 +1091,7 @@ end;
 $$;
 
 -- Creates or replaces a segment; rules naming it see the change at once.
-create or replace function "better_supabase"."save_flag_segment"(name text, description text, rules jsonb)
+create or replace function "better_supabase"."upsert_flag_segment"(name text, description text, rules jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1106,12 +1106,12 @@ begin
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;
   insert into "better_supabase"."flag_segments" as g ("name", "description", "rules")
-  values (save_flag_segment.name, save_flag_segment.description, coalesce(save_flag_segment.rules, '{}'::jsonb))
+  values (upsert_flag_segment.name, upsert_flag_segment.description, coalesce(upsert_flag_segment.rules, '{}'::jsonb))
   on conflict ("name") do update set
     "description" = excluded."description",
     "rules" = excluded."rules",
     "updated_at" = now();
-  return jsonb_build_object('name', save_flag_segment.name, 'description', save_flag_segment.description, 'rules', coalesce(save_flag_segment.rules, '{}'::jsonb));
+  return jsonb_build_object('name', upsert_flag_segment.name, 'description', upsert_flag_segment.description, 'rules', coalesce(upsert_flag_segment.rules, '{}'::jsonb));
 end;
 $$;
 
@@ -1220,21 +1220,21 @@ end;
 $$;
 
 revoke execute on function "better_supabase"."list_flags"() from public, anon;
-revoke execute on function "better_supabase"."save_flag"(text, jsonb, text) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag"(text, jsonb, text) from public, anon;
 revoke execute on function "better_supabase"."delete_flag"(text) from public, anon;
 revoke execute on function "better_supabase"."flag_history"(text) from public, anon;
 revoke execute on function "better_supabase"."restore_flag"(text, integer) from public, anon;
 revoke execute on function "better_supabase"."list_flag_segments"() from public, anon;
-revoke execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) from public, anon;
 revoke execute on function "better_supabase"."delete_flag_segment"(text) from public, anon;
 revoke execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_flags"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag"(text, jsonb, text) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag"(text, jsonb, text) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_history"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."restore_flag"(text, integer) to authenticated, service_role;
 grant execute on function "better_supabase"."list_flag_segments"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag_segment"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_condition_matches"(jsonb, text, text, text, text[], jsonb) to anon, authenticated, service_role;
@@ -1271,7 +1271,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:b7d83a911bf4289d6f5f3f0c232270a299d61a737f86288526ee0790f96e0cd9
+-- @bsb-hash sha256:bd2f39974866631457bf27d881e46e68305c2f59bec8f4a249966b48b61a09cb
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1329,7 +1329,7 @@ alter table "app_private"."flag_overrides" enable row level security;
 revoke all on "app_private"."flag_overrides" from public, anon, authenticated;
 grant all on "app_private"."flag_overrides" to service_role;
 
--- Every state save_flag leaves, numbered per flag, so staff can see what
+-- Every state upsert_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
 create table "app_private"."flag_revisions" (
   "id" bigint generated always as identity primary key,
@@ -1606,7 +1606,7 @@ $$;
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
 
-create or replace function "app_private"."save_flag"(key text, definition jsonb, message text default null)
+create or replace function "app_private"."upsert_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1626,15 +1626,15 @@ begin
   end if;
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
     select 1 from jsonb_array_elements(d -> 'rollout_variants') e
-    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "app_private"."flags" x where x."key" = save_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
+    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "app_private"."flags" x where x."key" = upsert_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
       or coalesce((e.value ->> 'weight')::numeric, -1) not between 0 and 100
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
-  v_inserted := not exists (select 1 from "app_private"."flags" x where x."key" = save_flag.key);
+  v_inserted := not exists (select 1 from "app_private"."flags" x where x."key" = upsert_flag.key);
   insert into "app_private"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
   values (
-    save_flag.key,
+    upsert_flag.key,
     coalesce(d ->> 'type', 'boolean'),
     d ->> 'description',
     coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
@@ -1658,13 +1658,13 @@ begin
     "rollout_variants" = case when d ? 'rollout_variants' then excluded."rollout_variants" else x."rollout_variants" end,
     "rollout_schedule" = case when d ? 'rollout_schedule' then excluded."rollout_schedule" else x."rollout_schedule" end,
     "updated_at" = now();
-  saved := (select v from jsonb_array_elements("app_private"."flag_definitions"()) v where v ->> 'key' = save_flag.key);
+  saved := (select v from jsonb_array_elements("app_private"."flag_definitions"()) v where v ->> 'key' = upsert_flag.key);
   insert into "app_private"."flag_revisions" ("flag_key", "revision", "definition", "message", "changed_by")
   values (
-    save_flag.key,
-    coalesce((select max(h."revision") from "app_private"."flag_revisions" h where h."flag_key" = save_flag.key), 0) + 1,
+    upsert_flag.key,
+    coalesce((select max(h."revision") from "app_private"."flag_revisions" h where h."flag_key" = upsert_flag.key), 0) + 1,
     saved - 'overrides' - 'segments',
-    save_flag.message,
+    upsert_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
   if v_inserted then
@@ -1714,7 +1714,7 @@ begin
   if stored is null then
     return null;
   end if;
-  return "app_private"."save_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
+  return "app_private"."upsert_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
 end;
 $$;
 
@@ -1737,7 +1737,7 @@ end;
 $$;
 
 -- Creates or replaces a segment; rules naming it see the change at once.
-create or replace function "app_private"."save_flag_segment"(name text, description text, rules jsonb)
+create or replace function "app_private"."upsert_flag_segment"(name text, description text, rules jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1752,12 +1752,12 @@ begin
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;
   insert into "app_private"."flag_segments" as g ("name", "description", "rules")
-  values (save_flag_segment.name, save_flag_segment.description, coalesce(save_flag_segment.rules, '{}'::jsonb))
+  values (upsert_flag_segment.name, upsert_flag_segment.description, coalesce(upsert_flag_segment.rules, '{}'::jsonb))
   on conflict ("name") do update set
     "description" = excluded."description",
     "rules" = excluded."rules",
     "updated_at" = now();
-  return jsonb_build_object('name', save_flag_segment.name, 'description', save_flag_segment.description, 'rules', coalesce(save_flag_segment.rules, '{}'::jsonb));
+  return jsonb_build_object('name', upsert_flag_segment.name, 'description', upsert_flag_segment.description, 'rules', coalesce(upsert_flag_segment.rules, '{}'::jsonb));
 end;
 $$;
 
@@ -1843,21 +1843,21 @@ end;
 $$;
 
 revoke execute on function "app_private"."list_flags"() from public, anon;
-revoke execute on function "app_private"."save_flag"(text, jsonb, text) from public, anon;
+revoke execute on function "app_private"."upsert_flag"(text, jsonb, text) from public, anon;
 revoke execute on function "app_private"."delete_flag"(text) from public, anon;
 revoke execute on function "app_private"."flag_history"(text) from public, anon;
 revoke execute on function "app_private"."restore_flag"(text, integer) from public, anon;
 revoke execute on function "app_private"."list_flag_segments"() from public, anon;
-revoke execute on function "app_private"."save_flag_segment"(text, text, jsonb) from public, anon;
+revoke execute on function "app_private"."upsert_flag_segment"(text, text, jsonb) from public, anon;
 revoke execute on function "app_private"."delete_flag_segment"(text) from public, anon;
 revoke execute on function "app_private"."set_flag_override"(text, text, uuid, uuid, text, text) from public, anon;
 grant execute on function "app_private"."list_flags"() to authenticated, service_role;
-grant execute on function "app_private"."save_flag"(text, jsonb, text) to authenticated, service_role;
+grant execute on function "app_private"."upsert_flag"(text, jsonb, text) to authenticated, service_role;
 grant execute on function "app_private"."delete_flag"(text) to authenticated, service_role;
 grant execute on function "app_private"."flag_history"(text) to authenticated, service_role;
 grant execute on function "app_private"."restore_flag"(text, integer) to authenticated, service_role;
 grant execute on function "app_private"."list_flag_segments"() to authenticated, service_role;
-grant execute on function "app_private"."save_flag_segment"(text, text, jsonb) to authenticated, service_role;
+grant execute on function "app_private"."upsert_flag_segment"(text, text, jsonb) to authenticated, service_role;
 grant execute on function "app_private"."delete_flag_segment"(text) to authenticated, service_role;
 grant execute on function "app_private"."set_flag_override"(text, text, uuid, uuid, text, text) to authenticated, service_role;
 grant execute on function "app_private"."flag_condition_matches"(jsonb, text, text, text, text[], jsonb) to anon, authenticated, service_role;
@@ -1891,7 +1891,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:d827a4ea16bc3f4d3f0f5a60fd6bc81180b46cd011512ade3efb0345c164f844
+-- @bsb-hash sha256:b2bc60763140e26c5d7dfaf115923950bb5bdf82ba4b24c3e79fda3d206d8970
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1944,7 +1944,7 @@ alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
--- Every state save_flag leaves, numbered per flag, so staff can see what
+-- Every state upsert_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
@@ -2221,7 +2221,7 @@ $$;
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
 
-create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
+create or replace function "better_supabase"."upsert_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2241,15 +2241,15 @@ begin
   end if;
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
     select 1 from jsonb_array_elements(d -> 'rollout_variants') e
-    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = save_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
+    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = upsert_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
       or coalesce((e.value ->> 'weight')::numeric, -1) not between 0 and 100
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
-  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = save_flag.key);
+  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = upsert_flag.key);
   insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
   values (
-    save_flag.key,
+    upsert_flag.key,
     coalesce(d ->> 'type', 'boolean'),
     d ->> 'description',
     coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
@@ -2273,13 +2273,13 @@ begin
     "rollout_variants" = case when d ? 'rollout_variants' then excluded."rollout_variants" else x."rollout_variants" end,
     "rollout_schedule" = case when d ? 'rollout_schedule' then excluded."rollout_schedule" else x."rollout_schedule" end,
     "updated_at" = now();
-  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = save_flag.key);
+  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = upsert_flag.key);
   insert into "better_supabase"."flag_revisions" ("flag_key", "revision", "definition", "message", "changed_by")
   values (
-    save_flag.key,
-    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = save_flag.key), 0) + 1,
+    upsert_flag.key,
+    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = upsert_flag.key), 0) + 1,
     saved - 'overrides' - 'segments',
-    save_flag.message,
+    upsert_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
   if v_inserted then
@@ -2329,7 +2329,7 @@ begin
   if stored is null then
     return null;
   end if;
-  return "better_supabase"."save_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
+  return "better_supabase"."upsert_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
 end;
 $$;
 
@@ -2352,7 +2352,7 @@ end;
 $$;
 
 -- Creates or replaces a segment; rules naming it see the change at once.
-create or replace function "better_supabase"."save_flag_segment"(name text, description text, rules jsonb)
+create or replace function "better_supabase"."upsert_flag_segment"(name text, description text, rules jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2367,12 +2367,12 @@ begin
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;
   insert into "better_supabase"."flag_segments" as g ("name", "description", "rules")
-  values (save_flag_segment.name, save_flag_segment.description, coalesce(save_flag_segment.rules, '{}'::jsonb))
+  values (upsert_flag_segment.name, upsert_flag_segment.description, coalesce(upsert_flag_segment.rules, '{}'::jsonb))
   on conflict ("name") do update set
     "description" = excluded."description",
     "rules" = excluded."rules",
     "updated_at" = now();
-  return jsonb_build_object('name', save_flag_segment.name, 'description', save_flag_segment.description, 'rules', coalesce(save_flag_segment.rules, '{}'::jsonb));
+  return jsonb_build_object('name', upsert_flag_segment.name, 'description', upsert_flag_segment.description, 'rules', coalesce(upsert_flag_segment.rules, '{}'::jsonb));
 end;
 $$;
 
@@ -2458,21 +2458,21 @@ end;
 $$;
 
 revoke execute on function "better_supabase"."list_flags"() from public, anon;
-revoke execute on function "better_supabase"."save_flag"(text, jsonb, text) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag"(text, jsonb, text) from public, anon;
 revoke execute on function "better_supabase"."delete_flag"(text) from public, anon;
 revoke execute on function "better_supabase"."flag_history"(text) from public, anon;
 revoke execute on function "better_supabase"."restore_flag"(text, integer) from public, anon;
 revoke execute on function "better_supabase"."list_flag_segments"() from public, anon;
-revoke execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) from public, anon;
 revoke execute on function "better_supabase"."delete_flag_segment"(text) from public, anon;
 revoke execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_flags"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag"(text, jsonb, text) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag"(text, jsonb, text) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_history"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."restore_flag"(text, integer) to authenticated, service_role;
 grant execute on function "better_supabase"."list_flag_segments"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag_segment"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_condition_matches"(jsonb, text, text, text, text[], jsonb) to anon, authenticated, service_role;
@@ -2501,14 +2501,14 @@ as $$ select "better_supabase"."list_flags"() $$;
 revoke execute on function "api"."list_flags"() from public, anon;
 grant execute on function "api"."list_flags"() to authenticated, service_role;
 
-create or replace function "api"."save_flag"(key text, definition jsonb, message text default null)
+create or replace function "api"."upsert_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_flag"($1, $2, $3) $$;
-revoke execute on function "api"."save_flag"(text, jsonb, text) from public, anon;
-grant execute on function "api"."save_flag"(text, jsonb, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_flag"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_flag"(text, jsonb, text) from public, anon;
+grant execute on function "api"."upsert_flag"(text, jsonb, text) to authenticated, service_role;
 
 create or replace function "api"."delete_flag"(key text)
 returns boolean
@@ -2548,14 +2548,14 @@ as $$ select "better_supabase"."list_flag_segments"() $$;
 revoke execute on function "api"."list_flag_segments"() from public, anon;
 grant execute on function "api"."list_flag_segments"() to authenticated, service_role;
 
-create or replace function "api"."save_flag_segment"(name text, description text, rules jsonb)
+create or replace function "api"."upsert_flag_segment"(name text, description text, rules jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_flag_segment"($1, $2, $3) $$;
-revoke execute on function "api"."save_flag_segment"(text, text, jsonb) from public, anon;
-grant execute on function "api"."save_flag_segment"(text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_flag_segment"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_flag_segment"(text, text, jsonb) from public, anon;
+grant execute on function "api"."upsert_flag_segment"(text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_flag_segment"(name text)
 returns boolean
@@ -2664,7 +2664,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:ca5738d166b5bfcea5717e20cf0dfd110ef3d686ee6457972a19a33b8a139c54
+-- @bsb-hash sha256:3b7bf16da4fdf440c7e04c47fdc2eb3245b012e910844d03c4c76b10dc411827
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2712,7 +2712,7 @@ create index if not exists flag_overrides_user_idx on "better_supabase"."flag_ov
 alter table "better_supabase"."flag_overrides" enable row level security;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
--- Every state save_flag leaves, numbered per flag, so staff can see what
+-- Every state upsert_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
 -- better_supabase.flag_revisions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."flag_revisions" add column if not exists "id" bigint generated always as identity;
@@ -2985,7 +2985,7 @@ $$;
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
 
-create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
+create or replace function "better_supabase"."upsert_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3005,15 +3005,15 @@ begin
   end if;
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
     select 1 from jsonb_array_elements(d -> 'rollout_variants') e
-    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = save_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
+    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = upsert_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
       or coalesce((e.value ->> 'weight')::numeric, -1) not between 0 and 100
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
-  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = save_flag.key);
+  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = upsert_flag.key);
   insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
   values (
-    save_flag.key,
+    upsert_flag.key,
     better_supabase.as_column_type(coalesce(d ->> 'type', 'boolean'), (null::"better_supabase"."flags")."type"),
     d ->> 'description',
     coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
@@ -3037,13 +3037,13 @@ begin
     "rollout_variants" = case when d ? 'rollout_variants' then excluded."rollout_variants" else x."rollout_variants" end,
     "rollout_schedule" = case when d ? 'rollout_schedule' then excluded."rollout_schedule" else x."rollout_schedule" end,
     "updated_at" = now();
-  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = save_flag.key);
+  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = upsert_flag.key);
   insert into "better_supabase"."flag_revisions" ("flag_key", "revision", "definition", "message", "changed_by")
   values (
-    save_flag.key,
-    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = save_flag.key), 0) + 1,
+    upsert_flag.key,
+    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = upsert_flag.key), 0) + 1,
     saved - 'overrides' - 'segments',
-    save_flag.message,
+    upsert_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
   if v_inserted then
@@ -3093,7 +3093,7 @@ begin
   if stored is null then
     return null;
   end if;
-  return "better_supabase"."save_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
+  return "better_supabase"."upsert_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
 end;
 $$;
 
@@ -3116,7 +3116,7 @@ end;
 $$;
 
 -- Creates or replaces a segment; rules naming it see the change at once.
-create or replace function "better_supabase"."save_flag_segment"(name text, description text, rules jsonb)
+create or replace function "better_supabase"."upsert_flag_segment"(name text, description text, rules jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3131,12 +3131,12 @@ begin
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;
   insert into "better_supabase"."flag_segments" as g ("name", "description", "rules")
-  values (save_flag_segment.name, save_flag_segment.description, coalesce(save_flag_segment.rules, '{}'::jsonb))
+  values (upsert_flag_segment.name, upsert_flag_segment.description, coalesce(upsert_flag_segment.rules, '{}'::jsonb))
   on conflict ("name") do update set
     "description" = excluded."description",
     "rules" = excluded."rules",
     "updated_at" = now();
-  return jsonb_build_object('name', save_flag_segment.name, 'description', save_flag_segment.description, 'rules', coalesce(save_flag_segment.rules, '{}'::jsonb));
+  return jsonb_build_object('name', upsert_flag_segment.name, 'description', upsert_flag_segment.description, 'rules', coalesce(upsert_flag_segment.rules, '{}'::jsonb));
 end;
 $$;
 
@@ -3223,21 +3223,21 @@ end;
 $$;
 
 revoke execute on function "better_supabase"."list_flags"() from public, anon;
-revoke execute on function "better_supabase"."save_flag"(text, jsonb, text) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag"(text, jsonb, text) from public, anon;
 revoke execute on function "better_supabase"."delete_flag"(text) from public, anon;
 revoke execute on function "better_supabase"."flag_history"(text) from public, anon;
 revoke execute on function "better_supabase"."restore_flag"(text, integer) from public, anon;
 revoke execute on function "better_supabase"."list_flag_segments"() from public, anon;
-revoke execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) from public, anon;
 revoke execute on function "better_supabase"."delete_flag_segment"(text) from public, anon;
 revoke execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_flags"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag"(text, jsonb, text) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag"(text, jsonb, text) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_history"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."restore_flag"(text, integer) to authenticated, service_role;
 grant execute on function "better_supabase"."list_flag_segments"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag_segment"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_condition_matches"(jsonb, text, text, text, text[], jsonb) to anon, authenticated, service_role;
@@ -3271,7 +3271,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:bb7bb5167101bf75f8b840a4e1001dabb285ccc281af795151f246844722cdba
+-- @bsb-hash sha256:ab4c4833c9e04895f4fe4bb7eb623518971b928db026f26f8de832189e5f59e6
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3324,7 +3324,7 @@ alter table "better_supabase"."flag_overrides" enable row level security;
 revoke all on "better_supabase"."flag_overrides" from public, anon, authenticated;
 grant all on "better_supabase"."flag_overrides" to service_role;
 
--- Every state save_flag leaves, numbered per flag, so staff can see what
+-- Every state upsert_flag leaves, numbered per flag, so staff can see what
 -- changed and restore it. A deleted flag keeps its revisions.
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
@@ -3601,7 +3601,7 @@ $$;
 -- (the extra columns by name); missing keys keep their value (or the default
 -- for a new flag). Each save records a revision with message.
 
-create or replace function "better_supabase"."save_flag"(key text, definition jsonb, message text default null)
+create or replace function "better_supabase"."upsert_flag"(key text, definition jsonb, message text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3621,15 +3621,15 @@ begin
   end if;
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
     select 1 from jsonb_array_elements(d -> 'rollout_variants') e
-    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = save_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
+    where jsonb_typeof(e.value) <> 'object' or not (coalesce(d -> 'variants', (select x."variants" from "better_supabase"."flags" x where x."key" = upsert_flag.key), '{"on": true, "off": false}'::jsonb) ? (e.value ->> 'variant'))
       or coalesce((e.value ->> 'weight')::numeric, -1) not between 0 and 100
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
-  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = save_flag.key);
+  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = upsert_flag.key);
   insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
   values (
-    save_flag.key,
+    upsert_flag.key,
     coalesce(d ->> 'type', 'boolean'),
     d ->> 'description',
     coalesce(d -> 'variants', '{"on": true, "off": false}'::jsonb),
@@ -3653,13 +3653,13 @@ begin
     "rollout_variants" = case when d ? 'rollout_variants' then excluded."rollout_variants" else x."rollout_variants" end,
     "rollout_schedule" = case when d ? 'rollout_schedule' then excluded."rollout_schedule" else x."rollout_schedule" end,
     "updated_at" = now();
-  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = save_flag.key);
+  saved := (select v from jsonb_array_elements("better_supabase"."flag_definitions"()) v where v ->> 'key' = upsert_flag.key);
   insert into "better_supabase"."flag_revisions" ("flag_key", "revision", "definition", "message", "changed_by")
   values (
-    save_flag.key,
-    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = save_flag.key), 0) + 1,
+    upsert_flag.key,
+    coalesce((select max(h."revision") from "better_supabase"."flag_revisions" h where h."flag_key" = upsert_flag.key), 0) + 1,
     saved - 'overrides' - 'segments',
-    save_flag.message,
+    upsert_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
   if v_inserted then
@@ -3709,7 +3709,7 @@ begin
   if stored is null then
     return null;
   end if;
-  return "better_supabase"."save_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
+  return "better_supabase"."upsert_flag"(restore_flag.key, stored - 'key' - 'created_at' - 'updated_at', 'Restored revision ' || restore_flag.revision);
 end;
 $$;
 
@@ -3732,7 +3732,7 @@ end;
 $$;
 
 -- Creates or replaces a segment; rules naming it see the change at once.
-create or replace function "better_supabase"."save_flag_segment"(name text, description text, rules jsonb)
+create or replace function "better_supabase"."upsert_flag_segment"(name text, description text, rules jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3747,12 +3747,12 @@ begin
     raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';
   end if;
   insert into "better_supabase"."flag_segments" as g ("name", "description", "rules")
-  values (save_flag_segment.name, save_flag_segment.description, coalesce(save_flag_segment.rules, '{}'::jsonb))
+  values (upsert_flag_segment.name, upsert_flag_segment.description, coalesce(upsert_flag_segment.rules, '{}'::jsonb))
   on conflict ("name") do update set
     "description" = excluded."description",
     "rules" = excluded."rules",
     "updated_at" = now();
-  return jsonb_build_object('name', save_flag_segment.name, 'description', save_flag_segment.description, 'rules', coalesce(save_flag_segment.rules, '{}'::jsonb));
+  return jsonb_build_object('name', upsert_flag_segment.name, 'description', upsert_flag_segment.description, 'rules', coalesce(upsert_flag_segment.rules, '{}'::jsonb));
 end;
 $$;
 
@@ -3838,21 +3838,21 @@ end;
 $$;
 
 revoke execute on function "better_supabase"."list_flags"() from public, anon;
-revoke execute on function "better_supabase"."save_flag"(text, jsonb, text) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag"(text, jsonb, text) from public, anon;
 revoke execute on function "better_supabase"."delete_flag"(text) from public, anon;
 revoke execute on function "better_supabase"."flag_history"(text) from public, anon;
 revoke execute on function "better_supabase"."restore_flag"(text, integer) from public, anon;
 revoke execute on function "better_supabase"."list_flag_segments"() from public, anon;
-revoke execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) from public, anon;
+revoke execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) from public, anon;
 revoke execute on function "better_supabase"."delete_flag_segment"(text) from public, anon;
 revoke execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."list_flags"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag"(text, jsonb, text) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag"(text, jsonb, text) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_history"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."restore_flag"(text, integer) to authenticated, service_role;
 grant execute on function "better_supabase"."list_flag_segments"() to authenticated, service_role;
-grant execute on function "better_supabase"."save_flag_segment"(text, text, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."upsert_flag_segment"(text, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_flag_segment"(text) to authenticated, service_role;
 grant execute on function "better_supabase"."set_flag_override"(text, text, uuid, uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."flag_condition_matches"(jsonb, text, text, text, text[], jsonb) to anon, authenticated, service_role;

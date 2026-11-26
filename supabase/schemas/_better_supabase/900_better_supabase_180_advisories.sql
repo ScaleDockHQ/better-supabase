@@ -1,6 +1,6 @@
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:ca685705f4da8158d0c54f24119ed8703f628551d439688ed9424ccd45a1b0b1
+-- @bsb-hash sha256:61bc87d325958981465127f75adaef0a9ae964e769356b13e81b9f3140175797
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -213,7 +213,7 @@ grant execute on function "better_supabase"."list_advisory_products"(uuid) to au
 -- Creates a product or, with product_id, changes one. The key is lowercase
 -- letters, digits, dots, dashes and underscores; it names the product in OpenVEX
 -- and CSAF documents. archived true takes the product off the lists.
-create or replace function "better_supabase"."save_advisory_product"(tenant uuid, key text, name text, vendor text default null, description text default null, archived boolean default null, product_id uuid default null)
+create or replace function "better_supabase"."upsert_advisory_product"(tenant uuid, key text, name text, vendor text default null, description text default null, archived boolean default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -227,21 +227,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_advisory_product.tenant is not null and coalesce(better_supabase.can('tenant', save_advisory_product.tenant, 'advisories.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_advisory_product.tenant is not null and coalesce(better_supabase.can('tenant', upsert_advisory_product.tenant, 'advisories.write'), false))) then
     raise exception 'not allowed to change advisories' using errcode = '42501', hint = 'ADVISORY_FORBIDDEN';
   end if;
-  if coalesce(save_advisory_product.key, '') !~ '^[a-z0-9][a-z0-9._-]{0,62}$' then
+  if coalesce(upsert_advisory_product.key, '') !~ '^[a-z0-9][a-z0-9._-]{0,62}$' then
     raise exception 'key must be lowercase letters, digits, dots, dashes and underscores, 1 to 63 characters' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if coalesce(length(trim(save_advisory_product.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_advisory_product.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if length(save_advisory_product.vendor) > 200 or length(save_advisory_product.description) > 5000 then
+  if length(upsert_advisory_product.vendor) > 200 or length(upsert_advisory_product.description) > 5000 then
     raise exception 'vendor is at most 200 characters and description at most 5000' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if save_advisory_product.product_id is not null then
+  if upsert_advisory_product.product_id is not null then
     select * into v_old from "better_supabase"."advisory_products" y
-    where y."id" = save_advisory_product.product_id and y."tenant_id" = save_advisory_product.tenant
+    where y."id" = upsert_advisory_product.product_id and y."tenant_id" = upsert_advisory_product.tenant
     for update;
     if not found then
       raise exception 'no such product in this organization' using errcode = 'P0002', hint = 'ADVISORY_NOT_FOUND';
@@ -249,7 +249,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."advisory_products" ("tenant_id", "key", "name", "vendor", "description", "created_by")
-    values (save_advisory_product.tenant, save_advisory_product.key, trim(save_advisory_product.name), nullif(trim(save_advisory_product.vendor), ''), nullif(trim(save_advisory_product.description), ''), (select auth.uid()))
+    values (upsert_advisory_product.tenant, upsert_advisory_product.key, trim(upsert_advisory_product.name), nullif(trim(upsert_advisory_product.vendor), ''), nullif(trim(upsert_advisory_product.description), ''), (select auth.uid()))
     returning * into v_row;
     perform "better_supabase".emit_event('advisory_product.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'name', v_row."name"), 'advisory-products/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/advisories');
   perform better_supabase.audit_event(
@@ -264,13 +264,13 @@ begin
   );
   else
     update "better_supabase"."advisory_products" y set
-      "key" = save_advisory_product.key,
-      "name" = trim(save_advisory_product.name),
-      "vendor" = nullif(trim(save_advisory_product.vendor), ''),
-      "description" = nullif(trim(save_advisory_product.description), ''),
+      "key" = upsert_advisory_product.key,
+      "name" = trim(upsert_advisory_product.name),
+      "vendor" = nullif(trim(upsert_advisory_product.vendor), ''),
+      "description" = nullif(trim(upsert_advisory_product.description), ''),
       "archived_at" = case
-        when save_advisory_product.archived is null then y."archived_at"
-        when save_advisory_product.archived then coalesce(y."archived_at", now())
+        when upsert_advisory_product.archived is null then y."archived_at"
+        when upsert_advisory_product.archived then coalesce(y."archived_at", now())
         else null end,
       "updated_at" = now()
     where y."id" = v_old."id"
@@ -292,8 +292,8 @@ exception when unique_violation then
   raise exception 'another product of this organization has this key' using errcode = '22023', hint = 'ADVISORY_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_advisory_product"(uuid, text, text, text, text, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_advisory_product"(uuid, text, text, text, text, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_advisory_product"(uuid, text, text, text, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_advisory_product"(uuid, text, text, text, text, boolean, uuid) to authenticated, service_role;
 
 -- Adds a version to a product. Versions are free text, such as 2.4.1.
 create or replace function "better_supabase"."create_product_version"(tenant uuid, product_id uuid, version text, released_at timestamptz default null, end_of_support_at timestamptz default null)
@@ -470,7 +470,7 @@ grant execute on function "better_supabase"."list_sbom_components"(uuid, uuid, i
 -- Registers a vulnerability the organization tracks, or changes what a person
 -- entered. A null argument keeps the stored value. cvss_version is 3.0, 3.1 or
 -- 4.0; the TypeScript client parses the vector and passes the version and score.
-create or replace function "better_supabase"."save_vulnerability"(tenant uuid, vuln_id text, summary text default null, details text default null, aliases text[] default null, cvss_vector text default null, cvss_version text default null, cvss_score numeric default null, affected_purls text[] default null)
+create or replace function "better_supabase"."upsert_vulnerability"(tenant uuid, vuln_id text, summary text default null, details text default null, aliases text[] default null, cvss_vector text default null, cvss_version text default null, cvss_score numeric default null, affected_purls text[] default null)
 returns jsonb
 language plpgsql
 security definer
@@ -480,34 +480,34 @@ as $$
 declare
   v_row "better_supabase"."vulnerabilities";
   v_old "better_supabase"."vulnerabilities";
-  v_id text := case when upper(trim(save_vulnerability.vuln_id)) like 'CVE-%' then upper(trim(save_vulnerability.vuln_id)) else trim(save_vulnerability.vuln_id) end;
+  v_id text := case when upper(trim(upsert_vulnerability.vuln_id)) like 'CVE-%' then upper(trim(upsert_vulnerability.vuln_id)) else trim(upsert_vulnerability.vuln_id) end;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_vulnerability.tenant is not null and coalesce(better_supabase.can('tenant', save_vulnerability.tenant, 'advisories.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_vulnerability.tenant is not null and coalesce(better_supabase.can('tenant', upsert_vulnerability.tenant, 'advisories.write'), false))) then
     raise exception 'not allowed to change advisories' using errcode = '42501', hint = 'ADVISORY_FORBIDDEN';
   end if;
   if coalesce(v_id, '') !~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$' then
     raise exception 'vuln_id must be a CVE, GHSA or other vulnerability id of 3 to 128 characters' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if length(save_vulnerability.summary) > 1000 or length(save_vulnerability.details) > 20000 or length(save_vulnerability.cvss_vector) > 300 then
+  if length(upsert_vulnerability.summary) > 1000 or length(upsert_vulnerability.details) > 20000 or length(upsert_vulnerability.cvss_vector) > 300 then
     raise exception 'summary is at most 1000 characters, details 20000 and the CVSS vector 300' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if save_vulnerability.cvss_version is not null and save_vulnerability.cvss_version not in ('3.0', '3.1', '4.0') then
+  if upsert_vulnerability.cvss_version is not null and upsert_vulnerability.cvss_version not in ('3.0', '3.1', '4.0') then
     raise exception 'cvss_version must be 3.0, 3.1 or 4.0' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if save_vulnerability.cvss_score is not null and save_vulnerability.cvss_score not between 0 and 10 then
+  if upsert_vulnerability.cvss_score is not null and upsert_vulnerability.cvss_score not between 0 and 10 then
     raise exception 'cvss_score must be between 0 and 10' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
   select * into v_old from "better_supabase"."vulnerabilities" y
-  where y."tenant_id" = save_vulnerability.tenant and y."vuln_id" = v_id
+  where y."tenant_id" = upsert_vulnerability.tenant and y."vuln_id" = v_id
   for update;
   if v_old."id" is null then
     insert into "better_supabase"."vulnerabilities" ("tenant_id", "vuln_id", "summary", "details", "aliases", "cvss_vector", "cvss_version", "cvss_score", "severity", "affected_purls")
-    values (save_vulnerability.tenant, v_id, nullif(trim(save_vulnerability.summary), ''), nullif(trim(save_vulnerability.details), ''),
-      coalesce(save_vulnerability.aliases, '{}'::text[]), save_vulnerability.cvss_vector, save_vulnerability.cvss_version, save_vulnerability.cvss_score,
-      (case when save_vulnerability.cvss_score is null then null when save_vulnerability.cvss_score = 0 then 'none' when save_vulnerability.cvss_score < 4 then 'low' when save_vulnerability.cvss_score < 7 then 'medium' when save_vulnerability.cvss_score < 9 then 'high' else 'critical' end), coalesce(save_vulnerability.affected_purls, '{}'::text[]))
+    values (upsert_vulnerability.tenant, v_id, nullif(trim(upsert_vulnerability.summary), ''), nullif(trim(upsert_vulnerability.details), ''),
+      coalesce(upsert_vulnerability.aliases, '{}'::text[]), upsert_vulnerability.cvss_vector, upsert_vulnerability.cvss_version, upsert_vulnerability.cvss_score,
+      (case when upsert_vulnerability.cvss_score is null then null when upsert_vulnerability.cvss_score = 0 then 'none' when upsert_vulnerability.cvss_score < 4 then 'low' when upsert_vulnerability.cvss_score < 7 then 'medium' when upsert_vulnerability.cvss_score < 9 then 'high' else 'critical' end), coalesce(upsert_vulnerability.affected_purls, '{}'::text[]))
     returning * into v_row;
     perform "better_supabase".emit_event('vulnerability.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'vulnId', v_row."vuln_id", 'severity', v_row."severity", 'cvssScore', v_row."cvss_score", 'epssScore', v_row."epss_score", 'kev', v_row."kev"), 'vulnerabilities/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/advisories');
   perform better_supabase.audit_event(
@@ -522,14 +522,14 @@ begin
   );
   else
     update "better_supabase"."vulnerabilities" y set
-      "summary" = coalesce(nullif(trim(save_vulnerability.summary), ''), y."summary"),
-      "details" = coalesce(nullif(trim(save_vulnerability.details), ''), y."details"),
-      "aliases" = coalesce(save_vulnerability.aliases, y."aliases"),
-      "cvss_vector" = coalesce(save_vulnerability.cvss_vector, y."cvss_vector"),
-      "cvss_version" = coalesce(save_vulnerability.cvss_version, y."cvss_version"),
-      "cvss_score" = coalesce(save_vulnerability.cvss_score, y."cvss_score"),
-      "severity" = coalesce((case when save_vulnerability.cvss_score is null then null when save_vulnerability.cvss_score = 0 then 'none' when save_vulnerability.cvss_score < 4 then 'low' when save_vulnerability.cvss_score < 7 then 'medium' when save_vulnerability.cvss_score < 9 then 'high' else 'critical' end), y."severity"),
-      "affected_purls" = coalesce(save_vulnerability.affected_purls, y."affected_purls"),
+      "summary" = coalesce(nullif(trim(upsert_vulnerability.summary), ''), y."summary"),
+      "details" = coalesce(nullif(trim(upsert_vulnerability.details), ''), y."details"),
+      "aliases" = coalesce(upsert_vulnerability.aliases, y."aliases"),
+      "cvss_vector" = coalesce(upsert_vulnerability.cvss_vector, y."cvss_vector"),
+      "cvss_version" = coalesce(upsert_vulnerability.cvss_version, y."cvss_version"),
+      "cvss_score" = coalesce(upsert_vulnerability.cvss_score, y."cvss_score"),
+      "severity" = coalesce((case when upsert_vulnerability.cvss_score is null then null when upsert_vulnerability.cvss_score = 0 then 'none' when upsert_vulnerability.cvss_score < 4 then 'low' when upsert_vulnerability.cvss_score < 7 then 'medium' when upsert_vulnerability.cvss_score < 9 then 'high' else 'critical' end), y."severity"),
+      "affected_purls" = coalesce(upsert_vulnerability.affected_purls, y."affected_purls"),
       "updated_at" = now()
     where y."id" = v_old."id"
     returning * into v_row;
@@ -537,8 +537,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'vulnId', v_row."vuln_id", 'aliases', to_jsonb(v_row."aliases"), 'summary', v_row."summary", 'details', v_row."details", 'cvssVector', v_row."cvss_vector", 'cvssVersion', v_row."cvss_version", 'cvssScore', v_row."cvss_score", 'severity', v_row."severity", 'epssScore', v_row."epss_score", 'epssPercentile', v_row."epss_percentile", 'epssDate', v_row."epss_date", 'kev', v_row."kev", 'kevAddedOn', v_row."kev_added_on", 'kevDueOn', v_row."kev_due_on", 'kevRansomware', v_row."kev_ransomware", 'affectedPurls', to_jsonb(v_row."affected_purls"), 'references', v_row."reference_links", 'publishedAt', v_row."published_at", 'modifiedAt', v_row."modified_at", 'enrichedAt', v_row."enriched_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) from public, anon;
-grant execute on function "better_supabase"."save_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) from public, anon;
+grant execute on function "better_supabase"."upsert_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) to authenticated, service_role;
 
 -- Stores what the vulnerability feed found for a tracked vulnerability: OSV
 -- fields, the EPSS score and the CISA KEV entry. enrichment is { summary,
@@ -731,7 +731,7 @@ grant execute on function "better_supabase"."version_exposure"(uuid, uuid) to au
 -- Sets the product's statement for a vulnerability, for one version or, with a
 -- null version_id, for every version. not_affected needs a justification; the
 -- other statuses take none. affected may carry an action_statement.
-create or replace function "better_supabase"."save_vex_statement"(tenant uuid, product_id uuid, vulnerability_id uuid, status text, version_id uuid default null, justification text default null, impact_statement text default null, action_statement text default null)
+create or replace function "better_supabase"."upsert_vex_statement"(tenant uuid, product_id uuid, vulnerability_id uuid, status text, version_id uuid default null, justification text default null, impact_statement text default null, action_statement text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -747,55 +747,55 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_vex_statement.tenant is not null and coalesce(better_supabase.can('tenant', save_vex_statement.tenant, 'advisories.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_vex_statement.tenant is not null and coalesce(better_supabase.can('tenant', upsert_vex_statement.tenant, 'advisories.write'), false))) then
     raise exception 'not allowed to change advisories' using errcode = '42501', hint = 'ADVISORY_FORBIDDEN';
   end if;
-  if coalesce(save_vex_statement.status, '') not in ('not_affected', 'affected', 'fixed', 'under_investigation') then
+  if coalesce(upsert_vex_statement.status, '') not in ('not_affected', 'affected', 'fixed', 'under_investigation') then
     raise exception 'status must be one of not_affected, affected, fixed, under_investigation' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if save_vex_statement.status = 'not_affected' and (save_vex_statement.justification is null and nullif(trim(save_vex_statement.impact_statement), '') is null) then
+  if upsert_vex_statement.status = 'not_affected' and (upsert_vex_statement.justification is null and nullif(trim(upsert_vex_statement.impact_statement), '') is null) then
     raise exception 'not_affected needs a justification or an impact statement' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if save_vex_statement.justification is not null and (save_vex_statement.status <> 'not_affected' or save_vex_statement.justification not in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')) then
+  if upsert_vex_statement.justification is not null and (upsert_vex_statement.status <> 'not_affected' or upsert_vex_statement.justification not in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')) then
     raise exception 'a justification applies to not_affected and is one of the OpenVEX justifications' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if length(save_vex_statement.impact_statement) > 5000 or length(save_vex_statement.action_statement) > 5000 then
+  if length(upsert_vex_statement.impact_statement) > 5000 or length(upsert_vex_statement.action_statement) > 5000 then
     raise exception 'impact_statement and action_statement are at most 5000 characters' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
   if not exists (
     select 1 from "better_supabase"."advisory_products" y
-    where y."id" = save_vex_statement.product_id and y."tenant_id" = save_vex_statement.tenant
+    where y."id" = upsert_vex_statement.product_id and y."tenant_id" = upsert_vex_statement.tenant
   ) then
     raise exception 'no such product in this organization' using errcode = 'P0002', hint = 'ADVISORY_NOT_FOUND';
   end if;
   select y."vuln_id" into v_vuln from "better_supabase"."vulnerabilities" y
-  where y."id" = save_vex_statement.vulnerability_id and y."tenant_id" = save_vex_statement.tenant;
+  where y."id" = upsert_vex_statement.vulnerability_id and y."tenant_id" = upsert_vex_statement.tenant;
   if not found then
     raise exception 'no such vulnerability in this organization' using errcode = 'P0002', hint = 'ADVISORY_NOT_FOUND';
   end if;
-  if save_vex_statement.version_id is not null and not exists (
+  if upsert_vex_statement.version_id is not null and not exists (
     select 1 from "better_supabase"."advisory_product_versions" y
-    where y."id" = save_vex_statement.version_id and y."tenant_id" = save_vex_statement.tenant
-      and y."product_id" = save_vex_statement.product_id
+    where y."id" = upsert_vex_statement.version_id and y."tenant_id" = upsert_vex_statement.tenant
+      and y."product_id" = upsert_vex_statement.product_id
   ) then
     raise exception 'no such version of this product in this organization' using errcode = 'P0002', hint = 'ADVISORY_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."vex_statements" w
-  where w."tenant_id" = save_vex_statement.tenant and w."product_id" = save_vex_statement.product_id
-    and w."vulnerability_id" = save_vex_statement.vulnerability_id
-    and w."version_id" is not distinct from save_vex_statement.version_id
+  where w."tenant_id" = upsert_vex_statement.tenant and w."product_id" = upsert_vex_statement.product_id
+    and w."vulnerability_id" = upsert_vex_statement.vulnerability_id
+    and w."version_id" is not distinct from upsert_vex_statement.version_id
   for update;
   if v_old."id" is null then
     insert into "better_supabase"."vex_statements" ("tenant_id", "product_id", "version_id", "vulnerability_id", "status", "justification", "impact_statement", "action_statement", "created_by")
-    values (save_vex_statement.tenant, save_vex_statement.product_id, save_vex_statement.version_id, save_vex_statement.vulnerability_id, save_vex_statement.status,
-      save_vex_statement.justification, nullif(trim(save_vex_statement.impact_statement), ''), nullif(trim(save_vex_statement.action_statement), ''), (select auth.uid()))
+    values (upsert_vex_statement.tenant, upsert_vex_statement.product_id, upsert_vex_statement.version_id, upsert_vex_statement.vulnerability_id, upsert_vex_statement.status,
+      upsert_vex_statement.justification, nullif(trim(upsert_vex_statement.impact_statement), ''), nullif(trim(upsert_vex_statement.action_statement), ''), (select auth.uid()))
     returning * into v_row;
   else
     update "better_supabase"."vex_statements" w set
-      "status" = save_vex_statement.status,
-      "justification" = save_vex_statement.justification,
-      "impact_statement" = nullif(trim(save_vex_statement.impact_statement), ''),
-      "action_statement" = nullif(trim(save_vex_statement.action_statement), ''),
+      "status" = upsert_vex_statement.status,
+      "justification" = upsert_vex_statement.justification,
+      "impact_statement" = nullif(trim(upsert_vex_statement.impact_statement), ''),
+      "action_statement" = nullif(trim(upsert_vex_statement.action_statement), ''),
       "updated_at" = now()
     where w."id" = v_old."id"
     returning * into v_row;
@@ -815,8 +815,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'productId', v_row."product_id", 'versionId', v_row."version_id", 'version', v_label, 'vulnerabilityId', v_row."vulnerability_id", 'vulnId', v_vuln, 'status', v_row."status", 'justification', v_row."justification", 'impactStatement', v_row."impact_statement", 'actionStatement', v_row."action_statement", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) to authenticated, service_role;
 
 -- The product's statements, with the vulnerability id and version they name.
 -- With version_id: the ones for that version and for every version.
@@ -847,7 +847,7 @@ grant execute on function "better_supabase"."list_vex_statements"(uuid, uuid, uu
 -- Creates a draft advisory about a product and the vulnerabilities it covers,
 -- or, with advisory_id, changes one. The tracking id (the CSAF tracking.id,
 -- such as ACME-SA-2026-001) can't change after the first publication.
-create or replace function "better_supabase"."save_advisory"(tenant uuid, tracking_id text, title text, summary text, product_id uuid, vulnerability_ids uuid[], severity text default null, advisory_id uuid default null)
+create or replace function "better_supabase"."upsert_advisory"(tenant uuid, tracking_id text, title text, summary text, product_id uuid, vulnerability_ids uuid[], severity text default null, advisory_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -857,21 +857,21 @@ as $$
 declare
   v_row "better_supabase"."advisories";
   v_old "better_supabase"."advisories";
-  v_ids uuid[] := coalesce(save_advisory.vulnerability_ids, '{}'::uuid[]);
+  v_ids uuid[] := coalesce(upsert_advisory.vulnerability_ids, '{}'::uuid[]);
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_advisory.tenant is not null and coalesce(better_supabase.can('tenant', save_advisory.tenant, 'advisories.write'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_advisory.tenant is not null and coalesce(better_supabase.can('tenant', upsert_advisory.tenant, 'advisories.write'), false))) then
     raise exception 'not allowed to change advisories' using errcode = '42501', hint = 'ADVISORY_FORBIDDEN';
   end if;
-  if coalesce(save_advisory.tracking_id, '') !~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$' then
+  if coalesce(upsert_advisory.tracking_id, '') !~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$' then
     raise exception 'tracking_id must be 3 to 100 letters, digits, dots, dashes and underscores' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if coalesce(length(trim(save_advisory.title)), 0) not between 1 and 300 or length(save_advisory.summary) > 10000 then
+  if coalesce(length(trim(upsert_advisory.title)), 0) not between 1 and 300 or length(upsert_advisory.summary) > 10000 then
     raise exception 'title must be 1 to 300 characters and summary at most 10000' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
-  if save_advisory.severity is not null and save_advisory.severity not in ('none', 'low', 'medium', 'high', 'critical') then
+  if upsert_advisory.severity is not null and upsert_advisory.severity not in ('none', 'low', 'medium', 'high', 'critical') then
     raise exception 'severity must be one of none, low, medium, high, critical' using errcode = '22023', hint = 'ADVISORY_INVALID';
   end if;
   if cardinality(v_ids) > 500 then
@@ -879,28 +879,28 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."advisory_products" y
-    where y."id" = save_advisory.product_id and y."tenant_id" = save_advisory.tenant
+    where y."id" = upsert_advisory.product_id and y."tenant_id" = upsert_advisory.tenant
   ) then
     raise exception 'no such product in this organization' using errcode = 'P0002', hint = 'ADVISORY_NOT_FOUND';
   end if;
-  if (select count(*) from "better_supabase"."vulnerabilities" y where y."tenant_id" = save_advisory.tenant and y."id" = any (v_ids))
+  if (select count(*) from "better_supabase"."vulnerabilities" y where y."tenant_id" = upsert_advisory.tenant and y."id" = any (v_ids))
     <> (select count(distinct i) from unnest(v_ids) i) then
     raise exception 'no such vulnerability in this organization' using errcode = 'P0002', hint = 'ADVISORY_NOT_FOUND';
   end if;
-  if save_advisory.advisory_id is not null then
+  if upsert_advisory.advisory_id is not null then
     select * into v_old from "better_supabase"."advisories" y
-    where y."id" = save_advisory.advisory_id and y."tenant_id" = save_advisory.tenant
+    where y."id" = upsert_advisory.advisory_id and y."tenant_id" = upsert_advisory.tenant
     for update;
     if not found then
       raise exception 'no such advisory in this organization' using errcode = 'P0002', hint = 'ADVISORY_NOT_FOUND';
     end if;
-    if v_old."initial_release_at" is not null and v_old."tracking_id" <> save_advisory.tracking_id then
+    if v_old."initial_release_at" is not null and v_old."tracking_id" <> upsert_advisory.tracking_id then
       raise exception 'a published advisory keeps its tracking id' using errcode = '22023', hint = 'ADVISORY_INVALID';
     end if;
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."advisories" ("tenant_id", "tracking_id", "title", "summary", "product_id", "severity", "created_by")
-    values (save_advisory.tenant, save_advisory.tracking_id, trim(save_advisory.title), nullif(trim(save_advisory.summary), ''), save_advisory.product_id, save_advisory.severity, (select auth.uid()))
+    values (upsert_advisory.tenant, upsert_advisory.tracking_id, trim(upsert_advisory.title), nullif(trim(upsert_advisory.summary), ''), upsert_advisory.product_id, upsert_advisory.severity, (select auth.uid()))
     returning * into v_row;
     perform "better_supabase".emit_event('advisory.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'trackingId', v_row."tracking_id", 'title', v_row."title", 'status', v_row."status", 'revision', v_row."revision"), 'advisories/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/advisories');
   perform better_supabase.audit_event(
@@ -915,11 +915,11 @@ begin
   );
   else
     update "better_supabase"."advisories" y set
-      "tracking_id" = save_advisory.tracking_id,
-      "title" = trim(save_advisory.title),
-      "summary" = nullif(trim(save_advisory.summary), ''),
-      "product_id" = save_advisory.product_id,
-      "severity" = save_advisory.severity,
+      "tracking_id" = upsert_advisory.tracking_id,
+      "title" = trim(upsert_advisory.title),
+      "summary" = nullif(trim(upsert_advisory.summary), ''),
+      "product_id" = upsert_advisory.product_id,
+      "severity" = upsert_advisory.severity,
       "updated_at" = now()
     where y."id" = v_old."id"
     returning * into v_row;
@@ -943,8 +943,8 @@ exception when unique_violation then
   raise exception 'another advisory of this organization has this tracking id' using errcode = '22023', hint = 'ADVISORY_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) to authenticated, service_role;
 
 -- Publishes an advisory as interim or final, or publishes a new revision of one
 -- already published. The CSAF document version and revision history advance on
@@ -1829,14 +1829,14 @@ as $$ select "better_supabase"."list_advisory_products"($1) $$;
 revoke execute on function "api"."list_advisory_products"(uuid) from public, anon;
 grant execute on function "api"."list_advisory_products"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_advisory_product"(tenant uuid, key text, name text, vendor text default null, description text default null, archived boolean default null, product_id uuid default null)
+create or replace function "api"."upsert_advisory_product"(tenant uuid, key text, name text, vendor text default null, description text default null, archived boolean default null, product_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_advisory_product"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_advisory_product"(uuid, text, text, text, text, boolean, uuid) from public, anon;
-grant execute on function "api"."save_advisory_product"(uuid, text, text, text, text, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_advisory_product"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_advisory_product"(uuid, text, text, text, text, boolean, uuid) from public, anon;
+grant execute on function "api"."upsert_advisory_product"(uuid, text, text, text, text, boolean, uuid) to authenticated, service_role;
 
 create or replace function "api"."create_product_version"(tenant uuid, product_id uuid, version text, released_at timestamptz default null, end_of_support_at timestamptz default null)
 returns jsonb
@@ -1874,14 +1874,14 @@ as $$ select "better_supabase"."list_sbom_components"($1, $2, $3) $$;
 revoke execute on function "api"."list_sbom_components"(uuid, uuid, integer) from public, anon;
 grant execute on function "api"."list_sbom_components"(uuid, uuid, integer) to authenticated, service_role;
 
-create or replace function "api"."save_vulnerability"(tenant uuid, vuln_id text, summary text default null, details text default null, aliases text[] default null, cvss_vector text default null, cvss_version text default null, cvss_score numeric default null, affected_purls text[] default null)
+create or replace function "api"."upsert_vulnerability"(tenant uuid, vuln_id text, summary text default null, details text default null, aliases text[] default null, cvss_vector text default null, cvss_version text default null, cvss_score numeric default null, affected_purls text[] default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_vulnerability"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) from public, anon;
-grant execute on function "api"."save_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_vulnerability"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) from public, anon;
+grant execute on function "api"."upsert_vulnerability"(uuid, text, text, text, text[], text, text, numeric, text[]) to authenticated, service_role;
 
 create or replace function "api"."record_vulnerability_enrichment"(tenant uuid, vuln_id text, enrichment jsonb)
 returns jsonb
@@ -1919,14 +1919,14 @@ as $$ select "better_supabase"."version_exposure"($1, $2) $$;
 revoke execute on function "api"."version_exposure"(uuid, uuid) from public, anon;
 grant execute on function "api"."version_exposure"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."save_vex_statement"(tenant uuid, product_id uuid, vulnerability_id uuid, status text, version_id uuid default null, justification text default null, impact_statement text default null, action_statement text default null)
+create or replace function "api"."upsert_vex_statement"(tenant uuid, product_id uuid, vulnerability_id uuid, status text, version_id uuid default null, justification text default null, impact_statement text default null, action_statement text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_vex_statement"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) from public, anon;
-grant execute on function "api"."save_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_vex_statement"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) from public, anon;
+grant execute on function "api"."upsert_vex_statement"(uuid, uuid, uuid, text, uuid, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."list_vex_statements"(tenant uuid, product_id uuid, version_id uuid default null)
 returns jsonb
@@ -1937,14 +1937,14 @@ as $$ select "better_supabase"."list_vex_statements"($1, $2, $3) $$;
 revoke execute on function "api"."list_vex_statements"(uuid, uuid, uuid) from public, anon;
 grant execute on function "api"."list_vex_statements"(uuid, uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."save_advisory"(tenant uuid, tracking_id text, title text, summary text, product_id uuid, vulnerability_ids uuid[], severity text default null, advisory_id uuid default null)
+create or replace function "api"."upsert_advisory"(tenant uuid, tracking_id text, title text, summary text, product_id uuid, vulnerability_ids uuid[], severity text default null, advisory_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_advisory"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) from public, anon;
-grant execute on function "api"."save_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_advisory"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) from public, anon;
+grant execute on function "api"."upsert_advisory"(uuid, text, text, text, uuid, uuid[], text, uuid) to authenticated, service_role;
 
 create or replace function "api"."publish_advisory"(tenant uuid, advisory_id uuid, status text default 'final', note text default null)
 returns jsonb

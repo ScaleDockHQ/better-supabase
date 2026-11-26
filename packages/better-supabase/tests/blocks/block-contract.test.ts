@@ -265,8 +265,8 @@ describe("block fields", () => {
 
   it("writes reminder and saved view fields and reads them back", async () => {
     const { call, transport } = fake({
-      save_reminder: () => ({ id: "r1", fields: { region: "eu" } }),
-      save_view: () => ({ id: "v1", rank: "V", fields: { region: "eu" } }),
+      upsert_reminder: () => ({ id: "r1", fields: { region: "eu" } }),
+      upsert_view: () => ({ id: "v1", rank: "V", fields: { region: "eu" } }),
       list_views: () => [
         {
           id: "v1",
@@ -321,7 +321,7 @@ describe("block fields", () => {
 
   it("writes promotion, pipeline and company fields and refuses bad ones", async () => {
     const { call, transport } = fake({
-      save_promotion: () => ({ id: "p1", fields: { region: "eu" } }),
+      upsert_promotion: () => ({ id: "p1", fields: { region: "eu" } }),
       list_pipelines: () => [
         {
           id: "pl1",

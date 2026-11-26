@@ -409,7 +409,7 @@ export function createDeadlines(options: DeadlinesOptions): Deadlines {
   const client: Deadlines = {
     saveRules: (input) =>
       call(
-        "save_rule_version",
+        "upsert_rule_version",
         {
           jurisdiction: input.jurisdiction,
           kind: input.kind,
@@ -419,7 +419,7 @@ export function createDeadlines(options: DeadlinesOptions): Deadlines {
             : { effective_from: input.effectiveFrom.toString() }),
           ...(input.title === undefined ? {} : { title: input.title }),
         },
-        (value) => versionOf(value, "save_rule_version"),
+        (value) => versionOf(value, "upsert_rule_version"),
       ),
     approveRules: (input) =>
       call(

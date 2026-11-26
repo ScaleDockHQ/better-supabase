@@ -26,7 +26,7 @@ import type { PlanOption } from "../billing-queries";
 
 import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
-async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
+async function getCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
 
   if (!result.ok) {
@@ -53,7 +53,7 @@ export function PlanPicker({
   const errorMessage = useErrorMessage();
 
   const { plans, current, pending, choose } = usePlanPicker({
-    load: loadCatalog,
+    load: getCatalog,
     initial,
     checkout: (plan) => startCheckout({ plan }),
     open: (url) => {

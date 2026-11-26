@@ -284,7 +284,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       const { owner, chat } = await setUp(s);
       await s.service();
       expect(
-        await s.value("better_supabase.load_ai_harness_session($1, 'claude')", [
+        await s.value("better_supabase.get_ai_harness_session($1, 'claude')", [
           chat,
         ]),
       ).toBeNull();
@@ -308,7 +308,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       ).toBe(true);
       expect(
         await s.hint(
-          "better_supabase.save_ai_harness_session($1, 'claude', $2, 'turn-2')",
+          "better_supabase.upsert_ai_harness_session($1, 'claude', $2, 'turn-2')",
           [chat, { sandbox_id: "sbx_1" }],
         ),
       ).toBe("AI_HARNESS_LOCKED");
@@ -319,26 +319,26 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         ),
       ).toBe("AI_HARNESS_INVALID");
       expect(
-        await s.hint("better_supabase.save_ai_harness_session($1, '', $2)", [
+        await s.hint("better_supabase.upsert_ai_harness_session($1, '', $2)", [
           chat,
           {},
         ]),
       ).toBe("AI_HARNESS_INVALID");
       expect(
         await s.hint(
-          "better_supabase.save_ai_harness_session($1, 'claude', $2, 'turn-1')",
+          "better_supabase.upsert_ai_harness_session($1, 'claude', $2, 'turn-1')",
           [chat, { status: "paused" }],
         ),
       ).toBe("AI_HARNESS_INVALID");
       expect(
         await s.hint(
-          "better_supabase.save_ai_harness_session($1, 'claude', $2)",
+          "better_supabase.upsert_ai_harness_session($1, 'claude', $2)",
           [crypto.randomUUID(), {}],
         ),
       ).toBe("AI_CHAT_NOT_FOUND");
 
       const saved = await s.value<Record<string, unknown>>(
-        "better_supabase.save_ai_harness_session($1, 'claude', $2, 'turn-1')",
+        "better_supabase.upsert_ai_harness_session($1, 'claude', $2, 'turn-1')",
         [chat, { sandbox_id: "sbx_1", resume_state: { session: "abc" } }],
       );
 
@@ -352,7 +352,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       });
 
       const patched = await s.value<Record<string, unknown>>(
-        "better_supabase.save_ai_harness_session($1, 'claude', $2, 'turn-1')",
+        "better_supabase.upsert_ai_harness_session($1, 'claude', $2, 'turn-1')",
         [chat, { continue_state: { cursor: 2 } }],
       );
 
@@ -394,8 +394,8 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       await s.as(owner);
 
       for (const call of [
-        "better_supabase.load_ai_harness_session($1, 'claude')",
-        "better_supabase.save_ai_harness_session($1, 'claude', '{}')",
+        "better_supabase.get_ai_harness_session($1, 'claude')",
+        "better_supabase.upsert_ai_harness_session($1, 'claude', '{}')",
         "better_supabase.lock_ai_harness_session($1, 'claude', 'me')",
         "better_supabase.unlock_ai_harness_session($1, 'claude', 'me')",
       ]) {

@@ -16,7 +16,7 @@ set local role authenticated;
 
 select set_config(
   't.pipeline',
-  (better_supabase.save_pipeline('00000000-0000-4000-8000-000000000001', null, 'deal', 'restore_me', 'Restore me', null, false) ->> 'id'),
+  (better_supabase.upsert_pipeline('00000000-0000-4000-8000-000000000001', null, 'deal', 'restore_me', 'Restore me', null, false) ->> 'id'),
   true
 );
 select better_supabase.archive_pipeline(current_setting('t.pipeline')::uuid);

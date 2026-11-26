@@ -2,10 +2,9 @@
 
 import { ok } from "better-supabase";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { SIGNING_KEYS_TAG } from "./signing-keys-cache";
 import {
   organizationOwner,
   SIGNING_KEYS_PERMISSION,
@@ -18,8 +17,13 @@ import {
  * (Ed25519).
  */
 export const rotateSigningKey = bsbCore.action(
-  { requireTenant: true, permission: SIGNING_KEYS_PERMISSION },
-  async (_input, { tenant, auth }) => {
+  {
+    requireTenant: true,
+    permission: SIGNING_KEYS_PERMISSION,
+    tags: () => [tags.signingKeys()],
+    refresh: true,
+  },
+  async (_input, { tenant }) => {
     const rotated = await signingKeys().rotate({
       owner: organizationOwner(tenant),
     });
@@ -27,8 +31,6 @@ export const rotateSigningKey = bsbCore.action(
     if (!rotated.ok) {
       return rotated;
     }
-
-    await refreshCaller(auth, [SIGNING_KEYS_TAG]);
 
     return ok({ kid: rotated.data.kid, retired: rotated.data.retired });
   },

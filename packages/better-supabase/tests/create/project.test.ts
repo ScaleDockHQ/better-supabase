@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Issue, Project } from "../../src/create/index.ts";
 
-import { checkProject, loadProject } from "../../src/create/index.ts";
+import { checkProject, getProject } from "../../src/create/index.ts";
 
 const design = {
   appTables: {
@@ -11,7 +11,7 @@ const design = {
 };
 
 async function projectOf(input: unknown): Promise<Project> {
-  const loaded = await loadProject(input);
+  const loaded = await getProject(input);
 
   if (!loaded.ok) {
     throw new Error(JSON.stringify(loaded.issues));
@@ -21,12 +21,12 @@ async function projectOf(input: unknown): Promise<Project> {
 }
 
 async function issuesOf(input: unknown): Promise<readonly Issue[]> {
-  const loaded = await loadProject(input);
+  const loaded = await getProject(input);
 
   return loaded.ok ? [] : loaded.issues;
 }
 
-describe("loadProject", () => {
+describe("getProject", () => {
   it("reads a design object with the preset inside it", async () => {
     const project = await projectOf({ ...design, preset: "saas" });
 

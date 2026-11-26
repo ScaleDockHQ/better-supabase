@@ -59,7 +59,7 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
     await session.as(owner);
 
     const product = await call<{ id: string }>(
-      "better_supabase.save_product($1, null, 'Tee', null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, 'Tee', null, null, 'physical')",
       [tenant],
     );
 
@@ -68,7 +68,7 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
     ]);
     tee = (
       await call<{ id: string }>(
-        "better_supabase.save_variant($1, null, 'TEE', '{}'::uuid[], null, null, 200, false, false)",
+        "better_supabase.upsert_variant($1, null, 'TEE', '{}'::uuid[], null, null, 200, false, false)",
         [product.id],
       )
     ).id;

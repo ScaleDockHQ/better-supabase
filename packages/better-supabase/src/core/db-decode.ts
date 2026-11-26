@@ -5,7 +5,7 @@ import type { Result } from "./result.ts";
 import { builderFor } from "../ir/build.ts";
 import { decodeRows } from "../ir/codec.ts";
 import { addLazyTable } from "../schema/define.ts";
-import { loadReachedTables } from "./define-lazy.ts";
+import { getReachedTables } from "./define-lazy.ts";
 import { DbException, dbError } from "./errors.ts";
 import { isRecord } from "./guards.ts";
 import { AsyncResult, err, ok } from "./result.ts";
@@ -51,7 +51,7 @@ function aliased(
  * timestamps to `Temporal`).
  */
 export function dbDecoder<T>(meta: SchemaMeta, table: string): DbDecoder<T> {
-  if (!meta.tables[table] && !meta.tableLoaders?.[table]) {
+  if (!meta.tables[table] && !meta.tableGetters?.[table]) {
     throw new TypeError(`better-supabase: $decode: unknown table "${table}"`);
   }
 
@@ -60,7 +60,7 @@ export function dbDecoder<T>(meta: SchemaMeta, table: string): DbDecoder<T> {
     read: (decoder: LoadedDecoder<T>) => Result<R>,
   ): AsyncResult<R> =>
     AsyncResult.from(async () => {
-      await loadReachedTables(meta, table, value, (loaded) => {
+      await getReachedTables(meta, table, value, (loaded) => {
         addLazyTable(meta, loaded);
       });
 

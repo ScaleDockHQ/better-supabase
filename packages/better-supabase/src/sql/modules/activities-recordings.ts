@@ -190,16 +190,16 @@ export function recordingsSql(
 
   const noted = (
     [
-      ["activity", "save_activity_notes.activity"],
+      ["activity", "upsert_activity_notes.activity"],
       ["tenant", "v_tenant"],
       ["summary", "v_summary"],
-      ["model", "nullif(save_activity_notes.notes ->> 'model', '')"],
+      ["model", "nullif(upsert_activity_notes.notes ->> 'model', '')"],
       [
         "source",
         ctx.cast(
           "notes",
           "source",
-          "case when save_activity_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end",
+          "case when upsert_activity_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end",
         ),
       ],
       ["createdBy", "auth.uid()"],
@@ -235,7 +235,7 @@ export function recordingsSql(
       : `for v_item in select i.value from jsonb_array_elements(v_items) i loop
     if not exists (
       select 1 from ${t("actions")} ax join ${tasks.table("items")} k on k.${tasks.col("items", "id")} = ax.${a("task")}
-      where ax.${a("activity")} = save_activity_notes.activity and k.${tasks.col("items", "title")} = left(btrim(v_item ->> 'text'), 500)
+      where ax.${a("activity")} = upsert_activity_notes.activity and k.${tasks.col("items", "title")} = left(btrim(v_item ->> 'text'), 500)
     ) then
       v_task := (${tasks.fn("create_task")}(
         v_tenant,
@@ -243,7 +243,7 @@ export function recordingsSql(
         case when nullif(v_item ->> 'ownerId', '') is null then '{}'::uuid[] else array[(v_item ->> 'ownerId')::uuid] end
       ) ->> 'id')::uuid;
       insert into ${t("actions")} (${a("tenant")}, ${a("activity")}, ${a("task")})
-      values (v_tenant, save_activity_notes.activity, v_task);
+      values (v_tenant, upsert_activity_notes.activity, v_task);
     end if;
   end loop;`;
 
@@ -436,14 +436,14 @@ ${userGrant(`${fn("activity_transcript")}(uuid, integer, integer)`)}
 -- startMs, endMs, text, confidence }] in order, attrs { language,
 -- durationSeconds, model }. The service role (a transcription job) and
 -- whoever may edit the activity may save one.
-create or replace function ${fn("save_activity_transcript")}(recording uuid, segments jsonb, attrs jsonb)
+create or replace function ${fn("upsert_activity_transcript")}(recording uuid, segments jsonb, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_recording uuid := save_activity_transcript.recording;
+  v_recording uuid := upsert_activity_transcript.recording;
   v_activity uuid;
   v_tenant ${ctx.idType};
   v_type text;
@@ -460,11 +460,11 @@ begin
   if v_activity is null then
     ${fail("ACTIVITY_RECORDING_NOT_FOUND", "no such recording you can edit", "P0002")}
   end if;
-  if jsonb_typeof(save_activity_transcript.segments) is distinct from 'array'
-    or jsonb_array_length(save_activity_transcript.segments) > ${MAX_SEGMENTS} then
+  if jsonb_typeof(upsert_activity_transcript.segments) is distinct from 'array'
+    or jsonb_array_length(upsert_activity_transcript.segments) > ${MAX_SEGMENTS} then
     ${fail("ACTIVITY_TRANSCRIPT_INVALID", `segments must be a list of at most ${MAX_SEGMENTS} { startMs, endMs, text }`, "22023")}
   end if;
-  for v_item, v_position in select value, ordinality from jsonb_array_elements(save_activity_transcript.segments) with ordinality loop
+  for v_item, v_position in select value, ordinality from jsonb_array_elements(upsert_activity_transcript.segments) with ordinality loop
     if jsonb_typeof(v_item) is distinct from 'object'
       or jsonb_typeof(v_item -> 'text') is distinct from 'string'
       or jsonb_typeof(v_item -> 'startMs') is distinct from 'number'
@@ -478,16 +478,16 @@ begin
   delete from ${t("segments")} sx where sx.${s("recording")} = v_recording;
   insert into ${t("segments")} (${segmented.map(([column]) => s(column)).join(", ")})
   select ${segmented.map(([, value]) => value).join(", ")}
-  from jsonb_array_elements(save_activity_transcript.segments) with ordinality i;
+  from jsonb_array_elements(upsert_activity_transcript.segments) with ordinality i;
   update ${t("recordings")} rx set
-    ${r("status")} = 'transcribed'${set("recordings", "error", "null")}${set("recordings", "language", `coalesce(nullif(save_activity_transcript.attrs ->> 'language', ''), ${field("recordings", "rx", "language")})`)}${set("recordings", "durationSeconds", `coalesce((save_activity_transcript.attrs ->> 'durationSeconds')::integer, ${field("recordings", "rx", "durationSeconds")})`)}${set("recordings", "model", `coalesce(nullif(save_activity_transcript.attrs ->> 'model', ''), ${field("recordings", "rx", "model")})`)}${set("recordings", "transcribedAt", "now()")}
+    ${r("status")} = 'transcribed'${set("recordings", "error", "null")}${set("recordings", "language", `coalesce(nullif(upsert_activity_transcript.attrs ->> 'language', ''), ${field("recordings", "rx", "language")})`)}${set("recordings", "durationSeconds", `coalesce((upsert_activity_transcript.attrs ->> 'durationSeconds')::integer, ${field("recordings", "rx", "durationSeconds")})`)}${set("recordings", "model", `coalesce(nullif(upsert_activity_transcript.attrs ->> 'model', ''), ${field("recordings", "rx", "model")})`)}${set("recordings", "transcribedAt", "now()")}
   where rx.${r("id")} = v_recording;
   ${loadSubjects("v_activity")}
-  ${record("activity.transcribed", "v_activity", "v_type", "v_tenant", recordingPayload("v_recording"), "'activity.transcribed:' || v_recording::text || ':' || md5(save_activity_transcript.segments::text)")}
+  ${record("activity.transcribed", "v_activity", "v_type", "v_tenant", recordingPayload("v_recording"), "'activity.transcribed:' || v_recording::text || ':' || md5(upsert_activity_transcript.segments::text)")}
   return ${oneRecording("v_recording")};
 end;
 $$;
-${userGrant(`${fn("save_activity_transcript")}(uuid, jsonb, jsonb)`)}
+${userGrant(`${fn("upsert_activity_transcript")}(uuid, jsonb, jsonb)`)}
 
 -- Marks a recording failed with the transcriber's error. Service only.
 create or replace function ${fn("fail_activity_recording")}(recording uuid, error text)
@@ -534,7 +534,7 @@ ${serviceGrant(`${fn("pending_activity_recordings")}(integer)`)}
 -- ownerId, dueAt }], model, source }. Replaces earlier notes. Each action item
 -- becomes a task through the tasks block, unless the activity already has a
 -- task with that title; without the tasks block action items are refused.
-create or replace function ${fn("save_activity_notes")}(activity uuid, notes jsonb)
+create or replace function ${fn("upsert_activity_notes")}(activity uuid, notes jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -543,15 +543,15 @@ as $$
 declare
   v_tenant ${ctx.idType};
   v_type text;
-  v_summary text := nullif(trim(save_activity_notes.notes ->> 'summary'), '');
-  v_items jsonb := coalesce(save_activity_notes.notes -> 'actionItems', '[]'::jsonb);
+  v_summary text := nullif(trim(upsert_activity_notes.notes ->> 'summary'), '');
+  v_items jsonb := coalesce(upsert_activity_notes.notes -> 'actionItems', '[]'::jsonb);
   v_subjects jsonb;
   v_first jsonb;
   v_item jsonb;
   v_task uuid;
 begin
   select x.${e("tenant")}, x.${e("type")} into v_tenant, v_type
-  from ${t("activities")} x where x.${e("id")} = save_activity_notes.activity and ${editable("x")};
+  from ${t("activities")} x where x.${e("id")} = upsert_activity_notes.activity and ${editable("x")};
   if v_tenant is null then
     ${fail("ACTIVITY_NOT_FOUND", "no such activity you can edit", "P0002")}
   end if;
@@ -576,12 +576,12 @@ begin
       ...(ctx.has("notes", "updatedAt") ? [`${n("updatedAt")} = now()`] : []),
     ].join(", ")};
   ${actionTasks}
-  ${loadSubjects("save_activity_notes.activity")}
-  ${record("activity.summarized", "save_activity_notes.activity", "v_type", "v_tenant", "", "'activity.summarized:' || save_activity_notes.activity::text || ':' || md5(save_activity_notes.notes::text)")}
-  return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("activity")} = save_activity_notes.activity);
+  ${loadSubjects("upsert_activity_notes.activity")}
+  ${record("activity.summarized", "upsert_activity_notes.activity", "v_type", "v_tenant", "", "'activity.summarized:' || upsert_activity_notes.activity::text || ':' || md5(upsert_activity_notes.notes::text)")}
+  return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("activity")} = upsert_activity_notes.activity);
 end;
 $$;
-${userGrant(`${fn("save_activity_notes")}(uuid, jsonb)`)}
+${userGrant(`${fn("upsert_activity_notes")}(uuid, jsonb)`)}
 
 -- An activity with the transcripts of its recordings in order, for a note
 -- taker: { activity, segments: [{ recordingId, position, ... }] }. Null
@@ -637,7 +637,7 @@ export function recordingsContract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_activity_transcript",
+      name: "upsert_activity_transcript",
       args: ["uuid", "jsonb", "jsonb"],
       returns: "jsonb",
     },
@@ -651,7 +651,11 @@ export function recordingsContract(): readonly BlockSqlContractFunction[] {
       args: ["integer"],
       returns: "uuid[]",
     },
-    { name: "save_activity_notes", args: ["uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "upsert_activity_notes",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
     { name: "activity_notes", args: ["uuid"], returns: "jsonb" },
     { name: "activity_with_transcripts", args: ["uuid"], returns: "jsonb" },
   ];

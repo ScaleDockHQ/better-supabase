@@ -83,7 +83,7 @@ export function inboxDraftFunctions(q: InboxSql): string {
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
 
-  const loadConversation = (
+  const getConversation = (
     param: string,
   ): string => `select * into v_conv from ${T("conversations")} where ${cv("id")} = ${param};
   if not found then
@@ -96,7 +96,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
 
   // An open draft the caller may act on: their own, or an ai draft in a
   // tenant where they can reply; the service role acts on every draft.
-  const loadDraft = (
+  const getDraft = (
     param: string,
   ): string => `select * into v_row from ${T("drafts")} where ${dr("id")} = ${param} for update;
   if not found or v_row.${dr("status")} <> 'draft' or not (${q.service} or ((v_row.${dr("author")} = (select auth.uid()) or v_row.${dr("source")} = 'ai') and ${q.can(`v_row.${dr("tenant")}`, "reply")})) then
@@ -150,7 +150,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
   return `-- Saves the caller's draft reply on a conversation: the one open draft is
 -- replaced, else a new one starts. The input is the one send_inbox_message
 -- takes, without the service's fields; an empty body is fine until it sends.
-create or replace function ${fn("save_inbox_draft")}(conversation uuid, input jsonb, metadata jsonb default null)
+create or replace function ${fn("upsert_inbox_draft")}(conversation uuid, input jsonb, metadata jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -159,9 +159,9 @@ as $$
 declare
   v_conv ${T("conversations")}%rowtype;
   v_row ${T("drafts")}%rowtype;
-  v_input jsonb := coalesce(input, '{}'::jsonb) ${STRIPPED};${metadataDeclare("save_inbox_draft.metadata")}
+  v_input jsonb := coalesce(input, '{}'::jsonb) ${STRIPPED};${metadataDeclare("upsert_inbox_draft.metadata")}
 begin
-  ${loadConversation("save_inbox_draft.conversation")}
+  ${getConversation("upsert_inbox_draft.conversation")}
   if (select auth.uid()) is null or not ${q.command(`v_conv.${cv("tenant")}`, "reply", "reply")} then
     ${forbidden("not allowed to reply in this conversation")}
   end if;
@@ -176,7 +176,7 @@ begin
   return ${q.json("drafts", "v_row")};
 end;
 $$;
-${authed(`${fn("save_inbox_draft")}(uuid, jsonb, jsonb)`)}
+${authed(`${fn("upsert_inbox_draft")}(uuid, jsonb, jsonb)`)}
 
 -- Adds an ai draft to a conversation for its staff to review. The service
 -- role only: the model runs on the server.
@@ -191,7 +191,7 @@ declare
   v_row ${T("drafts")}%rowtype;
   v_input jsonb := coalesce(input, '{}'::jsonb) ${STRIPPED};${metadataDeclare("suggest_inbox_draft.metadata")}
 begin
-  ${loadConversation("suggest_inbox_draft.conversation")}
+  ${getConversation("suggest_inbox_draft.conversation")}
   ${checkBody}${metadataCheck}
   ${aiKeyLookup}${insertColumns("'ai'", "null")}
   return ${q.json("drafts", "v_row")};
@@ -226,7 +226,7 @@ declare
   v_row ${T("drafts")}%rowtype;
   v_message jsonb;
 begin
-  ${loadDraft("send_inbox_draft.draft")}
+  ${getDraft("send_inbox_draft.draft")}
   v_message := ${fn("send_inbox_message")}(v_row.${dr("conversation")}, v_row.${dr("input")} || (coalesce(send_inbox_draft.input, '{}'::jsonb) ${STRIPPED}));
   update ${T("drafts")} set ${dr("status")} = 'sent' where ${dr("id")} = v_row.${dr("id")};
   return v_message;
@@ -244,7 +244,7 @@ as $$
 declare
   v_row ${T("drafts")}%rowtype;
 begin
-  ${loadDraft("discard_inbox_draft.draft")}
+  ${getDraft("discard_inbox_draft.draft")}
   update ${T("drafts")} set ${dr("status")} = 'discarded' where ${dr("id")} = v_row.${dr("id")};
   return true;
 end;

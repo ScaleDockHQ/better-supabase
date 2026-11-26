@@ -25,7 +25,7 @@ import {
 import { Link } from "@/i18n/navigation";
 
 import { cancelPrescription, signPrescription } from "../e-prescribing-actions";
-import { loadPrescription } from "../e-prescribing-queries";
+import { getPrescription } from "../e-prescribing-queries";
 
 export function PrescriptionDetailSkeleton() {
   return <Skeleton className="h-72 rounded-xl" aria-busy="true" />;
@@ -40,7 +40,7 @@ export async function PrescriptionDetail({ id }: { id: string }) {
 
   const [t, loaded, fmtDate, canSign, canCancel] = await Promise.all([
     getExtracted("prescriptions"),
-    settle(() => loadPrescription(id)),
+    settle(() => getPrescription(id)),
     dateFormatter(),
     holds("e_prescribing.sign"),
     holds("e_prescribing.write"),

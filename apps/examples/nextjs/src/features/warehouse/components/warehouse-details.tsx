@@ -31,13 +31,13 @@ import {
   transitionWave,
 } from "../warehouse-actions";
 import {
-  loadCountPlans,
-  loadLookups,
+  getCountPlans,
+  getLookups,
   loadPickList,
-  loadWavePickLists,
-  loadPutawayRules,
-  loadVariance,
-  loadWaves,
+  getWavePickLists,
+  getPutawayRules,
+  getVariance,
+  getWaves,
 } from "../warehouse-queries";
 import { pickStatusLabels, waveStatusLabels } from "./warehouse-overviews";
 
@@ -46,7 +46,7 @@ export function WarehouseDetailSkeleton() {
 }
 
 async function lookups() {
-  const loaded = await settle(loadLookups);
+  const loaded = await settle(getLookups);
   const data = loaded.kind === "ok" ? loaded.data : undefined;
 
   return {
@@ -234,8 +234,8 @@ export async function WaveDetail({ id }: { id: string }) {
   const [t, waves, lists, fmtDate, lookup, statuses, listStatuses, canManage] =
     await Promise.all([
       getExtracted("warehouse"),
-      settle(loadWaves),
-      settle(() => loadWavePickLists(id)),
+      settle(getWaves),
+      settle(() => getWavePickLists(id)),
       dateFormatter(),
       lookups(),
       waveStatusLabels(),
@@ -339,7 +339,7 @@ export async function RuleDetail({ id }: { id: string }) {
 
   const [t, loaded, lookup, canManage] = await Promise.all([
     getExtracted("warehouse"),
-    settle(loadPutawayRules),
+    settle(getPutawayRules),
     lookups(),
     holds("warehouse.manage"),
   ]);
@@ -405,7 +405,7 @@ export async function CountPlanDetail({ id }: { id: string }) {
 
   const [t, loaded, fmtDate, lookup, canManage] = await Promise.all([
     getExtracted("warehouse"),
-    settle(loadCountPlans),
+    settle(getCountPlans),
     dateFormatter(),
     lookups(),
     holds("warehouse.manage"),
@@ -426,7 +426,7 @@ export async function CountPlanDetail({ id }: { id: string }) {
   }
 
   const variance = plan.lastCountId
-    ? await settle(() => loadVariance(plan.lastCountId ?? ""))
+    ? await settle(() => getVariance(plan.lastCountId ?? ""))
     : undefined;
 
   const checked = variance?.kind === "ok" ? variance.data : undefined;

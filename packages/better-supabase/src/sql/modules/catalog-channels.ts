@@ -263,7 +263,7 @@ export function channelStorefrontTables(
 }
 
 /** Grants a read function to the storefront's `anon` as well. */
-const readGrant = (signature: string): string =>
+const getGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public;
 grant execute on function ${signature} to anon, authenticated, service_role;`;
 
@@ -287,19 +287,19 @@ function channelFunctions(ctx: BlockSqlContext, names: Names): string {
   ];
 
   const values = [
-    "save_catalog_channel.key",
-    "save_catalog_channel.name",
-    ...(currency ? ["save_catalog_channel.currency"] : []),
-    ...(lists ? ["save_catalog_channel.price_list"] : []),
-    "coalesce(save_catalog_channel.active, true)",
+    "upsert_catalog_channel.key",
+    "upsert_catalog_channel.name",
+    ...(currency ? ["upsert_catalog_channel.currency"] : []),
+    ...(lists ? ["upsert_catalog_channel.price_list"] : []),
+    "coalesce(upsert_catalog_channel.active, true)",
   ];
 
   const sets = [
-    `${k("key")} = save_catalog_channel.key`,
-    `${k("name")} = save_catalog_channel.name`,
-    ...(currency ? [`${k("currency")} = save_catalog_channel.currency`] : []),
-    ...(lists ? [`${k("priceList")} = save_catalog_channel.price_list`] : []),
-    `${k("active")} = coalesce(save_catalog_channel.active, x.${k("active")})`,
+    `${k("key")} = upsert_catalog_channel.key`,
+    `${k("name")} = upsert_catalog_channel.name`,
+    ...(currency ? [`${k("currency")} = upsert_catalog_channel.currency`] : []),
+    ...(lists ? [`${k("priceList")} = upsert_catalog_channel.price_list`] : []),
+    `${k("active")} = coalesce(upsert_catalog_channel.active, x.${k("active")})`,
     `${k("updatedAt")} = now()`,
   ];
 
@@ -323,7 +323,7 @@ as $$
   from ${channels} k
   where k.${k("id")} = $1 and k.${k("currency")} is not null
 $$;
-${readGrant(`${fn("channel_price")}(uuid, uuid, timestamptz)`)}
+${getGrant(`${fn("channel_price")}(uuid, uuid, timestamptz)`)}
 `
     : "";
 
@@ -331,7 +331,7 @@ ${readGrant(`${fn("channel_price")}(uuid, uuid, timestamptz)`)}
 -- Creates a sales channel (channel null) or updates one. A channel has a
 -- key, unique per organization, and optionally a currency and a price list
 -- its prices come from.
-create or replace function ${fn("save_catalog_channel")}(tenant ${ctx.idType}, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+create or replace function ${fn("upsert_catalog_channel")}(tenant ${ctx.idType}, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -339,23 +339,23 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := save_catalog_channel.channel;
+  v_id uuid := upsert_catalog_channel.channel;
   v_active boolean;
 begin
-  ${guard(names, "save_catalog_channel.tenant")}
-  if save_catalog_channel.key is null or save_catalog_channel.key !~ ${SLUG} then
+  ${guard(names, "upsert_catalog_channel.tenant")}
+  if upsert_catalog_channel.key is null or upsert_catalog_channel.key !~ ${SLUG} then
     ${fail("CATALOG_CHANNEL_KEY_INVALID", "the channel key must be lower-case letters, digits and hyphens", "22023")}
   end if;
-  if save_catalog_channel.currency is not null and ${
+  if upsert_catalog_channel.currency is not null and ${
     currency
-      ? `${fn("currency_minor_units")}(save_catalog_channel.currency) is null`
+      ? `${fn("currency_minor_units")}(upsert_catalog_channel.currency) is null`
       : "true"
   } then
     ${fail("CATALOG_CURRENCY_INVALID", currency ? "not an ISO 4217 currency code" : "this catalog's channels have no currency", "22023")}
   end if;
-  if save_catalog_channel.price_list is not null and ${
+  if upsert_catalog_channel.price_list is not null and ${
     lists
-      ? `not exists (select 1 from ${priceLists} x where x.${pl("id")} = save_catalog_channel.price_list and x.${pl("tenant")} = save_catalog_channel.tenant)`
+      ? `not exists (select 1 from ${priceLists} x where x.${pl("id")} = upsert_catalog_channel.price_list and x.${pl("tenant")} = upsert_catalog_channel.tenant)`
       : "true"
   } then
     ${fail("CATALOG_PRICE_LIST_NOT_FOUND", "price list not found", "P0002")}
@@ -363,11 +363,11 @@ begin
   begin
     if v_id is null then
       insert into ${channels} as x (${k("tenant")}, ${columns.join(", ")})
-      values (save_catalog_channel.tenant, ${values.join(", ")})
+      values (upsert_catalog_channel.tenant, ${values.join(", ")})
       returning x.${k("id")}, x.${k("active")} into v_id, v_active;
     else
       update ${channels} x set ${sets.join(", ")}
-      where x.${k("id")} = v_id and x.${k("tenant")} = save_catalog_channel.tenant
+      where x.${k("id")} = v_id and x.${k("tenant")} = upsert_catalog_channel.tenant
       returning x.${k("active")} into v_active;
       if not found then
         ${fail("CATALOG_CHANNEL_NOT_FOUND", "channel not found", "P0002")}
@@ -376,10 +376,10 @@ begin
   exception when unique_violation then
     ${fail("CATALOG_CHANNEL_TAKEN", "another channel has this key", "23505")}
   end;
-  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+  return jsonb_build_object('id', v_id, 'key', upsert_catalog_channel.key, 'active', v_active);
 end;
 $$;
-${userGrant(`${fn("save_catalog_channel")}(${ctx.idType}, uuid, text, text, text, uuid, boolean)`)}
+${userGrant(`${fn("upsert_catalog_channel")}(${ctx.idType}, uuid, text, text, text, uuid, boolean)`)}
 
 -- Deletes a channel and its listings.
 create or replace function ${fn("delete_catalog_channel")}(channel uuid)
@@ -514,7 +514,7 @@ as $$
     limit ${pageSize("$3", 100, 500)}
   ) items
 $$;
-${readGrant(`${fn("channel_products")}(uuid, text, integer, text, boolean)`)}
+${getGrant(`${fn("channel_products")}(uuid, text, integer, text, boolean)`)}
 `;
 }
 
@@ -668,7 +668,7 @@ as $$
   }
   where p.${p("id")} = $1
 $$;
-${readGrant(`${fn("product_text")}(uuid, text)`)}
+${getGrant(`${fn("product_text")}(uuid, text)`)}
 `;
 }
 
@@ -719,7 +719,7 @@ function mediaFunctions(ctx: BlockSqlContext, names: Names): string {
 -- Adds a file to a product's media, last. The attachment must belong to the
 -- product or one of its variants. variant shows it for one variant; alt
 -- maps configured locales to alt text.
-create or replace function ${fn("add_product_media")}(product uuid, attachment uuid, variant uuid, alt jsonb)
+create or replace function ${fn("create_product_media")}(product uuid, attachment uuid, variant uuid, alt jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -730,28 +730,28 @@ declare
   v_position integer;
   v_id uuid;
 begin
-  select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = add_product_media.product for update;
+  select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = create_product_media.product for update;
   if v_tenant is null then
     ${fail("CATALOG_PRODUCT_NOT_FOUND", "product not found", "P0002")}
   end if;
   ${guard(names, "v_tenant")}
-  ${variantCheck("add_product_media.variant", "add_product_media.product")}
+  ${variantCheck("create_product_media.variant", "create_product_media.product")}
   if not exists (
     select 1 from ${at.table("attachments")} f
-    where f.${a("id")} = add_product_media.attachment
+    where f.${a("id")} = create_product_media.attachment
       and f.${a("tenant")} = v_tenant
       and (
-        (f.${a("subjectType")} = ${productType} and f.${a("subjectId")} = add_product_media.product::text)
-        or (f.${a("subjectType")} = ${variantType} and f.${a("subjectId")} in (select w.${v("id")}::text from ${variants} w where w.${v("product")} = add_product_media.product))
+        (f.${a("subjectType")} = ${productType} and f.${a("subjectId")} = create_product_media.product::text)
+        or (f.${a("subjectType")} = ${variantType} and f.${a("subjectId")} in (select w.${v("id")}::text from ${variants} w where w.${v("product")} = create_product_media.product))
       )
   ) then
     ${fail("CATALOG_MEDIA_ATTACHMENT_NOT_FOUND", "attach the file to the product or one of its variants first", "P0002")}
   end if;
-  ${altCheck("add_product_media.alt")}
-  select coalesce(max(x.${m("position")}) + 1, 0) into v_position from ${media} x where x.${m("product")} = add_product_media.product;
+  ${altCheck("create_product_media.alt")}
+  select coalesce(max(x.${m("position")}) + 1, 0) into v_position from ${media} x where x.${m("product")} = create_product_media.product;
   begin
     insert into ${media} (${m("tenant")}, ${m("product")}, ${m("variant")}, ${m("attachment")}, ${m("position")}, ${m("alt")})
-    values (v_tenant, add_product_media.product, add_product_media.variant, add_product_media.attachment, v_position, coalesce(add_product_media.alt, '{}'::jsonb))
+    values (v_tenant, create_product_media.product, create_product_media.variant, create_product_media.attachment, v_position, coalesce(create_product_media.alt, '{}'::jsonb))
     returning ${m("id")} into v_id;
   exception when unique_violation then
     ${fail("CATALOG_MEDIA_TAKEN", "the file is already in the product's media", "23505")}
@@ -759,7 +759,7 @@ begin
   return jsonb_build_object('id', v_id, 'position', v_position);
 end;
 $$;
-${userGrant(`${fn("add_product_media")}(uuid, uuid, uuid, jsonb)`)}
+${userGrant(`${fn("create_product_media")}(uuid, uuid, uuid, jsonb)`)}
 
 -- Replaces a media item's variant and alt text.
 create or replace function ${fn("update_product_media")}(media uuid, variant uuid, alt jsonb)
@@ -817,7 +817,7 @@ $$;
 ${userGrant(`${fn("reorder_product_media")}(uuid, uuid[])`)}
 
 -- Removes a media item (the attachment stays) and closes the gap.
-create or replace function ${fn("remove_product_media")}(media uuid)
+create or replace function ${fn("delete_product_media")}(media uuid)
 returns boolean
 language plpgsql
 security definer
@@ -827,17 +827,17 @@ declare
   v_tenant ${ctx.idType};
   v_product uuid;
 begin
-  select x.${m("tenant")}, x.${m("product")} into v_tenant, v_product from ${media} x where x.${m("id")} = remove_product_media.media;
+  select x.${m("tenant")}, x.${m("product")} into v_tenant, v_product from ${media} x where x.${m("id")} = delete_product_media.media;
   if v_tenant is null then
     return false;
   end if;
   ${guard(names, "v_tenant")}
-  delete from ${media} x where x.${m("id")} = remove_product_media.media;
+  delete from ${media} x where x.${m("id")} = delete_product_media.media;
   ${compact("v_product")}
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_product_media")}(uuid)`)}
+${userGrant(`${fn("delete_product_media")}(uuid)`)}
 
 -- A product's media in order, with alt text in locale (the default
 -- locale's where it has none). Runs as the caller.
@@ -859,7 +859,7 @@ as $$
   from ${media} x
   where x.${m("product")} = $1
 $$;
-${readGrant(`${fn("product_media")}(uuid, text)`)}
+${getGrant(`${fn("product_media")}(uuid, text)`)}
 `;
 }
 
@@ -879,7 +879,7 @@ export function channelContract(
     ...(channelsOn(ctx)
       ? [
           {
-            name: "save_catalog_channel",
+            name: "upsert_catalog_channel",
             args: ["{id}", "uuid", "text", "text", "text", "uuid", "boolean"],
             returns: "jsonb",
           },
@@ -935,7 +935,7 @@ export function channelContract(
     ...(mediaOn(ctx)
       ? [
           {
-            name: "add_product_media",
+            name: "create_product_media",
             args: ["uuid", "uuid", "uuid", "jsonb"],
             returns: "jsonb",
           },
@@ -949,7 +949,7 @@ export function channelContract(
             args: ["uuid", "uuid[]"],
             returns: "boolean",
           },
-          { name: "remove_product_media", args: ["uuid"], returns: "boolean" },
+          { name: "delete_product_media", args: ["uuid"], returns: "boolean" },
           { name: "product_media", args: ["uuid", "text"], returns: "jsonb" },
         ]
       : []),

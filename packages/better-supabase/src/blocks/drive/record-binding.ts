@@ -33,7 +33,7 @@ export const driveBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "manage" },
   module: "drive",
-  load: (client: Drive, subject) => client.revisions(subject.id),
+  get: (client: Drive, subject) => client.revisions(subject.id),
   timeline: (revisions) =>
     revisions.map((revision) => ({
       id: revision.id,

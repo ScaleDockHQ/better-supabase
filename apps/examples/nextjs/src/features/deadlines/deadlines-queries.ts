@@ -10,11 +10,11 @@ import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { DeadlineRow } from "./deadlines-list";
 
-import { DEADLINES_TAG } from "./deadlines-cache";
 import { deadlineList, deadlineMap } from "./deadlines-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -23,7 +23,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * One page of the deadlines the caller reads, searched, filtered and sorted by
  * the deadlines block's `page` and counted by its `facets`.
  */
-export function loadDeadlinePage(
+export function getDeadlinePage(
   db: Db,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<DeadlineRow>> {
@@ -58,9 +58,9 @@ export function loadDeadlinePage(
 async function loadDeadlines(): Promise<RecordListPage<DeadlineRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(DEADLINES_TAG);
+  cacheTag(tags.deadlines());
 
-  return tenantOf(session) ? loadDeadlinePage(db, deadlineList.defaults) : null;
+  return tenantOf(session) ? getDeadlinePage(db, deadlineList.defaults) : null;
 }
 
 export function getDeadlines(): Promise<Loaded<RecordListPage<DeadlineRow>>> {
@@ -85,7 +85,7 @@ export interface DeadlineDetail extends DeadlineRow {
 export async function getDeadline(id: string): Promise<DeadlineDetail | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(DEADLINES_TAG);
+  cacheTag(tags.deadlines());
 
   const deadline = await db.deadlines.get(id).orThrow();
 

@@ -25,7 +25,7 @@ describe("bookingsBinding", () => {
       transport: transport(calls),
     });
 
-    const loaded = await bookingsBinding.load(
+    const loaded = await bookingsBinding.get(
       client,
       { type: "user", id: "s1" },
       undefined,
@@ -46,7 +46,7 @@ describe("bookingsBinding", () => {
   it("fails without an organization", async () => {
     const client = createBookings({ transport: transport([]) });
 
-    const loaded = await bookingsBinding.load(
+    const loaded = await bookingsBinding.get(
       client,
       { type: "user", id: "s1" },
       undefined,

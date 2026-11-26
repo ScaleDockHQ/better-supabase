@@ -25,8 +25,8 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { loadEmployeeDesk } from "../employee-desk/employee-desk-queries";
-import { loadEmployee, settle } from "../people-queries";
+import { getEmployeeDesk } from "../employee-desk/employee-desk-queries";
+import { getEmployee, settle } from "../people-queries";
 import { EmployeePrivateDetails } from "./employee-private-details";
 import { EmployeeStatusBadge } from "./employee-status";
 import { PeopleLoadError } from "./people-load-error";
@@ -39,8 +39,8 @@ export async function EmployeeDetail({ id, tab }: { id: string; tab: string }) {
   const [t, permissions, loaded, desk] = await Promise.all([
     getExtracted("people"),
     getPermissions(),
-    settle(() => loadEmployee(id)),
-    settle(() => loadEmployeeDesk(id)),
+    settle(() => getEmployee(id)),
+    settle(() => getEmployeeDesk(id)),
   ]);
 
   if (!can(permissions, "employees.read")) {

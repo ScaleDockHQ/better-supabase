@@ -16,7 +16,7 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { loadApplications, settle } from "../people-queries";
+import { getApplications, settle } from "../people-queries";
 import { PeopleLoadError } from "./people-load-error";
 
 /** The figures above the application table. */
@@ -26,7 +26,7 @@ export async function HiringKpis() {
 
   const [t, applications] = await Promise.all([
     getExtracted("people"),
-    settle(loadApplications),
+    settle(getApplications),
   ]);
 
   if (applications.kind === "no-organization") {
@@ -83,7 +83,7 @@ export async function ApplicationOverview({
 
   const [t, applications, fmtDate, canWrite] = await Promise.all([
     getExtracted("people"),
-    settle(loadApplications),
+    settle(getApplications),
     dateFormatter(),
     holds("hiring.write"),
   ]);

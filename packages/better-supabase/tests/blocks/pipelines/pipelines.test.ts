@@ -94,8 +94,8 @@ describe("pipelines block", () => {
 
   it("saves pipelines and stages with null for what the input leaves out", async () => {
     const t = transport({
-      save_pipeline: () => PIPELINE,
-      save_pipeline_stage: () => STAGE,
+      upsert_pipeline: () => PIPELINE,
+      upsert_pipeline_stage: () => STAGE,
     });
 
     const pipelines = createPipelines({ transport: t });
@@ -117,7 +117,7 @@ describe("pipelines block", () => {
       .orThrow();
     expect(t.calls).toEqual([
       [
-        "save_pipeline",
+        "upsert_pipeline",
         {
           tenant: "o",
           pipeline: null,
@@ -129,7 +129,7 @@ describe("pipelines block", () => {
         },
       ],
       [
-        "save_pipeline_stage",
+        "upsert_pipeline_stage",
         {
           pipeline: "p1",
           stage: null,
@@ -315,7 +315,7 @@ describe("pipelines block", () => {
 describe("pipelines block, optional fields", () => {
   it("reads optional stage and column fields and empty stats", async () => {
     const t = transport({
-      save_pipeline_stage: () => ({
+      upsert_pipeline_stage: () => ({
         ...STAGE,
         system_key: null,
         color: "#f00",
@@ -323,7 +323,7 @@ describe("pipelines block, optional fields", () => {
         rotting_after_days: null,
         wip_limit: 5,
       }),
-      save_pipeline: () => ({ ...PIPELINE, scope_id: "job-1", stages: [] }),
+      upsert_pipeline: () => ({ ...PIPELINE, scope_id: "job-1", stages: [] }),
       pipeline_board: () => [
         {
           stageId: "s1",

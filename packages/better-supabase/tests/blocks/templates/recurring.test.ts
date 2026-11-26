@@ -113,9 +113,9 @@ function jobs(duplicateKeys: readonly string[] = []) {
 describe("recurring templates", () => {
   it("saves, lists and removes schedules", async () => {
     const fake = transport({
-      save_template_schedule: () => SCHEDULE,
+      upsert_template_schedule: () => SCHEDULE,
       template_schedules_list: () => [SCHEDULE, { ...SCHEDULE, tzid: null }],
-      remove_template_schedule: () => true,
+      delete_template_schedule: () => true,
     });
 
     const { recurring } = createTemplates({ transport: fake });
@@ -136,7 +136,7 @@ describe("recurring templates", () => {
       enabled: true,
     });
     expect(fake.calls[0]).toEqual([
-      "save_template_schedule",
+      "upsert_template_schedule",
       {
         schedule_id: null,
         template_id: "t1",

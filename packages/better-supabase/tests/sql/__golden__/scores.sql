@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:3551d66f5e900453bd2a266e190f7495072821e8941a349f51a11be9c3d5f134
+-- @bsb-hash sha256:158f3b007a6c075f44bbd01f94bbe666aaafbb09e076a320fc894102de256346
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -88,7 +88,7 @@ create policy bsb_scores_read on "better_supabase"."scores"
 -- description, subjectType, rules, metrics, bands, enabled }; keys left out
 -- keep their value. Every change saves a new version. version, when given,
 -- must be the stored one.
-create or replace function "better_supabase"."save_score_model"(tenant uuid, model jsonb)
+create or replace function "better_supabase"."upsert_score_model"(tenant uuid, model jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -113,7 +113,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_score_model.tenant, 'scores.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_score_model.tenant, 'scores.manage'), false)) then
     raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   if jsonb_typeof(model) is distinct from 'object' then
@@ -121,7 +121,7 @@ begin
   end if;
   v_id := nullif(model ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = save_score_model.tenant for update;
+    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = upsert_score_model.tenant for update;
     if v_old."id" is null then
       raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
     end if;
@@ -196,11 +196,11 @@ begin
     from jsonb_array_elements(v_bands) x
   ), '[]'::jsonb);
   if v_old."id" is null then
-    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = save_score_model.tenant and x."key" = v_key) then
+    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = upsert_score_model.tenant and x."key" = v_key) then
       raise exception 'a score model with this key already exists' using errcode = '23505', hint = 'SCORES_MODEL_KEY_TAKEN';
     end if;
     insert into "better_supabase"."score_models" ("tenant_id", "key", "name", "description", "subject_type", "rules", "metrics", "bands", "enabled", "created_by")
-    values (save_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
+    values (upsert_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
     returning * into v_row;
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."rules" = v_rules and v_old."metrics" = v_metrics
@@ -230,8 +230,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_score_model"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_score_model"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's score models, by key, for one subject type when given.
 -- Archived models stay out unless include_archived is true.
@@ -909,7 +909,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:58cd3b219505b55d9a1a78a07830773d7988f5b558bac08545b9a9369734830e
+-- @bsb-hash sha256:511d46d0a32dfa816359f6cdd473106f064380ecc9c898aa12deecd7ffe221f8
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -996,7 +996,7 @@ create policy bsb_scores_read on "better_supabase"."scores"
 -- description, subjectType, rules, metrics, bands, enabled }; keys left out
 -- keep their value. Every change saves a new version. version, when given,
 -- must be the stored one.
-create or replace function "better_supabase"."save_score_model"(tenant uuid, model jsonb)
+create or replace function "better_supabase"."upsert_score_model"(tenant uuid, model jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1021,7 +1021,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_score_model.tenant, 'scores.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_score_model.tenant, 'scores.manage'), false)) then
     raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   if jsonb_typeof(model) is distinct from 'object' then
@@ -1029,7 +1029,7 @@ begin
   end if;
   v_id := nullif(model ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = save_score_model.tenant for update;
+    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = upsert_score_model.tenant for update;
     if v_old."id" is null then
       raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
     end if;
@@ -1104,11 +1104,11 @@ begin
     from jsonb_array_elements(v_bands) x
   ), '[]'::jsonb);
   if v_old."id" is null then
-    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = save_score_model.tenant and x."key" = v_key) then
+    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = upsert_score_model.tenant and x."key" = v_key) then
       raise exception 'a score model with this key already exists' using errcode = '23505', hint = 'SCORES_MODEL_KEY_TAKEN';
     end if;
     insert into "better_supabase"."score_models" ("tenant_id", "key", "name", "description", "subject_type", "rules", "metrics", "bands", "enabled", "created_by")
-    values (save_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
+    values (upsert_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
     returning * into v_row;
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."rules" = v_rules and v_old."metrics" = v_metrics
@@ -1158,8 +1158,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_score_model"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_score_model"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's score models, by key, for one subject type when given.
 -- Archived models stay out unless include_archived is true.
@@ -1870,7 +1870,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:8b23bfa9fb1ed1c28b9c6157c71be7b263c74b2c8c590d06784050ea4d96553e
+-- @bsb-hash sha256:4ca38e717e34d007b7f49048ba5470df134dca8b1c82d39d7ae62f017445b4be
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1962,7 +1962,7 @@ create policy bsb_scores_read on "app_private"."scores"
 -- description, subjectType, rules, metrics, bands, enabled }; keys left out
 -- keep their value. Every change saves a new version. version, when given,
 -- must be the stored one.
-create or replace function "app_private"."save_score_model"(tenant uuid, model jsonb)
+create or replace function "app_private"."upsert_score_model"(tenant uuid, model jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1987,7 +1987,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_score_model.tenant, 'scores.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_score_model.tenant, 'scores.manage'), false)) then
     raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   if jsonb_typeof(model) is distinct from 'object' then
@@ -1995,7 +1995,7 @@ begin
   end if;
   v_id := nullif(model ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "app_private"."score_models" x where x."id" = v_id and x."tenant_id" = save_score_model.tenant for update;
+    select * into v_old from "app_private"."score_models" x where x."id" = v_id and x."tenant_id" = upsert_score_model.tenant for update;
     if v_old."id" is null then
       raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
     end if;
@@ -2070,11 +2070,11 @@ begin
     from jsonb_array_elements(v_bands) x
   ), '[]'::jsonb);
   if v_old."id" is null then
-    if exists (select 1 from "app_private"."score_models" x where x."tenant_id" = save_score_model.tenant and x."key" = v_key) then
+    if exists (select 1 from "app_private"."score_models" x where x."tenant_id" = upsert_score_model.tenant and x."key" = v_key) then
       raise exception 'a score model with this key already exists' using errcode = '23505', hint = 'SCORES_MODEL_KEY_TAKEN';
     end if;
     insert into "app_private"."score_models" ("tenant_id", "key", "name", "description", "subject_type", "rules", "metrics", "bands", "enabled", "created_by")
-    values (save_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
+    values (upsert_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
     returning * into v_row;
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."rules" = v_rules and v_old."metrics" = v_metrics
@@ -2104,8 +2104,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
-revoke execute on function "app_private"."save_score_model"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_score_model"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_score_model"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_score_model"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's score models, by key, for one subject type when given.
 -- Archived models stay out unless include_archived is true.
@@ -2783,7 +2783,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:4e5a211fd348dfcdefe16d9a4b4f50be3976004e85109b352e0a16c603fe960c
+-- @bsb-hash sha256:8d8858ffa5077b5674b06b1c7363b29feda5100a0750b8d14dd4b361c0b28d85
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2870,7 +2870,7 @@ create policy bsb_scores_read on "better_supabase"."scores"
 -- description, subjectType, rules, metrics, bands, enabled }; keys left out
 -- keep their value. Every change saves a new version. version, when given,
 -- must be the stored one.
-create or replace function "better_supabase"."save_score_model"(tenant uuid, model jsonb)
+create or replace function "better_supabase"."upsert_score_model"(tenant uuid, model jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2895,7 +2895,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_score_model.tenant, 'scores.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_score_model.tenant, 'scores.manage'), false)) then
     raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   if jsonb_typeof(model) is distinct from 'object' then
@@ -2903,7 +2903,7 @@ begin
   end if;
   v_id := nullif(model ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = save_score_model.tenant for update;
+    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = upsert_score_model.tenant for update;
     if v_old."id" is null then
       raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
     end if;
@@ -2978,11 +2978,11 @@ begin
     from jsonb_array_elements(v_bands) x
   ), '[]'::jsonb);
   if v_old."id" is null then
-    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = save_score_model.tenant and x."key" = v_key) then
+    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = upsert_score_model.tenant and x."key" = v_key) then
       raise exception 'a score model with this key already exists' using errcode = '23505', hint = 'SCORES_MODEL_KEY_TAKEN';
     end if;
     insert into "better_supabase"."score_models" ("tenant_id", "key", "name", "description", "subject_type", "rules", "metrics", "bands", "enabled", "created_by")
-    values (save_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
+    values (upsert_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
     returning * into v_row;
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."rules" = v_rules and v_old."metrics" = v_metrics
@@ -3012,8 +3012,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_score_model"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_score_model"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's score models, by key, for one subject type when given.
 -- Archived models stay out unless include_archived is true.
@@ -3678,14 +3678,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restricti
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_score_model"(tenant uuid, model jsonb)
+create or replace function "api"."upsert_score_model"(tenant uuid, model jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_score_model"($1, $2) $$;
-revoke execute on function "api"."save_score_model"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_score_model"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_score_model"($1, $2) $$;
+revoke execute on function "api"."upsert_score_model"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_score_model"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_score_models"(tenant uuid, subject_type text default null, include_archived boolean default false)
 returns jsonb
@@ -3800,7 +3800,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:cecb9ae2bebb99718c8365655b6015c559c1e0a07792f461684f91a3635684b2
+-- @bsb-hash sha256:37816735e0978a149636c99580fdde72f21877397d067c56f1e2abdee9c47b92
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3875,7 +3875,7 @@ create policy bsb_scores_select on "better_supabase"."scores"
 -- description, subjectType, rules, metrics, bands, enabled }; keys left out
 -- keep their value. Every change saves a new version. version, when given,
 -- must be the stored one.
-create or replace function "better_supabase"."save_score_model"(tenant uuid, model jsonb)
+create or replace function "better_supabase"."upsert_score_model"(tenant uuid, model jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3900,7 +3900,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_score_model.tenant, 'scores.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_score_model.tenant, 'scores.manage'), false)) then
     raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   if jsonb_typeof(model) is distinct from 'object' then
@@ -3908,7 +3908,7 @@ begin
   end if;
   v_id := nullif(model ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = save_score_model.tenant for update;
+    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."tenant_id" = upsert_score_model.tenant for update;
     if v_old."id" is null then
       raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
     end if;
@@ -3983,11 +3983,11 @@ begin
     from jsonb_array_elements(v_bands) x
   ), '[]'::jsonb);
   if v_old."id" is null then
-    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = save_score_model.tenant and x."key" = v_key) then
+    if exists (select 1 from "better_supabase"."score_models" x where x."tenant_id" = upsert_score_model.tenant and x."key" = v_key) then
       raise exception 'a score model with this key already exists' using errcode = '23505', hint = 'SCORES_MODEL_KEY_TAKEN';
     end if;
     insert into "better_supabase"."score_models" ("tenant_id", "key", "name", "description", "subject_type", "rules", "metrics", "bands", "enabled", "created_by")
-    values (save_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
+    values (upsert_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
     returning * into v_row;
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."rules" = v_rules and v_old."metrics" = v_metrics
@@ -4017,8 +4017,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_score_model"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_score_model"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's score models, by key, for one subject type when given.
 -- Archived models stay out unless include_archived is true.
@@ -4696,7 +4696,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:7df44b81d43618b363dad8a5cfee2b03d3ae35d31dd0089675d083d4e6123d57
+-- @bsb-hash sha256:13a9cc9680362fb1694222e21246584308408688fbb672d8a56ef583c04bde77
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4783,7 +4783,7 @@ create policy bsb_scores_read on "better_supabase"."scores"
 -- description, subjectType, rules, metrics, bands, enabled }; keys left out
 -- keep their value. Every change saves a new version. version, when given,
 -- must be the stored one.
-create or replace function "better_supabase"."save_score_model"(tenant uuid, model jsonb)
+create or replace function "better_supabase"."upsert_score_model"(tenant uuid, model jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4808,7 +4808,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_score_model.tenant, 'scores.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_score_model.tenant, 'scores.manage'), false)) then
     raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   if jsonb_typeof(model) is distinct from 'object' then
@@ -4816,7 +4816,7 @@ begin
   end if;
   v_id := nullif(model ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."org_id" = save_score_model.tenant for update;
+    select * into v_old from "better_supabase"."score_models" x where x."id" = v_id and x."org_id" = upsert_score_model.tenant for update;
     if v_old."id" is null then
       raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
     end if;
@@ -4891,11 +4891,11 @@ begin
     from jsonb_array_elements(v_bands) x
   ), '[]'::jsonb);
   if v_old."id" is null then
-    if exists (select 1 from "better_supabase"."score_models" x where x."org_id" = save_score_model.tenant and x."key" = v_key) then
+    if exists (select 1 from "better_supabase"."score_models" x where x."org_id" = upsert_score_model.tenant and x."key" = v_key) then
       raise exception 'a score model with this key already exists' using errcode = '23505', hint = 'SCORES_MODEL_KEY_TAKEN';
     end if;
     insert into "better_supabase"."score_models" ("org_id", "key", "name", "description", "subject_type", "rules", "metrics", "bands", "enabled", "created_by")
-    values (save_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
+    values (upsert_score_model.tenant, v_key, v_name, v_description, v_subject_type, v_rules, v_metrics, v_bands, v_enabled, auth.uid())
     returning * into v_row;
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."rules" = v_rules and v_old."metrics" = v_metrics
@@ -4925,8 +4925,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_score_model"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_score_model"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_score_model"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's score models, by key, for one subject type when given.
 -- Archived models stay out unless include_archived is true.

@@ -116,8 +116,8 @@ export function promotionFunctions(
 -- minSubtotal (minor units as text), scope (order, products, categories or
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
-${extraFieldsArg(extras).drop(fn("save_promotion"), `${ctx.idType}, uuid, jsonb`)}
-create or replace function ${fn("save_promotion")}(tenant ${ctx.idType}, promotion uuid, data jsonb${extraFieldsArg(extras).param})
+${extraFieldsArg(extras).drop(fn("upsert_promotion"), `${ctx.idType}, uuid, jsonb`)}
+create or replace function ${fn("upsert_promotion")}(tenant ${ctx.idType}, promotion uuid, data jsonb${extraFieldsArg(extras).param})
 returns jsonb
 language plpgsql
 security definer
@@ -125,8 +125,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant ${ctx.idType} := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant ${ctx.idType} := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -135,7 +135,7 @@ declare
 begin
   if v_id is not null then
     select x.${p("tenant")} into v_tenant from ${promotions} x where x.${p("id")} = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       ${fail("PROMOTIONS_NOT_FOUND", "promotion not found", "P0002")}
     end if;
   end if;
@@ -194,7 +194,7 @@ ${targetCheck}
 ${fields.map(([key, value]) => `      ${p(key)} = ${value},`).join("\n")}
       ${p("updatedAt")} = now()
     where x.${p("id")} = v_id;
-  end if;${writeExtraColumns(promotions, extras, "save_promotion.fields", `x.${p("id")} = v_id`)}
+  end if;${writeExtraColumns(promotions, extras, "upsert_promotion.fields", `x.${p("id")} = v_id`)}
   if coalesce((data ->> 'active')::boolean, true) then
     ${ctx.hook("before_promotion_activate", [["uuid", "v_id"]])}
   end if;
@@ -209,7 +209,7 @@ ${fields.map(([key, value]) => `      ${p(key)} = ${value},`).join("\n")}
   });
 end;
 $$;
-${userGrant(`${fn("save_promotion")}(${ctx.idType}, uuid, jsonb${extraFieldsArg(extras).type})`)}
+${userGrant(`${fn("upsert_promotion")}(${ctx.idType}, uuid, jsonb${extraFieldsArg(extras).type})`)}
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.

@@ -333,7 +333,7 @@ function orders(
 describe("orders block", () => {
   it("manages shipping rates and carts", async () => {
     const { orders: o, calls } = orders({
-      save_shipping_rate: () => ({ id: "r1" }),
+      upsert_shipping_rate: () => ({ id: "r1" }),
       delete_shipping_rate: () => true,
       create_cart: () => ({ id: "c1", currency: "EUR", status: "open" }),
       add_to_cart: () => ({ lineId: "l1", quantity: 2 }),

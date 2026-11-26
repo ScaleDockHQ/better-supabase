@@ -249,7 +249,7 @@ function upsertOf(
  * set ...`. Anything else throws a `DeclaredRowsError`, because a rows file is
  * data the app owns, and a statement that is not an upsert cannot be repeated.
  */
-export async function readDeclaredFile(
+export async function getDeclaredFile(
   name: string,
   text: string,
 ): Promise<DeclaredFile> {

@@ -55,7 +55,7 @@ export const LITE_INSTALL =
  * Turbopack). A missing install returns `undefined` so callers can say how to
  * add it.
  */
-export async function loadLite(): Promise<LiteRuntime | undefined> {
+export async function getLite(): Promise<LiteRuntime | undefined> {
   const [root, pg, sq] = await Promise.all([
     importOptionalPeer("@supabase/lite"),
     importOptionalPeer("@supabase/lite/pglite"),

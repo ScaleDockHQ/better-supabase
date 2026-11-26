@@ -159,7 +159,8 @@ const INTERVAL = /^\d+ (second|minute|hour|day)s?$/;
 
 /**
  * The keys a server read returns next to the extra columns, which
- * `save_connector_server` takes in its `fields` object with the server's own.
+ * `upsert_connector_server` takes in its `fields` object with the server's
+ * own.
  */
 const RESERVED = ["fields", "grant"] as const;
 
@@ -269,28 +270,28 @@ function build(ctx: BlockSqlContext): string {
     presentJson(ctx, "grants", GRANTS, row, GRANT_DEFAULTS);
 
   const serverUpdate = [
-    `${v.name} = coalesce(save_connector_server.fields ->> 'name', x.${v.name})`,
-    `${v.url} = coalesce(save_connector_server.fields ->> 'url', x.${v.url})`,
+    `${v.name} = coalesce(upsert_connector_server.fields ->> 'name', x.${v.name})`,
+    `${v.url} = coalesce(upsert_connector_server.fields ->> 'url', x.${v.url})`,
     ...(server("transport")
       ? [
-          `${v.transport} = ${ctx.cast("servers", "transport", `coalesce(save_connector_server.fields ->> 'transport', ${asText(ctx, "servers", `x.${v.transport}`)})`)}`,
+          `${v.transport} = ${ctx.cast("servers", "transport", `coalesce(upsert_connector_server.fields ->> 'transport', ${asText(ctx, "servers", `x.${v.transport}`)})`)}`,
         ]
       : []),
-    `${v.authType} = ${ctx.cast("servers", "authType", `coalesce(save_connector_server.fields ->> 'auth_type', ${asText(ctx, "servers", `x.${v.authType}`)})`)}`,
-    `${v.credentialRef} = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x.${v.credentialRef} end`,
+    `${v.authType} = ${ctx.cast("servers", "authType", `coalesce(upsert_connector_server.fields ->> 'auth_type', ${asText(ctx, "servers", `x.${v.authType}`)})`)}`,
+    `${v.credentialRef} = case when upsert_connector_server.fields ? 'credential_ref' then nullif(upsert_connector_server.fields -> 'credential_ref', 'null') else x.${v.credentialRef} end`,
     ...(server("scopes")
       ? [
-          `${v.scopes} = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x.${v.scopes} end`,
+          `${v.scopes} = case when upsert_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(upsert_connector_server.fields -> 'scopes')) else x.${v.scopes} end`,
         ]
       : []),
     ...(server("clientMetadata")
       ? [
-          `${v.clientMetadata} = coalesce(save_connector_server.fields -> 'client_metadata', x.${v.clientMetadata})`,
+          `${v.clientMetadata} = coalesce(upsert_connector_server.fields -> 'client_metadata', x.${v.clientMetadata})`,
         ]
       : []),
     ...(server("enabled")
       ? [
-          `${v.enabled} = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x.${v.enabled})`,
+          `${v.enabled} = coalesce((upsert_connector_server.fields ->> 'enabled')::boolean, x.${v.enabled})`,
         ]
       : []),
     ...(server("updatedAt") ? [`${v.updatedAt} = now()`] : []),
@@ -458,7 +459,7 @@ grant all on ${fingerprints} to service_role;
 ${renderPolicy(makePolicy({ table: fingerprints, name: "connector_tool_fingerprints_read", command: "select", roles: ["authenticated"], using: `exists (select 1 from ${servers} x where x.${v.id} = ${f.server})` }), { target: fingerprints })}
 
 -- Adds a server (id null) or changes one (${manage}).
-create or replace function ${fn("save_connector_server")}(tenant ${id}, id uuid default null, fields jsonb default '{}')
+create or replace function ${fn("upsert_connector_server")}(tenant ${id}, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -467,33 +468,33 @@ as $$
 declare
   v_row ${servers}%rowtype;
 begin
-  if not ${isAdmin("save_connector_server.tenant")} then
+  if not ${isAdmin("upsert_connector_server.tenant")} then
     ${raise("you may not manage connectors here", "42501", "CONNECTOR_FORBIDDEN")}
   end if;
-  if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_connector_server.fields) is distinct from 'object' then
     ${raise("fields must be an object", "22023", "CONNECTOR_INVALID")}
   end if;
-  ${tenantRefGuard("save_connector_server.fields -> 'credential_ref'", "save_connector_server.tenant")}
-  if save_connector_server.id is null then
+  ${tenantRefGuard("upsert_connector_server.fields -> 'credential_ref'", "upsert_connector_server.tenant")}
+  if upsert_connector_server.id is null then
     insert into ${servers} (${v.tenant}, ${v.name}, ${v.url}, ${v.authType}, ${v.credentialRef}${server("createdBy") ? `, ${v.createdBy}` : ""})
-    values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      ${ctx.cast("servers", "authType", "coalesce(save_connector_server.fields ->> 'auth_type', 'oauth')")}, save_connector_server.fields -> 'credential_ref'${server("createdBy") ? ", auth.uid()" : ""})
+    values (upsert_connector_server.tenant, upsert_connector_server.fields ->> 'name', upsert_connector_server.fields ->> 'url',
+      ${ctx.cast("servers", "authType", "coalesce(upsert_connector_server.fields ->> 'auth_type', 'oauth')")}, upsert_connector_server.fields -> 'credential_ref'${server("createdBy") ? ", auth.uid()" : ""})
     returning * into v_row;
   else
-    select * into v_row from ${servers} x where x.${v.id} = save_connector_server.id and x.${v.tenant} = save_connector_server.tenant for update;
+    select * into v_row from ${servers} x where x.${v.id} = upsert_connector_server.id and x.${v.tenant} = upsert_connector_server.tenant for update;
     if not found then
-      ${notFound("save_connector_server.id")}
+      ${notFound("upsert_connector_server.id")}
     end if;
   end if;
   update ${servers} x set
     ${serverUpdate.join(",\n    ")}
   where x.${v.id} = v_row.${v.id}
-  returning * into v_row;${writeExtraColumns(servers, extras, "save_connector_server.fields", `x.${v.id} = v_row.${v.id}`, "v_row")}
-  ${createdOrUpdated("save_connector_server.id is null", (verb) => serverEvent(`connector.${verb}`, "v_row"))}
+  returning * into v_row;${writeExtraColumns(servers, extras, "upsert_connector_server.fields", `x.${v.id} = v_row.${v.id}`, "v_row")}
+  ${createdOrUpdated("upsert_connector_server.id is null", (verb) => serverEvent(`connector.${verb}`, "v_row"))}
   return ${serverJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_connector_server")}(${id}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_connector_server")}(${id}, uuid, jsonb)`)}
 
 -- Deletes a server and returns the grants it had, so the caller revokes
 -- each credential through its provider.
@@ -657,7 +658,7 @@ $$;
 ${userGrant(`${fn("get_connector_session")}(uuid, text)`)}
 
 -- Saves the caller's MCP session; a null session_id forgets it.
-create or replace function ${fn("save_connector_session")}(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function ${fn("upsert_connector_session")}(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language plpgsql
 security definer
@@ -668,24 +669,24 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  if save_connector_session.session_id is null and save_connector_session.initialize_result is null then
-    delete from ${sessions} z where z.${n.server} = save_connector_session.server_id and z.${n.user} = auth.uid()
-      and z.${n.chat} = coalesce(save_connector_session.chat_key, '');
+  if upsert_connector_session.session_id is null and upsert_connector_session.initialize_result is null then
+    delete from ${sessions} z where z.${n.server} = upsert_connector_session.server_id and z.${n.user} = auth.uid()
+      and z.${n.chat} = coalesce(upsert_connector_session.chat_key, '');
     return true;
   end if;
-  if not exists (select 1 from ${grants} y where y.${g.server} = save_connector_session.server_id and y.${g.user} = auth.uid() and y.${g.revokedAt} is null)
-    and not exists (select 1 from ${servers} x where x.${v.id} = save_connector_session.server_id and x.${v.authType} <> 'oauth' and ${ctx.scope.can(`x.${v.tenant}`, use)}) then
+  if not exists (select 1 from ${grants} y where y.${g.server} = upsert_connector_session.server_id and y.${g.user} = auth.uid() and y.${g.revokedAt} is null)
+    and not exists (select 1 from ${servers} x where x.${v.id} = upsert_connector_session.server_id and x.${v.authType} <> 'oauth' and ${ctx.scope.can(`x.${v.tenant}`, use)}) then
     return false;
   end if;
   insert into ${sessions} (${n.server}, ${n.user}, ${n.chat}, ${n.session}${session("initializeResult") ? `, ${n.initializeResult}` : ""}, ${n.expiresAt})
-  values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    ${session("initializeResult") ? "save_connector_session.initialize_result, " : ""}now() + interval '${sessionTtl}')
+  values (upsert_connector_session.server_id, auth.uid(), coalesce(upsert_connector_session.chat_key, ''), upsert_connector_session.session_id,
+    ${session("initializeResult") ? "upsert_connector_session.initialize_result, " : ""}now() + interval '${sessionTtl}')
   on conflict (${n.server}, ${n.user}, ${n.chat}) do update set
     ${sessionUpdate};
   return true;
 end;
 $$;
-${userGrant(`${fn("save_connector_session")}(uuid, text, text, jsonb)`)}
+${userGrant(`${fn("upsert_connector_session")}(uuid, text, text, jsonb)`)}
 
 -- Checks a server's tool list fingerprint: 'approved', 'pending' or
 -- 'rejected'. A new fingerprint is recorded as pending${trustFirstUse ? ", except the first one of a server, which is approved" : ""}.

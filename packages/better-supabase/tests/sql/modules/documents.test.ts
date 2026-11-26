@@ -69,7 +69,7 @@ describe("documents module", () => {
 
   it("saves states as versions when the versions module is installed", () => {
     expect(sqlOf(["documents"], "documents")).not.toContain(
-      "save_document_version",
+      "upsert_document_version",
     );
     const sql = sqlOf(["documents", "versions"], "documents");
     expect(sql).toContain(`"better_supabase"."version_insert"(`);

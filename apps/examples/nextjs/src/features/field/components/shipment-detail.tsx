@@ -20,7 +20,7 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { loadShipment } from "../field-queries";
+import { getShipment } from "../field-queries";
 import { FieldLoadError } from "./field-load-error";
 
 export function ShipmentDetailSkeleton() {
@@ -33,7 +33,7 @@ export async function ShipmentDetail({ id, tab }: { id: string; tab: string }) {
 
   const [t, loaded, fmtDate] = await Promise.all([
     getExtracted("field"),
-    settle(() => loadShipment(id)),
+    settle(() => getShipment(id)),
     dateFormatter(),
   ]);
 

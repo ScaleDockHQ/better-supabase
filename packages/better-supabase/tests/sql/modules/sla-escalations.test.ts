@@ -110,12 +110,12 @@ declare
 begin
   ${SERVICE}
   begin
-    perform better_supabase.save_sla_policy('${TENANT}', null, '{"subjectType":"ticket","name":"Bad","resolutionMinutes":60,"escalations":[{"at":50,"action":"fly"}]}'::jsonb);
+    perform better_supabase.upsert_sla_policy('${TENANT}', null, '{"subjectType":"ticket","name":"Bad","resolutionMinutes":60,"escalations":[{"at":50,"action":"fly"}]}'::jsonb);
     raise exception 'a bad ladder was accepted';
   exception when others then
     if sqlerrm not like '%escalations%' then raise; end if;
   end;
-  v_policy := better_supabase.save_sla_policy('${TENANT}', null, jsonb_build_object(
+  v_policy := better_supabase.upsert_sla_policy('${TENANT}', null, jsonb_build_object(
     'subjectType', 'ticket', 'name', 'Default', 'resolutionMinutes', 60,
     'escalations', jsonb_build_array(
       jsonb_build_object('at', 50, 'action', 'notify'),

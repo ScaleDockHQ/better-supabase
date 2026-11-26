@@ -75,7 +75,7 @@ const ENTRY = {
 describe("leave client", () => {
   it("changes and splits requests, saves auto-approved types and reads team feeds", async () => {
     const fake = transport({
-      save_leave_type: () => ({ ...TYPE, autoApprove: true }),
+      upsert_leave_type: () => ({ ...TYPE, autoApprove: true }),
       update_leave_request: () => ({ ...REQUEST, endsOn: "2026-10-21" }),
       split_leave_request: () => ({
         request: { ...REQUEST, status: "approved" },
@@ -142,7 +142,7 @@ describe("leave client", () => {
     });
     expect(feed?.requests[0]?.type).toBeUndefined();
     expect(fake.calls.slice(0, 3)).toEqual([
-      ["save_leave_type", expect.objectContaining({ auto_approve: true })],
+      ["upsert_leave_type", expect.objectContaining({ auto_approve: true })],
       [
         "update_leave_request",
         {
@@ -163,7 +163,7 @@ describe("leave client", () => {
 
   it("saves and lists types with decimal allowances", async () => {
     const fake = transport({
-      save_leave_type: () => TYPE,
+      upsert_leave_type: () => TYPE,
       list_leave_types: () => [TYPE],
       archive_leave_type: () => ({ ...TYPE, archivedAt: AT }),
       restore_leave_type: () => TYPE,
@@ -191,7 +191,7 @@ describe("leave client", () => {
     ).toBeUndefined();
     expect(fake.calls.slice(0, 2)).toEqual([
       [
-        "save_leave_type",
+        "upsert_leave_type",
         {
           tenant: "o",
           key: "vacation",

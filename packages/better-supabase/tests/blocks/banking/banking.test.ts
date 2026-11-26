@@ -125,7 +125,7 @@ describe("createBanking", () => {
     });
 
     const t = fieldsTransport({
-      save_bank_account: () => ({
+      upsert_bank_account: () => ({
         ...ACCOUNT,
         fields: { ledger_code: "1100" },
       }),
@@ -158,7 +158,7 @@ describe("createBanking", () => {
 
   it("sends the holder and primary flag and reads them back", async () => {
     const t = fieldsTransport({
-      save_bank_account: () => ({
+      upsert_bank_account: () => ({
         ...ACCOUNT,
         holder: "Acme BV",
         primary: true,
@@ -185,7 +185,7 @@ describe("createBanking", () => {
 
   it("saves and lists bank accounts", async () => {
     const t = fieldsTransport({
-      save_bank_account: () => ACCOUNT,
+      upsert_bank_account: () => ACCOUNT,
       list_bank_accounts: () => [
         { ...ACCOUNT, archivedAt: AT, bic: "ABNANL2A" },
       ],
@@ -218,7 +218,7 @@ describe("createBanking", () => {
     expect(archived?.archivedAt?.toString()).toBe(AT);
     expect(t.calls).toEqual([
       [
-        "save_bank_account",
+        "upsert_bank_account",
         {
           tenant: "org-1",
           input: {
@@ -434,7 +434,7 @@ describe("createBanking", () => {
 
   it("saves, lists, applies and deletes bank rules", async () => {
     const t = fieldsTransport({
-      save_bank_rule: () => RULE,
+      upsert_bank_rule: () => RULE,
       list_bank_rules: () => [{ ...RULE, accountId: null, dimensions: null }],
       apply_bank_rules: () => ({ matched: 2, ignored: 1 }),
       delete_bank_rule: () => null,

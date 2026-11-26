@@ -13,15 +13,14 @@ import type {
   RecordListUrlQuery,
 } from "@/components/record-list/record-list-types";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { pageEntityRows } from "@/lib/block-entity-page";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { EmployeeRow } from "./employees-list";
 
 import { employeeList, employeeMap } from "./employees-list";
-import { PEOPLE_TAG } from "./people-cache";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
 export type Loaded<T> =
@@ -69,7 +68,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * before their reports, with the depth below the top. The list route calls it
  * with its own `db`; the page reads it through `loadDirectory`.
  */
-export async function readDirectory(
+export async function getDirectory(
   db: Db,
   tenant: string,
 ): Promise<readonly DirectoryEmployee[]> {
@@ -91,7 +90,7 @@ export async function readDirectory(
 }
 
 /** One page of the directory for a list query, with its facet counts. */
-export function loadEmployeePage(
+export function getEmployeePage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -130,7 +129,7 @@ export interface DirectoryData {
 export async function loadDirectory(): Promise<DirectoryData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -138,8 +137,8 @@ export async function loadDirectory(): Promise<DirectoryData | null> {
   }
 
   const [initial, directory] = await Promise.all([
-    loadEmployeePage(db, tenant, employeeList.defaults),
-    readDirectory(db, tenant),
+    getEmployeePage(db, tenant, employeeList.defaults),
+    getDirectory(db, tenant),
   ]);
 
   return {
@@ -167,19 +166,19 @@ export interface EmployeeDetail {
 }
 
 /** One employee with their manager, direct reports and contracts. */
-export async function loadEmployee(
+export async function getEmployee(
   id: string,
 ): Promise<EmployeeDetail | "not-found" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const directory = await readDirectory(db, tenant);
+  const directory = await getDirectory(db, tenant);
   const employee = directory.find((entry) => entry.id === id);
 
   if (!employee) {
@@ -240,12 +239,12 @@ export interface TimesheetWeek {
  * The caller's week starting on the Monday of `week`: one row per project (the
  * entry's note) and whether it bills, and the running timer.
  */
-export async function loadTimesheet(
+export async function getTimesheet(
   week: string,
 ): Promise<TimesheetWeek | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -324,10 +323,10 @@ export interface HiringBoardData {
  * The openings, the stages of the application pipeline and the candidates in
  * them. Candidates are customers, the one subject type the app registers.
  */
-export async function loadHiringBoard(): Promise<HiringBoardData | null> {
+export async function getHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -408,9 +407,9 @@ export interface ApplicationsData {
  * Every application of every opening, with the opening, stage and candidate
  * named.
  */
-export async function loadApplications(): Promise<ApplicationsData | null> {
+export async function getApplications(): Promise<ApplicationsData | null> {
   "use cache: private";
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.people(), tags.customers());
 
   return readApplications(await bsb.cached());
 }
@@ -494,13 +493,13 @@ export interface ApplicationView {
 }
 
 /** One application with its stage path, scorecards and interviews. */
-export async function loadApplication(
+export async function getApplication(
   id: string,
 ): Promise<ApplicationView | "not-found" | null> {
   "use cache: private";
   const scope = await bsb.cached();
   const { db } = scope;
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.people(), tags.customers());
 
   const all = await readApplications(scope);
 
@@ -565,13 +564,13 @@ export async function loadApplication(
  * Everyone in the directory, with status and manager, for the board and
  * figures.
  */
-export async function loadRoster(): Promise<
+export async function getRoster(): Promise<
   readonly DirectoryEmployee[] | null
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.people(), tags.customers());
   const tenant = tenantOf(session);
 
-  return tenant ? readDirectory(db, tenant) : null;
+  return tenant ? getDirectory(db, tenant) : null;
 }

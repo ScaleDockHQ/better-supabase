@@ -34,7 +34,7 @@ export async function RecordTags({ subject }: { subject: RecordSubject }) {
     return null;
   }
 
-  const { bindings } = await recordPages[subject.type].load(subject.id, {
+  const { bindings } = await recordPages[subject.type].get(subject.id, {
     bindings: ["tags"],
   });
 
@@ -91,7 +91,7 @@ export async function RecordFields({ subject }: { subject: RecordSubject }) {
     return null;
   }
 
-  const { bindings } = await recordPages[subject.type].load(subject.id, {
+  const { bindings } = await recordPages[subject.type].get(subject.id, {
     bindings: ["customFields"],
   });
 

@@ -8,7 +8,7 @@ import type { IntrospectionSource } from "./source.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { connect } from "../db.ts";
-import { LITE_DRIVERS, loadCliLite } from "../lite.ts";
+import { LITE_DRIVERS, getCliLite } from "../lite.ts";
 import { schemaPaths, tomlGet } from "../supabase-config.ts";
 import { pgSource } from "./source.ts";
 
@@ -111,7 +111,7 @@ export async function liteSource(
     }
   }
 
-  const lite = await loadCliLite();
+  const lite = await getCliLite();
 
   if (!lite) {
     throw new CliError(

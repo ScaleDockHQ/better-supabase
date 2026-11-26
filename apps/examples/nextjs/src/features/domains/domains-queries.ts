@@ -10,11 +10,11 @@ import type {
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { DomainRow } from "./domains-list";
 
-import { DOMAINS_TAG } from "./domains-cache";
 import { domainList, domainMap } from "./domains-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -23,7 +23,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * One page of the organization's hostnames for a list query, searched, filtered
  * and sorted by the domains block's `page` and counted by `facets`.
  */
-export function loadDomainPage(
+export function getDomainPage(
   db: Db,
   organizationId: string,
   { q: _search, ...query }: RecordListUrlQuery,
@@ -61,7 +61,7 @@ export function loadDomainPage(
 export async function getDomains() {
   "use cache: private";
   const request = await bsb.cached();
-  cacheTag(DOMAINS_TAG);
+  cacheTag(tags.domains());
   const tenant = tenantOf(request.session);
   const permissions = await readPermissions(request);
 
@@ -69,5 +69,5 @@ export async function getDomains() {
     return null;
   }
 
-  return loadDomainPage(request.db, tenant, domainList.defaults);
+  return getDomainPage(request.db, tenant, domainList.defaults);
 }

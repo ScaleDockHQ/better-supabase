@@ -195,21 +195,21 @@ function build(ctx: BlockSqlContext): string {
   )`;
 
   const created = insert("templates", [
-    ["tenant", "save_template.tenant"],
+    ["tenant", "upsert_template.tenant"],
     [
       "scope",
       has("templates", "scope")
         ? ctx.cast(
             "templates",
             "scope",
-            "case when save_template.tenant is null then 'system' else 'tenant' end",
+            "case when upsert_template.tenant is null then 'system' else 'tenant' end",
           )
         : "",
     ],
-    ["type", "save_template.type"],
-    ["name", "save_template.name"],
-    ["language", "coalesce(save_template.language, 'en')"],
-    ["settings", "coalesce(save_template.settings, '{}'::jsonb)"],
+    ["type", "upsert_template.type"],
+    ["name", "upsert_template.name"],
+    ["language", "coalesce(upsert_template.language, 'en')"],
+    ["settings", "coalesce(upsert_template.settings, '{}'::jsonb)"],
     ["createdBy", "(select auth.uid())"],
   ]);
 
@@ -431,8 +431,8 @@ ${workflows?.ddl ?? ""}
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (columns your schema files add) to set.
-${extra.drop(fn("save_template"), `uuid, ${id}, text, text, text, jsonb`)}
-create or replace function ${fn("save_template")}(template_id uuid, tenant ${id}, type text, name text, language text, settings jsonb${extra.param})
+${extra.drop(fn("upsert_template"), `uuid, ${id}, text, text, text, jsonb`)}
+create or replace function ${fn("upsert_template")}(template_id uuid, tenant ${id}, type text, name text, language text, settings jsonb${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -442,37 +442,37 @@ as $$
 declare
   v_row ${t}%rowtype;
 begin
-  if save_template.settings is not null and jsonb_typeof(save_template.settings) <> 'object' then
+  if upsert_template.settings is not null and jsonb_typeof(upsert_template.settings) <> 'object' then
     ${fail("TEMPLATE_INVALID", "settings must be an object", "22023")}
   end if;${
     has("templates", "settings")
       ? ""
       : `
-  if save_template.settings is not null then
+  if upsert_template.settings is not null then
     ${unsupported("settings")}
   end if;`
   }
-  if save_template.template_id is not null then
-    select * into v_row from ${t} x where x.${ct("id")} = save_template.template_id for update;
-    if not found or v_row.${ct("tenant")} is distinct from save_template.tenant then
+  if upsert_template.template_id is not null then
+    select * into v_row from ${t} x where x.${ct("id")} = upsert_template.template_id for update;
+    if not found or v_row.${ct("tenant")} is distinct from upsert_template.tenant then
       ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
     end if;
   end if;
-  if not ${mayManage("save_template.tenant")} then
+  if not ${mayManage("upsert_template.tenant")} then
     ${fail("TEMPLATE_FORBIDDEN", "You may not change templates here")}
   end if;
-  if save_template.template_id is null and (save_template.type is null or save_template.type !~ ${TYPE_PATTERN}) then
+  if upsert_template.template_id is null and (upsert_template.type is null or upsert_template.type !~ ${TYPE_PATTERN}) then
     ${fail("TEMPLATE_INVALID", "type must be lower-case letters, digits, dots, dashes or underscores", "22023")}
   end if;${templateTypeCheck(ctx)}
-  if save_template.template_id is null and save_template.name is null then
+  if upsert_template.template_id is null and upsert_template.name is null then
     ${fail("TEMPLATE_INVALID", "A template needs a name", "22023")}
   end if;
   ${ctx.hook("before_template_save", [
-    [id, "save_template.tenant"],
-    ["text", `coalesce(save_template.type, v_row.${ct("type")})`],
-    ["jsonb", "save_template.settings"],
+    [id, "upsert_template.tenant"],
+    ["text", `coalesce(upsert_template.type, v_row.${ct("type")})`],
+    ["jsonb", "upsert_template.settings"],
   ])}
-  if save_template.template_id is null then
+  if upsert_template.template_id is null then
     insert into ${t} (${created.columns})
     values (
       ${created.values.join(",\n      ")}
@@ -480,32 +480,32 @@ begin
     returning * into v_row;
   else
     update ${t} x set
-      ${ct("name")} = coalesce(save_template.name, x.${ct("name")}),
-      ${ct("language")} = coalesce(save_template.language, x.${ct("language")}),${also(
+      ${ct("name")} = coalesce(upsert_template.name, x.${ct("name")}),
+      ${ct("language")} = coalesce(upsert_template.language, x.${ct("language")}),${also(
         "templates",
         "settings",
         () => `
-      ${ct("settings")} = coalesce(save_template.settings, x.${ct("settings")}),`,
+      ${ct("settings")} = coalesce(upsert_template.settings, x.${ct("settings")}),`,
       )}${also(
         "templates",
         "isDefault",
         () => `
-      ${ct("isDefault")} = x.${ct("isDefault")} and coalesce(save_template.language, x.${ct("language")}) = x.${ct("language")},`,
+      ${ct("isDefault")} = x.${ct("isDefault")} and coalesce(upsert_template.language, x.${ct("language")}) = x.${ct("language")},`,
       )}
       ${ct("updatedAt")} = now()
-    where x.${ct("id")} = save_template.template_id
+    where x.${ct("id")} = upsert_template.template_id
     returning * into v_row;
   end if;${
     extras.length === 0
       ? ""
-      : `${writeExtraColumns(t, extras, "save_template.fields", `x.${ct("id")} = v_row.${ct("id")}`)}
+      : `${writeExtraColumns(t, extras, "upsert_template.fields", `x.${ct("id")} = v_row.${ct("id")}`)}
   select * into v_row from ${t} x where x.${ct("id")} = v_row.${ct("id")};`
   }
   ${ctx.hook("after_template_save", [["uuid", `v_row.${ct("id")}`]])}
   return ${templateJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_template")}(uuid, ${id}, text, text, text, jsonb${extra.type})`)}
+${userGrant(`${fn("upsert_template")}(uuid, ${id}, text, text, text, jsonb${extra.type})`)}
 
 -- The tenant's templates and the system ones (only the system ones without
 -- a tenant), filtered by type and language, defaults first.
@@ -589,7 +589,7 @@ as $$
 $$;
 ${userGrant(`${fn("templates_get_many")}(uuid[])`)}
 
-create or replace function ${fn("remove_template")}(template_id uuid)
+create or replace function ${fn("delete_template")}(template_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -599,22 +599,22 @@ as $$
 declare
   v_row ${t}%rowtype;
 begin
-  select * into v_row from ${t} x where x.${ct("id")} = remove_template.template_id;
+  select * into v_row from ${t} x where x.${ct("id")} = delete_template.template_id;
   if not found then
     return false;
   end if;
   if not ${mayManage(`v_row.${ct("tenant")}`)} then
     ${fail("TEMPLATE_FORBIDDEN", "You may not remove this template")}
   end if;
-  delete from ${t} x where x.${ct("id")} = remove_template.template_id;
+  delete from ${t} x where x.${ct("id")} = delete_template.template_id;
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_template")}(uuid)`)}
+${userGrant(`${fn("delete_template")}(uuid)`)}
 
 -- Saves body as the template's draft: updates the open one, or opens one
 -- numbered after the last version.
-create or replace function ${fn("save_template_draft")}(template_id uuid, body jsonb)
+create or replace function ${fn("upsert_template_draft")}(template_id uuid, body jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -625,28 +625,28 @@ declare
   v_tpl ${t}%rowtype;
   v_row ${ver}%rowtype;
 begin
-  select * into v_tpl from ${t} x where x.${ct("id")} = save_template_draft.template_id for update;
+  select * into v_tpl from ${t} x where x.${ct("id")} = upsert_template_draft.template_id for update;
   if not found then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
   if not ${mayManage(`v_tpl.${ct("tenant")}`)} then
     ${fail("TEMPLATE_FORBIDDEN", "You may not edit this template")}
   end if;
-  if save_template_draft.body is null then
+  if upsert_template_draft.body is null then
     ${fail("TEMPLATE_INVALID", "A template version needs a body", "22023")}
   end if;
   update ${ver} x set
-    ${cv("body")} = save_template_draft.body,
-    ${cv("hash")} = ${sha256HexSql("save_template_draft.body::text")}
-  where x.${cv("template")} = save_template_draft.template_id and x.${cv("publishedAt")} is null
+    ${cv("body")} = upsert_template_draft.body,
+    ${cv("hash")} = ${sha256HexSql("upsert_template_draft.body::text")}
+  where x.${cv("template")} = upsert_template_draft.template_id and x.${cv("publishedAt")} is null
   returning * into v_row;
   if not found then
     insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}${also("versions", "createdBy", () => `, ${cv("createdBy")}`)})
     values (
-      save_template_draft.template_id,
-      coalesce((select max(y.${cv("version")}) from ${ver} y where y.${cv("template")} = save_template_draft.template_id), 0) + 1,
-      save_template_draft.body,
-      ${sha256HexSql("save_template_draft.body::text")}${also(
+      upsert_template_draft.template_id,
+      coalesce((select max(y.${cv("version")}) from ${ver} y where y.${cv("template")} = upsert_template_draft.template_id), 0) + 1,
+      upsert_template_draft.body,
+      ${sha256HexSql("upsert_template_draft.body::text")}${also(
         "versions",
         "createdBy",
         () => `,
@@ -655,11 +655,11 @@ begin
     )
     returning * into v_row;
   end if;
-  update ${t} x set ${ct("updatedAt")} = now() where x.${ct("id")} = save_template_draft.template_id;
+  update ${t} x set ${ct("updatedAt")} = now() where x.${ct("id")} = upsert_template_draft.template_id;
   return ${versionJson("v_row", true)};
 end;
 $$;
-${userGrant(`${fn("save_template_draft")}(uuid, jsonb)`)}
+${userGrant(`${fn("upsert_template_draft")}(uuid, jsonb)`)}
 
 -- Publishes the template's draft. Applications use the newest published
 -- version; published versions never change.
@@ -946,7 +946,7 @@ ${workflows?.functions ?? ""}${recurringParts(ctx, { read, mayManage, visible: b
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_template",
+      name: "upsert_template",
       args: [
         "uuid",
         "{id}",
@@ -966,8 +966,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "page_templates", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "template_get", args: ["uuid"], returns: "jsonb" },
     { name: "templates_get_many", args: ["uuid[]"], returns: "jsonb" },
-    { name: "remove_template", args: ["uuid"], returns: "boolean" },
-    { name: "save_template_draft", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "delete_template", args: ["uuid"], returns: "boolean" },
+    {
+      name: "upsert_template_draft",
+      args: ["uuid", "jsonb"],
+      returns: "jsonb",
+    },
     { name: "publish_template_version", args: ["uuid"], returns: "jsonb" },
     { name: "template_versions_list", args: ["uuid"], returns: "jsonb" },
     {

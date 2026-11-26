@@ -72,7 +72,7 @@ async function settle(value: unknown): Promise<unknown> {
  * default; each may be a function returning one. `formats` adds document
  * formats and `cacheKey` adds to the cache key.
  */
-export async function loadSpecEntry(path: string): Promise<SpecEntry> {
+export async function getSpecEntry(path: string): Promise<SpecEntry> {
   if (!existsSync(path)) {
     throw new CliError("not_found", `Module not found: ${path}`);
   }

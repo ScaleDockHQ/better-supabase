@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:22136df905852f2ae2fa51aaa22f0ceaa79fe04e1965b03335cd28caf032bbc3
+-- @bsb-hash sha256:f89b9bcc315847c46b24d585825aeec492074478dbfd28f5c13057f538d5e77a
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -245,7 +245,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "better_supabase"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -256,9 +256,9 @@ begin
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."retention_policies" x
-  where x."kind" = remove_retention_policy.kind
-    and x."tenant_id" is not distinct from remove_retention_policy.tenant
-    and x."plan" is not distinct from remove_retention_policy.plan;
+  where x."kind" = delete_retention_policy.kind
+    and x."tenant_id" is not distinct from delete_retention_policy.tenant
+    and x."plan" is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -354,7 +354,7 @@ revoke execute on function "better_supabase"."retention_for_memo"(text, text) fr
 revoke execute on function "better_supabase"."is_held_memo"(text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
 revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
@@ -366,7 +366,7 @@ grant execute on function "better_supabase"."retention_for_memo"(text, text) to 
 grant execute on function "better_supabase"."is_held_memo"(text, text) to service_role;
 grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
 grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
-grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
 grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
@@ -1581,7 +1581,7 @@ begin
     v_parts := v_parts || jsonb_build_object('better_supabase.subject_lifecycles', v_rows);
   end if;
   if v_tenant is not null then
-    v_fields := coalesce("better_supabase"."read_field_values"(v_tenant, request_subject_export.subject_type, request_subject_export.subject_id), '[]'::jsonb);
+    v_fields := coalesce("better_supabase"."get_field_values"(v_tenant, request_subject_export.subject_type, request_subject_export.subject_id), '[]'::jsonb);
     select coalesce(jsonb_agg(((to_jsonb(t.*)) || jsonb_build_object('value_text', f.value ->> 'text')) order by t.ctid), '[]'::jsonb) into v_rows
     from "centrakit"."field_values" t
     join jsonb_array_elements(v_fields) f on f.value ->> 'id' = t."id"::text

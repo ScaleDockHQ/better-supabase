@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { IDENTITIES_TAG } from "./identities-cache";
 
 /**
  * Issues a one-time code. Sending it to the app's chat bot links that chat
@@ -37,15 +35,17 @@ export const beginChatLink = bsb.action(
 
 /** Removes a linked identity. */
 export const unlinkIdentity = bsb.action(
-  { input: v.object({ id: v.pipe(v.string(), v.uuid()) }) },
-  async ({ id }, { db, auth }) => {
+  {
+    input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
+    tags: () => [tags.identities()],
+    refresh: true,
+  },
+  async ({ id }, { db }) => {
     const unlinked = await db.$blocks.identities.unlink(id);
 
     if (!unlinked.ok) {
       return unlinked;
     }
-
-    await refreshCaller(auth, [IDENTITIES_TAG]);
 
     return ok(unlinked.data);
   },

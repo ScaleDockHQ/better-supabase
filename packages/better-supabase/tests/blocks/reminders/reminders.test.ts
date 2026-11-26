@@ -175,7 +175,10 @@ describe("createReminders: list and remove", () => {
   });
 
   it("fails without a tenant", async () => {
-    const { transport, calls } = fake({ save_reminder: () => ({ id: "r-1" }) });
+    const { transport, calls } = fake({
+      upsert_reminder: () => ({ id: "r-1" }),
+    });
+
     const session: { tenant?: string } = {};
 
     const reminders = createReminders({
@@ -200,7 +203,7 @@ describe("createReminders: list and remove", () => {
     await reminders.upsert({ subject, when: 15 }).orThrow();
     expect(calls).toEqual([
       {
-        fn: "save_reminder",
+        fn: "upsert_reminder",
         args: {
           tenant: "org-2",
           subject_type: "invoice",
@@ -247,7 +250,7 @@ describe("createReminders: list and remove", () => {
 describe("createReminders: one-time reminders", () => {
   it("saves a reminder at a time and lists it back", async () => {
     const { transport, calls } = fake({
-      save_reminder: () => ({ id: "r-2" }),
+      upsert_reminder: () => ({ id: "r-2" }),
       list_my_reminders: () => [
         {
           id: "r-2",

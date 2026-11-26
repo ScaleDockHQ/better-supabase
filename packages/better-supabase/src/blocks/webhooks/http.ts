@@ -73,7 +73,7 @@ export function parseRetryAfter(
 }
 
 /** Reads at most `limit` bytes of the body, then cancels the stream. */
-async function readCapped(response: Response, limit: number): Promise<string> {
+async function getCapped(response: Response, limit: number): Promise<string> {
   if (!response.body) {
     return "";
   }
@@ -159,7 +159,7 @@ export function fetchTransport(
 
           return {
             status: response.status,
-            body: await readCapped(response, maxResponseBytes),
+            body: await getCapped(response, maxResponseBytes),
             ...(retryAfter === undefined ? {} : { retryAfter }),
           };
         }

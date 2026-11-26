@@ -4,7 +4,7 @@ import { cacheTag } from "next/cache";
 
 import {
   holdsPlatformPermission,
-  loadAdminList,
+  getAdminList,
 } from "@/features/admin-lists/admin-list-load";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
@@ -25,7 +25,7 @@ export async function getFlags() {
     return null;
   }
 
-  return loadAdminList({
+  return getAdminList({
     session: request.session,
     tenant,
     list: flagList,

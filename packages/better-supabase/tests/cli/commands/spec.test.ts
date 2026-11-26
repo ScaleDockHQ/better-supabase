@@ -42,7 +42,7 @@ afterEach(async () => {
 const spec = (...args: string[]) =>
   run(["spec", ...args, "--entry", "api.mjs", "--cwd", dir]);
 
-const readJson = async (path: string): Promise<Record<string, unknown>> =>
+const getJson = async (path: string): Promise<Record<string, unknown>> =>
   // SAFETY: the test reads JSON files the command wrote.
   JSON.parse(await readFile(join(dir, path), "utf-8")) as Record<
     string,
@@ -54,13 +54,13 @@ describe("spec emit", () => {
     const first = await spec("emit");
     expect(first.code).toBe(0);
     expect(first.stdout).toContain("Created openapi.json (openapi 3.1)");
-    expect(await readJson("openapi.json")).toMatchObject({ openapi: "3.1.2" });
+    expect(await getJson("openapi.json")).toMatchObject({ openapi: "3.1.2" });
     const second = await spec("emit");
     expect(second.stdout).toContain(
       "Unchanged openapi.json (openapi 3.1, cached)",
     );
 
-    const manifest = await readJson(
+    const manifest = await getJson(
       "node_modules/.cache/better-supabase/specs/diagnostics.json",
     );
 
@@ -99,7 +99,7 @@ describe("spec emit", () => {
 
     expect(result.code).toBe(0);
     expect(existsSync(join(dir, "docs/api.json"))).toBe(true);
-    const manifest = await readJson("report.json");
+    const manifest = await getJson("report.json");
     expect(manifest["outputs"]).toEqual([
       expect.objectContaining({
         path: "docs/api.json",
@@ -349,7 +349,7 @@ describe("spec arguments", () => {
 
     const result = await spec("emit", "--json");
 
-    const manifest = await readJson(
+    const manifest = await getJson(
       "node_modules/.cache/better-supabase/specs/diagnostics.json",
     );
 

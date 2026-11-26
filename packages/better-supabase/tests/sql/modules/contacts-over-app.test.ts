@@ -149,16 +149,16 @@ declare
   v_people jsonb;
 begin
   ${SERVICE}
-  v_company := better_supabase.save_company('${TENANT}', null, '{"name": "Acme", "domain": "ACME.test", "lifecycle": "prospect"}'::jsonb);
+  v_company := better_supabase.upsert_company('${TENANT}', null, '{"name": "Acme", "domain": "ACME.test", "lifecycle": "prospect"}'::jsonb);
   v_company_id := (v_company ->> 'id')::uuid;
   if v_company ->> 'stage' <> 'prospect' or v_company ->> 'web_domain' <> 'acme.test' then
     raise exception 'created %', v_company;
   end if;
-  v_company := better_supabase.save_company('${TENANT}', v_company_id, '{"lifecycle": "customer", "website": "https://acme.test"}'::jsonb);
+  v_company := better_supabase.upsert_company('${TENANT}', v_company_id, '{"lifecycle": "customer", "website": "https://acme.test"}'::jsonb);
   if (select stage from public.accounts where id = v_company_id) <> 'customer' then
     raise exception 'updated %', v_company;
   end if;
-  v_person := better_supabase.save_person('${TENANT}', null, '{"name": "Ada", "email": "ada@acme.test", "title": "CTO"}'::jsonb);
+  v_person := better_supabase.upsert_person('${TENANT}', null, '{"name": "Ada", "email": "ada@acme.test", "title": "CTO"}'::jsonb);
   v_person_id := (v_person ->> 'id')::uuid;
   if v_person ->> 'stage' <> 'lead' or v_person ->> 'job_title' <> 'CTO' then
     raise exception 'person %', v_person;
@@ -185,7 +185,7 @@ $$;`),
       run(`do $$
 begin
   ${SERVICE}
-  perform better_supabase.save_company('${TENANT}', null, '{"name": "Acme", "vatId": "NL1"}'::jsonb);
+  perform better_supabase.upsert_company('${TENANT}', null, '{"name": "Acme", "vatId": "NL1"}'::jsonb);
 end;
 $$;`),
     ).rejects.toThrow(/has no vatId column/);

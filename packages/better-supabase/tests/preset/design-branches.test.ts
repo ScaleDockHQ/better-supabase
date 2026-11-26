@@ -7,7 +7,7 @@ import {
   designSchema,
   namedPreset,
   parseDesign,
-  readDesignFile,
+  getDesignFile,
   resolvePreset,
   safeDesignFileSource,
   safeParseDesign,
@@ -215,12 +215,12 @@ describe("design files", () => {
     const source = designFileSource(crm, { seeds: { locale: "nl" } });
 
     expect(JSON.parse(source)).toMatchObject({ version: 9 });
-    expect(readDesignFile(source).design).toEqual({ seeds: { locale: "nl" } });
+    expect(getDesignFile(source).design).toEqual({ seeds: { locale: "nl" } });
   });
 
   it("rejects a file without a preset or with text that is not JSON", () => {
-    expect(() => readDesignFile("{}")).toThrow(/preset is missing/);
-    expect(() => readDesignFile("{bad")).toThrow(/not JSON/);
-    expect(() => readDesignFile('{"design":{}}')).toThrow(/0\.14/);
+    expect(() => getDesignFile("{}")).toThrow(/preset is missing/);
+    expect(() => getDesignFile("{bad")).toThrow(/not JSON/);
+    expect(() => getDesignFile('{"design":{}}')).toThrow(/0\.14/);
   });
 });

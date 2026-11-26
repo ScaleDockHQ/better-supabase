@@ -191,9 +191,9 @@ declare
   v_need jsonb;
 begin
   ${as(STAFF)}
-  perform better_supabase.save_approval_policy(null, jsonb_build_object('subjectType', '*', 'action', '*', 'effect', 'money-movement',
+  perform better_supabase.upsert_approval_policy(null, jsonb_build_object('subjectType', '*', 'action', '*', 'effect', 'money-movement',
     'name', 'Money moves', 'steps', jsonb_build_array(jsonb_build_object('approvers', jsonb_build_object('users', jsonb_build_array('${ADMIN}'))))));
-  perform better_supabase.save_approval_policy(null, jsonb_build_object('subjectType', 'report', 'action', 'export',
+  perform better_supabase.upsert_approval_policy(null, jsonb_build_object('subjectType', 'report', 'action', 'export',
     'name', 'Exports', 'mode', 'confirm', 'steps', '[]'::jsonb));
   if jsonb_array_length(better_supabase.list_approval_policies(null)) <> 2 then
     raise exception 'platform policies %', better_supabase.list_approval_policies(null);
@@ -213,10 +213,10 @@ begin
   end if;
 
   ${as(ADMIN)}
-  perform better_supabase.save_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'invoice', 'action', 'refund',
+  perform better_supabase.upsert_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'invoice', 'action', 'refund',
     'name', 'Large agent refunds', 'conditions', '${condition(100)}'::jsonb,
     'steps', jsonb_build_array(jsonb_build_object('approvers', jsonb_build_object('users', jsonb_build_array('${ANN}'))))));
-  perform better_supabase.save_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'report', 'action', 'export',
+  perform better_supabase.upsert_approval_policy('${TENANT}', jsonb_build_object('subjectType', 'report', 'action', 'export',
     'name', 'Exports here', 'steps', '[]'::jsonb));
   if jsonb_array_length(better_supabase.approval_requirement('${TENANT}', 'invoice', 'refund', '{"amount": 50, "actorKind": "agent"}'::jsonb) -> 'steps') <> 1
     or jsonb_array_length(better_supabase.approval_requirement('${TENANT}', 'invoice', 'refund', '{"amount": 500, "actorKind": "human"}'::jsonb) -> 'steps') <> 1
@@ -237,7 +237,7 @@ $$;`),
         run(`do $$
 begin
   ${as(user)}
-  perform better_supabase.save_approval_policy(${tenant}, '${policy}'::jsonb);
+  perform better_supabase.upsert_approval_policy(${tenant}, '${policy}'::jsonb);
 end;
 $$;`);
 
@@ -289,7 +289,7 @@ describe("platform policies under their own key", BOOT, () => {
   const save = (user: string, tenant = "null"): string => `do $$
 begin
   ${as(user)}
-  perform better_supabase.save_approval_policy(${tenant}, jsonb_build_object('subjectType', 'report', 'action', 'export',
+  perform better_supabase.upsert_approval_policy(${tenant}, jsonb_build_object('subjectType', 'report', 'action', 'export',
     'name', 'Exports', 'mode', 'confirm', 'steps', '[]'::jsonb));
   if jsonb_array_length(better_supabase.list_approval_policies(null)) <> 1 then
     raise exception 'platform policies %', better_supabase.list_approval_policies(null);

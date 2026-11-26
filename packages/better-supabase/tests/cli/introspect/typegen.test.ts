@@ -5,7 +5,7 @@ import type { GeneratorMetadata } from "../../../src/cli/introspect/typegen.ts";
 import {
   generatorJsonSchema,
   orderArgsByPosition,
-  readGeneratorMetadata,
+  getGeneratorMetadata,
   restrictSchemas,
   restrictTables,
   serializeGenerator,
@@ -109,7 +109,7 @@ describe("readGeneratorMetadata", () => {
       ],
     ]);
 
-    const metadata = await readGeneratorMetadata(db.pg, ["public"]);
+    const metadata = await getGeneratorMetadata(db.pg, ["public"]);
     expect(
       db.texts().some((text) => text.includes("p.proargnames as names")),
     ).toBe(true);
@@ -143,7 +143,7 @@ describe("rpcFunctions", () => {
 describe("readGeneratorMetadata queries", () => {
   it("reads argument positions while typegen introspects", async () => {
     const db = fakeSql();
-    await readGeneratorMetadata(db.pg, ["public"]);
+    await getGeneratorMetadata(db.pg, ["public"]);
     const texts = db.texts();
 
     const positions = texts.findIndex((text) =>

@@ -13,12 +13,10 @@ import {
   Optional,
   Whole,
 } from "@/lib/form-input";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { RFQS_TAG } from "./rfqs-cache";
-
-const TAGS = [RFQS_TAG];
+const TAGS = [tags.rfqs()];
 
 const Currency = v.picklist(["EUR", "USD", "GBP"]);
 
@@ -36,8 +34,10 @@ export const createRfq = bsb.action(
     }),
     requireTenant: true,
     permission: "rfqs.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const quantity = Number(input.quantity ?? "1");
 
     const created = await db.rfqs.createRfq({
@@ -64,8 +64,6 @@ export const createRfq = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: created.data.id });
   },
 );
@@ -84,8 +82,10 @@ export const addRfqLine = bsb.action(
     }),
     requireTenant: true,
     permission: "rfqs.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ rfqId, description, variantId, quantity }, { db, auth }) => {
+  async ({ rfqId, description, variantId, quantity }, { db }) => {
     const current = await db.rfqs.getRfq(rfqId);
 
     if (!current.ok) {
@@ -110,8 +110,6 @@ export const addRfqLine = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok(true);
   },
 );
@@ -121,8 +119,10 @@ export const inviteSupplier = bsb.action(
     input: v.object({ rfqId: Id, supplierId: Id }),
     requireTenant: true,
     permission: "rfqs.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ rfqId, supplierId }, { db, auth }) => {
+  async ({ rfqId, supplierId }, { db }) => {
     const invited = await db.rfqs.inviteSupplier({
       rfqId,
       supplier: { type: "company", id: supplierId },
@@ -131,8 +131,6 @@ export const inviteSupplier = bsb.action(
     if (!invited.ok) {
       return invited;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -143,15 +141,15 @@ export const declineInvitation = bsb.action(
     input: v.object({ invitationId: Id }),
     requireTenant: true,
     permission: "rfqs.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ invitationId }, { db, auth }) => {
+  async ({ invitationId }, { db }) => {
     const declined = await db.rfqs.declineInvitation(invitationId);
 
     if (!declined.ok) {
       return declined;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -163,8 +161,10 @@ export const transitionRfq = bsb.action(
     input: v.object({ rfqId: Id, action: v.picklist(["open", "close"]) }),
     requireTenant: true,
     permission: "rfqs.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ rfqId, action }, { db, auth }) => {
+  async ({ rfqId, action }, { db }) => {
     const moved =
       action === "open"
         ? await db.rfqs.openRfq(rfqId)
@@ -173,8 +173,6 @@ export const transitionRfq = bsb.action(
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -188,15 +186,15 @@ export const cancelRfq = bsb.action(
     }),
     requireTenant: true,
     permission: "rfqs.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ rfqId, reason }, { db, auth }) => {
+  async ({ rfqId, reason }, { db }) => {
     const cancelled = await db.rfqs.cancelRfq({ rfqId, reason });
 
     if (!cancelled.ok) {
       return cancelled;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -216,8 +214,10 @@ export const recordQuote = bsb.action(
     }),
     requireTenant: true,
     permission: "rfqs.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const lines = Object.entries(input).flatMap(([key, value]) => {
       const lineId = key.startsWith("line_") ? key.slice(5) : undefined;
 
@@ -239,8 +239,6 @@ export const recordQuote = bsb.action(
       return recorded;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok(true);
   },
 );
@@ -250,15 +248,15 @@ export const withdrawQuote = bsb.action(
     input: v.object({ quoteId: Id }),
     requireTenant: true,
     permission: "rfqs.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ quoteId }, { db, auth }) => {
+  async ({ quoteId }, { db }) => {
     const withdrawn = await db.rfqs.withdrawQuote(quoteId);
 
     if (!withdrawn.ok) {
       return withdrawn;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -274,8 +272,10 @@ export const awardRfq = bsb.action(
     input: v.object({ rfqId: Id, quoteId: Optional, location: Optional }),
     requireTenant: true,
     permission: "rfqs.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ rfqId, quoteId, location }, { db, auth }) => {
+  async ({ rfqId, quoteId, location }, { db }) => {
     const awarded =
       quoteId === undefined
         ? await db.rfqs.awardBest({ rfqId, location })
@@ -288,8 +288,6 @@ export const awardRfq = bsb.action(
     if (!awarded.ok) {
       return awarded;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ purchaseOrderId: awarded.data.purchaseOrderId ?? null });
   },

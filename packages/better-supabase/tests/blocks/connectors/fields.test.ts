@@ -28,7 +28,7 @@ const Fields = v.object({ region: v.picklist(["eu", "us"]) });
 describe("connectors fields", () => {
   it("sends the extra fields with the server's own and parses every read", async () => {
     const t = fieldsTransport({
-      save_connector_server: () => ROW,
+      upsert_connector_server: () => ROW,
       list_connector_servers: () => [ROW, ROW],
       get_connector: () => ROW,
     });

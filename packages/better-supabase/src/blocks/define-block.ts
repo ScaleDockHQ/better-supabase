@@ -189,7 +189,7 @@ export interface BlockDefinition<
   readonly invalidates?: BlockInvalidates;
   /**
    * What the block shows and does on one record (`defineRecordBinding`), for
-   * `loadBindings`, `createRecordController` and the generated
+   * `getBindings`, `createRecordController` and the generated
    * `records/<type>.ts`.
    */
   readonly record?: R;

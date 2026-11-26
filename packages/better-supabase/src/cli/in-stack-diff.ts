@@ -182,7 +182,7 @@ export interface StackClone {
  * install made without its dependencies fails here, and the message says to
  * reinstall better-supabase.
  */
-export async function loadPgDelta(
+export async function getPgDelta(
   load: () => Promise<PgDelta> = () => import("@supabase/pg-delta"),
 ): Promise<PgDelta> {
   try {
@@ -257,7 +257,7 @@ export async function inStackDiff(
   options: InStackDiffOptions,
 ): Promise<InStackDiffResult> {
   const open = options.open ?? connect;
-  const loadDelta = options.loadDelta ?? loadPgDelta;
+  const loadDelta = options.loadDelta ?? getPgDelta;
   const openPool = options.openPool ?? openPgPool;
   const log = options.log ?? (() => {});
   const main = await open(options.url);

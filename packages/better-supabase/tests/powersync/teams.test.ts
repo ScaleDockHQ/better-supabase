@@ -103,11 +103,11 @@ describe("powersyncTeamsTransport", () => {
   it("adds and removes members with <team>:<user> ids", async () => {
     const { transport, sqlite } = setup();
 
-    await transport.call("better_supabase", "add_team_member", {
+    await transport.call("better_supabase", "create_team_member", {
       team: "t1",
       member: "u2",
     });
-    await transport.call("better_supabase", "remove_team_member", {
+    await transport.call("better_supabase", "delete_team_member", {
       team: "t1",
       member: "u1",
     });

@@ -123,10 +123,10 @@ function replyOf(
 export function whatsappInteractiveOf(
   payload: unknown,
 ): readonly ChatInteractiveAction[] {
-  return readWhatsapp(payload)?.actions ?? [];
+  return getWhatsapp(payload)?.actions ?? [];
 }
 
-function readWhatsapp(payload: unknown): ParsedInteractive | null {
+function getWhatsapp(payload: unknown): ParsedInteractive | null {
   const body = typeof payload === "string" ? json(payload) : payload;
 
   if (!isRecord(body) || body["object"] !== "whatsapp_business_account") {
@@ -202,7 +202,7 @@ function readWhatsapp(payload: unknown): ParsedInteractive | null {
 
 /** `whatsappInteractiveOf` as an `InteractiveParser`. */
 export const whatsappInteractive: InteractiveParser = ({ body }) =>
-  readWhatsapp(body);
+  getWhatsapp(body);
 
 /** The parsers `inboundHandler` uses by default, keyed by adapter name. */
 export const INTERACTIVE_PARSERS: Readonly<Record<string, InteractiveParser>> =

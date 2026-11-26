@@ -86,7 +86,7 @@ describe("risks module", () => {
     const [contract] = customContracts(["risks"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
-        "save_risk_matrix",
+        "upsert_risk_matrix",
         "create_risk",
         "assess_risk",
         "risk_heatmap",

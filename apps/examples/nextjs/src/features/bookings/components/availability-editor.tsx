@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { loadBookingSetup, settle } from "../bookings-queries";
+import { getBookingSetup, settle } from "../bookings-queries";
 import { BookingLinkButton } from "./booking-link-button";
 import { BookingsLoadError } from "./bookings-load-error";
 import { SetUpBookingButton } from "./set-up-booking-button";
@@ -35,7 +35,7 @@ export async function AvailabilityEditor() {
   const [permissions, t, setup] = await Promise.all([
     getPermissions(),
     getExtracted("bookings"),
-    settle(loadBookingSetup),
+    settle(getBookingSetup),
   ]);
 
   if (!can(permissions, "bookings.manage")) {

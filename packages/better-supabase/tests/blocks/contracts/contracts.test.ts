@@ -381,7 +381,7 @@ describe("createContracts", () => {
 
   it("saves, settles, deletes and lists obligations", async () => {
     const t = fieldsTransport({
-      save_contract_obligation: () => OBLIGATION,
+      upsert_contract_obligation: () => OBLIGATION,
       set_contract_obligation_status: () => OBLIGATION,
       delete_contract_obligation: () => BARE_OBLIGATION,
       list_contract_obligations: () => [OBLIGATION, BARE_OBLIGATION],
@@ -448,7 +448,7 @@ describe("createContracts", () => {
     expect(listed).toHaveLength(2);
     expect(t.calls).toEqual([
       [
-        "save_contract_obligation",
+        "upsert_contract_obligation",
         {
           contract_id: "k1",
           title: "Quarterly report",
@@ -459,7 +459,7 @@ describe("createContracts", () => {
         },
       ],
       [
-        "save_contract_obligation",
+        "upsert_contract_obligation",
         {
           contract_id: "k1",
           title: "Kick-off",
@@ -547,7 +547,7 @@ describe("contracts block", () => {
     const t = fieldsTransport({ list_contracts: () => [MINIMAL] });
     const contracts = createContracts({ transport: t });
 
-    const loaded = await contractsBinding.load(contracts, PARTY, undefined);
+    const loaded = await contractsBinding.get(contracts, PARTY, undefined);
 
     expect(loaded.ok ? loaded.data.map((row) => row.id) : []).toEqual(["k2"]);
     expect(t.calls[0]?.[1]).toMatchObject({

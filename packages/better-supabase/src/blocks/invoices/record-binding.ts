@@ -15,6 +15,6 @@ export const invoicesBinding: RecordBinding<Invoices, readonly Invoice[]> =
     permissions: { read: "read" },
     module: "invoices",
     // oxlint-disable-next-line typescript/no-deprecated -- the binding loads the whole array until 0.70 (ADR 1077)
-    load: (client: Invoices, subject) => client.list({ subject }),
+    get: (client: Invoices, subject) => client.list({ subject }),
     events: ["invoice.*"],
   });

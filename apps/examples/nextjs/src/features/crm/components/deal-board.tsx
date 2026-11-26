@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { loadDealBoard, settle } from "../crm-queries";
+import { getDealBoard, settle } from "../crm-queries";
 import { CreateDealDialog } from "./create-deal-dialog";
 import { CreatePipelineButton } from "./create-pipeline-button";
 import { CrmLoadError } from "./crm-load-error";
@@ -43,7 +43,7 @@ export async function DealBoard() {
     forbidden();
   }
 
-  const board = await settle(loadDealBoard);
+  const board = await settle(getDealBoard);
 
   if (board.kind === "no-organization") {
     return null;

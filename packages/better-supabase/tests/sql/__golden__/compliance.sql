@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:7bb14decfda6d2e04a351675c22f98b3c1d016e5f9f9a6ad16e376e9ef19aa7a
+-- @bsb-hash sha256:3ab54e4e367ebada5dc9848c10ec6690d2f1c8a4d563fc064211a355c4be9fdf
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -143,7 +143,7 @@ create policy bsb_compliance_policies_read on "better_supabase"."compliance_poli
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
 
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
+create or replace function "better_supabase"."upsert_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -156,14 +156,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+  if upsert_control_framework.kind is null or upsert_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
     raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  values (upsert_control_framework.tenant, upsert_control_framework.key, trim(upsert_control_framework.name), upsert_control_framework.kind, nullif(trim(upsert_control_framework.version), ''), nullif(trim(upsert_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
@@ -171,8 +171,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -425,7 +425,7 @@ grant execute on function "better_supabase"."get_control_framework"(uuid) to aut
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
 
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
+create or replace function "better_supabase"."upsert_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -440,33 +440,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = save_control.framework_id;
+  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = upsert_control.framework_id;
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
+  if nullif(trim(upsert_control.code), '') is null or nullif(trim(upsert_control.title), '') is null then
     raise exception 'a control needs a code and a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
+  if upsert_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = upsert_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   v_new := false;
-  if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
+  if upsert_control.control_id is null then
+    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(upsert_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
+    values (v_framework."tenant_id", v_framework."id", trim(upsert_control.code), trim(upsert_control.title), nullif(trim(upsert_control.description), ''), upsert_control.owner_id, nullif(trim(upsert_control.source), ''), nullif(trim(upsert_control.jurisdiction), ''), coalesce(upsert_control.applicable, true))
     on conflict ("framework_id", "code") do update
       set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
-      "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
-      where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
+    update "better_supabase"."controls" x set "code" = trim(upsert_control.code), "title" = trim(upsert_control.title),
+      "description" = nullif(trim(upsert_control.description), ''), "source" = nullif(trim(upsert_control.source), ''), "jurisdiction" = nullif(trim(upsert_control.jurisdiction), ''), "owner_id" = upsert_control.owner_id,
+      "applicable" = coalesce(upsert_control.applicable, true), "updated_at" = now()
+      where x."id" = upsert_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
     if not found then
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
@@ -486,8 +486,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -561,7 +561,7 @@ grant execute on function "better_supabase"."list_controls"(uuid, uuid, text, uu
 -- task_id it answers that recurring task, whose due date moves interval_days
 -- past today; valid_until then defaults to that date. The task's assignee
 -- may collect without the collect permission.
-create or replace function "better_supabase"."add_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function "better_supabase"."create_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -576,13 +576,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = add_control_evidence.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = create_control_evidence.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if add_control_evidence.task_id is not null then
+  if create_control_evidence.task_id is not null then
     select * into v_task from "better_supabase"."evidence_tasks" x
-      where x."id" = add_control_evidence.task_id and x."control_id" = v_control."id"
+      where x."id" = create_control_evidence.task_id and x."control_id" = v_control."id"
       for update;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -591,16 +591,16 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+  if create_control_evidence.attachment_id is null and nullif(trim(create_control_evidence.note), '') is null then
     raise exception 'evidence needs an attachment or a note' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if add_control_evidence.attachment_id is not null then
+  if create_control_evidence.attachment_id is not null then
     raise exception 'evidence files need the attachments module' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_evidence" ("tenant_id", "control_id", "task_id", "attachment_id", "note", "collected_by", "valid_until")
-  values (v_control."tenant_id", v_control."id", v_task."id", add_control_evidence.attachment_id,
-    nullif(trim(add_control_evidence.note), ''), auth.uid(),
-    coalesce(add_control_evidence.valid_until, current_date + v_task."interval_days"))
+  values (v_control."tenant_id", v_control."id", v_task."id", create_control_evidence.attachment_id,
+    nullif(trim(create_control_evidence.note), ''), auth.uid(),
+    coalesce(create_control_evidence.valid_until, current_date + v_task."interval_days"))
   returning * into v_row;
   if v_task."id" is not null then
     update "better_supabase"."evidence_tasks" x set "due_on" = current_date + x."interval_days", "last_collected_at" = now(),
@@ -611,10 +611,10 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
-grant execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
+grant execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_control_evidence"(evidence_id uuid)
+create or replace function "better_supabase"."delete_control_evidence"(evidence_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -626,7 +626,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."control_evidence" x where x."id" = remove_control_evidence.evidence_id;
+  select * into v_row from "better_supabase"."control_evidence" x where x."id" = delete_control_evidence.evidence_id;
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
@@ -637,12 +637,12 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_control_evidence"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_control_evidence"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_control_evidence"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_control_evidence"(uuid) to authenticated, service_role;
 
 -- Creates a recurring evidence task on a control, or changes one (task_id).
 -- due_on defaults to today: the first evidence is due now.
-create or replace function "better_supabase"."save_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function "better_supabase"."upsert_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -656,32 +656,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = save_evidence_task.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = upsert_evidence_task.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_evidence_task.title), '') is null then
+  if nullif(trim(upsert_evidence_task.title), '') is null then
     raise exception 'an evidence task needs a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
+  if upsert_evidence_task.interval_days is null or upsert_evidence_task.interval_days not between 1 and 3650 then
     raise exception 'interval_days must be from 1 to 3650' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = save_evidence_task.assignee_id) then
+  if upsert_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = upsert_evidence_task.assignee_id) then
     raise exception 'the assignee must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.task_id is null then
+  if upsert_evidence_task.task_id is null then
     insert into "better_supabase"."evidence_tasks" ("tenant_id", "control_id", "title", "assignee_id", "interval_days", "due_on", "active")
-    values (v_control."tenant_id", v_control."id", trim(save_evidence_task.title), save_evidence_task.assignee_id,
-      save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
+    values (v_control."tenant_id", v_control."id", trim(upsert_evidence_task.title), upsert_evidence_task.assignee_id,
+      upsert_evidence_task.interval_days, coalesce(upsert_evidence_task.due_on, current_date), coalesce(upsert_evidence_task.active, true))
     returning * into v_row;
   else
-    update "better_supabase"."evidence_tasks" x set "title" = trim(save_evidence_task.title), "assignee_id" = save_evidence_task.assignee_id,
-      "interval_days" = save_evidence_task.interval_days, "due_on" = coalesce(save_evidence_task.due_on, x."due_on"),
-      "active" = coalesce(save_evidence_task.active, true), "updated_at" = now()
-      where x."id" = save_evidence_task.task_id and x."control_id" = v_control."id"
+    update "better_supabase"."evidence_tasks" x set "title" = trim(upsert_evidence_task.title), "assignee_id" = upsert_evidence_task.assignee_id,
+      "interval_days" = upsert_evidence_task.interval_days, "due_on" = coalesce(upsert_evidence_task.due_on, x."due_on"),
+      "active" = coalesce(upsert_evidence_task.active, true), "updated_at" = now()
+      where x."id" = upsert_evidence_task.task_id and x."control_id" = v_control."id"
       returning * into v_row;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -690,8 +690,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'title', v_row."title", 'assigneeId', v_row."assignee_id", 'intervalDays', v_row."interval_days", 'dueOn', v_row."due_on", 'lastCollectedAt', v_row."last_collected_at", 'active', v_row."active", 'overdue', (v_row."active" and v_row."due_on" < current_date), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
 
 -- The evidence tasks the caller can read, the earliest due first.
 create or replace function "better_supabase"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
@@ -1035,7 +1035,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 -- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
-create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function "better_supabase"."upsert_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1049,28 +1049,28 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_compliance_policy.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_compliance_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  if save_compliance_policy.owner_id is not null and not exists (
-    select 1 from "better_supabase"."memberships" m where m."organization_id" = save_compliance_policy.tenant and m."user_id" = save_compliance_policy.owner_id
+  if upsert_compliance_policy.owner_id is not null and not exists (
+    select 1 from "better_supabase"."memberships" m where m."organization_id" = upsert_compliance_policy.tenant and m."user_id" = upsert_compliance_policy.owner_id
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
   select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
-    where x."tenant_id" = save_compliance_policy.tenant
-      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
-  if save_compliance_policy.policy_id is null then
+    where x."tenant_id" = upsert_compliance_policy.tenant
+      and (x."id" = upsert_compliance_policy.policy_id or (upsert_compliance_policy.policy_id is null and x."key" = upsert_compliance_policy.key));
+  if upsert_compliance_policy.policy_id is null then
     insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
-    values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
+    values (upsert_compliance_policy.tenant, upsert_compliance_policy.key, trim(upsert_compliance_policy.title), upsert_compliance_policy.owner_id, coalesce(upsert_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
-      "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
-      where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
+    update "better_supabase"."compliance_policies" x set "key" = upsert_compliance_policy.key, "title" = trim(upsert_compliance_policy.title), "owner_id" = upsert_compliance_policy.owner_id,
+      "requires_acknowledgement" = coalesce(upsert_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
+      where x."id" = upsert_compliance_policy.policy_id and x."tenant_id" = upsert_compliance_policy.tenant
       returning * into v_row;
     if not found then
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
@@ -1084,8 +1084,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
 -- makes it current. Members acknowledge each published version again, through
@@ -1817,7 +1817,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:512f0106c5a8a2742ee009fd272c3ba3f775b63c7b06f8eb9a5d8c12d0ae366d
+-- @bsb-hash sha256:ab9bc32a7b9ce9bfd26c3f964fcfd1c6bb4e0af4aee34a9df735f155e7c9bbe3
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1959,7 +1959,7 @@ create policy bsb_compliance_policies_read on "better_supabase"."compliance_poli
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
 
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
+create or replace function "better_supabase"."upsert_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -1972,14 +1972,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+  if upsert_control_framework.kind is null or upsert_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
     raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  values (upsert_control_framework.tenant, upsert_control_framework.key, trim(upsert_control_framework.name), upsert_control_framework.kind, nullif(trim(upsert_control_framework.version), ''), nullif(trim(upsert_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
@@ -1987,8 +1987,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -2241,7 +2241,7 @@ grant execute on function "better_supabase"."get_control_framework"(uuid) to aut
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
 
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
+create or replace function "better_supabase"."upsert_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2256,33 +2256,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = save_control.framework_id;
+  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = upsert_control.framework_id;
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
+  if nullif(trim(upsert_control.code), '') is null or nullif(trim(upsert_control.title), '') is null then
     raise exception 'a control needs a code and a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
+  if upsert_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = upsert_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   v_new := false;
-  if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
+  if upsert_control.control_id is null then
+    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(upsert_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
+    values (v_framework."tenant_id", v_framework."id", trim(upsert_control.code), trim(upsert_control.title), nullif(trim(upsert_control.description), ''), upsert_control.owner_id, nullif(trim(upsert_control.source), ''), nullif(trim(upsert_control.jurisdiction), ''), coalesce(upsert_control.applicable, true))
     on conflict ("framework_id", "code") do update
       set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
-      "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
-      where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
+    update "better_supabase"."controls" x set "code" = trim(upsert_control.code), "title" = trim(upsert_control.title),
+      "description" = nullif(trim(upsert_control.description), ''), "source" = nullif(trim(upsert_control.source), ''), "jurisdiction" = nullif(trim(upsert_control.jurisdiction), ''), "owner_id" = upsert_control.owner_id,
+      "applicable" = coalesce(upsert_control.applicable, true), "updated_at" = now()
+      where x."id" = upsert_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
     if not found then
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
@@ -2320,8 +2320,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -2395,7 +2395,7 @@ grant execute on function "better_supabase"."list_controls"(uuid, uuid, text, uu
 -- task_id it answers that recurring task, whose due date moves interval_days
 -- past today; valid_until then defaults to that date. The task's assignee
 -- may collect without the collect permission.
-create or replace function "better_supabase"."add_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function "better_supabase"."create_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2410,13 +2410,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = add_control_evidence.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = create_control_evidence.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if add_control_evidence.task_id is not null then
+  if create_control_evidence.task_id is not null then
     select * into v_task from "better_supabase"."evidence_tasks" x
-      where x."id" = add_control_evidence.task_id and x."control_id" = v_control."id"
+      where x."id" = create_control_evidence.task_id and x."control_id" = v_control."id"
       for update;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -2425,20 +2425,20 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+  if create_control_evidence.attachment_id is null and nullif(trim(create_control_evidence.note), '') is null then
     raise exception 'evidence needs an attachment or a note' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if add_control_evidence.attachment_id is not null and not exists (
+  if create_control_evidence.attachment_id is not null and not exists (
     select 1 from "better_supabase"."attachments" a
-    where a."id" = add_control_evidence.attachment_id
+    where a."id" = create_control_evidence.attachment_id
       and a."tenant_id" = v_control."tenant_id"
   ) then
     raise exception 'the attachment isn''t a file in this organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_evidence" ("tenant_id", "control_id", "task_id", "attachment_id", "note", "collected_by", "valid_until")
-  values (v_control."tenant_id", v_control."id", v_task."id", add_control_evidence.attachment_id,
-    nullif(trim(add_control_evidence.note), ''), auth.uid(),
-    coalesce(add_control_evidence.valid_until, current_date + v_task."interval_days"))
+  values (v_control."tenant_id", v_control."id", v_task."id", create_control_evidence.attachment_id,
+    nullif(trim(create_control_evidence.note), ''), auth.uid(),
+    coalesce(create_control_evidence.valid_until, current_date + v_task."interval_days"))
   returning * into v_row;
   if v_task."id" is not null then
     update "better_supabase"."evidence_tasks" x set "due_on" = current_date + x."interval_days", "last_collected_at" = now(),
@@ -2458,10 +2458,10 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
-grant execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
+grant execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_control_evidence"(evidence_id uuid)
+create or replace function "better_supabase"."delete_control_evidence"(evidence_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -2473,7 +2473,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."control_evidence" x where x."id" = remove_control_evidence.evidence_id;
+  select * into v_row from "better_supabase"."control_evidence" x where x."id" = delete_control_evidence.evidence_id;
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
@@ -2484,12 +2484,12 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_control_evidence"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_control_evidence"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_control_evidence"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_control_evidence"(uuid) to authenticated, service_role;
 
 -- Creates a recurring evidence task on a control, or changes one (task_id).
 -- due_on defaults to today: the first evidence is due now.
-create or replace function "better_supabase"."save_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function "better_supabase"."upsert_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2503,32 +2503,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = save_evidence_task.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = upsert_evidence_task.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_evidence_task.title), '') is null then
+  if nullif(trim(upsert_evidence_task.title), '') is null then
     raise exception 'an evidence task needs a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
+  if upsert_evidence_task.interval_days is null or upsert_evidence_task.interval_days not between 1 and 3650 then
     raise exception 'interval_days must be from 1 to 3650' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = save_evidence_task.assignee_id) then
+  if upsert_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = upsert_evidence_task.assignee_id) then
     raise exception 'the assignee must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.task_id is null then
+  if upsert_evidence_task.task_id is null then
     insert into "better_supabase"."evidence_tasks" ("tenant_id", "control_id", "title", "assignee_id", "interval_days", "due_on", "active")
-    values (v_control."tenant_id", v_control."id", trim(save_evidence_task.title), save_evidence_task.assignee_id,
-      save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
+    values (v_control."tenant_id", v_control."id", trim(upsert_evidence_task.title), upsert_evidence_task.assignee_id,
+      upsert_evidence_task.interval_days, coalesce(upsert_evidence_task.due_on, current_date), coalesce(upsert_evidence_task.active, true))
     returning * into v_row;
   else
-    update "better_supabase"."evidence_tasks" x set "title" = trim(save_evidence_task.title), "assignee_id" = save_evidence_task.assignee_id,
-      "interval_days" = save_evidence_task.interval_days, "due_on" = coalesce(save_evidence_task.due_on, x."due_on"),
-      "active" = coalesce(save_evidence_task.active, true), "updated_at" = now()
-      where x."id" = save_evidence_task.task_id and x."control_id" = v_control."id"
+    update "better_supabase"."evidence_tasks" x set "title" = trim(upsert_evidence_task.title), "assignee_id" = upsert_evidence_task.assignee_id,
+      "interval_days" = upsert_evidence_task.interval_days, "due_on" = coalesce(upsert_evidence_task.due_on, x."due_on"),
+      "active" = coalesce(upsert_evidence_task.active, true), "updated_at" = now()
+      where x."id" = upsert_evidence_task.task_id and x."control_id" = v_control."id"
       returning * into v_row;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -2537,8 +2537,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'title', v_row."title", 'assigneeId', v_row."assignee_id", 'intervalDays', v_row."interval_days", 'dueOn', v_row."due_on", 'lastCollectedAt', v_row."last_collected_at", 'active', v_row."active", 'overdue', (v_row."active" and v_row."due_on" < current_date), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
 
 -- The evidence tasks the caller can read, the earliest due first.
 create or replace function "better_supabase"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
@@ -2908,7 +2908,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 -- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
-create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function "better_supabase"."upsert_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2922,28 +2922,28 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_compliance_policy.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_compliance_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  if save_compliance_policy.owner_id is not null and not exists (
-    select 1 from "better_supabase"."memberships" m where m."organization_id" = save_compliance_policy.tenant and m."user_id" = save_compliance_policy.owner_id
+  if upsert_compliance_policy.owner_id is not null and not exists (
+    select 1 from "better_supabase"."memberships" m where m."organization_id" = upsert_compliance_policy.tenant and m."user_id" = upsert_compliance_policy.owner_id
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
   select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
-    where x."tenant_id" = save_compliance_policy.tenant
-      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
-  if save_compliance_policy.policy_id is null then
+    where x."tenant_id" = upsert_compliance_policy.tenant
+      and (x."id" = upsert_compliance_policy.policy_id or (upsert_compliance_policy.policy_id is null and x."key" = upsert_compliance_policy.key));
+  if upsert_compliance_policy.policy_id is null then
     insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
-    values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
+    values (upsert_compliance_policy.tenant, upsert_compliance_policy.key, trim(upsert_compliance_policy.title), upsert_compliance_policy.owner_id, coalesce(upsert_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
-      "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
-      where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
+    update "better_supabase"."compliance_policies" x set "key" = upsert_compliance_policy.key, "title" = trim(upsert_compliance_policy.title), "owner_id" = upsert_compliance_policy.owner_id,
+      "requires_acknowledgement" = coalesce(upsert_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
+      where x."id" = upsert_compliance_policy.policy_id and x."tenant_id" = upsert_compliance_policy.tenant
       returning * into v_row;
     if not found then
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
@@ -2957,8 +2957,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
 -- makes it current. Members acknowledge each published version again, through
@@ -3713,7 +3713,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:ef236ce574ff0fa73a041ae2a8ce69eb48d3d65ea92a93e5a17bcce94597df7d
+-- @bsb-hash sha256:4318d9fd6bf18dec6bf538b497b6f22d09085c3cdb2b49dfae92e87220067b14
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3860,7 +3860,7 @@ create policy bsb_compliance_policies_read on "app_private"."compliance_policies
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
 
-create or replace function "app_private"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
+create or replace function "app_private"."upsert_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -3873,14 +3873,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+  if upsert_control_framework.kind is null or upsert_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
     raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "app_private"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  values (upsert_control_framework.tenant, upsert_control_framework.key, trim(upsert_control_framework.name), upsert_control_framework.kind, nullif(trim(upsert_control_framework.version), ''), nullif(trim(upsert_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
@@ -3888,8 +3888,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "app_private"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "app_private"."upsert_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "app_private"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -4142,7 +4142,7 @@ grant execute on function "app_private"."get_control_framework"(uuid) to authent
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
 
-create or replace function "app_private"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
+create or replace function "app_private"."upsert_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4157,33 +4157,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_framework from "app_private"."control_frameworks" x where x."id" = save_control.framework_id;
+  select * into v_framework from "app_private"."control_frameworks" x where x."id" = upsert_control.framework_id;
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
+  if nullif(trim(upsert_control.code), '') is null or nullif(trim(upsert_control.title), '') is null then
     raise exception 'a control needs a code and a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
+  if upsert_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = upsert_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   v_new := false;
-  if save_control.control_id is null then
-    v_new := not exists (select 1 from "app_private"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
+  if upsert_control.control_id is null then
+    v_new := not exists (select 1 from "app_private"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(upsert_control.code));
     insert into "app_private"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
+    values (v_framework."tenant_id", v_framework."id", trim(upsert_control.code), trim(upsert_control.title), nullif(trim(upsert_control.description), ''), upsert_control.owner_id, nullif(trim(upsert_control.source), ''), nullif(trim(upsert_control.jurisdiction), ''), coalesce(upsert_control.applicable, true))
     on conflict ("framework_id", "code") do update
       set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
-    update "app_private"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
-      "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
-      where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
+    update "app_private"."controls" x set "code" = trim(upsert_control.code), "title" = trim(upsert_control.title),
+      "description" = nullif(trim(upsert_control.description), ''), "source" = nullif(trim(upsert_control.source), ''), "jurisdiction" = nullif(trim(upsert_control.jurisdiction), ''), "owner_id" = upsert_control.owner_id,
+      "applicable" = coalesce(upsert_control.applicable, true), "updated_at" = now()
+      where x."id" = upsert_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
     if not found then
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
@@ -4203,8 +4203,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
-grant execute on function "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "app_private"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "app_private"."get_control"(control_id uuid)
@@ -4278,7 +4278,7 @@ grant execute on function "app_private"."list_controls"(uuid, uuid, text, uuid, 
 -- task_id it answers that recurring task, whose due date moves interval_days
 -- past today; valid_until then defaults to that date. The task's assignee
 -- may collect without the collect permission.
-create or replace function "app_private"."add_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function "app_private"."create_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4293,13 +4293,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "app_private"."controls" x where x."id" = add_control_evidence.control_id;
+  select * into v_control from "app_private"."controls" x where x."id" = create_control_evidence.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if add_control_evidence.task_id is not null then
+  if create_control_evidence.task_id is not null then
     select * into v_task from "app_private"."evidence_tasks" x
-      where x."id" = add_control_evidence.task_id and x."control_id" = v_control."id"
+      where x."id" = create_control_evidence.task_id and x."control_id" = v_control."id"
       for update;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -4308,16 +4308,16 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+  if create_control_evidence.attachment_id is null and nullif(trim(create_control_evidence.note), '') is null then
     raise exception 'evidence needs an attachment or a note' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if add_control_evidence.attachment_id is not null then
+  if create_control_evidence.attachment_id is not null then
     raise exception 'evidence files need the attachments module' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "app_private"."control_evidence" ("tenant_id", "control_id", "task_id", "attachment_id", "note", "collected_by", "valid_until")
-  values (v_control."tenant_id", v_control."id", v_task."id", add_control_evidence.attachment_id,
-    nullif(trim(add_control_evidence.note), ''), auth.uid(),
-    coalesce(add_control_evidence.valid_until, current_date + v_task."interval_days"))
+  values (v_control."tenant_id", v_control."id", v_task."id", create_control_evidence.attachment_id,
+    nullif(trim(create_control_evidence.note), ''), auth.uid(),
+    coalesce(create_control_evidence.valid_until, current_date + v_task."interval_days"))
   returning * into v_row;
   if v_task."id" is not null then
     update "app_private"."evidence_tasks" x set "due_on" = current_date + x."interval_days", "last_collected_at" = now(),
@@ -4328,10 +4328,10 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "app_private"."add_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
-grant execute on function "app_private"."add_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."create_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
+grant execute on function "app_private"."create_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
 
-create or replace function "app_private"."remove_control_evidence"(evidence_id uuid)
+create or replace function "app_private"."delete_control_evidence"(evidence_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -4343,7 +4343,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."control_evidence" x where x."id" = remove_control_evidence.evidence_id;
+  select * into v_row from "app_private"."control_evidence" x where x."id" = delete_control_evidence.evidence_id;
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
@@ -4354,12 +4354,12 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "app_private"."remove_control_evidence"(uuid) from public, anon;
-grant execute on function "app_private"."remove_control_evidence"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_control_evidence"(uuid) from public, anon;
+grant execute on function "app_private"."delete_control_evidence"(uuid) to authenticated, service_role;
 
 -- Creates a recurring evidence task on a control, or changes one (task_id).
 -- due_on defaults to today: the first evidence is due now.
-create or replace function "app_private"."save_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function "app_private"."upsert_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4373,32 +4373,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "app_private"."controls" x where x."id" = save_evidence_task.control_id;
+  select * into v_control from "app_private"."controls" x where x."id" = upsert_evidence_task.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_evidence_task.title), '') is null then
+  if nullif(trim(upsert_evidence_task.title), '') is null then
     raise exception 'an evidence task needs a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
+  if upsert_evidence_task.interval_days is null or upsert_evidence_task.interval_days not between 1 and 3650 then
     raise exception 'interval_days must be from 1 to 3650' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = save_evidence_task.assignee_id) then
+  if upsert_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = upsert_evidence_task.assignee_id) then
     raise exception 'the assignee must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.task_id is null then
+  if upsert_evidence_task.task_id is null then
     insert into "app_private"."evidence_tasks" ("tenant_id", "control_id", "title", "assignee_id", "interval_days", "due_on", "active")
-    values (v_control."tenant_id", v_control."id", trim(save_evidence_task.title), save_evidence_task.assignee_id,
-      save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
+    values (v_control."tenant_id", v_control."id", trim(upsert_evidence_task.title), upsert_evidence_task.assignee_id,
+      upsert_evidence_task.interval_days, coalesce(upsert_evidence_task.due_on, current_date), coalesce(upsert_evidence_task.active, true))
     returning * into v_row;
   else
-    update "app_private"."evidence_tasks" x set "title" = trim(save_evidence_task.title), "assignee_id" = save_evidence_task.assignee_id,
-      "interval_days" = save_evidence_task.interval_days, "due_on" = coalesce(save_evidence_task.due_on, x."due_on"),
-      "active" = coalesce(save_evidence_task.active, true), "updated_at" = now()
-      where x."id" = save_evidence_task.task_id and x."control_id" = v_control."id"
+    update "app_private"."evidence_tasks" x set "title" = trim(upsert_evidence_task.title), "assignee_id" = upsert_evidence_task.assignee_id,
+      "interval_days" = upsert_evidence_task.interval_days, "due_on" = coalesce(upsert_evidence_task.due_on, x."due_on"),
+      "active" = coalesce(upsert_evidence_task.active, true), "updated_at" = now()
+      where x."id" = upsert_evidence_task.task_id and x."control_id" = v_control."id"
       returning * into v_row;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -4407,8 +4407,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'title', v_row."title", 'assigneeId', v_row."assignee_id", 'intervalDays', v_row."interval_days", 'dueOn', v_row."due_on", 'lastCollectedAt', v_row."last_collected_at", 'active', v_row."active", 'overdue', (v_row."active" and v_row."due_on" < current_date), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
-grant execute on function "app_private"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
+grant execute on function "app_private"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
 
 -- The evidence tasks the caller can read, the earliest due first.
 create or replace function "app_private"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
@@ -4752,7 +4752,7 @@ grant execute on function "app_private"."notify_overdue_evidence_tasks"() to ser
 -- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
-create or replace function "app_private"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function "app_private"."upsert_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4766,28 +4766,28 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_compliance_policy.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_compliance_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  if save_compliance_policy.owner_id is not null and not exists (
-    select 1 from "better_supabase"."memberships" m where m."organization_id" = save_compliance_policy.tenant and m."user_id" = save_compliance_policy.owner_id
+  if upsert_compliance_policy.owner_id is not null and not exists (
+    select 1 from "better_supabase"."memberships" m where m."organization_id" = upsert_compliance_policy.tenant and m."user_id" = upsert_compliance_policy.owner_id
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
   select x."requires_acknowledgement" and x."archived_at" is null into v_required from "app_private"."compliance_policies" x
-    where x."tenant_id" = save_compliance_policy.tenant
-      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
-  if save_compliance_policy.policy_id is null then
+    where x."tenant_id" = upsert_compliance_policy.tenant
+      and (x."id" = upsert_compliance_policy.policy_id or (upsert_compliance_policy.policy_id is null and x."key" = upsert_compliance_policy.key));
+  if upsert_compliance_policy.policy_id is null then
     insert into "app_private"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
-    values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
+    values (upsert_compliance_policy.tenant, upsert_compliance_policy.key, trim(upsert_compliance_policy.title), upsert_compliance_policy.owner_id, coalesce(upsert_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "app_private"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
-      "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
-      where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
+    update "app_private"."compliance_policies" x set "key" = upsert_compliance_policy.key, "title" = trim(upsert_compliance_policy.title), "owner_id" = upsert_compliance_policy.owner_id,
+      "requires_acknowledgement" = coalesce(upsert_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
+      where x."id" = upsert_compliance_policy.policy_id and x."tenant_id" = upsert_compliance_policy.tenant
       returning * into v_row;
     if not found then
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
@@ -4801,8 +4801,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
-revoke execute on function "app_private"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "app_private"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
+grant execute on function "app_private"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
 -- makes it current. Members acknowledge each published version again, through
@@ -5534,7 +5534,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:55f5643888ea9bd123f00dd15f754836208703d122abb705f0fcdc88ae94d5a0
+-- @bsb-hash sha256:9a5224c0e81930531ff20704dd7519f691a0b67dfadf7a09e72d59ea56547146
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5676,7 +5676,7 @@ create policy bsb_compliance_policies_read on "better_supabase"."compliance_poli
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
 
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
+create or replace function "better_supabase"."upsert_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -5689,14 +5689,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+  if upsert_control_framework.kind is null or upsert_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
     raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  values (upsert_control_framework.tenant, upsert_control_framework.key, trim(upsert_control_framework.name), upsert_control_framework.kind, nullif(trim(upsert_control_framework.version), ''), nullif(trim(upsert_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
@@ -5704,8 +5704,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -5958,7 +5958,7 @@ grant execute on function "better_supabase"."get_control_framework"(uuid) to aut
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
 
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
+create or replace function "better_supabase"."upsert_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5973,33 +5973,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = save_control.framework_id;
+  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = upsert_control.framework_id;
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
+  if nullif(trim(upsert_control.code), '') is null or nullif(trim(upsert_control.title), '') is null then
     raise exception 'a control needs a code and a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
+  if upsert_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = upsert_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   v_new := false;
-  if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
+  if upsert_control.control_id is null then
+    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(upsert_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
+    values (v_framework."tenant_id", v_framework."id", trim(upsert_control.code), trim(upsert_control.title), nullif(trim(upsert_control.description), ''), upsert_control.owner_id, nullif(trim(upsert_control.source), ''), nullif(trim(upsert_control.jurisdiction), ''), coalesce(upsert_control.applicable, true))
     on conflict ("framework_id", "code") do update
       set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
-      "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
-      where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
+    update "better_supabase"."controls" x set "code" = trim(upsert_control.code), "title" = trim(upsert_control.title),
+      "description" = nullif(trim(upsert_control.description), ''), "source" = nullif(trim(upsert_control.source), ''), "jurisdiction" = nullif(trim(upsert_control.jurisdiction), ''), "owner_id" = upsert_control.owner_id,
+      "applicable" = coalesce(upsert_control.applicable, true), "updated_at" = now()
+      where x."id" = upsert_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
     if not found then
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
@@ -6019,8 +6019,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -6094,7 +6094,7 @@ grant execute on function "better_supabase"."list_controls"(uuid, uuid, text, uu
 -- task_id it answers that recurring task, whose due date moves interval_days
 -- past today; valid_until then defaults to that date. The task's assignee
 -- may collect without the collect permission.
-create or replace function "better_supabase"."add_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function "better_supabase"."create_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6109,13 +6109,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = add_control_evidence.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = create_control_evidence.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if add_control_evidence.task_id is not null then
+  if create_control_evidence.task_id is not null then
     select * into v_task from "better_supabase"."evidence_tasks" x
-      where x."id" = add_control_evidence.task_id and x."control_id" = v_control."id"
+      where x."id" = create_control_evidence.task_id and x."control_id" = v_control."id"
       for update;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -6124,16 +6124,16 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+  if create_control_evidence.attachment_id is null and nullif(trim(create_control_evidence.note), '') is null then
     raise exception 'evidence needs an attachment or a note' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if add_control_evidence.attachment_id is not null then
+  if create_control_evidence.attachment_id is not null then
     raise exception 'evidence files need the attachments module' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_evidence" ("tenant_id", "control_id", "task_id", "attachment_id", "note", "collected_by", "valid_until")
-  values (v_control."tenant_id", v_control."id", v_task."id", add_control_evidence.attachment_id,
-    nullif(trim(add_control_evidence.note), ''), auth.uid(),
-    coalesce(add_control_evidence.valid_until, current_date + v_task."interval_days"))
+  values (v_control."tenant_id", v_control."id", v_task."id", create_control_evidence.attachment_id,
+    nullif(trim(create_control_evidence.note), ''), auth.uid(),
+    coalesce(create_control_evidence.valid_until, current_date + v_task."interval_days"))
   returning * into v_row;
   if v_task."id" is not null then
     update "better_supabase"."evidence_tasks" x set "due_on" = current_date + x."interval_days", "last_collected_at" = now(),
@@ -6144,10 +6144,10 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
-grant execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
+grant execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_control_evidence"(evidence_id uuid)
+create or replace function "better_supabase"."delete_control_evidence"(evidence_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -6159,7 +6159,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."control_evidence" x where x."id" = remove_control_evidence.evidence_id;
+  select * into v_row from "better_supabase"."control_evidence" x where x."id" = delete_control_evidence.evidence_id;
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
@@ -6170,12 +6170,12 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_control_evidence"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_control_evidence"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_control_evidence"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_control_evidence"(uuid) to authenticated, service_role;
 
 -- Creates a recurring evidence task on a control, or changes one (task_id).
 -- due_on defaults to today: the first evidence is due now.
-create or replace function "better_supabase"."save_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function "better_supabase"."upsert_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6189,32 +6189,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = save_evidence_task.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = upsert_evidence_task.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_evidence_task.title), '') is null then
+  if nullif(trim(upsert_evidence_task.title), '') is null then
     raise exception 'an evidence task needs a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
+  if upsert_evidence_task.interval_days is null or upsert_evidence_task.interval_days not between 1 and 3650 then
     raise exception 'interval_days must be from 1 to 3650' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = save_evidence_task.assignee_id) then
+  if upsert_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = upsert_evidence_task.assignee_id) then
     raise exception 'the assignee must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.task_id is null then
+  if upsert_evidence_task.task_id is null then
     insert into "better_supabase"."evidence_tasks" ("tenant_id", "control_id", "title", "assignee_id", "interval_days", "due_on", "active")
-    values (v_control."tenant_id", v_control."id", trim(save_evidence_task.title), save_evidence_task.assignee_id,
-      save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
+    values (v_control."tenant_id", v_control."id", trim(upsert_evidence_task.title), upsert_evidence_task.assignee_id,
+      upsert_evidence_task.interval_days, coalesce(upsert_evidence_task.due_on, current_date), coalesce(upsert_evidence_task.active, true))
     returning * into v_row;
   else
-    update "better_supabase"."evidence_tasks" x set "title" = trim(save_evidence_task.title), "assignee_id" = save_evidence_task.assignee_id,
-      "interval_days" = save_evidence_task.interval_days, "due_on" = coalesce(save_evidence_task.due_on, x."due_on"),
-      "active" = coalesce(save_evidence_task.active, true), "updated_at" = now()
-      where x."id" = save_evidence_task.task_id and x."control_id" = v_control."id"
+    update "better_supabase"."evidence_tasks" x set "title" = trim(upsert_evidence_task.title), "assignee_id" = upsert_evidence_task.assignee_id,
+      "interval_days" = upsert_evidence_task.interval_days, "due_on" = coalesce(upsert_evidence_task.due_on, x."due_on"),
+      "active" = coalesce(upsert_evidence_task.active, true), "updated_at" = now()
+      where x."id" = upsert_evidence_task.task_id and x."control_id" = v_control."id"
       returning * into v_row;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -6223,8 +6223,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'title', v_row."title", 'assigneeId', v_row."assignee_id", 'intervalDays', v_row."interval_days", 'dueOn', v_row."due_on", 'lastCollectedAt', v_row."last_collected_at", 'active', v_row."active", 'overdue', (v_row."active" and v_row."due_on" < current_date), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
 
 -- The evidence tasks the caller can read, the earliest due first.
 create or replace function "better_supabase"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
@@ -6568,7 +6568,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 -- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
-create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function "better_supabase"."upsert_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6582,28 +6582,28 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_compliance_policy.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_compliance_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  if save_compliance_policy.owner_id is not null and not exists (
-    select 1 from "better_supabase"."memberships" m where m."organization_id" = save_compliance_policy.tenant and m."user_id" = save_compliance_policy.owner_id
+  if upsert_compliance_policy.owner_id is not null and not exists (
+    select 1 from "better_supabase"."memberships" m where m."organization_id" = upsert_compliance_policy.tenant and m."user_id" = upsert_compliance_policy.owner_id
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
   select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
-    where x."tenant_id" = save_compliance_policy.tenant
-      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
-  if save_compliance_policy.policy_id is null then
+    where x."tenant_id" = upsert_compliance_policy.tenant
+      and (x."id" = upsert_compliance_policy.policy_id or (upsert_compliance_policy.policy_id is null and x."key" = upsert_compliance_policy.key));
+  if upsert_compliance_policy.policy_id is null then
     insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
-    values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
+    values (upsert_compliance_policy.tenant, upsert_compliance_policy.key, trim(upsert_compliance_policy.title), upsert_compliance_policy.owner_id, coalesce(upsert_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
-      "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
-      where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
+    update "better_supabase"."compliance_policies" x set "key" = upsert_compliance_policy.key, "title" = trim(upsert_compliance_policy.title), "owner_id" = upsert_compliance_policy.owner_id,
+      "requires_acknowledgement" = coalesce(upsert_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
+      where x."id" = upsert_compliance_policy.policy_id and x."tenant_id" = upsert_compliance_policy.tenant
       returning * into v_row;
     if not found then
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
@@ -6617,8 +6617,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
 -- makes it current. Members acknowledge each published version again, through
@@ -7315,14 +7315,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies"
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
+create or replace function "api"."upsert_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_control_framework"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "api"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_control_framework"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "api"."upsert_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -7354,14 +7354,14 @@ as $$ select "better_supabase"."get_control_framework"($1) $$;
 revoke execute on function "api"."get_control_framework"(uuid) from public, anon;
 grant execute on function "api"."get_control_framework"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
+create or replace function "api"."upsert_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_control"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
-grant execute on function "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_control"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "api"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 create or replace function "api"."get_control"(control_id uuid)
 returns jsonb
@@ -7383,32 +7383,32 @@ as $$ select "better_supabase"."list_controls"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_controls"(uuid, uuid, text, uuid, integer) from public, anon;
 grant execute on function "api"."list_controls"(uuid, uuid, text, uuid, integer) to authenticated, service_role;
 
-create or replace function "api"."add_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function "api"."create_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_control_evidence"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."add_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
-grant execute on function "api"."add_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."create_control_evidence"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."create_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
+grant execute on function "api"."create_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_control_evidence"(evidence_id uuid)
+create or replace function "api"."delete_control_evidence"(evidence_id uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_control_evidence"($1) $$;
-revoke execute on function "api"."remove_control_evidence"(uuid) from public, anon;
-grant execute on function "api"."remove_control_evidence"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_control_evidence"($1) $$;
+revoke execute on function "api"."delete_control_evidence"(uuid) from public, anon;
+grant execute on function "api"."delete_control_evidence"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function "api"."upsert_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_evidence_task"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
-grant execute on function "api"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_evidence_task"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
+grant execute on function "api"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
 returns jsonb
@@ -7459,14 +7459,14 @@ as $$ select "better_supabase"."notify_overdue_evidence_tasks"() $$;
 revoke execute on function "api"."notify_overdue_evidence_tasks"() from public, anon, authenticated;
 grant execute on function "api"."notify_overdue_evidence_tasks"() to service_role;
 
-create or replace function "api"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function "api"."upsert_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_compliance_policy"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "api"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_compliance_policy"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
+grant execute on function "api"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 create or replace function "api"."publish_compliance_policy"(policy_id uuid, content jsonb, label text default null)
 returns jsonb
@@ -7591,7 +7591,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:2540851d413dcf09d428efa82051455b7396cee0eeda8bd0e3ed44cd6cb8f3f7
+-- @bsb-hash sha256:1442a2811ca75fa48042074e48acfc413b6ec09e295e63058f3e7a2d2d57caa5
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7716,7 +7716,7 @@ create policy bsb_compliance_policies_read on "better_supabase"."compliance_poli
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
 
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
+create or replace function "better_supabase"."upsert_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -7729,14 +7729,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+  if upsert_control_framework.kind is null or upsert_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
     raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  values (upsert_control_framework.tenant, upsert_control_framework.key, trim(upsert_control_framework.name), upsert_control_framework.kind, nullif(trim(upsert_control_framework.version), ''), nullif(trim(upsert_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
@@ -7744,8 +7744,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -7998,7 +7998,7 @@ grant execute on function "better_supabase"."get_control_framework"(uuid) to aut
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
 
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
+create or replace function "better_supabase"."upsert_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8013,33 +8013,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = save_control.framework_id;
+  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = upsert_control.framework_id;
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
+  if nullif(trim(upsert_control.code), '') is null or nullif(trim(upsert_control.title), '') is null then
     raise exception 'a control needs a code and a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
+  if upsert_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = upsert_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   v_new := false;
-  if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
+  if upsert_control.control_id is null then
+    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(upsert_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
+    values (v_framework."tenant_id", v_framework."id", trim(upsert_control.code), trim(upsert_control.title), nullif(trim(upsert_control.description), ''), upsert_control.owner_id, nullif(trim(upsert_control.source), ''), nullif(trim(upsert_control.jurisdiction), ''), coalesce(upsert_control.applicable, true))
     on conflict ("framework_id", "code") do update
       set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
-      "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
-      where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
+    update "better_supabase"."controls" x set "code" = trim(upsert_control.code), "title" = trim(upsert_control.title),
+      "description" = nullif(trim(upsert_control.description), ''), "source" = nullif(trim(upsert_control.source), ''), "jurisdiction" = nullif(trim(upsert_control.jurisdiction), ''), "owner_id" = upsert_control.owner_id,
+      "applicable" = coalesce(upsert_control.applicable, true), "updated_at" = now()
+      where x."id" = upsert_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
     if not found then
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
@@ -8059,8 +8059,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -8134,7 +8134,7 @@ grant execute on function "better_supabase"."list_controls"(uuid, uuid, text, uu
 -- task_id it answers that recurring task, whose due date moves interval_days
 -- past today; valid_until then defaults to that date. The task's assignee
 -- may collect without the collect permission.
-create or replace function "better_supabase"."add_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function "better_supabase"."create_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8149,13 +8149,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = add_control_evidence.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = create_control_evidence.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if add_control_evidence.task_id is not null then
+  if create_control_evidence.task_id is not null then
     select * into v_task from "better_supabase"."evidence_tasks" x
-      where x."id" = add_control_evidence.task_id and x."control_id" = v_control."id"
+      where x."id" = create_control_evidence.task_id and x."control_id" = v_control."id"
       for update;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -8164,16 +8164,16 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+  if create_control_evidence.attachment_id is null and nullif(trim(create_control_evidence.note), '') is null then
     raise exception 'evidence needs an attachment or a note' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if add_control_evidence.attachment_id is not null then
+  if create_control_evidence.attachment_id is not null then
     raise exception 'evidence files need the attachments module' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_evidence" ("tenant_id", "control_id", "task_id", "attachment_id", "note", "collected_by", "valid_until")
-  values (v_control."tenant_id", v_control."id", v_task."id", add_control_evidence.attachment_id,
-    nullif(trim(add_control_evidence.note), ''), auth.uid(),
-    coalesce(add_control_evidence.valid_until, current_date + v_task."interval_days"))
+  values (v_control."tenant_id", v_control."id", v_task."id", create_control_evidence.attachment_id,
+    nullif(trim(create_control_evidence.note), ''), auth.uid(),
+    coalesce(create_control_evidence.valid_until, current_date + v_task."interval_days"))
   returning * into v_row;
   if v_task."id" is not null then
     update "better_supabase"."evidence_tasks" x set "due_on" = current_date + x."interval_days", "last_collected_at" = now(),
@@ -8184,10 +8184,10 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
-grant execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
+grant execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_control_evidence"(evidence_id uuid)
+create or replace function "better_supabase"."delete_control_evidence"(evidence_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -8199,7 +8199,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."control_evidence" x where x."id" = remove_control_evidence.evidence_id;
+  select * into v_row from "better_supabase"."control_evidence" x where x."id" = delete_control_evidence.evidence_id;
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
@@ -8210,12 +8210,12 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_control_evidence"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_control_evidence"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_control_evidence"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_control_evidence"(uuid) to authenticated, service_role;
 
 -- Creates a recurring evidence task on a control, or changes one (task_id).
 -- due_on defaults to today: the first evidence is due now.
-create or replace function "better_supabase"."save_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function "better_supabase"."upsert_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8229,32 +8229,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = save_evidence_task.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = upsert_evidence_task.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_evidence_task.title), '') is null then
+  if nullif(trim(upsert_evidence_task.title), '') is null then
     raise exception 'an evidence task needs a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
+  if upsert_evidence_task.interval_days is null or upsert_evidence_task.interval_days not between 1 and 3650 then
     raise exception 'interval_days must be from 1 to 3650' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = save_evidence_task.assignee_id) then
+  if upsert_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_control."tenant_id" and m."user_id" = upsert_evidence_task.assignee_id) then
     raise exception 'the assignee must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.task_id is null then
+  if upsert_evidence_task.task_id is null then
     insert into "better_supabase"."evidence_tasks" ("tenant_id", "control_id", "title", "assignee_id", "interval_days", "due_on", "active")
-    values (v_control."tenant_id", v_control."id", trim(save_evidence_task.title), save_evidence_task.assignee_id,
-      save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
+    values (v_control."tenant_id", v_control."id", trim(upsert_evidence_task.title), upsert_evidence_task.assignee_id,
+      upsert_evidence_task.interval_days, coalesce(upsert_evidence_task.due_on, current_date), coalesce(upsert_evidence_task.active, true))
     returning * into v_row;
   else
-    update "better_supabase"."evidence_tasks" x set "title" = trim(save_evidence_task.title), "assignee_id" = save_evidence_task.assignee_id,
-      "interval_days" = save_evidence_task.interval_days, "due_on" = coalesce(save_evidence_task.due_on, x."due_on"),
-      "active" = coalesce(save_evidence_task.active, true), "updated_at" = now()
-      where x."id" = save_evidence_task.task_id and x."control_id" = v_control."id"
+    update "better_supabase"."evidence_tasks" x set "title" = trim(upsert_evidence_task.title), "assignee_id" = upsert_evidence_task.assignee_id,
+      "interval_days" = upsert_evidence_task.interval_days, "due_on" = coalesce(upsert_evidence_task.due_on, x."due_on"),
+      "active" = coalesce(upsert_evidence_task.active, true), "updated_at" = now()
+      where x."id" = upsert_evidence_task.task_id and x."control_id" = v_control."id"
       returning * into v_row;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -8263,8 +8263,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'title', v_row."title", 'assigneeId', v_row."assignee_id", 'intervalDays', v_row."interval_days", 'dueOn', v_row."due_on", 'lastCollectedAt', v_row."last_collected_at", 'active', v_row."active", 'overdue', (v_row."active" and v_row."due_on" < current_date), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
 
 -- The evidence tasks the caller can read, the earliest due first.
 create or replace function "better_supabase"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
@@ -8608,7 +8608,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 -- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
-create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function "better_supabase"."upsert_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8622,28 +8622,28 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_compliance_policy.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_compliance_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  if save_compliance_policy.owner_id is not null and not exists (
-    select 1 from "better_supabase"."memberships" m where m."organization_id" = save_compliance_policy.tenant and m."user_id" = save_compliance_policy.owner_id
+  if upsert_compliance_policy.owner_id is not null and not exists (
+    select 1 from "better_supabase"."memberships" m where m."organization_id" = upsert_compliance_policy.tenant and m."user_id" = upsert_compliance_policy.owner_id
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
   select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
-    where x."tenant_id" = save_compliance_policy.tenant
-      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
-  if save_compliance_policy.policy_id is null then
+    where x."tenant_id" = upsert_compliance_policy.tenant
+      and (x."id" = upsert_compliance_policy.policy_id or (upsert_compliance_policy.policy_id is null and x."key" = upsert_compliance_policy.key));
+  if upsert_compliance_policy.policy_id is null then
     insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
-    values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
+    values (upsert_compliance_policy.tenant, upsert_compliance_policy.key, trim(upsert_compliance_policy.title), upsert_compliance_policy.owner_id, coalesce(upsert_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
-      "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
-      where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
+    update "better_supabase"."compliance_policies" x set "key" = upsert_compliance_policy.key, "title" = trim(upsert_compliance_policy.title), "owner_id" = upsert_compliance_policy.owner_id,
+      "requires_acknowledgement" = coalesce(upsert_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
+      where x."id" = upsert_compliance_policy.policy_id and x."tenant_id" = upsert_compliance_policy.tenant
       returning * into v_row;
     if not found then
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
@@ -8657,8 +8657,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
 -- makes it current. Members acknowledge each published version again, through
@@ -9390,7 +9390,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:3d3d38adcaf4e9cd6c3b21b9fa9e1167d61dd237c1b053c7eb08a2252e915af5
+-- @bsb-hash sha256:cdaa44a1e0981c082939567c59c5af58831594033f934ec4477d634ac1f29b7b
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9532,7 +9532,7 @@ create policy bsb_compliance_policies_read on "better_supabase"."compliance_poli
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
 
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
+create or replace function "better_supabase"."upsert_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -9545,14 +9545,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_control_framework.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+  if upsert_control_framework.kind is null or upsert_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
     raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_frameworks" ("org_id", "key", "name", "kind", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  values (upsert_control_framework.tenant, upsert_control_framework.key, trim(upsert_control_framework.name), upsert_control_framework.kind, nullif(trim(upsert_control_framework.version), ''), nullif(trim(upsert_control_framework.description), ''))
   on conflict ("org_id", "key") do update
     set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
@@ -9560,8 +9560,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -9814,7 +9814,7 @@ grant execute on function "better_supabase"."get_control_framework"(uuid) to aut
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
 
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
+create or replace function "better_supabase"."upsert_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -9829,33 +9829,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = save_control.framework_id;
+  select * into v_framework from "better_supabase"."control_frameworks" x where x."id" = upsert_control.framework_id;
   if not found then
     raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_framework."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
+  if nullif(trim(upsert_control.code), '') is null or nullif(trim(upsert_control.title), '') is null then
     raise exception 'a control needs a code and a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = v_framework."org_id" and m."user_id" = save_control.owner_id) then
+  if upsert_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = v_framework."org_id" and m."user_id" = upsert_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   v_new := false;
-  if save_control.control_id is null then
-    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
+  if upsert_control.control_id is null then
+    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(upsert_control.code));
     insert into "better_supabase"."controls" ("org_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
-    values (v_framework."org_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
+    values (v_framework."org_id", v_framework."id", trim(upsert_control.code), trim(upsert_control.title), nullif(trim(upsert_control.description), ''), upsert_control.owner_id, nullif(trim(upsert_control.source), ''), nullif(trim(upsert_control.jurisdiction), ''), coalesce(upsert_control.applicable, true))
     on conflict ("framework_id", "code") do update
       set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
-      "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
-      where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
+    update "better_supabase"."controls" x set "code" = trim(upsert_control.code), "title" = trim(upsert_control.title),
+      "description" = nullif(trim(upsert_control.description), ''), "source" = nullif(trim(upsert_control.source), ''), "jurisdiction" = nullif(trim(upsert_control.jurisdiction), ''), "owner_id" = upsert_control.owner_id,
+      "applicable" = coalesce(upsert_control.applicable, true), "updated_at" = now()
+      where x."id" = upsert_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
     if not found then
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
@@ -9875,8 +9875,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."upsert_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -9950,7 +9950,7 @@ grant execute on function "better_supabase"."list_controls"(uuid, uuid, text, uu
 -- task_id it answers that recurring task, whose due date moves interval_days
 -- past today; valid_until then defaults to that date. The task's assignee
 -- may collect without the collect permission.
-create or replace function "better_supabase"."add_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function "better_supabase"."create_control_evidence"(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -9965,13 +9965,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = add_control_evidence.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = create_control_evidence.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  if add_control_evidence.task_id is not null then
+  if create_control_evidence.task_id is not null then
     select * into v_task from "better_supabase"."evidence_tasks" x
-      where x."id" = add_control_evidence.task_id and x."control_id" = v_control."id"
+      where x."id" = create_control_evidence.task_id and x."control_id" = v_control."id"
       for update;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -9980,16 +9980,16 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."org_id", 'compliance.collect'), false)) or (v_task."assignee_id" is not null and coalesce(v_task."assignee_id" = auth.uid(), false))) then
     raise exception 'not allowed to collect evidence' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+  if create_control_evidence.attachment_id is null and nullif(trim(create_control_evidence.note), '') is null then
     raise exception 'evidence needs an attachment or a note' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if add_control_evidence.attachment_id is not null then
+  if create_control_evidence.attachment_id is not null then
     raise exception 'evidence files need the attachments module' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
   insert into "better_supabase"."control_evidence" ("org_id", "control_id", "task_id", "attachment_id", "note", "collected_by", "valid_until")
-  values (v_control."org_id", v_control."id", v_task."id", add_control_evidence.attachment_id,
-    nullif(trim(add_control_evidence.note), ''), auth.uid(),
-    coalesce(add_control_evidence.valid_until, current_date + v_task."interval_days"))
+  values (v_control."org_id", v_control."id", v_task."id", create_control_evidence.attachment_id,
+    nullif(trim(create_control_evidence.note), ''), auth.uid(),
+    coalesce(create_control_evidence.valid_until, current_date + v_task."interval_days"))
   returning * into v_row;
   if v_task."id" is not null then
     update "better_supabase"."evidence_tasks" x set "due_on" = current_date + x."interval_days", "last_collected_at" = now(),
@@ -10000,10 +10000,10 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
-grant execute on function "better_supabase"."add_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) from public, anon;
+grant execute on function "better_supabase"."create_control_evidence"(uuid, uuid, text, date, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_control_evidence"(evidence_id uuid)
+create or replace function "better_supabase"."delete_control_evidence"(evidence_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -10015,7 +10015,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."control_evidence" x where x."id" = remove_control_evidence.evidence_id;
+  select * into v_row from "better_supabase"."control_evidence" x where x."id" = delete_control_evidence.evidence_id;
   if not found then
     raise exception 'evidence not found' using errcode = 'P0002', hint = 'CONTROL_EVIDENCE_NOT_FOUND';
   end if;
@@ -10026,12 +10026,12 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'controlId', v_row."control_id", 'evidenceTaskId', v_row."task_id", 'attachmentId', v_row."attachment_id", 'note', v_row."note", 'collectedBy', v_row."collected_by", 'collectedAt', v_row."collected_at", 'validUntil', v_row."valid_until", 'valid', (v_row."valid_until" is null or v_row."valid_until" >= current_date));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_control_evidence"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_control_evidence"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_control_evidence"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_control_evidence"(uuid) to authenticated, service_role;
 
 -- Creates a recurring evidence task on a control, or changes one (task_id).
 -- due_on defaults to today: the first evidence is due now.
-create or replace function "better_supabase"."save_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function "better_supabase"."upsert_evidence_task"(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10045,32 +10045,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_control from "better_supabase"."controls" x where x."id" = save_evidence_task.control_id;
+  select * into v_control from "better_supabase"."controls" x where x."id" = upsert_evidence_task.control_id;
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_control."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROL_FORBIDDEN';
   end if;
-  if nullif(trim(save_evidence_task.title), '') is null then
+  if nullif(trim(upsert_evidence_task.title), '') is null then
     raise exception 'an evidence task needs a title' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
+  if upsert_evidence_task.interval_days is null or upsert_evidence_task.interval_days not between 1 and 3650 then
     raise exception 'interval_days must be from 1 to 3650' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = v_control."org_id" and m."user_id" = save_evidence_task.assignee_id) then
+  if upsert_evidence_task.assignee_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = v_control."org_id" and m."user_id" = upsert_evidence_task.assignee_id) then
     raise exception 'the assignee must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
-  if save_evidence_task.task_id is null then
+  if upsert_evidence_task.task_id is null then
     insert into "better_supabase"."evidence_tasks" ("org_id", "control_id", "title", "assignee_id", "interval_days", "due_on", "active")
-    values (v_control."org_id", v_control."id", trim(save_evidence_task.title), save_evidence_task.assignee_id,
-      save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
+    values (v_control."org_id", v_control."id", trim(upsert_evidence_task.title), upsert_evidence_task.assignee_id,
+      upsert_evidence_task.interval_days, coalesce(upsert_evidence_task.due_on, current_date), coalesce(upsert_evidence_task.active, true))
     returning * into v_row;
   else
-    update "better_supabase"."evidence_tasks" x set "title" = trim(save_evidence_task.title), "assignee_id" = save_evidence_task.assignee_id,
-      "interval_days" = save_evidence_task.interval_days, "due_on" = coalesce(save_evidence_task.due_on, x."due_on"),
-      "active" = coalesce(save_evidence_task.active, true), "updated_at" = now()
-      where x."id" = save_evidence_task.task_id and x."control_id" = v_control."id"
+    update "better_supabase"."evidence_tasks" x set "title" = trim(upsert_evidence_task.title), "assignee_id" = upsert_evidence_task.assignee_id,
+      "interval_days" = upsert_evidence_task.interval_days, "due_on" = coalesce(upsert_evidence_task.due_on, x."due_on"),
+      "active" = coalesce(upsert_evidence_task.active, true), "updated_at" = now()
+      where x."id" = upsert_evidence_task.task_id and x."control_id" = v_control."id"
       returning * into v_row;
     if not found then
       raise exception 'the evidence task isn''t a task of this control' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
@@ -10079,8 +10079,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'controlId', v_row."control_id", 'title', v_row."title", 'assigneeId', v_row."assignee_id", 'intervalDays', v_row."interval_days", 'dueOn', v_row."due_on", 'lastCollectedAt', v_row."last_collected_at", 'active', v_row."active", 'overdue', (v_row."active" and v_row."due_on" < current_date), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_evidence_task"(uuid, text, integer, date, uuid, boolean, uuid) to authenticated, service_role;
 
 -- The evidence tasks the caller can read, the earliest due first.
 create or replace function "better_supabase"."list_evidence_tasks"(tenant uuid, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)
@@ -10424,7 +10424,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 -- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
-create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
+create or replace function "better_supabase"."upsert_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10438,28 +10438,28 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_compliance_policy.tenant, 'compliance.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_compliance_policy.tenant, 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  if save_compliance_policy.owner_id is not null and not exists (
-    select 1 from "better_supabase"."memberships" m where m."org_id" = save_compliance_policy.tenant and m."user_id" = save_compliance_policy.owner_id
+  if upsert_compliance_policy.owner_id is not null and not exists (
+    select 1 from "better_supabase"."memberships" m where m."org_id" = upsert_compliance_policy.tenant and m."user_id" = upsert_compliance_policy.owner_id
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
   select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
-    where x."org_id" = save_compliance_policy.tenant
-      and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
-  if save_compliance_policy.policy_id is null then
+    where x."org_id" = upsert_compliance_policy.tenant
+      and (x."id" = upsert_compliance_policy.policy_id or (upsert_compliance_policy.policy_id is null and x."key" = upsert_compliance_policy.key));
+  if upsert_compliance_policy.policy_id is null then
     insert into "better_supabase"."compliance_policies" ("org_id", "key", "title", "owner_id", "requires_acknowledgement")
-    values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
+    values (upsert_compliance_policy.tenant, upsert_compliance_policy.key, trim(upsert_compliance_policy.title), upsert_compliance_policy.owner_id, coalesce(upsert_compliance_policy.requires_acknowledgement, true))
     on conflict ("org_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
-      "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
-      where x."id" = save_compliance_policy.policy_id and x."org_id" = save_compliance_policy.tenant
+    update "better_supabase"."compliance_policies" x set "key" = upsert_compliance_policy.key, "title" = trim(upsert_compliance_policy.title), "owner_id" = upsert_compliance_policy.owner_id,
+      "requires_acknowledgement" = coalesce(upsert_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
+      where x."id" = upsert_compliance_policy.policy_id and x."org_id" = upsert_compliance_policy.tenant
       returning * into v_row;
     if not found then
       raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
@@ -10473,8 +10473,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_compliance_policy"(uuid, text, text, uuid, boolean, uuid) to authenticated, service_role;
 
 -- Publishes the policy text as a new frozen version (versions block) and
 -- makes it current. Members acknowledge each published version again, through

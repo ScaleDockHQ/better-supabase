@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 
 import {
-  loadSupabaseCliCheck,
+  getSupabaseCliCheck,
   parseConfigValidation,
   SUPABASE_CLI_RULES,
 } from "../../../src/cli/doctor/supabase-cli.ts";
@@ -67,7 +67,7 @@ describe("loadSupabaseCliCheck", () => {
       .mockResolvedValueOnce(output("3.3.0\n"))
       .mockResolvedValueOnce(output(REPORT, 1));
 
-    const result = await loadSupabaseCliCheck("/p", {});
+    const result = await getSupabaseCliCheck("/p", {});
 
     expect(result).toMatchObject({ version: "3.3.0" });
     expect("validation" in result && result.validation.file).toBe(
@@ -78,14 +78,14 @@ describe("loadSupabaseCliCheck", () => {
   it("does not run config validate on an older CLI", async () => {
     vi.mocked(supabaseCli).mockResolvedValueOnce(output("3.2.9\n"));
 
-    expect(await loadSupabaseCliCheck("/p", {})).toEqual({ version: "3.2.9" });
+    expect(await getSupabaseCliCheck("/p", {})).toEqual({ version: "3.2.9" });
     expect(supabaseCli).toHaveBeenCalledOnce();
   });
 
   it("skips when no CLI runs", async () => {
     vi.mocked(supabaseCli).mockRejectedValueOnce(new Error("not found"));
 
-    expect(await loadSupabaseCliCheck("/p", {})).toEqual({
+    expect(await getSupabaseCliCheck("/p", {})).toEqual({
       skipped: "not found",
     });
   });

@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:c05f367f0862c7d55f70e61ae7e665bfd7f2caadf6d564cfdbaed0ff5b3791b7
+-- @bsb-hash sha256:ce8e14fe04987b5eb0aa02d599e96ca8d2a20fd18ce4e4e23c4558f210fc8a65
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -86,7 +86,7 @@ grant all on "better_supabase"."field_values" to service_role;
 create index field_values_definition_idx on "better_supabase"."field_values" ("definition_id");
 alter table "better_supabase"."field_definitions" add column "archived_at" timestamptz;
 
-create or replace function "better_supabase"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "better_supabase"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -102,40 +102,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_field_definition.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
-  if save_field_definition.entity is null or save_field_definition.entity <> all (array['message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'ledger_account', 'invoice', 'product', 'product_variant', 'rfq', 'till', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'warranty_claim', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'case', 'inspection', 'inspection_program', 'inspection_finding', 'form', 'meeting', 'meeting_decision', 'maintenance_plan', 'dam_usage_right', 'lims_sample', 'tax_code', 'production_order', 'work_center', 'bank_account', 'care_plan', 'incident', 'advisory', 'advisory_product', 'vulnerability', 'content_entry', 'document', 'customer', 'drive_node', 'organization', 'application', 'change_request', 'project', 'task']::text[]) then
+  if upsert_field_definition.entity is null or upsert_field_definition.entity <> all (array['message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'ledger_account', 'invoice', 'product', 'product_variant', 'rfq', 'till', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'warranty_claim', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'case', 'inspection', 'inspection_program', 'inspection_finding', 'form', 'meeting', 'meeting_decision', 'maintenance_plan', 'dam_usage_right', 'lims_sample', 'tax_code', 'production_order', 'work_center', 'bank_account', 'care_plan', 'incident', 'advisory', 'advisory_product', 'vulnerability', 'content_entry', 'document', 'customer', 'drive_node', 'organization', 'application', 'change_request', 'project', 'task']::text[]) then
     raise exception 'the entity is not a registered subject type' using errcode = '22023', hint = 'CUSTOM_FIELD_ENTITY_UNKNOWN';
   end if;
   select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;
   v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
   if exists (select 1 from "better_supabase"."field_definitions" d
-    where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity
-      and d."key" = save_field_definition.key and d."archived_at" is not null) then
+    where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity
+      and d."key" = upsert_field_definition.key and d."archived_at" is not null) then
     raise exception 'field is archived; restore it first' using errcode = '55000', hint = 'CUSTOM_FIELD_ARCHIVED';
   end if;
   insert into "better_supabase"."field_definitions" ("tenant_id", "entity", "key", "label", "type", "sensitive", "rank")
-  values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
+  values (upsert_field_definition.tenant, upsert_field_definition.entity, upsert_field_definition.key, upsert_field_definition.label, upsert_field_definition.type, coalesce(upsert_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
   returning "id", xmax = 0 into v_id, v_inserted;
   if v_inserted then
-    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', upsert_field_definition.tenant, 'id', v_id, 'entity', upsert_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, upsert_field_definition.key), (upsert_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
   else
-    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', upsert_field_definition.tenant, 'id', v_id, 'entity', upsert_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, upsert_field_definition.key), (upsert_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
   end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
-create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)
+revoke execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+create or replace function "better_supabase"."get_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)
 returns jsonb
 language plpgsql
 volatile
@@ -147,24 +147,24 @@ declare
   v_key text;
   v_read jsonb;
 begin
-  v_key := "better_supabase"."field_key"('tenant:' || read_field_values.tenant::text, false);
+  v_key := "better_supabase"."field_key"('tenant:' || get_field_values.tenant::text, false);
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', case when coalesce(d."encrypted", false) then "better_supabase"."field_open"(v_key, v."value_text") else v."value_text" end)), '[]'::jsonb),
     jsonb_agg(v."id") filter (where coalesce(d."encrypted", false) or coalesce(d."sensitive", false))
   into v_values, v_read
   from (select distinct on (x."definition_id") x.* from "better_supabase"."field_values" x
-    where x."tenant_id" = read_field_values.tenant
-      and x."subject_type" = read_field_values.subject_type
-      and x."subject_id" = read_field_values.subject_id
-      and (x.legal_entity_id is null or x.legal_entity_id = read_field_values.legal_entity)
+    where x."tenant_id" = get_field_values.tenant
+      and x."subject_type" = get_field_values.subject_type
+      and x."subject_id" = get_field_values.subject_id
+      and (x.legal_entity_id is null or x.legal_entity_id = get_field_values.legal_entity)
     order by x."definition_id", x.legal_entity_id nulls last) v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
-  where v."tenant_id" = read_field_values.tenant
-    and v."subject_type" = read_field_values.subject_type
-    and v."subject_id" = read_field_values.subject_id
-    and (auth.role() = 'service_role' or (case when read_field_values.subject_type in ('drive_node') then case read_field_values.subject_type
-    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (read_field_values.subject_id)::uuid and s."tenant_id" = read_field_values.tenant and (coalesce(better_supabase.can('tenant', read_field_values.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+  where v."tenant_id" = get_field_values.tenant
+    and v."subject_type" = get_field_values.subject_type
+    and v."subject_id" = get_field_values.subject_id
+    and (auth.role() = 'service_role' or (case when get_field_values.subject_type in ('drive_node') then case get_field_values.subject_type
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (get_field_values.subject_id)::uuid and s."tenant_id" = get_field_values.tenant and (coalesce(better_supabase.can('tenant', get_field_values.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
-  end else coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false) end))
+  end else coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false) end))
     and (not coalesce(d."sensitive", false)
         or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   if v_read is not null then
@@ -172,20 +172,20 @@ begin
     event_type => 'field_value.viewed',
     category => 'read',
     target_type => 'field_value',
-    record_id => read_field_values.subject_id,
-    summary => 'Read ' || jsonb_array_length(v_read)::text || ' protected field value(s) of ' || read_field_values.subject_type,
-    tenant => (read_field_values.tenant)::uuid,
-    metadata => jsonb_build_object('organizationId', read_field_values.tenant, 'subjectType', read_field_values.subject_type, 'subjectId', read_field_values.subject_id, 'ids', v_read)
+    record_id => get_field_values.subject_id,
+    summary => 'Read ' || jsonb_array_length(v_read)::text || ' protected field value(s) of ' || get_field_values.subject_type,
+    tenant => (get_field_values.tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', get_field_values.tenant, 'subjectType', get_field_values.subject_type, 'subjectId', get_field_values.subject_id, 'ids', v_read)
   );
   end if;
   if jsonb_array_length(v_values) > 0 then
-    perform "better_supabase"."record_subject_read"(read_field_values.subject_type, read_field_values.subject_id, null, 'custom-fields', 'read_field_values');
+    perform "better_supabase"."record_subject_read"(get_field_values.subject_type, get_field_values.subject_id, null, 'custom-fields', 'get_field_values');
   end if;
   return v_values;
 end;
 $$;
-revoke execute on function "better_supabase"."read_field_values"(uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."read_field_values"(uuid, text, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_field_values"(uuid, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."get_field_values"(uuid, text, text, uuid) to authenticated, service_role;
 create or replace function "better_supabase"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text, legal_entity uuid default null)
 returns jsonb
 language plpgsql
@@ -307,7 +307,7 @@ $$;
 revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
--- Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
+-- Archives a field: it leaves list_field_definitions and upsert_field_definition and set_field_value refuse it. Its values stay and stay readable. Needs the manage key; archiving an archived field returns it unchanged.
 create or replace function "better_supabase"."archive_field_definition"(definition uuid)
 returns jsonb
 language plpgsql
@@ -1266,23 +1266,23 @@ as $$ select "better_supabase"."bsb_valid_iban"($1) $$;
 revoke execute on function "api"."bsb_valid_iban"(text) from public, anon;
 grant execute on function "api"."bsb_valid_iban"(text) to authenticated, service_role;
 
-create or replace function "api"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
+create or replace function "api"."upsert_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_field_definition"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
-grant execute on function "api"."save_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_field_definition"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_field_definition"(uuid, text, text, text, text, boolean) from public, anon;
+grant execute on function "api"."upsert_field_definition"(uuid, text, text, text, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."read_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)
+create or replace function "api"."get_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."read_field_values"($1, $2, $3, $4) $$;
-revoke execute on function "api"."read_field_values"(uuid, text, text, uuid) from public, anon;
-grant execute on function "api"."read_field_values"(uuid, text, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."get_field_values"($1, $2, $3, $4) $$;
+revoke execute on function "api"."get_field_values"(uuid, text, text, uuid) from public, anon;
+grant execute on function "api"."get_field_values"(uuid, text, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."set_field_value"(tenant uuid, subject_type text, subject_id text, definition uuid, value text, legal_entity uuid default null)
 returns jsonb

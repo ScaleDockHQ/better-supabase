@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:0533dae50cf492e83eaadf0d118361879b7cb6894ca4a0b5b13f7a474a9e3537
+-- @bsb-hash sha256:46fc88ac5423a097f067c3036724288663713c2e0fbc80e2ee0bfb3cbc776f58
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -170,7 +170,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function "better_supabase"."remove_marketplace_installation"(configuration_id text)
+create or replace function "better_supabase"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -183,7 +183,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   update "better_supabase"."marketplace_installations" x set "status" = 'removed', "removed_at" = coalesce(x."removed_at", now())
-  where x."configuration_id" = remove_marketplace_installation.configuration_id
+  where x."configuration_id" = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row."id" is null then
     return null;
@@ -602,8 +602,8 @@ revoke execute on function "better_supabase"."upsert_marketplace_installation"(t
 grant execute on function "better_supabase"."upsert_marketplace_installation"(text, text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."marketplace_installation"(text) to service_role;
-revoke execute on function "better_supabase"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "better_supabase"."remove_marketplace_installation"(text) to service_role;
+revoke execute on function "better_supabase"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."delete_marketplace_installation"(text) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_resource"(text, text, text, text, text, jsonb) from public, anon, authenticated;
@@ -654,7 +654,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:ba03b639771ebb8d807cd2ce0a83e86f29b278862c0ed169d3c94c6e43a1ce07
+-- @bsb-hash sha256:eff1060b57465bddcc436d6f0266f782354cc7f239da27f4d511b333f42e4b7f
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -837,7 +837,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function "better_supabase"."remove_marketplace_installation"(configuration_id text)
+create or replace function "better_supabase"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -850,7 +850,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   update "better_supabase"."marketplace_installations" x set "status" = 'removed', "removed_at" = coalesce(x."removed_at", now())
-  where x."configuration_id" = remove_marketplace_installation.configuration_id
+  where x."configuration_id" = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row."id" is null then
     return null;
@@ -1283,8 +1283,8 @@ revoke execute on function "better_supabase"."upsert_marketplace_installation"(t
 grant execute on function "better_supabase"."upsert_marketplace_installation"(text, text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."marketplace_installation"(text) to service_role;
-revoke execute on function "better_supabase"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "better_supabase"."remove_marketplace_installation"(text) to service_role;
+revoke execute on function "better_supabase"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."delete_marketplace_installation"(text) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_resource"(text, text, text, text, text, jsonb) from public, anon, authenticated;
@@ -1335,7 +1335,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:05b0122335808279aeb3d23ff14214f785ece3cb604531a7e971fee98c4956e1
+-- @bsb-hash sha256:2789f1da2a32d8bf843d9d9101675ee0be0498ba57e3d6f6c5a66083f9441e2e
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1509,7 +1509,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function "app_private"."remove_marketplace_installation"(configuration_id text)
+create or replace function "app_private"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -1522,7 +1522,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   update "app_private"."marketplace_installations" x set "status" = 'removed', "removed_at" = coalesce(x."removed_at", now())
-  where x."configuration_id" = remove_marketplace_installation.configuration_id
+  where x."configuration_id" = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row."id" is null then
     return null;
@@ -1941,8 +1941,8 @@ revoke execute on function "app_private"."upsert_marketplace_installation"(text,
 grant execute on function "app_private"."upsert_marketplace_installation"(text, text, text, text, jsonb) to service_role;
 revoke execute on function "app_private"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "app_private"."marketplace_installation"(text) to service_role;
-revoke execute on function "app_private"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "app_private"."remove_marketplace_installation"(text) to service_role;
+revoke execute on function "app_private"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "app_private"."delete_marketplace_installation"(text) to service_role;
 revoke execute on function "app_private"."upsert_marketplace_plan"(text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function "app_private"."upsert_marketplace_plan"(text, text, text, jsonb) to service_role;
 revoke execute on function "app_private"."upsert_marketplace_resource"(text, text, text, text, text, jsonb) from public, anon, authenticated;
@@ -1993,7 +1993,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:5538c30515952f7f7f4cecb354a07bb682689f4926c34dce075df6e35651b01d
+-- @bsb-hash sha256:9b7776cac98a8ce7d65da467fb419a058a46bffa6f70e2134561a7677cbf69f0
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2162,7 +2162,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function "better_supabase"."remove_marketplace_installation"(configuration_id text)
+create or replace function "better_supabase"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -2175,7 +2175,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   update "better_supabase"."marketplace_installations" x set "status" = 'removed', "removed_at" = coalesce(x."removed_at", now())
-  where x."configuration_id" = remove_marketplace_installation.configuration_id
+  where x."configuration_id" = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row."id" is null then
     return null;
@@ -2594,8 +2594,8 @@ revoke execute on function "better_supabase"."upsert_marketplace_installation"(t
 grant execute on function "better_supabase"."upsert_marketplace_installation"(text, text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."marketplace_installation"(text) to service_role;
-revoke execute on function "better_supabase"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "better_supabase"."remove_marketplace_installation"(text) to service_role;
+revoke execute on function "better_supabase"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."delete_marketplace_installation"(text) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_resource"(text, text, text, text, text, jsonb) from public, anon, authenticated;
@@ -2652,14 +2652,14 @@ as $$ select "better_supabase"."marketplace_installation"($1) $$;
 revoke execute on function "api"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "api"."marketplace_installation"(text) to service_role;
 
-create or replace function "api"."remove_marketplace_installation"(configuration_id text)
+create or replace function "api"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_marketplace_installation"($1) $$;
-revoke execute on function "api"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "api"."remove_marketplace_installation"(text) to service_role;
+as $$ select "better_supabase"."delete_marketplace_installation"($1) $$;
+revoke execute on function "api"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "api"."delete_marketplace_installation"(text) to service_role;
 
 create or replace function "api"."upsert_marketplace_plan"(id text, name text, kind text default 'subscription', details jsonb default '{}'::jsonb)
 returns jsonb
@@ -2828,7 +2828,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:52492b884c462a63023e4316a65940c359786600be10499a8f89cb00671dbf25
+-- @bsb-hash sha256:efca7ebcbca3262666748161ead3cd44866ebb3a646df059ebbbb60a1cc095f2
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2989,7 +2989,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function "better_supabase"."remove_marketplace_installation"(configuration_id text)
+create or replace function "better_supabase"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -3002,7 +3002,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   update "better_supabase"."marketplace_installations" x set "status" = 'removed', "removed_at" = coalesce(x."removed_at", now())
-  where x."configuration_id" = remove_marketplace_installation.configuration_id
+  where x."configuration_id" = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row."id" is null then
     return null;
@@ -3421,8 +3421,8 @@ revoke execute on function "better_supabase"."upsert_marketplace_installation"(t
 grant execute on function "better_supabase"."upsert_marketplace_installation"(text, text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."marketplace_installation"(text) to service_role;
-revoke execute on function "better_supabase"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "better_supabase"."remove_marketplace_installation"(text) to service_role;
+revoke execute on function "better_supabase"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."delete_marketplace_installation"(text) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_resource"(text, text, text, text, text, jsonb) from public, anon, authenticated;
@@ -3473,7 +3473,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@3 managed
--- @bsb-hash sha256:a44b3a1ac02cd719214daed7534fa7e6eb5e60ae2a06b51d3a84e14cf13e46ef
+-- @bsb-hash sha256:a468496f4b44ca20767da97d97e80f6ae42b7c08c47878301591386d060277d4
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3642,7 +3642,7 @@ $$;
 
 -- Marks the installation removed and its resources deleted (Vercel
 -- integration-configuration.removed); the rows stay for invoices and audit.
-create or replace function "better_supabase"."remove_marketplace_installation"(configuration_id text)
+create or replace function "better_supabase"."delete_marketplace_installation"(configuration_id text)
 returns jsonb
 language plpgsql
 security definer
@@ -3655,7 +3655,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   update "better_supabase"."marketplace_installations" x set "status" = 'removed', "removed_at" = coalesce(x."removed_at", now())
-  where x."configuration_id" = remove_marketplace_installation.configuration_id
+  where x."configuration_id" = delete_marketplace_installation.configuration_id
   returning * into v_row;
   if v_row."id" is null then
     return null;
@@ -4074,8 +4074,8 @@ revoke execute on function "better_supabase"."upsert_marketplace_installation"(t
 grant execute on function "better_supabase"."upsert_marketplace_installation"(text, text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."marketplace_installation"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."marketplace_installation"(text) to service_role;
-revoke execute on function "better_supabase"."remove_marketplace_installation"(text) from public, anon, authenticated;
-grant execute on function "better_supabase"."remove_marketplace_installation"(text) to service_role;
+revoke execute on function "better_supabase"."delete_marketplace_installation"(text) from public, anon, authenticated;
+grant execute on function "better_supabase"."delete_marketplace_installation"(text) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."upsert_marketplace_plan"(text, text, text, jsonb) to service_role;
 revoke execute on function "better_supabase"."upsert_marketplace_resource"(text, text, text, text, text, jsonb) from public, anon, authenticated;

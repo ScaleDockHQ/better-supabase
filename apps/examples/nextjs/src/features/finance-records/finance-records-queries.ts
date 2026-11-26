@@ -8,19 +8,16 @@ import * as v from "valibot";
 import type { RecordListPage } from "@/components/record-list/record-list-types";
 import type { FinanceEntityKey, FinanceListQuery } from "@/lib/finance-list";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
 import {
   defineFinanceList,
   financeFixedFacets,
   financeSqlEntity,
 } from "@/lib/finance-list";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { FinanceRecord, FinanceRow } from "./finance-records-types";
-
-import { FINANCE_RECORDS_TAG } from "./finance-records-cache";
 
 const PAGE_SIZE = 50;
 
@@ -80,12 +77,12 @@ export async function runFinanceList(
  * doesn't read `searchParams`, so it stays in the instant App Shell; every
  * other URL state goes through the entity's list route.
  */
-async function readFirstPage(
+async function getFirstPage(
   entity: FinanceEntityKey,
 ): Promise<RecordListPage<FinanceRow> | null> {
   "use cache: private";
   const { session, db } = await bsbCore.cached();
-  cacheTag(FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG);
+  cacheTag(tags.financeRecords(), BILLING_TAG, tags.banking(), tags.shop());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -122,16 +119,16 @@ async function settle<T>(
 export function getFinanceFirstPage(
   entity: FinanceEntityKey,
 ): Promise<FinanceLoaded<RecordListPage<FinanceRow>>> {
-  return settle(() => readFirstPage(entity));
+  return settle(() => getFirstPage(entity));
 }
 
-async function readRecord(
+async function getRecord(
   entity: FinanceEntityKey,
   id: string,
 ): Promise<FinanceRecord | null> {
   "use cache: private";
   const { session, db } = await bsbCore.cached();
-  cacheTag(FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG);
+  cacheTag(tags.financeRecords(), BILLING_TAG, tags.banking(), tags.shop());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -152,5 +149,5 @@ export function getFinanceRecord(
   entity: FinanceEntityKey,
   id: string,
 ): Promise<FinanceLoaded<FinanceRecord>> {
-  return settle(() => readRecord(entity, id));
+  return settle(() => getRecord(entity, id));
 }

@@ -113,6 +113,38 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
     throw mapper ? mapper(result.error) : new DbException(result.error);
   }
 
+  /**
+   * Resolves with the data, `null` for a `not_found` error (a `get` that
+   * matched no row), and throws any other error as `.orThrow()` does.
+   */
+  async orNull(factory?: (error: DbError) => unknown): Promise<T | null> {
+    const result = await this.#promise;
+
+    if (result.ok) {
+      return result.data;
+    }
+
+    if (result.error.kind === "not_found") {
+      return null;
+    }
+
+    const mapper = factory ?? throwMappers.get(this);
+    throw mapper ? mapper(result.error) : new DbException(result.error);
+  }
+
+  /**
+   * Resolves with the data, or `fallback` for a `not_found` error. Other errors
+   * throw.
+   */
+  async or<F>(
+    fallback: F,
+    factory?: (error: DbError) => unknown,
+  ): Promise<T | F> {
+    const data = await this.orNull(factory);
+
+    return data ?? fallback;
+  }
+
   /** Resolves with the data, or `fallback` when the result is an error. */
   async unwrapOr<F>(fallback: F): Promise<T | F> {
     const result = await this.#promise;

@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { TAG_DOMAINS } from "../../tag-domains.ts";
+
 const FEATURES = join(process.cwd(), "src/features");
 
 const read = (path: string): string => readFileSync(path, "utf-8");
@@ -17,24 +19,29 @@ const filesOf = (domain: string): string[] =>
 
 const ALL = domains.flatMap(filesOf);
 
-/** `export const NAME = tagFor("tag")` in the `*-cache.ts` files: name to tag. */
-const TAGS = new Map<string, string>();
+/**
+ * The feature tags: the `domains` the config declares plus the two table tags
+ * the example refreshes by hand. Each is read as `tags.<name>()`.
+ */
+const TAGS = new Set<string>(["customers", "projects"]);
 
-for (const path of ALL.filter((file) => file.endsWith("-cache.ts"))) {
-  for (const match of read(path).matchAll(
-    /export const (\w+) = tagFor\("([^"]+)"\)/gu,
-  )) {
-    TAGS.set(match[1] ?? "", match[2] ?? "");
-  }
+for (const name of TAG_DOMAINS) {
+  TAGS.add(name);
 }
 
-const kebab = (name: string): string =>
-  name.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`);
+const tagName = (call: string): string =>
+  /^tags\.(\w+)\(\)$/u.exec(call)?.[1] ?? "";
 
 const WRITE =
   /\b(?:db|tx|bsb\.admin\(\))\.(\w+)\.(?:insert|update|delete|upsert|create|remove|insertMany|updateMany|deleteMany|restore|archive|replace)\b/gu;
 
 const CALL = /refreshCaller\(\s*[\w.]+\s*,\s*\[([^\]]*)\]/gu;
+
+/**
+ * `tags: () => [...]` or `tags: ({ tenant }) => cond ? [...] : [...]` on
+ * `bsb.action`.
+ */
+const OPTION = /\btags: \([^)]*\) =>[^[;]*?\[([^\]]*)\]/gu;
 
 interface Use {
   readonly file: string;
@@ -50,11 +57,13 @@ const USES: Use[] = ALL.filter((file) => file.endsWith("-actions.ts")).flatMap(
       ...new Set([...text.matchAll(WRITE)].map((m) => m[1] ?? "")),
     ];
 
-    return [...text.matchAll(CALL)].map((call) => ({
+    return [...text.matchAll(CALL), ...text.matchAll(OPTION)].map((call) => ({
       file: file.slice(FEATURES.length + 1),
       names: (call[1] ?? "")
         .split(",")
         .map((name) => name.trim())
+        .filter(Boolean)
+        .map(tagName)
         .filter(Boolean),
       written,
     }));
@@ -86,7 +95,7 @@ describe("refreshCaller tags", () => {
   it("passes only tags a read carries", () => {
     const unread = USES.flatMap((use) =>
       use.names
-        .filter((name) => TAGS.has(name) && !READERS.includes(name))
+        .filter((name) => TAGS.has(name) && !READERS.includes(`tags.${name}()`))
         .map((name) => `${use.file}: ${name}`),
     );
 
@@ -94,15 +103,13 @@ describe("refreshCaller tags", () => {
   });
 
   it("expires the domain tag of every table an action writes", () => {
-    const tagged = new Map([...TAGS].map(([name, tag]) => [tag, name]));
-
     const missing = USES.flatMap((use) => {
       const passed = new Set(use.names);
       const file = USES.filter((entry) => entry.file === use.file);
       const union = new Set(file.flatMap((entry) => entry.names));
 
       return use.written.flatMap((table) => {
-        const name = tagged.get(kebab(table)) ?? tagged.get(table);
+        const name = TAGS.has(table) ? table : undefined;
 
         return name !== undefined && !union.has(name) && !passed.has(name)
           ? [`${use.file}: writes ${table}, passes no ${name}`]

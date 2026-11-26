@@ -29,7 +29,7 @@ import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { moveDeal } from "@/features/crm/crm-actions";
 import { settle } from "@/features/crm/crm-queries";
 
-import { loadDeal } from "../pipeline/pipeline-queries";
+import { getDeal } from "../pipeline/pipeline-queries";
 import { reopenDeal, winDeal } from "../sales-actions";
 import { ActionButton } from "./action-button";
 import { ActionDialog } from "./action-dialog";
@@ -64,7 +64,7 @@ export async function DealDetail({
   const [t, loaded, fmtMoney, fmtDate, canWrite, canReadInbox] =
     await Promise.all([
       getExtracted("sales"),
-      settle(() => loadDeal(id)),
+      settle(() => getDeal(id)),
       moneyFormatter(),
       dateFormatter(),
       holds("deals.write"),

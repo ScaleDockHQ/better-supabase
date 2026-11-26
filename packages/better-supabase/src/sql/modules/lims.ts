@@ -255,7 +255,7 @@ ${limsFunctions(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_lims_method",
+      name: "upsert_lims_method",
       args: ["{id}", "jsonb", "uuid"],
       returns: "jsonb",
     },

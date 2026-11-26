@@ -22,7 +22,7 @@ function setup(load = vi.fn(() => resolved(["n1"]))) {
     category: "collaboration",
     record: defineRecordBinding({
       permissions: { read: "read" },
-      load: () => load(),
+      get: () => load(),
       events: ["note.created"],
     }),
   });

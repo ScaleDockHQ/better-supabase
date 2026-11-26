@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, mergeConfig } from "vitest/config";
 import { BaseSequencer } from "vitest/node";
 
-import { assignShard, readDurations } from "./tests/unit-shard.ts";
+import { assignShard, getDurations } from "./tests/unit-shard.ts";
 
-const durations = readDurations(
+const durations = getDurations(
   fileURLToPath(new URL("tests/unit-durations.json", import.meta.url)),
 );
 

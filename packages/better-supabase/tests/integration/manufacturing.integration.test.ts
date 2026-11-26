@@ -33,13 +33,13 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
 
   const variant = async (sku: string): Promise<string> => {
     const product = await call<{ id: string }>(
-      "better_supabase.save_product($1, null, $2, null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, $2, null, null, 'physical')",
       [tenant, sku],
     );
 
     return (
       await call<{ id: string }>(
-        "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, null, true, false)",
+        "better_supabase.upsert_variant($1, null, $2, '{}'::uuid[], null, null, null, true, false)",
         [product.id, sku],
       )
     ).id;
@@ -99,7 +99,7 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
     await session.as(owner);
     warehouse = (
       await call<{ id: string }>(
-        "better_supabase.save_location($1, null, 'WH-1', 'WH-1', 'warehouse')",
+        "better_supabase.upsert_location($1, null, 'WH-1', 'WH-1', 'warehouse')",
         [tenant],
       )
     ).id;
@@ -117,7 +117,7 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
     await session.as(owner);
 
     const saved = await call<{ id: string; version: number; status: string }>(
-      "better_supabase.save_bom($1, $2, $3::jsonb, null)",
+      "better_supabase.upsert_bom($1, $2, $3::jsonb, null)",
       [
         tenant,
         table,
@@ -132,18 +132,20 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
 
     expect(saved).toMatchObject({ version: 1, status: "draft" });
     expect(
-      await session.hint("better_supabase.save_bom($1, $2, $3::jsonb, null)", [
-        tenant,
-        table,
-        JSON.stringify({ components: [{ variantId: table, quantity: 1 }] }),
-      ]),
+      await session.hint(
+        "better_supabase.upsert_bom($1, $2, $3::jsonb, null)",
+        [
+          tenant,
+          table,
+          JSON.stringify({ components: [{ variantId: table, quantity: 1 }] }),
+        ],
+      ),
     ).toBe("MANUFACTURING_BOM_CYCLE");
     expect(
-      await session.hint("better_supabase.save_bom($1, $2, $3::jsonb, null)", [
-        tenant,
-        table,
-        JSON.stringify({ components: [] }),
-      ]),
+      await session.hint(
+        "better_supabase.upsert_bom($1, $2, $3::jsonb, null)",
+        [tenant, table, JSON.stringify({ components: [] })],
+      ),
     ).toBe("MANUFACTURING_BOM_INVALID");
     expect(
       await session.hint(
@@ -191,7 +193,7 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
     expect(bomFacets.values).toHaveLength(1);
 
     const center = await call<{ id: string }>(
-      "better_supabase.save_work_center($1, $2::jsonb, null)",
+      "better_supabase.upsert_work_center($1, $2::jsonb, null)",
       [
         tenant,
         JSON.stringify({

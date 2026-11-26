@@ -8,7 +8,7 @@ import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { err, ok } from "../../core/result.ts";
-import { badRequest, readJson } from "../http.ts";
+import { badRequest, getJson } from "../http.ts";
 
 /** The part of a `HarnessAgentSession` the routes use. */
 export interface HarnessRouteSession {
@@ -360,7 +360,7 @@ export function harnessRoute<S extends HarnessRouteSession>(
 
   return {
     async respond(request, context) {
-      const body = await readJson(request);
+      const body = await getJson(request);
 
       if (!isRecord(body)) {
         return badRequest("Expected a JSON object.");
@@ -556,7 +556,7 @@ export interface SteerRouteOptions {
 export function steerRoute(options: SteerRouteOptions): HarnessRoute {
   return {
     async respond(request, context) {
-      const body = await readJson(request);
+      const body = await getJson(request);
 
       if (!isRecord(body)) {
         return badRequest("Expected a JSON object.");

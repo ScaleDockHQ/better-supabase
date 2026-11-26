@@ -16,7 +16,7 @@ import { resolveConfig } from "../../src/config/index.ts";
 import { standardSchema } from "../../src/generators/standard-schema.ts";
 import { moduleLayout } from "../../src/sql/layout.ts";
 import { snapshotFixture } from "./fixtures/library.ts";
-import { loadFixtureSnapshot } from "./fixtures/render.ts";
+import { getFixtureSnapshot } from "./fixtures/render.ts";
 
 const document = { type: "object", properties: { theme: { type: "string" } } };
 
@@ -114,7 +114,7 @@ describe("withModuleSchemas", () => {
     );
 
     const main = (
-      await renderFiles(config, await loadFixtureSnapshot(), {
+      await renderFiles(config, await getFixtureSnapshot(), {
         extensions: false,
       })
     ).find((file) => file.path === "src/db/generated.ts")?.contents;

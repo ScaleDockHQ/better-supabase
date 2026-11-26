@@ -26,7 +26,7 @@ select 'chat', (api.create_ai_chat(
 ) ->> 'id')::uuid;
 
 select is(
-  api.add_ai_chat_party(
+  api.create_ai_chat_party(
     (select id from ids where name = 'chat'),
     'team',
     '00000000-0000-4000-8000-0000000000e2'
@@ -43,7 +43,7 @@ select is(
 
 select throws_ok(
   format(
-    $$select api.add_ai_chat_party(%L, 'external', 'not an email')$$,
+    $$select api.create_ai_chat_party(%L, 'external', 'not an email')$$,
     (select id from ids where name = 'chat')
   ),
   '22023',
@@ -85,7 +85,7 @@ select set_config(
 );
 set local role authenticated;
 
-select api.add_ai_chat_party(
+select api.create_ai_chat_party(
   (select id from ids where name = 'chat'),
   'team',
   '00000000-0000-4000-8000-0000000000e1'

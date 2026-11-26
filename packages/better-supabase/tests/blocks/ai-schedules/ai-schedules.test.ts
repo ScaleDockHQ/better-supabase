@@ -67,7 +67,7 @@ function fakeTransport(handlers: Record<string, Handler>) {
 describe("createAiSchedules", () => {
   it("computes the next run when the schedule changes", async () => {
     const { transport, calls } = fakeTransport({
-      save_ai_task: () => taskRow(),
+      upsert_ai_task: () => taskRow(),
     });
 
     const tasks = createAiSchedules({ transport, now: () => NOW });
@@ -333,7 +333,7 @@ describe("createAiSchedules", () => {
 
   it("schedules a saved task right away with a service transport", async () => {
     const user = fakeTransport({
-      save_ai_task: () => taskRow({ next_run_at: null }),
+      upsert_ai_task: () => taskRow({ next_run_at: null }),
     });
 
     const service = fakeTransport({ schedule_ai_tasks: () => 1 });
@@ -354,7 +354,7 @@ describe("createAiSchedules", () => {
     });
 
     const paused = fakeTransport({
-      save_ai_task: () => taskRow({ next_run_at: null, enabled: false }),
+      upsert_ai_task: () => taskRow({ next_run_at: null, enabled: false }),
     });
 
     await createAiSchedules({

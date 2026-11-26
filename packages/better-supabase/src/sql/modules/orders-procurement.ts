@@ -147,7 +147,7 @@ begin
   if v_lines is null then
     ${fail("ORDERS_CART_EMPTY", "the order has no catalog lines to buy", "55000")}
   end if;
-  v_purchase := ${inventory.fn("save_purchase_order")}(v_order.tenant, null, v_location, purchase_order_from_order.supplier_type,
+  v_purchase := ${inventory.fn("upsert_purchase_order")}(v_order.tenant, null, v_location, purchase_order_from_order.supplier_type,
     purchase_order_from_order.supplier_id, v_order.currency, null, v_lines, 'Drop ship');${mark}
   return v_purchase || jsonb_build_object('orderId', v_order.id, 'shipTo', v_order.ship_to);
 end;

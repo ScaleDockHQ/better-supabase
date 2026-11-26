@@ -203,7 +203,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;
-begin${loadReport("decide_expense_report.report_id", true)}
+begin${getReport("decide_expense_report.report_id", true)}
   if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${r("tenant")}`, approve)}${managerDecides(
     ctx,
     "blocks.expenses.options",
@@ -445,7 +445,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
       "null",
     );
 
-  const loadReport = (id: string, lock = false): string => `
+  const getReport = (id: string, lock = false): string => `
   select * into v_row from ${reports} x where x.${r("id")} = ${id}${lock ? " for update" : ""};
   if not found then
     ${fail("EXPENSE_REPORT_NOT_FOUND", "no such expense report", "P0002")}
@@ -472,25 +472,25 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
   const categoryInsert = insertExtraColumns(
     categories,
     categoryExtras,
-    "coalesce(save_expense_category.fields, '{}'::jsonb)",
+    "coalesce(upsert_expense_category.fields, '{}'::jsonb)",
   );
 
   const policySets = [
     ...(ctx.has("categories", "currency")
-      ? [[k("currency"), "save_expense_category.currency"]]
+      ? [[k("currency"), "upsert_expense_category.currency"]]
       : []),
     ...(limits
-      ? [[k("limitAmount"), "save_expense_category.limit_amount"]]
+      ? [[k("limitAmount"), "upsert_expense_category.limit_amount"]]
       : []),
     ...(thresholds
-      ? [[k("receiptOver"), "save_expense_category.receipt_over"]]
+      ? [[k("receiptOver"), "upsert_expense_category.receipt_over"]]
       : []),
   ];
 
   const insertColumns = `${k("tenant")}${keyed ? `, ${k("key")}` : ""}, ${k("name")}${policySets.map(([column]) => `, ${column}`).join("")}${categoryInsert.columns}`;
-  const insertValues = `save_expense_category.tenant${keyed ? ", save_expense_category.key" : ""}, trim(save_expense_category.name)${policySets.map(([, value]) => `, ${value}`).join("")}${categoryInsert.values}`;
+  const insertValues = `upsert_expense_category.tenant${keyed ? ", upsert_expense_category.key" : ""}, trim(upsert_expense_category.name)${policySets.map(([, value]) => `, ${value}`).join("")}${categoryInsert.values}`;
 
-  const categorySets = `${k("name")} = trim(save_expense_category.name)${policySets.map(([column, value]) => `, ${column} = ${value}`).join("")}, ${k("archivedAt")} = null, ${k("updatedAt")} = now()${updateExtraColumns(categories, categoryExtras, "save_expense_category.fields")}`;
+  const categorySets = `${k("name")} = trim(upsert_expense_category.name)${policySets.map(([column, value]) => `, ${column} = ${value}`).join("")}, ${k("archivedAt")} = null, ${k("updatedAt")} = now()${updateExtraColumns(categories, categoryExtras, "upsert_expense_category.fields")}`;
 
   const categoryWrite = keyed
     ? `  insert into ${categories} as x (${insertColumns})
@@ -499,7 +499,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
     ${categorySets}
   returning * into v_row;`
     : `  update ${categories} x set ${categorySets}
-    where x.${k("tenant")} = save_expense_category.tenant and x.${k("id")}::text = save_expense_category.key
+    where x.${k("tenant")} = upsert_expense_category.tenant and x.${k("id")}::text = upsert_expense_category.key
     returning * into v_row;
   if not found then
     insert into ${categories} (${insertColumns})
@@ -524,8 +524,8 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
   return `
 -- Creates or updates the category with this key and its spend policy.${keyed ? "" : "\n-- Without a key column, key is the id of the category to update, and any\n-- other key creates one."} fields:
 -- the extra columns (columns your schema files add) to set.
-${categoryArg.drop(fn("save_expense_category"), categoryArgs)}
-create or replace function ${fn("save_expense_category")}(tenant ${idType}, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null${categoryArg.param})
+${categoryArg.drop(fn("upsert_expense_category"), categoryArgs)}
+create or replace function ${fn("upsert_expense_category")}(tenant ${idType}, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null${categoryArg.param})
 returns jsonb
 language plpgsql
 security definer
@@ -535,32 +535,32 @@ as $$
 declare
   v_row ${categories}%rowtype;
 begin
-  if not ${can("save_expense_category.tenant", expenseKey(ctx, "categories"))} then
+  if not ${can("upsert_expense_category.tenant", expenseKey(ctx, "categories"))} then
     ${forbidden("not allowed to manage expense categories")}
   end if;${
     keyed
       ? `
-  if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_expense_category.key is null or upsert_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a key is lowercase letters, digits and underscores")}
   end if;`
       : ""
   }
-  if nullif(trim(save_expense_category.name), '') is null then
+  if nullif(trim(upsert_expense_category.name), '') is null then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a category needs a name")}
   end if;
-  if (save_expense_category.limit_amount is not null or save_expense_category.receipt_over is not null)
-    and (save_expense_category.currency is null or save_expense_category.currency !~ '^[A-Z]{3}$') then
+  if (upsert_expense_category.limit_amount is not null or upsert_expense_category.receipt_over is not null)
+    and (upsert_expense_category.currency is null or upsert_expense_category.currency !~ '^[A-Z]{3}$') then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a limit or receipt threshold needs a three-letter currency code")}
   end if;
-  if save_expense_category.limit_amount is not null and save_expense_category.limit_amount <= 0 then
+  if upsert_expense_category.limit_amount is not null and upsert_expense_category.limit_amount <= 0 then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a limit is more than zero minor units")}
   end if;
-  if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
+  if upsert_expense_category.receipt_over is not null and upsert_expense_category.receipt_over < 0 then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a receipt threshold is zero or more minor units")}
-  end if;${unsupported("categories", "currency", "save_expense_category.currency", "EXPENSE_CURRENCY_UNSUPPORTED", "this expense categories table has no currency column")}${unsupported("categories", "limitAmount", "save_expense_category.limit_amount", "EXPENSE_LIMIT_UNSUPPORTED", "this expense categories table has no limit column")}${unsupported("categories", "receiptOver", "save_expense_category.receipt_over", "EXPENSE_RECEIPT_THRESHOLD_UNSUPPORTED", "this expense categories table has no receipt threshold column")}${
+  end if;${unsupported("categories", "currency", "upsert_expense_category.currency", "EXPENSE_CURRENCY_UNSUPPORTED", "this expense categories table has no currency column")}${unsupported("categories", "limitAmount", "upsert_expense_category.limit_amount", "EXPENSE_LIMIT_UNSUPPORTED", "this expense categories table has no limit column")}${unsupported("categories", "receiptOver", "upsert_expense_category.receipt_over", "EXPENSE_RECEIPT_THRESHOLD_UNSUPPORTED", "this expense categories table has no receipt threshold column")}${
     attachments === undefined
       ? `
-  if save_expense_category.receipt_over is not null then
+  if upsert_expense_category.receipt_over is not null then
     ${invalid("EXPENSE_CATEGORY_INVALID", "a receipt threshold needs the attachments block")}
   end if;`
       : ""
@@ -569,7 +569,7 @@ ${categoryWrite}
   return ${categoryJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_expense_category")}(${categoryArgs}${categoryArg.type})`)}
+${userGrant(`${fn("upsert_expense_category")}(${categoryArgs}${categoryArg.type})`)}
 
 create or replace function ${fn("archive_expense_category")}(category_id uuid)
 returns jsonb
@@ -728,7 +728,7 @@ end;
 $$;
 ${userGrant(`${fn("create_expense_report")}(${idType}, text, text, text${extra.type})`)}
 
-create or replace function ${fn("add_expense_line")}(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function ${fn("create_expense_line")}(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -739,28 +739,28 @@ declare
   v_row ${reports}%rowtype;${approvalVar}
   v_category ${categories}%rowtype;
   v_line ${lines}%rowtype;
-begin${loadReport("add_expense_line.report_id", true)}${ownerOnly}${editable}${categoryCheck("add_expense_line.category_id", `v_row.${r("tenant")}`)}
-  if add_expense_line.spent_on is null then
+begin${getReport("create_expense_line.report_id", true)}${ownerOnly}${editable}${categoryCheck("create_expense_line.category_id", `v_row.${r("tenant")}`)}
+  if create_expense_line.spent_on is null then
     ${invalid("EXPENSE_LINE_INVALID", "a line needs spent_on")}
   end if;
-  if add_expense_line.currency is not null and add_expense_line.currency <> v_row.${r("currency")} then
+  if create_expense_line.currency is not null and create_expense_line.currency <> v_row.${r("currency")} then
     ${invalid("EXPENSE_CURRENCY_MISMATCH", "the amount is in another currency than the report")}
   end if;
-  if add_expense_line.amount is null or add_expense_line.amount <= 0 then
+  if create_expense_line.amount is null or create_expense_line.amount <= 0 then
     ${invalid("EXPENSE_LINE_INVALID", "an amount is more than zero minor units")}
   end if;
-  if nullif(trim(add_expense_line.description), '') is null then
+  if nullif(trim(create_expense_line.description), '') is null then
     ${invalid("EXPENSE_LINE_INVALID", "a line needs a description")}
-  end if;${unsupported("lines", "merchant", "nullif(trim(add_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}${dimensionsCheck("add_expense_line")}
+  end if;${unsupported("lines", "merchant", "nullif(trim(create_expense_line.merchant), '')", "EXPENSE_MERCHANT_UNSUPPORTED", "this expense lines table has no merchant column")}${dimensionsCheck("create_expense_line")}
   insert into ${lines} (${x("tenant")}, ${x("report")}, ${x("category")}, ${x("spentOn")}, ${x("description")}${also("lines", "merchant")}${also("lines", "dimensions")}, ${x("amount")})
-  values (v_row.${r("tenant")}, v_row.${r("id")}, v_category.${k("id")}, add_expense_line.spent_on, trim(add_expense_line.description),
-    ${ctx.has("lines", "merchant") ? "nullif(trim(add_expense_line.merchant), ''), " : ""}${ctx.has("lines", "dimensions") ? "coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), " : ""}add_expense_line.amount)
+  values (v_row.${r("tenant")}, v_row.${r("id")}, v_category.${k("id")}, create_expense_line.spent_on, trim(create_expense_line.description),
+    ${ctx.has("lines", "merchant") ? "nullif(trim(create_expense_line.merchant), ''), " : ""}${ctx.has("lines", "dimensions") ? "coalesce(nullif(create_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), " : ""}create_expense_line.amount)
   returning * into v_line;
   update ${reports} x set ${r("updatedAt")} = now() where x.${r("id")} = v_row.${r("id")};
   return ${lineJson("v_line")};
 end;
 $$;
-${userGrant(`${fn("add_expense_line")}(uuid, uuid, date, bigint, text, text, text, jsonb)`)}
+${userGrant(`${fn("create_expense_line")}(uuid, uuid, date, bigint, text, text, text, jsonb)`)}
 
 -- Changes a line of a draft or rejected report; null keeps a value.
 create or replace function ${fn("update_expense_line")}(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
@@ -778,7 +778,7 @@ begin
   select * into v_line from ${lines} l where l.${x("id")} = update_expense_line.line_id;
   if not found then
     ${fail("EXPENSE_LINE_NOT_FOUND", "no such expense line", "P0002")}
-  end if;${loadReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
+  end if;${getReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
   if update_expense_line.category_id is not null then${categoryCheck("update_expense_line.category_id", `v_row.${r("tenant")}`)}
   end if;
   if update_expense_line.currency is not null and update_expense_line.currency <> v_row.${r("currency")} then
@@ -801,7 +801,7 @@ end;
 $$;
 ${userGrant(`${fn("update_expense_line")}(uuid, uuid, date, bigint, text, text, text, jsonb)`)}
 
-create or replace function ${fn("remove_expense_line")}(line_id uuid)
+create or replace function ${fn("delete_expense_line")}(line_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -811,17 +811,17 @@ declare
   v_row ${reports}%rowtype;${approvalVar}
   v_line ${lines}%rowtype;
 begin
-  select * into v_line from ${lines} l where l.${x("id")} = remove_expense_line.line_id;
+  select * into v_line from ${lines} l where l.${x("id")} = delete_expense_line.line_id;
   if not found then
     ${fail("EXPENSE_LINE_NOT_FOUND", "no such expense line", "P0002")}
-  end if;${loadReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
+  end if;${getReport(`v_line.${x("report")}`, true)}${ownerOnly}${editable}
   delete from ${lines} l where l.${x("id")} = v_line.${x("id")};
   update ${reports} x set ${r("updatedAt")} = now() where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;
   return ${reportJson("v_row", "v_approval")};
 end;
 $$;
-${userGrant(`${fn("remove_expense_line")}(uuid)`)}
+${userGrant(`${fn("delete_expense_line")}(uuid)`)}
 
 create or replace function ${fn("check_expense_report")}(report_id uuid)
 returns jsonb
@@ -832,7 +832,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
-begin${loadReport("check_expense_report.report_id")}${reader}
+begin${getReport("check_expense_report.report_id")}${reader}
   return ${fn("expense_report_violations")}(v_row.${r("id")});
 end;
 $$;
@@ -850,7 +850,7 @@ as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
   v_violations jsonb;${approvals === undefined ? "" : "\n  v_request jsonb;"}
-begin${loadReport("submit_expense_report.report_id", true)}${ownerOnly}${editable}
+begin${getReport("submit_expense_report.report_id", true)}${ownerOnly}${editable}
   if not exists (select 1 from ${lines} l where l.${x("report")} = v_row.${r("id")}) then
     ${invalid("EXPENSE_REPORT_EMPTY", "a report needs at least one line")}
   end if;
@@ -930,7 +930,7 @@ as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
   v_tx uuid;
-begin${loadReport("reimburse_expense_report.report_id", true)}
+begin${getReport("reimburse_expense_report.report_id", true)}
   if not ${can(`v_row.${r("tenant")}`, expenseKey(ctx, "reimburse"))} then
     ${forbidden("not allowed to reimburse expenses")}
   end if;
@@ -965,7 +965,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
-begin${loadReport("cancel_expense_report.report_id", true)}
+begin${getReport("cancel_expense_report.report_id", true)}
   if not (coalesce(v_row.${r("user")} = auth.uid(), false) or ${can(`v_row.${r("tenant")}`, manage)}) then
     ${forbidden("not allowed to cancel this expense report")}
   end if;
@@ -996,7 +996,7 @@ set search_path = ''
 as $$
 declare
   v_row ${reports}%rowtype;${approvalVar}
-begin${loadReport("get_expense_report.report_id")}${reader}
+begin${getReport("get_expense_report.report_id")}${reader}
   return ${reportJson("v_row", "v_approval")};
 end;
 $$;

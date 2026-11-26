@@ -40,7 +40,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { loadContact, settle } from "../crm-queries";
+import { getContact, settle } from "../crm-queries";
 import {
   ActivityTimeline,
   ActivityTimelineSkeleton,
@@ -73,7 +73,7 @@ export async function ContactDetail({
     forbidden();
   }
 
-  const loaded = await settle(() => loadContact(id));
+  const loaded = await settle(() => getContact(id));
 
   if (loaded.kind === "no-organization") {
     return null;

@@ -515,7 +515,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     {
-      name: "save_status_component",
+      name: "upsert_status_component",
       args: ["{id}", "text", "text", "text", "boolean", "integer", "uuid"],
       returns: "jsonb",
     },
@@ -545,7 +545,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_incident_postmortem",
+      name: "upsert_incident_postmortem",
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
@@ -553,26 +553,26 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(ctx.installed("tasks")
       ? [
           {
-            name: "add_incident_postmortem_action",
+            name: "create_incident_postmortem_action",
             args: ["uuid", "text", "uuid", "timestamptz"],
             returns: "jsonb",
           },
           {
-            name: "remove_incident_postmortem_action",
+            name: "delete_incident_postmortem_action",
             args: ["uuid"],
             returns: "jsonb",
           },
         ]
       : []),
     {
-      name: "save_status_page",
+      name: "upsert_status_page",
       args: ["{id}", "text", "text", "text", "boolean"],
       returns: "jsonb",
     },
     { name: "get_status_page", args: ["{id}"], returns: "jsonb" },
     { name: "public_status_page", args: ["text", "integer"], returns: "jsonb" },
     {
-      name: "save_incident_regulatory_profile",
+      name: "upsert_incident_regulatory_profile",
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },

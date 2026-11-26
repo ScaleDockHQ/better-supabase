@@ -11,7 +11,7 @@ select set_config(
 );
 set local role authenticated;
 
-select better_supabase.save_enrollment_program(
+select better_supabase.upsert_enrollment_program(
   '00000000-0000-4000-8000-000000000001',
   '{"key":"welcome-pack","name":"Welcome pack","subjectTypes":["employee"],"steps":[{"id":"laptop"}]}');
 

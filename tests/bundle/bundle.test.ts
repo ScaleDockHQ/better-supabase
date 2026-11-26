@@ -58,6 +58,23 @@ export const next = createNext(betterSupabase);
 export const customers = () =>
   createClient(betterSupabase).db.customers.list({ where: { name: "Acme" } });
 `,
+  // One member of createNext per consumer. createNext returns one object, so
+  // each member costs the whole entry today; these entries are the numbers a
+  // split of createNext has to beat (the closure of the entry, per member).
+  "createNext member: tenant": `
+import { defineSchema, createSupabase } from "better-supabase";
+import { createNext } from "better-supabase/next";
+import meta from "./generated.meta.js";
+const bsb = createNext(createSupabase(defineSchema(meta)), { tenants: { resolve: {} } });
+export const page = (org) => bsb.tenant(org, undefined, { tables: ["customers"] });
+`,
+  "createNext member: action": `
+import { defineSchema, createSupabase } from "better-supabase";
+import { createNext } from "better-supabase/next";
+import meta from "./generated.meta.js";
+const bsb = createNext(createSupabase(defineSchema(meta)));
+export const act = bsb.action({}, async () => null);
+`,
   "next proxy": `
 import { defineSchema, createSupabase } from "better-supabase";
 import { createProxy } from "better-supabase/next/proxy";
@@ -335,6 +352,8 @@ const NODE_LOADED = [
   "./next/offline",
   "./next/instrumentation",
   "./next/image",
+  "./next/resources",
+  "./next/sign-in",
   "./next/proxy",
   "./next/auth-gate",
   "./server",

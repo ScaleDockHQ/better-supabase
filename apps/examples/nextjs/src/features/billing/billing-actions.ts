@@ -11,11 +11,10 @@ import { parseMoney } from "better-supabase/commerce";
 import { headers } from "next/headers";
 import * as v from "valibot";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { PlanOption } from "./billing-queries";
@@ -26,8 +25,12 @@ import { priceOf, stripeBilling } from "./billing-stripe";
 
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bsb.action(
-  { requireTenant: true, permission: "onboarding.complete" },
-  async (_input, { tenant: organizationId, db, auth }) => {
+  {
+    requireTenant: true,
+    permission: "onboarding.complete",
+    evictSession: true,
+  },
+  async (_input, { tenant: organizationId, db }) => {
     const completed = await db.onboarding.complete({
       checklist: gettingStarted,
       step: "plan",
@@ -37,8 +40,6 @@ export const markPlanReviewed = bsb.action(
     if (!completed.ok) {
       return completed;
     }
-
-    await refreshCaller(auth);
 
     return ok(completed.data);
   },
@@ -130,8 +131,10 @@ export const createDraftInvoice = bsb.action(
     }),
     requireTenant: true,
     permission: "invoices.write",
+    tags: () => [BILLING_TAG, tags.banking()],
+    refresh: true,
   },
-  async ({ title, amount }, { tenant, db, auth }) => {
+  async ({ title, amount }, { tenant, db }) => {
     const created = await db.invoices.create({
       organizationId: tenant,
       input: { title, currency: SHOP_CURRENCY },
@@ -148,8 +151,6 @@ export const createDraftInvoice = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [BILLING_TAG, BANKING_TAG]);
-
     return ok(created.data.id);
   },
 );
@@ -160,15 +161,15 @@ export const issueInvoice = bsb.action(
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
     permission: "invoices.write",
+    tags: () => [BILLING_TAG, tags.banking()],
+    refresh: true,
   },
-  async ({ invoiceId }, { db, auth }) => {
+  async ({ invoiceId }, { db }) => {
     const issued = await db.invoices.issue({ invoiceId });
 
     if (!issued.ok) {
       return issued;
     }
-
-    await refreshCaller(auth, [BILLING_TAG, BANKING_TAG]);
 
     return ok(issued.data.status);
   },

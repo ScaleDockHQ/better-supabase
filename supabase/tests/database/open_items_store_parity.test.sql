@@ -13,8 +13,8 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.party', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Parity customer"}') ->> 'id', true);
-select set_config('t.other', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Parity other"}') ->> 'id', true);
+select set_config('t.party', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Parity customer"}') ->> 'id', true);
+select set_config('t.other', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Parity other"}') ->> 'id', true);
 
 create temporary table t_invoices (n int primary key, id uuid) on commit drop;
 grant all on t_invoices to authenticated, service_role;
@@ -65,7 +65,7 @@ select is(
   'the paid invoice has no stored row'
 );
 
-select better_supabase.add_invoice_charge((select id from t_invoices where n = 3), 50, 'EUR', 'Late fee');
+select better_supabase.create_invoice_charge((select id from t_invoices where n = 3), 50, 'EUR', 'Late fee');
 select is(pg_temp.drift(), '[]'::jsonb, 'a charge refreshes the stored balance');
 select is(
   (select e.balance - x.total from better_supabase.invoice_open_items e join better_supabase.invoices x on x.id = e.document_id

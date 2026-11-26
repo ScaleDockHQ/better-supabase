@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:96ed9d0b1cb1ca16ba07d951d07bf8e786e3551da7358cbb22d704dc8927a42e
+-- @bsb-hash sha256:b0cbaa4b9e72b215e839bf2c2b1d6b12d0fc67334fc29241766379db200a7232
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -656,7 +656,7 @@ grant execute on function "better_supabase"."get_collection"(uuid) to authentica
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function "better_supabase"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "better_supabase"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -674,11 +674,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(add_collection_entries.subject_ids) > 1000 then
+  if cardinality(create_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = add_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = create_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -695,7 +695,7 @@ begin
   if v_row."archived_at" is not null then
     raise exception 'the collection is archived' using errcode = '55000', hint = 'COLLECTION_ARCHIVED';
   end if;
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row."subject_type" then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row."subject_type" then
     raise exception 'the collection holds another subject type' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_MISMATCH';
   end if;
   declare
@@ -703,12 +703,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text[])', v_hook::oid::regproc)
-        using v_row."id", add_collection_entries.subject_ids;
+        using v_row."id", create_collection_entries.subject_ids;
     end if;
   end;
   select max(e."rank") into v_last from "better_supabase"."subject_collection_entries" e where e."collection_id" = v_row."id";
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -740,11 +740,11 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-revoke execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function "better_supabase"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "better_supabase"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -759,11 +759,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(remove_collection_entries.subject_ids) > 1000 then
+  if cardinality(delete_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = remove_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = delete_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -783,7 +783,7 @@ begin
   for v_id in
     delete from "better_supabase"."subject_collection_entries" e
     where e."collection_id" = v_row."id"
-      and e."subject_id" = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e."subject_id" = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (auth.role() = 'service_role' or "better_supabase"."can_subject"(e."subject_type", e."subject_id", 'read'))
     returning e."subject_id"
   loop
@@ -793,8 +793,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -1041,7 +1041,7 @@ grant execute on function "better_supabase"."starred_subjects"(uuid, text) to au
 
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function "better_supabase"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1050,7 +1050,7 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1058,7 +1058,7 @@ begin
   if v_user is null then
     raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_for_later.tenant, 'collections.read'), false) then
     raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
   end if;
   if not false then
@@ -1067,11 +1067,11 @@ begin
   if length(v_note) > 1000 then
     raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
   insert into "better_supabase"."saved_items" ("user_id", "tenant_id", "subject_type", "subject_id", "note", "remind_at")
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id, v_note, upsert_for_later.remind_at)
   on conflict ("user_id", "subject_type", "subject_id") do update
     set "note" = excluded."note",
       "remind_at" = excluded."remind_at",
@@ -1088,11 +1088,11 @@ begin
       'remindedAt', s."reminded_at",
       'completedAt', s."completed_at",
       'createdAt', s."created_at") from "better_supabase"."saved_items" s
-    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+    where s."user_id" = v_user and s."subject_type" = upsert_for_later.subject_type and s."subject_id" = upsert_for_later.subject_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -1115,7 +1115,7 @@ $$;
 revoke execute on function "better_supabase"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_saved_item"(item uuid)
+create or replace function "better_supabase"."delete_saved_item"(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1126,12 +1126,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."saved_items" s
-    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+    where s."id" = delete_saved_item.item and s."user_id" = auth.uid();
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_saved_item"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_saved_item"(uuid) to authenticated, service_role;
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.
@@ -1311,7 +1311,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:5e3b65c6977e21962892d771060816bec99b00bc6fbe9e5081b474537fcf05b7
+-- @bsb-hash sha256:068ee1c6392ba610bd8263bb0ceb16ab5dfd2b295f280bf393f36bd097fe749e
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1966,7 +1966,7 @@ grant execute on function "better_supabase"."get_collection"(uuid) to authentica
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function "better_supabase"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "better_supabase"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -1984,11 +1984,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(add_collection_entries.subject_ids) > 1000 then
+  if cardinality(create_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = add_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = create_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
@@ -2005,7 +2005,7 @@ begin
   if v_row."archived_at" is not null then
     raise exception 'the collection is archived' using errcode = '55000', hint = 'COLLECTION_ARCHIVED';
   end if;
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row."subject_type" then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row."subject_type" then
     raise exception 'the collection holds another subject type' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_MISMATCH';
   end if;
   declare
@@ -2013,12 +2013,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text[])', v_hook::oid::regproc)
-        using v_row."id", add_collection_entries.subject_ids;
+        using v_row."id", create_collection_entries.subject_ids;
     end if;
   end;
   select max(e."rank") into v_last from "better_supabase"."subject_collection_entries" e where e."collection_id" = v_row."id";
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -2050,11 +2050,11 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-revoke execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function "better_supabase"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "better_supabase"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -2069,11 +2069,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(remove_collection_entries.subject_ids) > 1000 then
+  if cardinality(delete_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = remove_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = delete_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
@@ -2093,7 +2093,7 @@ begin
   for v_id in
     delete from "better_supabase"."subject_collection_entries" e
     where e."collection_id" = v_row."id"
-      and e."subject_id" = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e."subject_id" = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (auth.role() = 'service_role' or "better_supabase"."can_subject"(e."subject_type", e."subject_id", 'read'))
     returning e."subject_id"
   loop
@@ -2103,8 +2103,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -2351,7 +2351,7 @@ grant execute on function "better_supabase"."starred_subjects"(uuid, text) to au
 
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function "better_supabase"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2360,7 +2360,7 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2368,7 +2368,7 @@ begin
   if v_user is null then
     raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_for_later.tenant, 'collections.read'), false) then
     raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
   end if;
   if not false then
@@ -2377,11 +2377,11 @@ begin
   if length(v_note) > 1000 then
     raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
   insert into "better_supabase"."saved_items" ("user_id", "tenant_id", "subject_type", "subject_id", "note", "remind_at")
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id, v_note, upsert_for_later.remind_at)
   on conflict ("user_id", "subject_type", "subject_id") do update
     set "note" = excluded."note",
       "remind_at" = excluded."remind_at",
@@ -2398,11 +2398,11 @@ begin
       'remindedAt', s."reminded_at",
       'completedAt', s."completed_at",
       'createdAt', s."created_at") from "better_supabase"."saved_items" s
-    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+    where s."user_id" = v_user and s."subject_type" = upsert_for_later.subject_type and s."subject_id" = upsert_for_later.subject_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -2425,7 +2425,7 @@ $$;
 revoke execute on function "better_supabase"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_saved_item"(item uuid)
+create or replace function "better_supabase"."delete_saved_item"(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2436,12 +2436,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."saved_items" s
-    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+    where s."id" = delete_saved_item.item and s."user_id" = auth.uid();
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_saved_item"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_saved_item"(uuid) to authenticated, service_role;
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.
@@ -2624,7 +2624,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:79e51cdeeee3d2e6719d50aab24c676cb6e752fbcc287b52dc43de39e9eadeba
+-- @bsb-hash sha256:e63ed48744c36d7ef89bd165710d6ca07a281ec32cecc606d451c2bd1958b85e
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3284,7 +3284,7 @@ grant execute on function "app_private"."get_collection"(uuid) to authenticated,
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function "app_private"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "app_private"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -3302,11 +3302,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(add_collection_entries.subject_ids) > 1000 then
+  if cardinality(create_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "app_private"."subject_collections" where "id" = add_collection_entries.collection for update;
+  select * into v_row from "app_private"."subject_collections" where "id" = create_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -3323,7 +3323,7 @@ begin
   if v_row."archived_at" is not null then
     raise exception 'the collection is archived' using errcode = '55000', hint = 'COLLECTION_ARCHIVED';
   end if;
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row."subject_type" then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row."subject_type" then
     raise exception 'the collection holds another subject type' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_MISMATCH';
   end if;
   declare
@@ -3331,12 +3331,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text[])', v_hook::oid::regproc)
-        using v_row."id", add_collection_entries.subject_ids;
+        using v_row."id", create_collection_entries.subject_ids;
     end if;
   end;
   select max(e."rank") into v_last from "app_private"."subject_collection_entries" e where e."collection_id" = v_row."id";
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -3368,11 +3368,11 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-revoke execute on function "app_private"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "app_private"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+revoke execute on function "app_private"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "app_private"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function "app_private"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "app_private"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -3387,11 +3387,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(remove_collection_entries.subject_ids) > 1000 then
+  if cardinality(delete_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "app_private"."subject_collections" where "id" = remove_collection_entries.collection for update;
+  select * into v_row from "app_private"."subject_collections" where "id" = delete_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -3411,7 +3411,7 @@ begin
   for v_id in
     delete from "app_private"."subject_collection_entries" e
     where e."collection_id" = v_row."id"
-      and e."subject_id" = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e."subject_id" = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (auth.role() = 'service_role' or "better_supabase"."can_subject"(e."subject_type", e."subject_id", 'read'))
     returning e."subject_id"
   loop
@@ -3421,8 +3421,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "app_private"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "app_private"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "app_private"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "app_private"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "app_private"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -3669,7 +3669,7 @@ grant execute on function "app_private"."starred_subjects"(uuid, text) to authen
 
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function "app_private"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "app_private"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3678,7 +3678,7 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3686,7 +3686,7 @@ begin
   if v_user is null then
     raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_for_later.tenant, 'collections.read'), false) then
     raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
   end if;
   if not false then
@@ -3695,11 +3695,11 @@ begin
   if length(v_note) > 1000 then
     raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
   insert into "app_private"."saved_items" ("user_id", "tenant_id", "subject_type", "subject_id", "note", "remind_at")
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id, v_note, upsert_for_later.remind_at)
   on conflict ("user_id", "subject_type", "subject_id") do update
     set "note" = excluded."note",
       "remind_at" = excluded."remind_at",
@@ -3716,11 +3716,11 @@ begin
       'remindedAt', s."reminded_at",
       'completedAt', s."completed_at",
       'createdAt', s."created_at") from "app_private"."saved_items" s
-    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+    where s."user_id" = v_user and s."subject_type" = upsert_for_later.subject_type and s."subject_id" = upsert_for_later.subject_id);
 end;
 $$;
-revoke execute on function "app_private"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "app_private"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "app_private"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -3743,7 +3743,7 @@ $$;
 revoke execute on function "app_private"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "app_private"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "app_private"."remove_saved_item"(item uuid)
+create or replace function "app_private"."delete_saved_item"(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3754,12 +3754,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "app_private"."saved_items" s
-    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+    where s."id" = delete_saved_item.item and s."user_id" = auth.uid();
   return found;
 end;
 $$;
-revoke execute on function "app_private"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "app_private"."remove_saved_item"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "app_private"."delete_saved_item"(uuid) to authenticated, service_role;
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.
@@ -3939,7 +3939,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:4fb315fad43f9a75a5022e1201801306017bfb0ad3a4237afab7c0b50a1948bf
+-- @bsb-hash sha256:b691e130d0286314b68a7fef0287821cb6abc965b864305d7d633f39a3d46b80
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4594,7 +4594,7 @@ grant execute on function "better_supabase"."get_collection"(uuid) to authentica
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function "better_supabase"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "better_supabase"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -4612,11 +4612,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(add_collection_entries.subject_ids) > 1000 then
+  if cardinality(create_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = add_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = create_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -4633,7 +4633,7 @@ begin
   if v_row."archived_at" is not null then
     raise exception 'the collection is archived' using errcode = '55000', hint = 'COLLECTION_ARCHIVED';
   end if;
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row."subject_type" then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row."subject_type" then
     raise exception 'the collection holds another subject type' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_MISMATCH';
   end if;
   declare
@@ -4641,12 +4641,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text[])', v_hook::oid::regproc)
-        using v_row."id", add_collection_entries.subject_ids;
+        using v_row."id", create_collection_entries.subject_ids;
     end if;
   end;
   select max(e."rank") into v_last from "better_supabase"."subject_collection_entries" e where e."collection_id" = v_row."id";
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -4678,11 +4678,11 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-revoke execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function "better_supabase"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "better_supabase"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -4697,11 +4697,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(remove_collection_entries.subject_ids) > 1000 then
+  if cardinality(delete_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = remove_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = delete_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -4721,7 +4721,7 @@ begin
   for v_id in
     delete from "better_supabase"."subject_collection_entries" e
     where e."collection_id" = v_row."id"
-      and e."subject_id" = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e."subject_id" = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (auth.role() = 'service_role' or "better_supabase"."can_subject"(e."subject_type", e."subject_id", 'read'))
     returning e."subject_id"
   loop
@@ -4731,8 +4731,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -4979,7 +4979,7 @@ grant execute on function "better_supabase"."starred_subjects"(uuid, text) to au
 
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function "better_supabase"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4988,7 +4988,7 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4996,7 +4996,7 @@ begin
   if v_user is null then
     raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_for_later.tenant, 'collections.read'), false) then
     raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
   end if;
   if not false then
@@ -5005,11 +5005,11 @@ begin
   if length(v_note) > 1000 then
     raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
   insert into "better_supabase"."saved_items" ("user_id", "tenant_id", "subject_type", "subject_id", "note", "remind_at")
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id, v_note, upsert_for_later.remind_at)
   on conflict ("user_id", "subject_type", "subject_id") do update
     set "note" = excluded."note",
       "remind_at" = excluded."remind_at",
@@ -5026,11 +5026,11 @@ begin
       'remindedAt', s."reminded_at",
       'completedAt', s."completed_at",
       'createdAt', s."created_at") from "better_supabase"."saved_items" s
-    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+    where s."user_id" = v_user and s."subject_type" = upsert_for_later.subject_type and s."subject_id" = upsert_for_later.subject_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -5053,7 +5053,7 @@ $$;
 revoke execute on function "better_supabase"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_saved_item"(item uuid)
+create or replace function "better_supabase"."delete_saved_item"(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -5064,12 +5064,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."saved_items" s
-    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+    where s."id" = delete_saved_item.item and s."user_id" = auth.uid();
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_saved_item"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_saved_item"(uuid) to authenticated, service_role;
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.
@@ -5293,23 +5293,23 @@ as $$ select "better_supabase"."get_collection"($1) $$;
 revoke execute on function "api"."get_collection"(uuid) from public, anon;
 grant execute on function "api"."get_collection"(uuid) to authenticated, service_role;
 
-create or replace function "api"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "api"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_collection_entries"($1, $2, $3) $$;
-revoke execute on function "api"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "api"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+as $$ select "better_supabase"."create_collection_entries"($1, $2, $3) $$;
+revoke execute on function "api"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "api"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
-create or replace function "api"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "api"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_collection_entries"($1, $2) $$;
-revoke execute on function "api"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "api"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+as $$ select "better_supabase"."delete_collection_entries"($1, $2) $$;
+revoke execute on function "api"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "api"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "api"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -5387,14 +5387,14 @@ as $$ select "better_supabase"."starred_subjects"($1, $2) $$;
 revoke execute on function "api"."starred_subjects"(uuid, text) from public, anon;
 grant execute on function "api"."starred_subjects"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "api"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_for_later"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "api"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_for_later"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "api"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."complete_saved_item"(item uuid, completed boolean default true)
 returns boolean
@@ -5405,14 +5405,14 @@ as $$ select "better_supabase"."complete_saved_item"($1, $2) $$;
 revoke execute on function "api"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "api"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_saved_item"(item uuid)
+create or replace function "api"."delete_saved_item"(item uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_saved_item"($1) $$;
-revoke execute on function "api"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "api"."remove_saved_item"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_saved_item"($1) $$;
+revoke execute on function "api"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "api"."delete_saved_item"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_saved_items"(tenant uuid, completed boolean default false, before timestamptz default null, before_id uuid default null, max_rows integer default null)
 returns jsonb
@@ -5450,7 +5450,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:2bb500544d962e70df3192ad2def90bb66656f0e782289cb2628278a240237ab
+-- @bsb-hash sha256:16cf9e2f8cd023ca025a25bba0e5b7d206fc536da4206bc7f1ffe56b0af672b9
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6095,7 +6095,7 @@ grant execute on function "better_supabase"."get_collection"(uuid) to authentica
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function "better_supabase"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "better_supabase"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -6113,11 +6113,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(add_collection_entries.subject_ids) > 1000 then
+  if cardinality(create_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = add_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = create_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -6134,7 +6134,7 @@ begin
   if v_row."archived_at" is not null then
     raise exception 'the collection is archived' using errcode = '55000', hint = 'COLLECTION_ARCHIVED';
   end if;
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row."subject_type" then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row."subject_type" then
     raise exception 'the collection holds another subject type' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_MISMATCH';
   end if;
   declare
@@ -6142,12 +6142,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text[])', v_hook::oid::regproc)
-        using v_row."id", add_collection_entries.subject_ids;
+        using v_row."id", create_collection_entries.subject_ids;
     end if;
   end;
   select max(e."rank") into v_last from "better_supabase"."subject_collection_entries" e where e."collection_id" = v_row."id";
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -6179,11 +6179,11 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-revoke execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function "better_supabase"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "better_supabase"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -6198,11 +6198,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(remove_collection_entries.subject_ids) > 1000 then
+  if cardinality(delete_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = remove_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = delete_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -6222,7 +6222,7 @@ begin
   for v_id in
     delete from "better_supabase"."subject_collection_entries" e
     where e."collection_id" = v_row."id"
-      and e."subject_id" = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e."subject_id" = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (auth.role() = 'service_role' or "better_supabase"."can_subject"(e."subject_type", e."subject_id", 'read'))
     returning e."subject_id"
   loop
@@ -6232,8 +6232,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -6480,7 +6480,7 @@ grant execute on function "better_supabase"."starred_subjects"(uuid, text) to au
 
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function "better_supabase"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6489,7 +6489,7 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6497,7 +6497,7 @@ begin
   if v_user is null then
     raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_for_later.tenant, 'collections.read'), false) then
     raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
   end if;
   if not false then
@@ -6506,11 +6506,11 @@ begin
   if length(v_note) > 1000 then
     raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
   insert into "better_supabase"."saved_items" ("user_id", "tenant_id", "subject_type", "subject_id", "note", "remind_at")
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id, v_note, upsert_for_later.remind_at)
   on conflict ("user_id", "subject_type", "subject_id") do update
     set "note" = excluded."note",
       "remind_at" = excluded."remind_at",
@@ -6527,11 +6527,11 @@ begin
       'remindedAt', s."reminded_at",
       'completedAt', s."completed_at",
       'createdAt', s."created_at") from "better_supabase"."saved_items" s
-    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+    where s."user_id" = v_user and s."subject_type" = upsert_for_later.subject_type and s."subject_id" = upsert_for_later.subject_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -6554,7 +6554,7 @@ $$;
 revoke execute on function "better_supabase"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_saved_item"(item uuid)
+create or replace function "better_supabase"."delete_saved_item"(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6565,12 +6565,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."saved_items" s
-    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+    where s."id" = delete_saved_item.item and s."user_id" = auth.uid();
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_saved_item"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_saved_item"(uuid) to authenticated, service_role;
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.
@@ -6750,7 +6750,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:9b9b24c3deae949c77560e1f36cfa1b9c151b8f7cff979011cbede8c7131dcf1
+-- @bsb-hash sha256:8da7a4920f3ce1186c2b5dac849cc91255d81dea4ee18612ae58d8606b104a8c
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7405,7 +7405,7 @@ grant execute on function "better_supabase"."get_collection"(uuid) to authentica
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function "better_supabase"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "better_supabase"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -7423,11 +7423,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(add_collection_entries.subject_ids) > 1000 then
+  if cardinality(create_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = add_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = create_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."org_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -7444,7 +7444,7 @@ begin
   if v_row."archived_at" is not null then
     raise exception 'the collection is archived' using errcode = '55000', hint = 'COLLECTION_ARCHIVED';
   end if;
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row."subject_type" then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row."subject_type" then
     raise exception 'the collection holds another subject type' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_MISMATCH';
   end if;
   declare
@@ -7452,12 +7452,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text[])', v_hook::oid::regproc)
-        using v_row."id", add_collection_entries.subject_ids;
+        using v_row."id", create_collection_entries.subject_ids;
     end if;
   end;
   select max(e."rank") into v_last from "better_supabase"."subject_collection_entries" e where e."collection_id" = v_row."id";
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -7489,11 +7489,11 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-revoke execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function "better_supabase"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "better_supabase"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -7508,11 +7508,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(remove_collection_entries.subject_ids) > 1000 then
+  if cardinality(delete_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = remove_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = delete_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."org_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
@@ -7532,7 +7532,7 @@ begin
   for v_id in
     delete from "better_supabase"."subject_collection_entries" e
     where e."collection_id" = v_row."id"
-      and e."subject_id" = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e."subject_id" = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (auth.role() = 'service_role' or "better_supabase"."can_subject"(e."subject_type", e."subject_id", 'read'))
     returning e."subject_id"
   loop
@@ -7542,8 +7542,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -7790,7 +7790,7 @@ grant execute on function "better_supabase"."starred_subjects"(uuid, text) to au
 
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function "better_supabase"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7799,7 +7799,7 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -7807,7 +7807,7 @@ begin
   if v_user is null then
     raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_for_later.tenant, 'collections.read'), false) then
     raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
   end if;
   if not false then
@@ -7816,11 +7816,11 @@ begin
   if length(v_note) > 1000 then
     raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
   insert into "better_supabase"."saved_items" ("user_id", "org_id", "subject_type", "subject_id", "note", "remind_at")
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id, v_note, upsert_for_later.remind_at)
   on conflict ("user_id", "subject_type", "subject_id") do update
     set "note" = excluded."note",
       "remind_at" = excluded."remind_at",
@@ -7837,11 +7837,11 @@ begin
       'remindedAt', s."reminded_at",
       'completedAt', s."completed_at",
       'createdAt', s."created_at") from "better_supabase"."saved_items" s
-    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+    where s."user_id" = v_user and s."subject_type" = upsert_for_later.subject_type and s."subject_id" = upsert_for_later.subject_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -7864,7 +7864,7 @@ $$;
 revoke execute on function "better_supabase"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_saved_item"(item uuid)
+create or replace function "better_supabase"."delete_saved_item"(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7875,12 +7875,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."saved_items" s
-    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+    where s."id" = delete_saved_item.item and s."user_id" = auth.uid();
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_saved_item"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_saved_item"(uuid) to authenticated, service_role;
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.

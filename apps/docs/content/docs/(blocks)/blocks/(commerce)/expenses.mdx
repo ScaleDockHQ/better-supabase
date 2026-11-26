@@ -327,7 +327,7 @@ expenses: {
 | `delete`          | the former key of `purgeExpense`, still read when `purge` is unset                |
 | `deleteSubmitted` | `purgeExpense` on a submitted or approved expense; no fallback                    |
 | `reimburse`       | `reimburseExpense`, `reverseExpenseReimbursement`, and `reimburse_expense_report` |
-| `categories`      | `save_expense_category` and `archive_expense_category`                            |
+| `categories`      | `upsert_expense_category` and `archive_expense_category`                          |
 
 A payroll role that may only mark expenses reimbursed:
 

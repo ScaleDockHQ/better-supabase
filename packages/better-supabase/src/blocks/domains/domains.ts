@@ -211,7 +211,7 @@ export function createDomains(options: DomainsOptions): Domains {
 
   const client: Domains = {
     add: ({ organizationId, hostname }) =>
-      call("add_hostname", { tenant: organizationId, hostname }, hostnameOf),
+      call("create_hostname", { tenant: organizationId, hostname }, hostnameOf),
     list: (organizationId) =>
       call("list_hostnames", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_hostnames").map(hostnameOf),
@@ -222,7 +222,7 @@ export function createDomains(options: DomainsOptions): Domains {
     setPrimary: (hostnameId) =>
       call("set_primary_hostname", { id: hostnameId }, hostnameOf),
     remove: (hostnameId) =>
-      call("remove_hostname", { id: hostnameId }, (value) => value === true),
+      call("delete_hostname", { id: hostnameId }, (value) => value === true),
     resolve: (host) =>
       call("resolve_hostname", { hostname: normalizeHostname(host) }, matchOf),
   };

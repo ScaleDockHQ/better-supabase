@@ -310,12 +310,12 @@ declare
   v_list jsonb;
 begin
   ${SERVICE}
-  v_def := better_supabase.save_workflow_definition('${TENANT}', 'onboard', 'Onboard');
+  v_def := better_supabase.upsert_workflow_definition('${TENANT}', 'onboard', 'Onboard');
   v_id := (v_def ->> 'id')::uuid;
   if v_def ->> 'scope' <> 'tenant' or v_def -> 'subjectTypes' <> '[]'::jsonb or v_def -> 'forkedFrom' <> 'null'::jsonb then
     raise exception 'saved %', v_def;
   end if;
-  v_draft := better_supabase.save_workflow_draft(v_id, ${GRAPH});
+  v_draft := better_supabase.upsert_workflow_draft(v_id, ${GRAPH});
   perform better_supabase.publish_workflow_version((v_draft ->> 'id')::uuid, '{"engine": "test"}'::jsonb);
   v_target := better_supabase.workflow_start_target(v_id);
   if v_target is null then
@@ -367,9 +367,9 @@ declare
   v_hint text;
 begin
   ${SERVICE}
-  v_id := (better_supabase.save_workflow_definition('${TENANT}', 'onboard', 'Onboard') ->> 'id')::uuid;
+  v_id := (better_supabase.upsert_workflow_definition('${TENANT}', 'onboard', 'Onboard') ->> 'id')::uuid;
   begin
-    perform better_supabase.save_workflow_definition(null, 'shared', 'Shared', scope => 'system');
+    perform better_supabase.upsert_workflow_definition(null, 'shared', 'Shared', scope => 'system');
     raise exception 'saved a system definition';
   exception when invalid_parameter_value then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -409,10 +409,10 @@ declare
   v_fired integer;
 begin
   ${SERVICE}
-  v_id := (better_supabase.save_workflow_definition('${TENANT}', 'onboard', 'Onboard') ->> 'id')::uuid;
-  v_first := (better_supabase.save_workflow_draft(v_id, ${GRAPH}) ->> 'id')::uuid;
+  v_id := (better_supabase.upsert_workflow_definition('${TENANT}', 'onboard', 'Onboard') ->> 'id')::uuid;
+  v_first := (better_supabase.upsert_workflow_draft(v_id, ${GRAPH}) ->> 'id')::uuid;
   perform better_supabase.publish_workflow_version(v_first, '{"engine": "test"}'::jsonb);
-  v_second := (better_supabase.save_workflow_draft(v_id, ${GRAPH}) ->> 'id')::uuid;
+  v_second := (better_supabase.upsert_workflow_draft(v_id, ${GRAPH}) ->> 'id')::uuid;
   perform better_supabase.publish_workflow_version(v_second, '{"engine": "test"}'::jsonb);
   if (select state from public.flow_versions where id = v_first) <> 'archived'
     or (select state from public.flow_versions where id = v_second) <> 'published'
@@ -420,18 +420,18 @@ begin
     raise exception 'versions %', (select jsonb_agg(to_jsonb(x)) from public.flow_versions x);
   end if;
 
-  v_trigger := (better_supabase.save_workflow_trigger(v_id, 'manual') ->> 'id')::uuid;
-  perform better_supabase.save_workflow_trigger(v_id, 'webhook', trigger => v_trigger);
+  v_trigger := (better_supabase.upsert_workflow_trigger(v_id, 'manual') ->> 'id')::uuid;
+  perform better_supabase.upsert_workflow_trigger(v_id, 'webhook', trigger => v_trigger);
   v_token := better_supabase.rotate_workflow_webhook_token(v_trigger);
   if (select kind from public.flow_hooks where id = v_trigger) <> 'webhook'
     or better_supabase.workflow_webhook_target(v_token) is null then
     raise exception 'the webhook trigger does not resolve';
   end if;
 
-  perform better_supabase.save_workflow_credential('${TENANT}', 'api', 'main', '{"provider": "vault", "tenant": "${TENANT}"}'::jsonb);
-  perform better_supabase.save_workflow_credential('${TENANT}', 'api', 'main', '{"provider": "vault", "tenant": "${TENANT}", "v": 2}'::jsonb);
-  perform better_supabase.save_workflow_credential(null, 'api', 'shared', '{"provider": "vault"}'::jsonb);
-  perform better_supabase.save_workflow_credential(null, 'api', 'shared', '{"provider": "vault"}'::jsonb);
+  perform better_supabase.upsert_workflow_credential('${TENANT}', 'api', 'main', '{"provider": "vault", "tenant": "${TENANT}"}'::jsonb);
+  perform better_supabase.upsert_workflow_credential('${TENANT}', 'api', 'main', '{"provider": "vault", "tenant": "${TENANT}", "v": 2}'::jsonb);
+  perform better_supabase.upsert_workflow_credential(null, 'api', 'shared', '{"provider": "vault"}'::jsonb);
+  perform better_supabase.upsert_workflow_credential(null, 'api', 'shared', '{"provider": "vault"}'::jsonb);
   if (select count(*) from public.flow_secrets) <> 2
     or (select ref ->> 'v' from public.flow_secrets where name = 'main') <> '2' then
     raise exception 'credentials %', (select jsonb_agg(to_jsonb(x)) from public.flow_secrets x);
@@ -445,8 +445,8 @@ begin
     raise exception 'steps %', (select jsonb_agg(to_jsonb(x)) from public.step_catalog x);
   end if;
 
-  v_alert := (better_supabase.save_workflow_alert(v_id, 'slow', threshold => interval '1 minute') ->> 'id')::uuid;
-  perform better_supabase.save_workflow_alert(v_id, 'failed');
+  v_alert := (better_supabase.upsert_workflow_alert(v_id, 'slow', threshold => interval '1 minute') ->> 'id')::uuid;
+  perform better_supabase.upsert_workflow_alert(v_id, 'failed');
   if (select on_event from public.flow_alerts where id = v_alert) <> 'slow' then
     raise exception 'the alert event is wrong';
   end if;

@@ -28,7 +28,7 @@ import {
   reconcileDeposit,
   recordMovement,
 } from "../tills-actions";
-import { loadBankTargets, loadSession } from "../tills-queries";
+import { getBankTargets, loadSession } from "../tills-queries";
 
 export function SessionDetailSkeleton() {
   return <Skeleton className="h-96 rounded-xl" aria-busy="true" />;
@@ -48,7 +48,7 @@ export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
       holds("tills.write"),
       holds("tills.manage"),
       holds("banking.import"),
-      tab === "deposits" ? settle(loadBankTargets) : undefined,
+      tab === "deposits" ? settle(getBankTargets) : undefined,
     ]);
 
   const targets = bank?.kind === "ok" ? bank.data : undefined;

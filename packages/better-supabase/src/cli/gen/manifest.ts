@@ -14,7 +14,7 @@ const MANIFEST = `${CACHE_DIR}/gen-manifest.json`;
 export const manifestPath = (root: string, path: string): string =>
   relative(root, resolve(root, path)).split(sep).join("/");
 
-async function readManifest(root: string): Promise<readonly string[]> {
+async function getManifest(root: string): Promise<readonly string[]> {
   const parsed: unknown = await readFile(resolve(root, MANIFEST), "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
@@ -93,7 +93,7 @@ export async function leftoverFiles(
 ): Promise<string[]> {
   const current = new Set(generated);
 
-  const listed = (await readManifest(root)).filter(
+  const listed = (await getManifest(root)).filter(
     (path) =>
       !current.has(path) &&
       insideRoot(root, path) &&

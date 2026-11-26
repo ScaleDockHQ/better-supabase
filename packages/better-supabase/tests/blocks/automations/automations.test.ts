@@ -175,7 +175,7 @@ describe("createAutomations", () => {
     const { calls, transport } = fakeTransport({
       rules_list: [ruleRow()],
       rule_get: null,
-      save_rule: ruleRow({ version: 4 }),
+      upsert_rule: ruleRow({ version: 4 }),
       rule_versions_list: [
         {
           ruleId: "r1",
@@ -243,7 +243,7 @@ describe("createAutomations", () => {
       ],
       ["rule_get", { id: "missing" }],
       [
-        "save_rule",
+        "upsert_rule",
         { tenant: "org-1", rule: { id: "r1", version: 3, name: "Large" } },
       ],
       ["rule_versions_list", { id: "r1" }],

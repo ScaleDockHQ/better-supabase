@@ -3,9 +3,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MARKETPLACE_TAG } from "./marketplace-cache";
 
 export interface MarketplaceResourceView {
   readonly externalId: string;
@@ -32,12 +31,12 @@ export type MarketplaceRead =
  * tenant-scoped read of PR #902). The reply has no secret handles, so the page
  * needs no service role.
  */
-async function loadInstallation(): Promise<
+async function getInstallation(): Promise<
   MarketplaceInstallationView | undefined
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(MARKETPLACE_TAG);
+  cacheTag(tags.marketplace());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -73,7 +72,7 @@ async function loadInstallation(): Promise<
  */
 export async function getMarketplace(): Promise<MarketplaceRead> {
   try {
-    const installation = await loadInstallation();
+    const installation = await getInstallation();
 
     return installation ? { kind: "ok", installation } : { kind: "none" };
   } catch (error) {

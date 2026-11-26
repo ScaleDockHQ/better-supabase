@@ -1,9 +1,8 @@
 import "server-only";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { IDENTITIES_TAG } from "./identities-cache";
 
 export interface IdentityRow {
   readonly id: string;
@@ -17,7 +16,7 @@ export interface IdentityRow {
 export async function getIdentities(): Promise<readonly IdentityRow[]> {
   "use cache: private";
   const { auth, db } = await bsb.cached();
-  cacheTag(IDENTITIES_TAG);
+  cacheTag(tags.identities());
 
   if (auth.kind !== "user") {
     return [];

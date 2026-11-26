@@ -180,24 +180,24 @@ export function priceFunctions(ctx: BlockSqlContext, names: Names): string {
     ? `
 -- Creates a price list (price_list null) or renames one. customer_group
 -- names the customers it is for, such as a B2B tier.
-create or replace function ${fn("save_price_list")}(tenant ${ctx.idType}, price_list uuid, name text, customer_group text)
+create or replace function ${fn("upsert_price_list")}(tenant ${ctx.idType}, price_list uuid, name text, customer_group text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_price_list.price_list;
+  v_id uuid := upsert_price_list.price_list;
 begin
-  ${guard(names, "save_price_list.tenant")}
+  ${guard(names, "upsert_price_list.tenant")}
   begin
     if v_id is null then
       insert into ${priceLists} (${pl("tenant")}, ${pl("name")}, ${pl("customerGroup")})
-      values (save_price_list.tenant, save_price_list.name, save_price_list.customer_group)
+      values (upsert_price_list.tenant, upsert_price_list.name, upsert_price_list.customer_group)
       returning ${pl("id")} into v_id;
     else
-      update ${priceLists} x set ${pl("name")} = save_price_list.name, ${pl("customerGroup")} = save_price_list.customer_group
-      where x.${pl("id")} = v_id and x.${pl("tenant")} = save_price_list.tenant;
+      update ${priceLists} x set ${pl("name")} = upsert_price_list.name, ${pl("customerGroup")} = upsert_price_list.customer_group
+      where x.${pl("id")} = v_id and x.${pl("tenant")} = upsert_price_list.tenant;
       if not found then
         ${fail("CATALOG_PRICE_LIST_NOT_FOUND", "price list not found", "P0002")}
       end if;
@@ -208,7 +208,7 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-${userGrant(`${fn("save_price_list")}(${ctx.idType}, uuid, text, text)`)}
+${userGrant(`${fn("upsert_price_list")}(${ctx.idType}, uuid, text, text)`)}
 
 -- Deletes a price list and its prices.
 create or replace function ${fn("delete_price_list")}(price_list uuid)
@@ -478,52 +478,52 @@ ${userGrant(`${fn("set_product_categories")}(uuid, uuid[])`)}
   const inserted = insertExtraColumns(
     categories,
     extras,
-    "coalesce(save_category.fields, '{}'::jsonb)",
+    "coalesce(upsert_category.fields, '{}'::jsonb)",
   );
 
   return `
 -- Creates a category (category null) or updates one, under parent (null
 -- for the top level). A new category goes after its siblings. fields: the
 -- extra columns (columns your schema files add) to set.
-${extraArg.drop(fn("save_category"), categoryArgs)}
-create or replace function ${fn("save_category")}(tenant ${ctx.idType}, category uuid, parent uuid, name text, slug text, description text${extraArg.param})
+${extraArg.drop(fn("upsert_category"), categoryArgs)}
+create or replace function ${fn("upsert_category")}(tenant ${ctx.idType}, category uuid, parent uuid, name text, slug text, description text${extraArg.param})
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_category.category;
-  v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_category.category;
+  v_slug text := coalesce(nullif(upsert_category.slug, ''), trim(both '-' from regexp_replace(lower(upsert_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
   v_defaults jsonb;
 begin
   if v_id is null then
-    ${guard(names, "save_category.tenant", names.categoryCreate)}
+    ${guard(names, "upsert_category.tenant", names.categoryCreate)}
   else
-    ${guard(names, "save_category.tenant", names.categoryUpdate)}
+    ${guard(names, "upsert_category.tenant", names.categoryUpdate)}
   end if;
   if v_slug is null or v_slug !~ ${SLUG} then
     ${fail("CATALOG_SLUG_INVALID", "the slug must be lower-case letters, digits and hyphens", "22023")}
   end if;
-  if save_category.parent is not null and not exists (select 1 from ${categories} x where x.${k("id")} = save_category.parent and x.${k("tenant")} = save_category.tenant) then
+  if upsert_category.parent is not null and not exists (select 1 from ${categories} x where x.${k("id")} = upsert_category.parent and x.${k("tenant")} = upsert_category.tenant) then
     ${fail("CATALOG_CATEGORY_NOT_FOUND", "parent category not found", "P0002")}
   end if;
-  ${cycle("v_id", "save_category.parent")}
+  ${cycle("v_id", "upsert_category.parent")}
   begin
     if v_id is null then
       select max(${rank.order(`x.${k("rank")}`)}) into v_last from ${categories} x
-      where x.${k("tenant")} = save_category.tenant and x.${k("parent")} is not distinct from save_category.parent;
+      where x.${k("tenant")} = upsert_category.tenant and x.${k("parent")} is not distinct from upsert_category.parent;
       v_rank := ${rank.after("v_last")};
-      ${columnDefaults(categories, [[k("description"), "save_category.description"]], "v_defaults")}
+      ${columnDefaults(categories, [[k("description"), "upsert_category.description"]], "v_defaults")}
       insert into ${categories} (${k("tenant")}, ${k("parent")}, ${k("name")}, ${k("slug")}, ${k("description")}, ${k("rank")}${inserted.columns})
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, ${withColumnDefault(categories, k("description"), "save_category.description", "v_defaults")}, ${rank.write("v_rank")}${inserted.values})
+      values (upsert_category.tenant, upsert_category.parent, upsert_category.name, v_slug, ${withColumnDefault(categories, k("description"), "upsert_category.description", "v_defaults")}, ${rank.write("v_rank")}${inserted.values})
       returning ${k("id")} into v_id;
     else
-      update ${categories} x set ${k("parent")} = save_category.parent, ${k("name")} = save_category.name, ${k("slug")} = v_slug,
-        ${k("description")} = save_category.description, ${k("updatedAt")} = now()${updateExtraColumns(categories, extras, "save_category.fields")}
-      where x.${k("id")} = v_id and x.${k("tenant")} = save_category.tenant
+      update ${categories} x set ${k("parent")} = upsert_category.parent, ${k("name")} = upsert_category.name, ${k("slug")} = v_slug,
+        ${k("description")} = upsert_category.description, ${k("updatedAt")} = now()${updateExtraColumns(categories, extras, "upsert_category.fields")}
+      where x.${k("id")} = v_id and x.${k("tenant")} = upsert_category.tenant
       returning x.${k("rank")} into v_rank;
       if not found then
         ${fail("CATALOG_CATEGORY_NOT_FOUND", "category not found", "P0002")}
@@ -542,7 +542,7 @@ begin
   };
 end;
 $$;
-${userGrant(`${fn("save_category")}(${categoryArgs}${extraArg.type})`)}
+${userGrant(`${fn("upsert_category")}(${categoryArgs}${extraArg.type})`)}
 
 -- Moves a category under parent (null for the top level) at rank, a key
 -- from rankBetween over its new siblings' keys.
@@ -692,44 +692,44 @@ ${userGrant(`${fn("remove_from_collection")}(uuid, uuid)`)}
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
 -- (a FilterQuery group) that picks them.
-create or replace function ${fn("save_collection")}(tenant ${ctx.idType}, collection uuid, title text, slug text, kind text, rule jsonb)
+create or replace function ${fn("upsert_collection")}(tenant ${ctx.idType}, collection uuid, title text, slug text, kind text, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_collection.collection;
-  v_kind text := coalesce(save_collection.kind, 'manual');
-  v_slug text := coalesce(nullif(save_collection.slug, ''), trim(both '-' from regexp_replace(lower(save_collection.title), '[^a-z0-9]+', '-', 'g')));
+  v_id uuid := upsert_collection.collection;
+  v_kind text := coalesce(upsert_collection.kind, 'manual');
+  v_slug text := coalesce(nullif(upsert_collection.slug, ''), trim(both '-' from regexp_replace(lower(upsert_collection.title), '[^a-z0-9]+', '-', 'g')));
 begin
-  ${guard(names, "save_collection.tenant")}
+  ${guard(names, "upsert_collection.tenant")}
   if v_slug is null or v_slug !~ ${SLUG} then
     ${fail("CATALOG_SLUG_INVALID", "the slug must be lower-case letters, digits and hyphens", "22023")}
   end if;
   if v_kind not in ('manual', 'rule') then
     ${fail("CATALOG_COLLECTION_KIND", "the kind must be manual or rule", "22023")}
   end if;
-  if (v_kind = 'rule') <> (save_collection.rule is not null) then
+  if (v_kind = 'rule') <> (upsert_collection.rule is not null) then
     ${fail("CATALOG_COLLECTION_RULE", "a rule collection needs a rule and a manual one none", "22023")}
   end if;
   if v_kind = 'rule' and not (
-    jsonb_typeof(save_collection.rule) = 'object'
-    and save_collection.rule ->> 'type' = 'group'
-    and save_collection.rule ->> 'combinator' in ('and', 'or')
-    and jsonb_typeof(save_collection.rule -> 'rules') = 'array'
+    jsonb_typeof(upsert_collection.rule) = 'object'
+    and upsert_collection.rule ->> 'type' = 'group'
+    and upsert_collection.rule ->> 'combinator' in ('and', 'or')
+    and jsonb_typeof(upsert_collection.rule -> 'rules') = 'array'
   ) then
     ${fail("CATALOG_COLLECTION_RULE", "the rule must be a filter group with a combinator and rules", "22023")}
   end if;
   begin
     if v_id is null then
       insert into ${collections} (${k("tenant")}, ${k("title")}, ${k("slug")}, ${k("kind")}, ${k("rule")})
-      values (save_collection.tenant, save_collection.title, v_slug, v_kind, save_collection.rule)
+      values (upsert_collection.tenant, upsert_collection.title, v_slug, v_kind, upsert_collection.rule)
       returning ${k("id")} into v_id;
     else
-      update ${collections} x set ${k("title")} = save_collection.title, ${k("slug")} = v_slug, ${k("kind")} = v_kind,
-        ${k("rule")} = save_collection.rule, ${k("updatedAt")} = now()
-      where x.${k("id")} = v_id and x.${k("tenant")} = save_collection.tenant;
+      update ${collections} x set ${k("title")} = upsert_collection.title, ${k("slug")} = v_slug, ${k("kind")} = v_kind,
+        ${k("rule")} = upsert_collection.rule, ${k("updatedAt")} = now()
+      where x.${k("id")} = v_id and x.${k("tenant")} = upsert_collection.tenant;
       if not found then
         ${fail("CATALOG_COLLECTION_NOT_FOUND", "collection not found", "P0002")}
       end if;
@@ -747,7 +747,7 @@ begin
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'kind', v_kind);
 end;
 $$;
-${userGrant(`${fn("save_collection")}(${ctx.idType}, uuid, text, text, text, jsonb)`)}
+${userGrant(`${fn("upsert_collection")}(${ctx.idType}, uuid, text, text, text, jsonb)`)}
 
 -- Deletes a collection.
 create or replace function ${fn("delete_collection")}(collection uuid)

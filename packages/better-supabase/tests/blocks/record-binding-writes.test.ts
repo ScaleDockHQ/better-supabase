@@ -214,7 +214,7 @@ describe("binding loads", () => {
     async (name, binding, method) => {
       const { client, calls } = recorder();
 
-      const result = await binding.load(
+      const result = await binding.get(
         client as never,
         subject,
         undefined as never,

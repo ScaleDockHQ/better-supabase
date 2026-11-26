@@ -92,7 +92,7 @@ const validate = (
 describe("createRisks", () => {
   it("saves and lists matrices", async () => {
     const t = fieldsTransport({
-      save_risk_matrix: () => MATRIX,
+      upsert_risk_matrix: () => MATRIX,
       list_risk_matrices: () => [MATRIX],
     });
 
@@ -120,7 +120,7 @@ describe("createRisks", () => {
     expect(listed).toHaveLength(1);
     expect(t.calls).toEqual([
       [
-        "save_risk_matrix",
+        "upsert_risk_matrix",
         {
           tenant: "org-1",
           key: "default",

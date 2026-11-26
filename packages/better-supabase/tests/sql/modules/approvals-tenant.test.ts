@@ -33,8 +33,8 @@ describe("approval policies", () => {
     expect(sql).toContain("create table");
     expect(sql).toContain("approval_policies");
     expect(sql).toContain(`rule_matches"(`);
-    expect(sql).toContain("save_approval_policy");
-    expect(sql).toContain("remove_approval_policy");
+    expect(sql).toContain("upsert_approval_policy");
+    expect(sql).toContain("delete_approval_policy");
     expect(sql).toContain("list_approval_policies");
     expect(sql).not.toContain("APPROVAL_CONDITIONS_UNSUPPORTED");
     expect(sql).toContain(`"run":null,"mode":"confirm"}'`);
@@ -62,7 +62,7 @@ describe("approval policies", () => {
       approvals({ policies: FLOORS, tenantPolicies: true }),
     );
 
-    expect(on).toContain("save_approval_policy");
+    expect(on).toContain("upsert_approval_policy");
     expect(on).not.toContain(`rule_matches"(`);
     expect(on).toContain("APPROVAL_CONDITIONS_UNSUPPORTED");
 
@@ -71,7 +71,7 @@ describe("approval policies", () => {
       approvals({ policies: { invoice: { send: FLOORS.invoice.send } } }),
     );
 
-    expect(off).not.toContain("save_approval_policy");
+    expect(off).not.toContain("upsert_approval_policy");
     expect(off).toContain("approval_requirement");
     expect(off).toContain("consume_approval");
   });

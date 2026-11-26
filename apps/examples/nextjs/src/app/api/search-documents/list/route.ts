@@ -1,4 +1,4 @@
-import { loadAdminList } from "../../../../features/admin-lists/admin-list-load";
+import { getAdminList } from "../../../../features/admin-lists/admin-list-load";
 import { searchDocumentList } from "../../../../features/search-settings/search-settings-list";
 import { searchDocumentSource } from "../../../../features/search-settings/search-settings-source";
 import { bsbCore as bsb } from "../../../../lib/supabase/server-core";
@@ -9,7 +9,7 @@ export const GET = bsb.route(
     const query = searchDocumentList.parse(request.nextUrl.searchParams);
 
     return Response.json(
-      await loadAdminList({
+      await getAdminList({
         session,
         tenant,
         list: searchDocumentList,

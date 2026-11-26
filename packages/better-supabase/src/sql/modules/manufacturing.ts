@@ -531,7 +531,7 @@ ${accountingSourcesSql(ctx, manufacturingAccountingSources(ctx))}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_bom",
+      name: "upsert_bom",
       args: ["{id}", "uuid", "jsonb", "uuid"],
       returns: "jsonb",
     },
@@ -542,7 +542,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "explode_bom", args: ["uuid", "numeric"], returns: "jsonb" },
     { name: "bom_where_used", args: ["uuid"], returns: "jsonb" },
     {
-      name: "save_work_center",
+      name: "upsert_work_center",
       args: ["{id}", "jsonb", "uuid"],
       returns: "jsonb",
     },

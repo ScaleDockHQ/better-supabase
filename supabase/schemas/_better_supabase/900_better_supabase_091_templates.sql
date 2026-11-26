@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:5cf57c858f611edc1dd8c85928276b3309827c65fc9900a9c023e9c4c5f59984
+-- @bsb-hash sha256:5e4a9a37e4f35ce7e2a4476751bec46fac4a52b9f594f2ef7c91f6b981885e0a
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,7 +178,7 @@ grant execute on function "better_supabase"."template_workflow_input_errors"(uui
 -- role may; a tenant's needs templates.manage there.
 -- fields: the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
+create or replace function "better_supabase"."upsert_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -191,22 +191,22 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_template.settings is not null and jsonb_typeof(save_template.settings) <> 'object' then
+  if upsert_template.settings is not null and jsonb_typeof(upsert_template.settings) <> 'object' then
     raise exception 'settings must be an object' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
-  if save_template.template_id is not null then
-    select * into v_row from "better_supabase"."templates" x where x."id" = save_template.template_id for update;
-    if not found or v_row."tenant_id" is distinct from save_template.tenant then
+  if upsert_template.template_id is not null then
+    select * into v_row from "better_supabase"."templates" x where x."id" = upsert_template.template_id for update;
+    if not found or v_row."tenant_id" is distinct from upsert_template.tenant then
       raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
     end if;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_template.tenant is not null and coalesce(better_supabase.can('tenant', save_template.tenant, 'templates.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_template.tenant is not null and coalesce(better_supabase.can('tenant', upsert_template.tenant, 'templates.manage'), false))) then
     raise exception 'You may not change templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
-  if save_template.template_id is null and (save_template.type is null or save_template.type !~ '^[a-z][a-z0-9_.-]{0,63}$') then
+  if upsert_template.template_id is null and (upsert_template.type is null or upsert_template.type !~ '^[a-z][a-z0-9_.-]{0,63}$') then
     raise exception 'type must be lower-case letters, digits, dots, dashes or underscores' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
-  if save_template.template_id is null and save_template.name is null then
+  if upsert_template.template_id is null and upsert_template.name is null then
     raise exception 'A template needs a name' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
   declare
@@ -214,29 +214,29 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::jsonb)', v_hook::oid::regproc)
-        using save_template.tenant, coalesce(save_template.type, v_row."type"), save_template.settings;
+        using upsert_template.tenant, coalesce(upsert_template.type, v_row."type"), upsert_template.settings;
     end if;
   end;
-  if save_template.template_id is null then
+  if upsert_template.template_id is null then
     insert into "better_supabase"."templates" ("tenant_id", "scope", "type", "name", "language", "settings", "created_by")
     values (
-      save_template.tenant,
-      case when save_template.tenant is null then 'system' else 'tenant' end,
-      save_template.type,
-      save_template.name,
-      coalesce(save_template.language, 'en'),
-      coalesce(save_template.settings, '{}'::jsonb),
+      upsert_template.tenant,
+      case when upsert_template.tenant is null then 'system' else 'tenant' end,
+      upsert_template.type,
+      upsert_template.name,
+      coalesce(upsert_template.language, 'en'),
+      coalesce(upsert_template.settings, '{}'::jsonb),
       (select auth.uid())
     )
     returning * into v_row;
   else
     update "better_supabase"."templates" x set
-      "name" = coalesce(save_template.name, x."name"),
-      "language" = coalesce(save_template.language, x."language"),
-      "settings" = coalesce(save_template.settings, x."settings"),
-      "is_default" = x."is_default" and coalesce(save_template.language, x."language") = x."language",
+      "name" = coalesce(upsert_template.name, x."name"),
+      "language" = coalesce(upsert_template.language, x."language"),
+      "settings" = coalesce(upsert_template.settings, x."settings"),
+      "is_default" = x."is_default" and coalesce(upsert_template.language, x."language") = x."language",
       "updated_at" = now()
-    where x."id" = save_template.template_id
+    where x."id" = upsert_template.template_id
     returning * into v_row;
   end if;
   declare
@@ -268,8 +268,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_template"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_template"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_template"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 -- The tenant's templates and the system ones (only the system ones without
 -- a tenant), filtered by type and language, defaults first.
@@ -852,7 +852,7 @@ $$;
 revoke execute on function "better_supabase"."templates_get_many"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."templates_get_many"(uuid[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_template"(template_id uuid)
+create or replace function "better_supabase"."delete_template"(template_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -865,23 +865,23 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."templates" x where x."id" = remove_template.template_id;
+  select * into v_row from "better_supabase"."templates" x where x."id" = delete_template.template_id;
   if not found then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'templates.manage'), false))) then
     raise exception 'You may not remove this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
-  delete from "better_supabase"."templates" x where x."id" = remove_template.template_id;
+  delete from "better_supabase"."templates" x where x."id" = delete_template.template_id;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_template"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_template"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_template"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_template"(uuid) to authenticated, service_role;
 
 -- Saves body as the template's draft: updates the open one, or opens one
 -- numbered after the last version.
-create or replace function "better_supabase"."save_template_draft"(template_id uuid, body jsonb)
+create or replace function "better_supabase"."upsert_template_draft"(template_id uuid, body jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -895,33 +895,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_tpl from "better_supabase"."templates" x where x."id" = save_template_draft.template_id for update;
+  select * into v_tpl from "better_supabase"."templates" x where x."id" = upsert_template_draft.template_id for update;
   if not found then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tpl."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_tpl."tenant_id", 'templates.manage'), false))) then
     raise exception 'You may not edit this template' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
-  if save_template_draft.body is null then
+  if upsert_template_draft.body is null then
     raise exception 'A template version needs a body' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
   update "better_supabase"."template_versions" x set
-    "body" = save_template_draft.body,
-    "hash" = encode(extensions.digest(save_template_draft.body::text, 'sha256'), 'hex')
-  where x."template_id" = save_template_draft.template_id and x."published_at" is null
+    "body" = upsert_template_draft.body,
+    "hash" = encode(extensions.digest(upsert_template_draft.body::text, 'sha256'), 'hex')
+  where x."template_id" = upsert_template_draft.template_id and x."published_at" is null
   returning * into v_row;
   if not found then
     insert into "better_supabase"."template_versions" ("template_id", "version", "body", "hash", "created_by")
     values (
-      save_template_draft.template_id,
-      coalesce((select max(y."version") from "better_supabase"."template_versions" y where y."template_id" = save_template_draft.template_id), 0) + 1,
-      save_template_draft.body,
-      encode(extensions.digest(save_template_draft.body::text, 'sha256'), 'hex'),
+      upsert_template_draft.template_id,
+      coalesce((select max(y."version") from "better_supabase"."template_versions" y where y."template_id" = upsert_template_draft.template_id), 0) + 1,
+      upsert_template_draft.body,
+      encode(extensions.digest(upsert_template_draft.body::text, 'sha256'), 'hex'),
       (select auth.uid())
     )
     returning * into v_row;
   end if;
-  update "better_supabase"."templates" x set "updated_at" = now() where x."id" = save_template_draft.template_id;
+  update "better_supabase"."templates" x set "updated_at" = now() where x."id" = upsert_template_draft.template_id;
   return jsonb_build_object(
     'id', v_row."id",
     'template', v_row."template_id",
@@ -934,8 +934,8 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_template_draft"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_template_draft"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_template_draft"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_template_draft"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes the template's draft. Applications use the newest published
 -- version; published versions never change.
@@ -1541,7 +1541,7 @@ for each row execute function "better_supabase"."template_schedule_removed"();
 -- Creates a schedule (schedule_id null) or changes one: template_id applies
 -- in tenant with input at each occurrence of rrule from dtstart in tzid.
 -- templates.manage in tenant; the template must be visible there.
-create or replace function "better_supabase"."save_template_schedule"(schedule_id uuid, template_id uuid, tenant uuid, dtstart timestamptz, tzid text, rrule text, input jsonb, enabled boolean)
+create or replace function "better_supabase"."upsert_template_schedule"(schedule_id uuid, template_id uuid, tenant uuid, dtstart timestamptz, tzid text, rrule text, input jsonb, enabled boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -1556,54 +1556,54 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if save_template_schedule.tenant is null then
+  if upsert_template_schedule.tenant is null then
     raise exception 'A schedule needs a tenant' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_template_schedule.tenant is not null and coalesce(better_supabase.can('tenant', save_template_schedule.tenant, 'templates.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_template_schedule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_template_schedule.tenant, 'templates.manage'), false))) then
     raise exception 'You may not schedule templates here' using errcode = '42501', hint = 'TEMPLATE_FORBIDDEN';
   end if;
-  if save_template_schedule.dtstart is null or coalesce(length(save_template_schedule.rrule), 0) not between 1 and 1000 then
+  if upsert_template_schedule.dtstart is null or coalesce(length(upsert_template_schedule.rrule), 0) not between 1 and 1000 then
     raise exception 'A schedule needs a start and a rule' using errcode = '22023', hint = 'TEMPLATE_SCHEDULE_INVALID';
   end if;
-  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(save_template_schedule.tzid, 'UTC')) then
+  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(upsert_template_schedule.tzid, 'UTC')) then
     raise exception 'tzid must be an IANA time zone' using errcode = '22023', hint = 'TEMPLATE_SCHEDULE_INVALID';
   end if;
-  if save_template_schedule.input is not null and jsonb_typeof(save_template_schedule.input) <> 'object' then
+  if upsert_template_schedule.input is not null and jsonb_typeof(upsert_template_schedule.input) <> 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'TEMPLATE_INVALID';
   end if;
-  select * into v_tpl from "better_supabase"."templates" x where x."id" = save_template_schedule.template_id;
-  if not found or not (v_tpl."scope" = 'system' or v_tpl."tenant_id" = save_template_schedule.tenant or (v_tpl."scope" = 'brand' and v_tpl."brand" = "better_supabase"."template_brand"(save_template_schedule.tenant))) then
+  select * into v_tpl from "better_supabase"."templates" x where x."id" = upsert_template_schedule.template_id;
+  if not found or not (v_tpl."scope" = 'system' or v_tpl."tenant_id" = upsert_template_schedule.tenant or (v_tpl."scope" = 'brand' and v_tpl."brand" = "better_supabase"."template_brand"(upsert_template_schedule.tenant))) then
     raise exception 'No such template' using errcode = 'P0002', hint = 'TEMPLATE_NOT_FOUND';
   end if;
-  if save_template_schedule.schedule_id is null then
+  if upsert_template_schedule.schedule_id is null then
     insert into "better_supabase"."template_schedules" ("template_id", "tenant_id", "input", "enabled", "created_by")
-    values (v_tpl."id", save_template_schedule.tenant, coalesce(save_template_schedule.input, '{}'::jsonb),
-      coalesce(save_template_schedule.enabled, true), (select auth.uid()))
+    values (v_tpl."id", upsert_template_schedule.tenant, coalesce(upsert_template_schedule.input, '{}'::jsonb),
+      coalesce(upsert_template_schedule.enabled, true), (select auth.uid()))
     returning * into v_row;
   else
     update "better_supabase"."template_schedules" x set
       "template_id" = v_tpl."id",
-      "input" = coalesce(save_template_schedule.input, x."input"),
-      "enabled" = coalesce(save_template_schedule.enabled, x."enabled"),
+      "input" = coalesce(upsert_template_schedule.input, x."input"),
+      "enabled" = coalesce(upsert_template_schedule.enabled, x."enabled"),
       "updated_at" = now()
-    where x."id" = save_template_schedule.schedule_id and x."tenant_id" = save_template_schedule.tenant
+    where x."id" = upsert_template_schedule.schedule_id and x."tenant_id" = upsert_template_schedule.tenant
     returning * into v_row;
     if not found then
       raise exception 'No such schedule' using errcode = 'P0002', hint = 'TEMPLATE_SCHEDULE_NOT_FOUND';
     end if;
   end if;
   update "better_supabase"."recurrence_rules" u set
-    "dtstart" = save_template_schedule.dtstart,
-    "tzid" = coalesce(save_template_schedule.tzid, 'UTC'),
-    "rrule" = save_template_schedule.rrule
+    "dtstart" = upsert_template_schedule.dtstart,
+    "tzid" = coalesce(upsert_template_schedule.tzid, 'UTC'),
+    "rrule" = upsert_template_schedule.rrule
   where u."tenant_id" = v_row."tenant_id"
       and u."subject_type" = 'template_schedule'
       and u."subject_id" = v_row."id"::text
   returning * into v_rule;
   if not found then
     insert into "better_supabase"."recurrence_rules" ("tenant_id", "subject_type", "subject_id", "dtstart", "tzid", "rrule")
-    values (v_row."tenant_id", 'template_schedule', v_row."id"::text, save_template_schedule.dtstart,
-      coalesce(save_template_schedule.tzid, 'UTC'), save_template_schedule.rrule)
+    values (v_row."tenant_id", 'template_schedule', v_row."id"::text, upsert_template_schedule.dtstart,
+      coalesce(upsert_template_schedule.tzid, 'UTC'), upsert_template_schedule.rrule)
     returning * into v_rule;
   end if;
   return jsonb_build_object(
@@ -1621,11 +1621,11 @@ begin
   );
 end;
 $$;
-revoke execute on function "better_supabase"."save_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) from public, anon;
-grant execute on function "better_supabase"."save_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) to authenticated, service_role;
 
 -- Removes a schedule and its rule. templates.manage in its tenant.
-create or replace function "better_supabase"."remove_template_schedule"(schedule_id uuid)
+create or replace function "better_supabase"."delete_template_schedule"(schedule_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1638,7 +1638,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."template_schedules" x where x."id" = remove_template_schedule.schedule_id;
+  select * into v_row from "better_supabase"."template_schedules" x where x."id" = delete_template_schedule.schedule_id;
   if not found then
     return false;
   end if;
@@ -1649,8 +1649,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_template_schedule"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_template_schedule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_template_schedule"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_template_schedule"(uuid) to authenticated, service_role;
 
 -- The tenant's schedules with their rules, of one template when given.
 -- templates.read in tenant.
@@ -1988,14 +1988,14 @@ as $$ select "better_supabase"."template_workflow_input_errors"($1, $2) $$;
 revoke execute on function "api"."template_workflow_input_errors"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "api"."template_workflow_input_errors"(uuid, jsonb) to service_role;
 
-create or replace function "api"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
+create or replace function "api"."upsert_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_template"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_template"(uuid, uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "api"."save_template"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_template"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_template"(uuid, uuid, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."upsert_template"(uuid, uuid, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."templates_list"(tenant uuid, type text, language text)
 returns jsonb
@@ -2037,23 +2037,23 @@ as $$ select "better_supabase"."templates_get_many"($1) $$;
 revoke execute on function "api"."templates_get_many"(uuid[]) from public, anon;
 grant execute on function "api"."templates_get_many"(uuid[]) to authenticated, service_role;
 
-create or replace function "api"."remove_template"(template_id uuid)
+create or replace function "api"."delete_template"(template_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_template"($1) $$;
-revoke execute on function "api"."remove_template"(uuid) from public, anon;
-grant execute on function "api"."remove_template"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_template"($1) $$;
+revoke execute on function "api"."delete_template"(uuid) from public, anon;
+grant execute on function "api"."delete_template"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_template_draft"(template_id uuid, body jsonb)
+create or replace function "api"."upsert_template_draft"(template_id uuid, body jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_template_draft"($1, $2) $$;
-revoke execute on function "api"."save_template_draft"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_template_draft"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_template_draft"($1, $2) $$;
+revoke execute on function "api"."upsert_template_draft"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_template_draft"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."publish_template_version"(template_id uuid)
 returns jsonb
@@ -2158,23 +2158,23 @@ as $$ select "better_supabase"."template_workflows_list"($1) $$;
 revoke execute on function "api"."template_workflows_list"(uuid) from public, anon;
 grant execute on function "api"."template_workflows_list"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_template_schedule"(schedule_id uuid, template_id uuid, tenant uuid, dtstart timestamptz, tzid text, rrule text, input jsonb, enabled boolean)
+create or replace function "api"."upsert_template_schedule"(schedule_id uuid, template_id uuid, tenant uuid, dtstart timestamptz, tzid text, rrule text, input jsonb, enabled boolean)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_template_schedule"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."save_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) from public, anon;
-grant execute on function "api"."save_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_template_schedule"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."upsert_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) from public, anon;
+grant execute on function "api"."upsert_template_schedule"(uuid, uuid, uuid, timestamptz, text, text, jsonb, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_template_schedule"(schedule_id uuid)
+create or replace function "api"."delete_template_schedule"(schedule_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_template_schedule"($1) $$;
-revoke execute on function "api"."remove_template_schedule"(uuid) from public, anon;
-grant execute on function "api"."remove_template_schedule"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_template_schedule"($1) $$;
+revoke execute on function "api"."delete_template_schedule"(uuid) from public, anon;
+grant execute on function "api"."delete_template_schedule"(uuid) to authenticated, service_role;
 
 create or replace function "api"."template_schedules_list"(tenant uuid, template_id uuid)
 returns jsonb

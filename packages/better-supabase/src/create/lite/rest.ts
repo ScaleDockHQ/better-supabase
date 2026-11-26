@@ -360,7 +360,7 @@ function statusOf(code: string, persona: Persona): number {
   }
 }
 
-async function readBody(request: Request): Promise<unknown> {
+async function getBody(request: Request): Promise<unknown> {
   const text = await request.text();
 
   return text === "" ? undefined : JSON.parse(text);
@@ -380,7 +380,7 @@ async function writeRows(
   let body: unknown;
 
   try {
-    body = await readBody(request);
+    body = await getBody(request);
   } catch {
     return bad("The body is not valid JSON.", "PGRST102");
   }
@@ -468,7 +468,7 @@ async function callFunction(
   let body: unknown;
 
   try {
-    body = await readBody(request);
+    body = await getBody(request);
   } catch {
     return problem(bad("The body is not valid JSON.", "PGRST102"));
   }

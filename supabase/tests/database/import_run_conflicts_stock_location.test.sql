@@ -12,9 +12,9 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('t.p', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Valve', 'valve-1209', null, 'physical', null) ->> 'id', true);
-select set_config('t.v', better_supabase.save_variant(current_setting('t.p')::uuid, null, 'VALVE-1209', null, 'Valve', null, 500, true, false, null) ->> 'id', true);
-select set_config('t.loc', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH1209', 'Warehouse', null, null) ->> 'id', true);
+select set_config('t.p', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Valve', 'valve-1209', null, 'physical', null) ->> 'id', true);
+select set_config('t.v', better_supabase.upsert_variant(current_setting('t.p')::uuid, null, 'VALVE-1209', null, 'Valve', null, 500, true, false, null) ->> 'id', true);
+select set_config('t.loc', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'WH1209', 'Warehouse', null, null) ->> 'id', true);
 select set_config('t.run', (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'conflicts-1209', '{}'::jsonb) ->> 'id'), true);
 
 reset role;
@@ -61,7 +61,7 @@ reset role;
 update better_supabase.inventory_locations set active = true
 where tenant_id = '00000000-0000-4000-8000-000000000001';
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
-select better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'WH1209B', 'Second warehouse', null, null);
+select better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'WH1209B', 'Second warehouse', null, null);
 set local role service_role;
 select is(
   (better_supabase.import_upsert_batch(current_setting('t.run')::uuid, 'stock_count',

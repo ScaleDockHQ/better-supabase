@@ -72,10 +72,10 @@ begin
   insert into better_supabase.memberships (organization_id, user_id, role)
   values ('${TENANT}', '${ADA}', 'member'), ('${TENANT}', '${BOB}', 'member');
   v_team := better_supabase.create_team('${TENANT}', 'Warehouse', 'warehouse');
-  perform better_supabase.add_team_member((v_team ->> 'id')::uuid, '${ADA}');
+  perform better_supabase.create_team_member((v_team ->> 'id')::uuid, '${ADA}');
 
-  v_type := better_supabase.save_qualification_type('${TENANT}', 'forklift', 'Forklift licence', array['member'], 12);
-  perform better_supabase.add_qualification_requirement((v_type ->> 'id')::uuid, 'team', v_team ->> 'id');
+  v_type := better_supabase.upsert_qualification_type('${TENANT}', 'forklift', 'Forklift licence', array['member'], 12);
+  perform better_supabase.create_qualification_requirement((v_type ->> 'id')::uuid, 'team', v_team ->> 'id');
   v_gaps := better_supabase.qualification_gaps('${TENANT}');
   if jsonb_array_length(v_gaps) <> 1 or v_gaps -> 0 ->> 'holderId' <> '${ADA}' then
     raise exception 'team gaps %', v_gaps;
@@ -85,9 +85,9 @@ begin
     raise exception 'filtered gaps %', v_gaps;
   end if;
 
-  v_company := better_supabase.save_company('${TENANT}', null, '{"name": "Acme Haulage"}');
-  perform better_supabase.save_qualification_type('${TENANT}', 'insurance', 'Liability insurance', array['company'], null, false);
-  perform better_supabase.add_qualification_requirement(
+  v_company := better_supabase.upsert_company('${TENANT}', null, '{"name": "Acme Haulage"}');
+  perform better_supabase.upsert_qualification_type('${TENANT}', 'insurance', 'Liability insurance', array['company'], null, false);
+  perform better_supabase.create_qualification_requirement(
     (select id from better_supabase.qualification_types where key = 'insurance'), 'holder', v_company ->> 'id');
   v_gaps := better_supabase.qualification_gaps('${TENANT}', 'company');
   if jsonb_array_length(v_gaps) <> 1 or v_gaps -> 0 ->> 'holderTitle' <> 'Acme Haulage' then

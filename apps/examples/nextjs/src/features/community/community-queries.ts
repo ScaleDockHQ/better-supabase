@@ -9,9 +9,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COMMUNITY_TAG } from "./community-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -43,7 +42,7 @@ export interface BoardView {
 async function loadBoard(): Promise<{ board: BoardView | null } | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(COMMUNITY_TAG);
+  cacheTag(tags.community());
   const tenant = tenantOf(session);
 
   if (!tenant) {

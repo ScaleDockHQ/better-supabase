@@ -12,7 +12,7 @@ import type { TestJwtClaims } from "./jwt.ts";
 import { toBase64Url } from "../core/base64.ts";
 import {
   LITE_INSTALL,
-  loadLite,
+  getLite,
   migrateLite,
   seedLite,
 } from "../lite/runtime.ts";
@@ -103,7 +103,7 @@ function list(value: string | readonly string[] | undefined): string[] {
 export async function liteStack(
   options: LiteStackOptions = {},
 ): Promise<LiteStack> {
-  const lite = await loadLite();
+  const lite = await getLite();
 
   if (!lite) {
     throw new Error(`liteStack() needs @supabase/lite. ${LITE_INSTALL}`);

@@ -596,13 +596,13 @@ export function createBanking<
           .args(extra)
           .andThen((checked) =>
             call(
-              "save_bank_account",
+              "upsert_bank_account",
               {
                 tenant: organizationId,
                 input: defined({ ...input, fields: checked }),
                 account_id: accountId ?? null,
               },
-              (value) => accountOf(value, "save_bank_account"),
+              (value) => accountOf(value, "upsert_bank_account"),
             ).andThen(fields.row),
           ),
       ),
@@ -705,13 +705,13 @@ export function createBanking<
     saveRule: ({ input, ruleId }) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_bank_rule",
+          "upsert_bank_rule",
           {
             tenant: organizationId,
             input: defined({ ...input }),
             rule_id: ruleId ?? null,
           },
-          (value) => ruleOf(value, "save_bank_rule"),
+          (value) => ruleOf(value, "upsert_bank_rule"),
         ),
       ),
     rules: () =>

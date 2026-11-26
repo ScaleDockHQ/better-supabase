@@ -55,7 +55,7 @@ import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
 import { useSearchParam } from "@/lib/url-filters";
 
-async function loadOrganizationMembers(): Promise<readonly Member[]> {
+async function getOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
 
   if (!result.ok) {
@@ -305,7 +305,7 @@ export function MemberTable({
 
   const { members, pending, setRole, setRoles, remove } = useMembers({
     organizationId,
-    load: loadOrganizationMembers,
+    load: getOrganizationMembers,
     initial,
     schema: organizationsConfig.api,
     onChanged: async ({ userId }) => {

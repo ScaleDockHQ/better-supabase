@@ -595,9 +595,9 @@ export function createSequences(options: SequencesOptions): Sequences {
     upsert: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_sequence",
+          "upsert_sequence",
           { tenant: organizationId, sequence: definedOf(input) },
-          (value) => sequenceOf(value, "save_sequence"),
+          (value) => sequenceOf(value, "upsert_sequence"),
         ),
       ),
     list: (filter = {}) =>

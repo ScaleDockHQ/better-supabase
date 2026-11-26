@@ -5,7 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -55,12 +55,12 @@ export interface CustomerChart {
   readonly orders: readonly ChartOrder[];
 }
 
-async function loadChart(
+async function getChart(
   customerId: string | undefined,
 ): Promise<CustomerChart | "no-customer" | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -115,5 +115,5 @@ async function loadChart(
 export function getCustomerChart(
   customerId?: string,
 ): Promise<Loaded<CustomerChart | "no-customer">> {
-  return settle(() => loadChart(customerId));
+  return settle(() => getChart(customerId));
 }

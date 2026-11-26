@@ -4,7 +4,7 @@ import { planRows } from "../../../src/cli/rows/plan.ts";
 import {
   DeclaredRowsError,
   deleteStatement,
-  readDeclaredFile,
+  getDeclaredFile,
 } from "../../../src/cli/rows/read.ts";
 
 const NOW = new Date("2026-11-22T10:00:00Z");
@@ -23,7 +23,7 @@ on conflict (kind, subject, key) do update set position = excluded.position, val
 
 describe("readDeclaredFile", () => {
   it("reads the natural key of every row", async () => {
-    const file = await readDeclaredFile("priorities", upsert("low", "high"));
+    const file = await getDeclaredFile("priorities", upsert("low", "high"));
 
     expect(file.upserts[0]?.rows.map((row) => row.key)).toEqual([
       ["option_set_item", "project.priority", "low"],
@@ -33,9 +33,9 @@ describe("readDeclaredFile", () => {
   });
 
   it("ignores whitespace and comments in the hash", async () => {
-    const a = await readDeclaredFile("p", upsert("low"));
+    const a = await getDeclaredFile("p", upsert("low"));
 
-    const b = await readDeclaredFile(
+    const b = await getDeclaredFile(
       "p",
       `-- note\n${upsert("low").replaceAll("\n", "\n\n")}`,
     );
@@ -96,13 +96,13 @@ describe("readDeclaredFile", () => {
       "insert into t (a) values (null) on conflict (a) do update set a = 1;",
     ],
   ])("rejects %s", async (_name, sql) => {
-    await expect(readDeclaredFile("bad", sql)).rejects.toThrow(
+    await expect(getDeclaredFile("bad", sql)).rejects.toThrow(
       DeclaredRowsError,
     );
   });
 
   it("reads every literal kind, through casts, without a closing semicolon", async () => {
-    const file = await readDeclaredFile(
+    const file = await getDeclaredFile(
       "kinds",
       "-- lead\ninsert into s.t (a, b, c, d, e) values ('x'::text, 2, 1.5, true, to_jsonb(1)) on conflict (a, b, c, d) do update set e = excluded.e",
     );

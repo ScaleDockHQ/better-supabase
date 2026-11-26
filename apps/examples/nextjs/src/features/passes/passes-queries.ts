@@ -9,11 +9,11 @@ import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
 import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { PassRow } from "./pass-row";
 
-import { PASSES_TAG } from "./passes-cache";
 import { PASS_PAGE_SIZE, PASS_STATUSES, passList } from "./passes-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -22,7 +22,7 @@ const isStatus = (value: string): value is PassRow["status"] =>
   PASS_STATUSES.some((status) => status === value);
 
 /** One page of passes, shared by the page and `/api/passes/list`. */
-export async function loadPassPage(
+export async function getPassPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<PassRow>>> {
@@ -56,13 +56,13 @@ export async function loadPassPage(
 export async function getPasses(): Promise<BlockPage<PassRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(PASSES_TAG);
+  cacheTag(tags.passes());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const result = await loadPassPage(db, passList.defaults);
+  const result = await getPassPage(db, passList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);
@@ -75,7 +75,7 @@ export async function getPasses(): Promise<BlockPage<PassRow> | null> {
 export async function getPass(id: string): Promise<PassRow | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(PASSES_TAG);
+  cacheTag(tags.passes());
 
   const result = await db.passes.get(id);
 
@@ -115,7 +115,7 @@ export async function getPassCheckIns(
 ): Promise<readonly PassCheckInRow[]> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(PASSES_TAG);
+  cacheTag(tags.passes());
 
   const result = await db.passes.checkIns({ passId: id, pageSize: 25 });
 

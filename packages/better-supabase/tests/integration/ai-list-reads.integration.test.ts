@@ -81,7 +81,7 @@ describe.skipIf(!live)("AI list reads", () => {
         .create({ name: "set", organizationId: tenant })
         .orThrow();
 
-      await s.value("better_supabase.add_eval_items($1, $2::jsonb)", [
+      await s.value("better_supabase.create_eval_items($1, $2::jsonb)", [
         dataset.id,
         JSON.stringify([{ input: "q" }]),
       ]);

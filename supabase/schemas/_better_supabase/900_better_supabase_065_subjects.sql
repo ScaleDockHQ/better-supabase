@@ -1,7 +1,7 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@2 managed
--- @bsb-hash sha256:bc4860cb678f99c6a4063300416859cf1198f8c3442b0ee6e1a3c4523df65f78
--- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:5922b1c150d28180737bd5217f859caede7c30084df286ca0387e4de47ffa9fe
+-- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, create_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2701,7 +2701,7 @@ create policy bsb_subject_members_read on "better_supabase"."subject_members"
 -- Puts a user or a team on a record's team, or reopens their membership in
 -- that role with the new dates. Needs subjects.manage in the record's tenant,
 -- or can_subject(..., 'manage') on a type that declares a manage action.
-create or replace function "better_supabase"."add_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)
+create or replace function "better_supabase"."create_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2715,26 +2715,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (add_subject_member.subject_type = any (array['customer', 'drive_node']::text[])) then
+  if not (create_subject_member.subject_type = any (array['customer', 'drive_node']::text[])) then
     raise exception 'this subject type has no record team (subjects.<type>.team)' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if (add_subject_member.user_id is null) = (add_subject_member.team_id is null) then
+  if (create_subject_member.user_id is null) = (create_subject_member.team_id is null) then
     raise exception 'pass exactly one of user_id and team_id' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.role is null or not (add_subject_member.role = any ('{lead,member}'::text[])) then
+  if create_subject_member.role is null or not (create_subject_member.role = any ('{lead,member}'::text[])) then
     raise exception 'role must be one of lead, member' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.ends_on < add_subject_member.starts_on then
+  if create_subject_member.ends_on < create_subject_member.starts_on then
     raise exception 'ends_on is before starts_on' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
   begin
-    case add_subject_member.subject_type
+    case create_subject_member.subject_type
     when 'customer' then
       select s."organization_id" into v_tenant from "public"."customers" s
-      where s."id" = (add_subject_member.subject_id)::uuid and s."archived_at" is null;
+      where s."id" = (create_subject_member.subject_id)::uuid and s."archived_at" is null;
     when 'drive_node' then
       select s."tenant_id" into v_tenant from "better_supabase"."drive_nodes" s
-      where s."id" = (add_subject_member.subject_id)::uuid and s."archived_at" is null;
+      where s."id" = (create_subject_member.subject_id)::uuid and s."archived_at" is null;
       else
         v_tenant := null;
     end case;
@@ -2747,32 +2747,32 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or coalesce(better_supabase.can('tenant', v_tenant, 'subjects.manage'), false)
-      or (add_subject_member.subject_type = any (array[]::text[]) and coalesce("better_supabase"."can_subject"(add_subject_member.subject_type, add_subject_member.subject_id, 'manage'), false))) then
+      or (create_subject_member.subject_type = any (array[]::text[]) and coalesce("better_supabase"."can_subject"(create_subject_member.subject_type, create_subject_member.subject_id, 'manage'), false))) then
     raise exception 'not allowed to manage this record''s team' using errcode = '42501', hint = 'SUBJECT_MEMBER_FORBIDDEN';
   end if;
-  if add_subject_member.user_id is not null and not exists (
+  if create_subject_member.user_id is not null and not exists (
     select 1 from "public"."memberships" om
     where om."organization_id" = v_tenant
-      and om."user_id" = add_subject_member.user_id
+      and om."user_id" = create_subject_member.user_id
   ) then
     raise exception 'user is not a member of the record''s tenant' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.team_id is not null and not exists (
+  if create_subject_member.team_id is not null and not exists (
     select 1 from "better_supabase"."teams" tt
-    where tt."id" = add_subject_member.team_id
+    where tt."id" = create_subject_member.team_id
       and tt."tenant_id" = v_tenant
   ) then
     raise exception 'team is not in the record''s tenant' using errcode = '22023', hint = 'SUBJECT_MEMBER_INVALID';
   end if;
-  if add_subject_member.user_id is not null then
+  if create_subject_member.user_id is not null then
     insert into "better_supabase"."subject_members" ("tenant_id", "subject_type", "subject_id", "user_id", "role", "starts_on", "ends_on", "created_by")
-    values (v_tenant, add_subject_member.subject_type, add_subject_member.subject_id, add_subject_member.user_id, add_subject_member.role, add_subject_member.starts_on, add_subject_member.ends_on, auth.uid())
+    values (v_tenant, create_subject_member.subject_type, create_subject_member.subject_id, create_subject_member.user_id, create_subject_member.role, create_subject_member.starts_on, create_subject_member.ends_on, auth.uid())
     on conflict ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null
     do update set "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on"
     returning * into v_row;
   else
     insert into "better_supabase"."subject_members" ("tenant_id", "subject_type", "subject_id", "team_id", "role", "starts_on", "ends_on", "created_by")
-    values (v_tenant, add_subject_member.subject_type, add_subject_member.subject_id, add_subject_member.team_id, add_subject_member.role, add_subject_member.starts_on, add_subject_member.ends_on, auth.uid())
+    values (v_tenant, create_subject_member.subject_type, create_subject_member.subject_id, create_subject_member.team_id, create_subject_member.role, create_subject_member.starts_on, create_subject_member.ends_on, auth.uid())
     on conflict ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null
     do update set "starts_on" = excluded."starts_on", "ends_on" = excluded."ends_on"
     returning * into v_row;
@@ -2798,11 +2798,11 @@ begin
       'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_subject_member"(text, text, uuid, uuid, text, date, date) from public, anon;
-grant execute on function "better_supabase"."add_subject_member"(text, text, uuid, uuid, text, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_subject_member"(text, text, uuid, uuid, text, date, date) from public, anon;
+grant execute on function "better_supabase"."create_subject_member"(text, text, uuid, uuid, text, date, date) to authenticated, service_role;
 
 -- Ends a membership: it counts through ends_on (today by default), so access
--- stops the next day. The same callers as add_subject_member.
+-- stops the next day. The same callers as create_subject_member.
 create or replace function "better_supabase"."end_subject_member"(member_id uuid, ends_on date default current_date)
 returns jsonb
 language plpgsql
@@ -3524,14 +3524,14 @@ as $$ select "better_supabase"."can_subject_for"($1, $2, $3, $4) $$;
 revoke execute on function "api"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
 grant execute on function "api"."can_subject_for"(uuid, text, text, text) to service_role;
 
-create or replace function "api"."add_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)
+create or replace function "api"."create_subject_member"(subject_type text, subject_id text, user_id uuid default null, team_id uuid default null, role text default 'member', starts_on date default null, ends_on date default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_subject_member"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."add_subject_member"(text, text, uuid, uuid, text, date, date) from public, anon;
-grant execute on function "api"."add_subject_member"(text, text, uuid, uuid, text, date, date) to authenticated, service_role;
+as $$ select "better_supabase"."create_subject_member"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."create_subject_member"(text, text, uuid, uuid, text, date, date) from public, anon;
+grant execute on function "api"."create_subject_member"(text, text, uuid, uuid, text, date, date) to authenticated, service_role;
 
 create or replace function "api"."end_subject_member"(member_id uuid, ends_on date default current_date)
 returns jsonb

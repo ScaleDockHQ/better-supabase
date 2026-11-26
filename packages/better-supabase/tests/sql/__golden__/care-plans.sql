@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:8d4b278e478a19a6d3102d32d82bc85267c09d9ee9e80f1837363bbd664e21ac
+-- @bsb-hash sha256:d666a22e5643ba14563e601c9819e2e826578d36f2d9deee11abd0ce4b56ddff
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -367,7 +367,7 @@ grant execute on function "better_supabase"."update_care_plan"(uuid, jsonb) to a
 -- A problem on a draft plan: input is { codeSystem, code, title,
 -- description, rank }. codeSystem is one of options.codeSystems (the first
 -- when left out); new problems go last unless rank says where.
-create or replace function "better_supabase"."add_care_plan_problem"(plan_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_problem"(plan_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -378,13 +378,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_row "better_supabase"."care_plan_problems";
   v_system text;
-  v_title text := trim(add_care_plan_problem.input ->> 'title');
+  v_title text := trim(create_care_plan_problem.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_plan from "better_supabase"."care_plans" x where x."id" = add_care_plan_problem.plan_id for update;
+  select * into v_plan from "better_supabase"."care_plans" x where x."id" = create_care_plan_problem.plan_id for update;
   if not found then
     raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -400,32 +400,32 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_problem.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  v_system := coalesce(nullif(add_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
+  v_system := coalesce(nullif(create_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
   if not (v_system = any (array['custom']::text[])) then
     raise exception 'the code system is not one of options.codeSystems' using errcode = '22023', hint = 'CARE_PLAN_CODE_SYSTEM_UNKNOWN';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a problem needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'code') > 100 then
+  if length(create_care_plan_problem.input ->> 'code') > 100 then
     raise exception 'code is at most 100 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'description') > 10000 then
+  if length(create_care_plan_problem.input ->> 'description') > 10000 then
     raise exception 'description is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_problem.input ? 'rank' and (add_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_problem.input ? 'rank' and (create_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(y."rank") into v_last from "better_supabase"."care_plan_problems" y
   where y."tenant_id" = v_plan."tenant_id" and y."plan_id" = v_plan."id";
   insert into "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "code_system", "code", "title", "description", "rank")
   values (v_plan."tenant_id", v_plan."id", v_system,
-    nullif(trim(add_care_plan_problem.input ->> 'code'), ''), v_title,
-    nullif(trim(add_care_plan_problem.input ->> 'description'), ''),
-    coalesce(add_care_plan_problem.input ->> 'rank', case
+    nullif(trim(create_care_plan_problem.input ->> 'code'), ''), v_title,
+    nullif(trim(create_care_plan_problem.input ->> 'description'), ''),
+    coalesce(create_care_plan_problem.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -435,8 +435,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'codeSystem', v_row."code_system", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a problem. On a draft plan every key of { codeSystem, code, title,
 -- description, status, rank } changes; once the plan is active, only status
@@ -521,7 +521,7 @@ grant execute on function "better_supabase"."update_care_plan_problem"(uuid, jso
 
 -- A goal for a problem on a draft plan: input is { title, targetOn,
 -- measure, rank }. It starts planned.
-create or replace function "better_supabase"."add_care_plan_goal"(problem_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_goal"(problem_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -532,13 +532,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_problem "better_supabase"."care_plan_problems";
   v_row "better_supabase"."care_plan_goals";
-  v_title text := trim(add_care_plan_goal.input ->> 'title');
+  v_title text := trim(create_care_plan_goal.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = add_care_plan_goal.problem_id;
+  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = create_care_plan_goal.problem_id;
   if not found then
     raise exception 'no such problem on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -558,25 +558,25 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_goal.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a goal needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'measure' and jsonb_typeof(add_care_plan_goal.input -> 'measure') not in ('object', 'null') then
+  if create_care_plan_goal.input ? 'measure' and jsonb_typeof(create_care_plan_goal.input -> 'measure') not in ('object', 'null') then
     raise exception 'measure must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'rank' and (add_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_goal.input ? 'rank' and (create_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(z."rank") into v_last from "better_supabase"."care_plan_goals" z
   where z."tenant_id" = v_problem."tenant_id" and z."plan_id" = v_problem."plan_id" and z."problem_id" = v_problem."id";
   insert into "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "problem_id", "title", "target_on", "measure", "rank")
   values (v_problem."tenant_id", v_problem."plan_id", v_problem."id", v_title,
-    nullif(add_care_plan_goal.input ->> 'targetOn', '')::date,
-    nullif(add_care_plan_goal.input -> 'measure', 'null'::jsonb),
-    coalesce(add_care_plan_goal.input ->> 'rank', case
+    nullif(create_care_plan_goal.input ->> 'targetOn', '')::date,
+    nullif(create_care_plan_goal.input -> 'measure', 'null'::jsonb),
+    coalesce(create_care_plan_goal.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -586,8 +586,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'problemId', v_row."problem_id", 'title', v_row."title", 'targetOn', v_row."target_on", 'status', v_row."status", 'measure', v_row."measure", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a goal. On a draft plan every key of { title, targetOn, measure,
 -- status, rank } changes; once the plan is active, only status, which needs
@@ -670,7 +670,7 @@ grant execute on function "better_supabase"."update_care_plan_goal"(uuid, jsonb)
 -- instructions, frequency, teamRole, measureKind, bookingSeriesId,
 -- requiresApproval, reviewEvery, startsOn, endsOn, rank }. A measure always
 -- requires an approval before it starts.
-create or replace function "better_supabase"."add_care_plan_action"(goal_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_action"(goal_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -681,17 +681,17 @@ declare
   v_plan "better_supabase"."care_plans";
   v_goal "better_supabase"."care_plan_goals";
   v_row "better_supabase"."care_plan_actions";
-  v_kind text := coalesce(nullif(add_care_plan_action.input ->> 'kind', ''), 'intervention');
-  v_title text := trim(add_care_plan_action.input ->> 'title');
-  v_measure_kind text := nullif(trim(add_care_plan_action.input ->> 'measureKind'), '');
-  v_starts_on date := nullif(add_care_plan_action.input ->> 'startsOn', '')::date;
-  v_ends_on date := nullif(add_care_plan_action.input ->> 'endsOn', '')::date;
+  v_kind text := coalesce(nullif(create_care_plan_action.input ->> 'kind', ''), 'intervention');
+  v_title text := trim(create_care_plan_action.input ->> 'title');
+  v_measure_kind text := nullif(trim(create_care_plan_action.input ->> 'measureKind'), '');
+  v_starts_on date := nullif(create_care_plan_action.input ->> 'startsOn', '')::date;
+  v_ends_on date := nullif(create_care_plan_action.input ->> 'endsOn', '')::date;
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = add_care_plan_action.goal_id;
+  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = create_care_plan_action.goal_id;
   if not found then
     raise exception 'no such goal on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_GOAL_NOT_FOUND';
   end if;
@@ -711,22 +711,22 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_action.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'an action needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'frequency' and jsonb_typeof(add_care_plan_action.input -> 'frequency') not in ('object', 'null') then
+  if create_care_plan_action.input ? 'frequency' and jsonb_typeof(create_care_plan_action.input -> 'frequency') not in ('object', 'null') then
     raise exception 'frequency must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'rank' and (add_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_action.input ? 'rank' and (create_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'instructions') > 10000 then
+  if length(create_care_plan_action.input ->> 'instructions') > 10000 then
     raise exception 'instructions is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'teamRole') > 63 or length(add_care_plan_action.input ->> 'measureKind') > 63 then
+  if length(create_care_plan_action.input ->> 'teamRole') > 63 or length(create_care_plan_action.input ->> 'measureKind') > 63 then
     raise exception 'teamRole and measureKind are at most 63 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if v_kind is null or v_kind not in ('intervention', 'appointment', 'task', 'measure') then
@@ -742,15 +742,15 @@ begin
   where w."tenant_id" = v_goal."tenant_id" and w."plan_id" = v_goal."plan_id" and w."goal_id" = v_goal."id";
   insert into "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id", "kind", "title", "instructions", "frequency", "team_role", "measure_kind", "booking_series_id", "requires_approval", "review_every", "starts_on", "ends_on", "rank")
   values (v_goal."tenant_id", v_goal."plan_id", v_goal."id", v_kind, v_title,
-    nullif(trim(add_care_plan_action.input ->> 'instructions'), ''),
-    nullif(add_care_plan_action.input -> 'frequency', 'null'::jsonb),
-    nullif(trim(add_care_plan_action.input ->> 'teamRole'), ''),
+    nullif(trim(create_care_plan_action.input ->> 'instructions'), ''),
+    nullif(create_care_plan_action.input -> 'frequency', 'null'::jsonb),
+    nullif(trim(create_care_plan_action.input ->> 'teamRole'), ''),
     v_measure_kind,
-    nullif(add_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
-    v_kind = 'measure' or coalesce((add_care_plan_action.input ->> 'requiresApproval')::boolean, false),
-    nullif(add_care_plan_action.input ->> 'reviewEvery', '')::interval,
+    nullif(create_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
+    v_kind = 'measure' or coalesce((create_care_plan_action.input ->> 'requiresApproval')::boolean, false),
+    nullif(create_care_plan_action.input ->> 'reviewEvery', '')::interval,
     v_starts_on, v_ends_on,
-    coalesce(add_care_plan_action.input ->> 'rank', case
+    coalesce(create_care_plan_action.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -762,10 +762,10 @@ exception when check_violation then
   raise exception 'reviewEvery must be a positive interval' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) to authenticated, service_role;
 
--- Changes an action. On a draft plan every input key of add_care_plan_action
+-- Changes an action. On a draft plan every input key of create_care_plan_action
 -- changes; once the plan is active, only how it runs: bookingSeriesId,
 -- endsOn, frequency, instructions, reviewEvery and teamRole.
 create or replace function "better_supabase"."update_care_plan_action"(action_id uuid, changes jsonb)
@@ -1927,7 +1927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:4804babfefbd7332d84257f1c287e0194c9bc7b70c9d825dfb738e67c784dd01
+-- @bsb-hash sha256:ac5637539305e381579e60a354900a5a64efd9ac214b9c260d333985e3d38e8d
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2313,7 +2313,7 @@ grant execute on function "better_supabase"."update_care_plan"(uuid, jsonb) to a
 -- A problem on a draft plan: input is { codeSystem, code, title,
 -- description, rank }. codeSystem is one of options.codeSystems (the first
 -- when left out); new problems go last unless rank says where.
-create or replace function "better_supabase"."add_care_plan_problem"(plan_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_problem"(plan_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2324,13 +2324,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_row "better_supabase"."care_plan_problems";
   v_system text;
-  v_title text := trim(add_care_plan_problem.input ->> 'title');
+  v_title text := trim(create_care_plan_problem.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_plan from "better_supabase"."care_plans" x where x."id" = add_care_plan_problem.plan_id for update;
+  select * into v_plan from "better_supabase"."care_plans" x where x."id" = create_care_plan_problem.plan_id for update;
   if not found then
     raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -2346,32 +2346,32 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_problem.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  v_system := coalesce(nullif(add_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
+  v_system := coalesce(nullif(create_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
   if not (v_system = any (array['custom']::text[])) then
     raise exception 'the code system is not one of options.codeSystems' using errcode = '22023', hint = 'CARE_PLAN_CODE_SYSTEM_UNKNOWN';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a problem needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'code') > 100 then
+  if length(create_care_plan_problem.input ->> 'code') > 100 then
     raise exception 'code is at most 100 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'description') > 10000 then
+  if length(create_care_plan_problem.input ->> 'description') > 10000 then
     raise exception 'description is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_problem.input ? 'rank' and (add_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_problem.input ? 'rank' and (create_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(y."rank") into v_last from "better_supabase"."care_plan_problems" y
   where y."tenant_id" = v_plan."tenant_id" and y."plan_id" = v_plan."id";
   insert into "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "code_system", "code", "title", "description", "rank")
   values (v_plan."tenant_id", v_plan."id", v_system,
-    nullif(trim(add_care_plan_problem.input ->> 'code'), ''), v_title,
-    nullif(trim(add_care_plan_problem.input ->> 'description'), ''),
-    coalesce(add_care_plan_problem.input ->> 'rank', case
+    nullif(trim(create_care_plan_problem.input ->> 'code'), ''), v_title,
+    nullif(trim(create_care_plan_problem.input ->> 'description'), ''),
+    coalesce(create_care_plan_problem.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -2381,8 +2381,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'codeSystem', v_row."code_system", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a problem. On a draft plan every key of { codeSystem, code, title,
 -- description, status, rank } changes; once the plan is active, only status
@@ -2467,7 +2467,7 @@ grant execute on function "better_supabase"."update_care_plan_problem"(uuid, jso
 
 -- A goal for a problem on a draft plan: input is { title, targetOn,
 -- measure, rank }. It starts planned.
-create or replace function "better_supabase"."add_care_plan_goal"(problem_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_goal"(problem_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2478,13 +2478,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_problem "better_supabase"."care_plan_problems";
   v_row "better_supabase"."care_plan_goals";
-  v_title text := trim(add_care_plan_goal.input ->> 'title');
+  v_title text := trim(create_care_plan_goal.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = add_care_plan_goal.problem_id;
+  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = create_care_plan_goal.problem_id;
   if not found then
     raise exception 'no such problem on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -2504,25 +2504,25 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_goal.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a goal needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'measure' and jsonb_typeof(add_care_plan_goal.input -> 'measure') not in ('object', 'null') then
+  if create_care_plan_goal.input ? 'measure' and jsonb_typeof(create_care_plan_goal.input -> 'measure') not in ('object', 'null') then
     raise exception 'measure must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'rank' and (add_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_goal.input ? 'rank' and (create_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(z."rank") into v_last from "better_supabase"."care_plan_goals" z
   where z."tenant_id" = v_problem."tenant_id" and z."plan_id" = v_problem."plan_id" and z."problem_id" = v_problem."id";
   insert into "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "problem_id", "title", "target_on", "measure", "rank")
   values (v_problem."tenant_id", v_problem."plan_id", v_problem."id", v_title,
-    nullif(add_care_plan_goal.input ->> 'targetOn', '')::date,
-    nullif(add_care_plan_goal.input -> 'measure', 'null'::jsonb),
-    coalesce(add_care_plan_goal.input ->> 'rank', case
+    nullif(create_care_plan_goal.input ->> 'targetOn', '')::date,
+    nullif(create_care_plan_goal.input -> 'measure', 'null'::jsonb),
+    coalesce(create_care_plan_goal.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -2532,8 +2532,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'problemId', v_row."problem_id", 'title', v_row."title", 'targetOn', v_row."target_on", 'status', v_row."status", 'measure', v_row."measure", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a goal. On a draft plan every key of { title, targetOn, measure,
 -- status, rank } changes; once the plan is active, only status, which needs
@@ -2626,7 +2626,7 @@ grant execute on function "better_supabase"."update_care_plan_goal"(uuid, jsonb)
 -- instructions, frequency, teamRole, measureKind, bookingSeriesId,
 -- requiresApproval, reviewEvery, startsOn, endsOn, rank }. A measure always
 -- requires an approval before it starts.
-create or replace function "better_supabase"."add_care_plan_action"(goal_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_action"(goal_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2637,17 +2637,17 @@ declare
   v_plan "better_supabase"."care_plans";
   v_goal "better_supabase"."care_plan_goals";
   v_row "better_supabase"."care_plan_actions";
-  v_kind text := coalesce(nullif(add_care_plan_action.input ->> 'kind', ''), 'intervention');
-  v_title text := trim(add_care_plan_action.input ->> 'title');
-  v_measure_kind text := nullif(trim(add_care_plan_action.input ->> 'measureKind'), '');
-  v_starts_on date := nullif(add_care_plan_action.input ->> 'startsOn', '')::date;
-  v_ends_on date := nullif(add_care_plan_action.input ->> 'endsOn', '')::date;
+  v_kind text := coalesce(nullif(create_care_plan_action.input ->> 'kind', ''), 'intervention');
+  v_title text := trim(create_care_plan_action.input ->> 'title');
+  v_measure_kind text := nullif(trim(create_care_plan_action.input ->> 'measureKind'), '');
+  v_starts_on date := nullif(create_care_plan_action.input ->> 'startsOn', '')::date;
+  v_ends_on date := nullif(create_care_plan_action.input ->> 'endsOn', '')::date;
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = add_care_plan_action.goal_id;
+  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = create_care_plan_action.goal_id;
   if not found then
     raise exception 'no such goal on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_GOAL_NOT_FOUND';
   end if;
@@ -2667,22 +2667,22 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_action.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'an action needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'frequency' and jsonb_typeof(add_care_plan_action.input -> 'frequency') not in ('object', 'null') then
+  if create_care_plan_action.input ? 'frequency' and jsonb_typeof(create_care_plan_action.input -> 'frequency') not in ('object', 'null') then
     raise exception 'frequency must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'rank' and (add_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_action.input ? 'rank' and (create_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'instructions') > 10000 then
+  if length(create_care_plan_action.input ->> 'instructions') > 10000 then
     raise exception 'instructions is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'teamRole') > 63 or length(add_care_plan_action.input ->> 'measureKind') > 63 then
+  if length(create_care_plan_action.input ->> 'teamRole') > 63 or length(create_care_plan_action.input ->> 'measureKind') > 63 then
     raise exception 'teamRole and measureKind are at most 63 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if v_kind is null or v_kind not in ('intervention', 'appointment', 'task', 'measure') then
@@ -2698,15 +2698,15 @@ begin
   where w."tenant_id" = v_goal."tenant_id" and w."plan_id" = v_goal."plan_id" and w."goal_id" = v_goal."id";
   insert into "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id", "kind", "title", "instructions", "frequency", "team_role", "measure_kind", "booking_series_id", "requires_approval", "review_every", "starts_on", "ends_on", "rank")
   values (v_goal."tenant_id", v_goal."plan_id", v_goal."id", v_kind, v_title,
-    nullif(trim(add_care_plan_action.input ->> 'instructions'), ''),
-    nullif(add_care_plan_action.input -> 'frequency', 'null'::jsonb),
-    nullif(trim(add_care_plan_action.input ->> 'teamRole'), ''),
+    nullif(trim(create_care_plan_action.input ->> 'instructions'), ''),
+    nullif(create_care_plan_action.input -> 'frequency', 'null'::jsonb),
+    nullif(trim(create_care_plan_action.input ->> 'teamRole'), ''),
     v_measure_kind,
-    nullif(add_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
-    v_kind = 'measure' or coalesce((add_care_plan_action.input ->> 'requiresApproval')::boolean, false),
-    nullif(add_care_plan_action.input ->> 'reviewEvery', '')::interval,
+    nullif(create_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
+    v_kind = 'measure' or coalesce((create_care_plan_action.input ->> 'requiresApproval')::boolean, false),
+    nullif(create_care_plan_action.input ->> 'reviewEvery', '')::interval,
     v_starts_on, v_ends_on,
-    coalesce(add_care_plan_action.input ->> 'rank', case
+    coalesce(create_care_plan_action.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -2718,10 +2718,10 @@ exception when check_violation then
   raise exception 'reviewEvery must be a positive interval' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) to authenticated, service_role;
 
--- Changes an action. On a draft plan every input key of add_care_plan_action
+-- Changes an action. On a draft plan every input key of create_care_plan_action
 -- changes; once the plan is active, only how it runs: bookingSeriesId,
 -- endsOn, frequency, instructions, reviewEvery and teamRole.
 create or replace function "better_supabase"."update_care_plan_action"(action_id uuid, changes jsonb)
@@ -4161,7 +4161,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:4245bcc5bf6deb644d3cd612f92f7d6e809ce526cc4db2077131e44608f8cbb5
+-- @bsb-hash sha256:da8244a2bbd56a06567ae373d11eef87e1c678e8c62981a8600deaabbee081c2
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4532,7 +4532,7 @@ grant execute on function "app_private"."update_care_plan"(uuid, jsonb) to authe
 -- A problem on a draft plan: input is { codeSystem, code, title,
 -- description, rank }. codeSystem is one of options.codeSystems (the first
 -- when left out); new problems go last unless rank says where.
-create or replace function "app_private"."add_care_plan_problem"(plan_id uuid, input jsonb)
+create or replace function "app_private"."create_care_plan_problem"(plan_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4543,13 +4543,13 @@ declare
   v_plan "app_private"."care_plans";
   v_row "app_private"."care_plan_problems";
   v_system text;
-  v_title text := trim(add_care_plan_problem.input ->> 'title');
+  v_title text := trim(create_care_plan_problem.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_plan from "app_private"."care_plans" x where x."id" = add_care_plan_problem.plan_id for update;
+  select * into v_plan from "app_private"."care_plans" x where x."id" = create_care_plan_problem.plan_id for update;
   if not found then
     raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -4565,32 +4565,32 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_problem.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  v_system := coalesce(nullif(add_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
+  v_system := coalesce(nullif(create_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
   if not (v_system = any (array['custom']::text[])) then
     raise exception 'the code system is not one of options.codeSystems' using errcode = '22023', hint = 'CARE_PLAN_CODE_SYSTEM_UNKNOWN';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a problem needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'code') > 100 then
+  if length(create_care_plan_problem.input ->> 'code') > 100 then
     raise exception 'code is at most 100 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'description') > 10000 then
+  if length(create_care_plan_problem.input ->> 'description') > 10000 then
     raise exception 'description is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_problem.input ? 'rank' and (add_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_problem.input ? 'rank' and (create_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(y."rank") into v_last from "app_private"."care_plan_problems" y
   where y."tenant_id" = v_plan."tenant_id" and y."plan_id" = v_plan."id";
   insert into "app_private"."care_plan_problems" ("tenant_id", "plan_id", "code_system", "code", "title", "description", "rank")
   values (v_plan."tenant_id", v_plan."id", v_system,
-    nullif(trim(add_care_plan_problem.input ->> 'code'), ''), v_title,
-    nullif(trim(add_care_plan_problem.input ->> 'description'), ''),
-    coalesce(add_care_plan_problem.input ->> 'rank', case
+    nullif(trim(create_care_plan_problem.input ->> 'code'), ''), v_title,
+    nullif(trim(create_care_plan_problem.input ->> 'description'), ''),
+    coalesce(create_care_plan_problem.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -4600,8 +4600,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'codeSystem', v_row."code_system", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."add_care_plan_problem"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."add_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."create_care_plan_problem"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."create_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a problem. On a draft plan every key of { codeSystem, code, title,
 -- description, status, rank } changes; once the plan is active, only status
@@ -4686,7 +4686,7 @@ grant execute on function "app_private"."update_care_plan_problem"(uuid, jsonb) 
 
 -- A goal for a problem on a draft plan: input is { title, targetOn,
 -- measure, rank }. It starts planned.
-create or replace function "app_private"."add_care_plan_goal"(problem_id uuid, input jsonb)
+create or replace function "app_private"."create_care_plan_goal"(problem_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4697,13 +4697,13 @@ declare
   v_plan "app_private"."care_plans";
   v_problem "app_private"."care_plan_problems";
   v_row "app_private"."care_plan_goals";
-  v_title text := trim(add_care_plan_goal.input ->> 'title');
+  v_title text := trim(create_care_plan_goal.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_problem from "app_private"."care_plan_problems" y where y."id" = add_care_plan_goal.problem_id;
+  select * into v_problem from "app_private"."care_plan_problems" y where y."id" = create_care_plan_goal.problem_id;
   if not found then
     raise exception 'no such problem on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -4723,25 +4723,25 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_goal.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a goal needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'measure' and jsonb_typeof(add_care_plan_goal.input -> 'measure') not in ('object', 'null') then
+  if create_care_plan_goal.input ? 'measure' and jsonb_typeof(create_care_plan_goal.input -> 'measure') not in ('object', 'null') then
     raise exception 'measure must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'rank' and (add_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_goal.input ? 'rank' and (create_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(z."rank") into v_last from "app_private"."care_plan_goals" z
   where z."tenant_id" = v_problem."tenant_id" and z."plan_id" = v_problem."plan_id" and z."problem_id" = v_problem."id";
   insert into "app_private"."care_plan_goals" ("tenant_id", "plan_id", "problem_id", "title", "target_on", "measure", "rank")
   values (v_problem."tenant_id", v_problem."plan_id", v_problem."id", v_title,
-    nullif(add_care_plan_goal.input ->> 'targetOn', '')::date,
-    nullif(add_care_plan_goal.input -> 'measure', 'null'::jsonb),
-    coalesce(add_care_plan_goal.input ->> 'rank', case
+    nullif(create_care_plan_goal.input ->> 'targetOn', '')::date,
+    nullif(create_care_plan_goal.input -> 'measure', 'null'::jsonb),
+    coalesce(create_care_plan_goal.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -4751,8 +4751,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'problemId', v_row."problem_id", 'title', v_row."title", 'targetOn', v_row."target_on", 'status', v_row."status", 'measure', v_row."measure", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."add_care_plan_goal"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."add_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."create_care_plan_goal"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."create_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a goal. On a draft plan every key of { title, targetOn, measure,
 -- status, rank } changes; once the plan is active, only status, which needs
@@ -4835,7 +4835,7 @@ grant execute on function "app_private"."update_care_plan_goal"(uuid, jsonb) to 
 -- instructions, frequency, teamRole, measureKind, bookingSeriesId,
 -- requiresApproval, reviewEvery, startsOn, endsOn, rank }. A measure always
 -- requires an approval before it starts.
-create or replace function "app_private"."add_care_plan_action"(goal_id uuid, input jsonb)
+create or replace function "app_private"."create_care_plan_action"(goal_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4846,17 +4846,17 @@ declare
   v_plan "app_private"."care_plans";
   v_goal "app_private"."care_plan_goals";
   v_row "app_private"."care_plan_actions";
-  v_kind text := coalesce(nullif(add_care_plan_action.input ->> 'kind', ''), 'intervention');
-  v_title text := trim(add_care_plan_action.input ->> 'title');
-  v_measure_kind text := nullif(trim(add_care_plan_action.input ->> 'measureKind'), '');
-  v_starts_on date := nullif(add_care_plan_action.input ->> 'startsOn', '')::date;
-  v_ends_on date := nullif(add_care_plan_action.input ->> 'endsOn', '')::date;
+  v_kind text := coalesce(nullif(create_care_plan_action.input ->> 'kind', ''), 'intervention');
+  v_title text := trim(create_care_plan_action.input ->> 'title');
+  v_measure_kind text := nullif(trim(create_care_plan_action.input ->> 'measureKind'), '');
+  v_starts_on date := nullif(create_care_plan_action.input ->> 'startsOn', '')::date;
+  v_ends_on date := nullif(create_care_plan_action.input ->> 'endsOn', '')::date;
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_goal from "app_private"."care_plan_goals" z where z."id" = add_care_plan_action.goal_id;
+  select * into v_goal from "app_private"."care_plan_goals" z where z."id" = create_care_plan_action.goal_id;
   if not found then
     raise exception 'no such goal on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_GOAL_NOT_FOUND';
   end if;
@@ -4876,22 +4876,22 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_action.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'an action needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'frequency' and jsonb_typeof(add_care_plan_action.input -> 'frequency') not in ('object', 'null') then
+  if create_care_plan_action.input ? 'frequency' and jsonb_typeof(create_care_plan_action.input -> 'frequency') not in ('object', 'null') then
     raise exception 'frequency must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'rank' and (add_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_action.input ? 'rank' and (create_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'instructions') > 10000 then
+  if length(create_care_plan_action.input ->> 'instructions') > 10000 then
     raise exception 'instructions is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'teamRole') > 63 or length(add_care_plan_action.input ->> 'measureKind') > 63 then
+  if length(create_care_plan_action.input ->> 'teamRole') > 63 or length(create_care_plan_action.input ->> 'measureKind') > 63 then
     raise exception 'teamRole and measureKind are at most 63 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if v_kind is null or v_kind not in ('intervention', 'appointment', 'task', 'measure') then
@@ -4907,15 +4907,15 @@ begin
   where w."tenant_id" = v_goal."tenant_id" and w."plan_id" = v_goal."plan_id" and w."goal_id" = v_goal."id";
   insert into "app_private"."care_plan_actions" ("tenant_id", "plan_id", "goal_id", "kind", "title", "instructions", "frequency", "team_role", "measure_kind", "booking_series_id", "requires_approval", "review_every", "starts_on", "ends_on", "rank")
   values (v_goal."tenant_id", v_goal."plan_id", v_goal."id", v_kind, v_title,
-    nullif(trim(add_care_plan_action.input ->> 'instructions'), ''),
-    nullif(add_care_plan_action.input -> 'frequency', 'null'::jsonb),
-    nullif(trim(add_care_plan_action.input ->> 'teamRole'), ''),
+    nullif(trim(create_care_plan_action.input ->> 'instructions'), ''),
+    nullif(create_care_plan_action.input -> 'frequency', 'null'::jsonb),
+    nullif(trim(create_care_plan_action.input ->> 'teamRole'), ''),
     v_measure_kind,
-    nullif(add_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
-    v_kind = 'measure' or coalesce((add_care_plan_action.input ->> 'requiresApproval')::boolean, false),
-    nullif(add_care_plan_action.input ->> 'reviewEvery', '')::interval,
+    nullif(create_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
+    v_kind = 'measure' or coalesce((create_care_plan_action.input ->> 'requiresApproval')::boolean, false),
+    nullif(create_care_plan_action.input ->> 'reviewEvery', '')::interval,
     v_starts_on, v_ends_on,
-    coalesce(add_care_plan_action.input ->> 'rank', case
+    coalesce(create_care_plan_action.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -4927,10 +4927,10 @@ exception when check_violation then
   raise exception 'reviewEvery must be a positive interval' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
 end;
 $$;
-revoke execute on function "app_private"."add_care_plan_action"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."add_care_plan_action"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."create_care_plan_action"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."create_care_plan_action"(uuid, jsonb) to authenticated, service_role;
 
--- Changes an action. On a draft plan every input key of add_care_plan_action
+-- Changes an action. On a draft plan every input key of create_care_plan_action
 -- changes; once the plan is active, only how it runs: bookingSeriesId,
 -- endsOn, frequency, instructions, reviewEvery and teamRole.
 create or replace function "app_private"."update_care_plan_action"(action_id uuid, changes jsonb)
@@ -6092,7 +6092,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:7071ecb4703c732294e604837668788f115d5bd3b7ecb8899d4a400c151d2759
+-- @bsb-hash sha256:5ade58fe9d9804ac511f29369f6f67e719460fe00767b880e8bf37f7aee97a44
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6458,7 +6458,7 @@ grant execute on function "better_supabase"."update_care_plan"(uuid, jsonb) to a
 -- A problem on a draft plan: input is { codeSystem, code, title,
 -- description, rank }. codeSystem is one of options.codeSystems (the first
 -- when left out); new problems go last unless rank says where.
-create or replace function "better_supabase"."add_care_plan_problem"(plan_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_problem"(plan_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6469,13 +6469,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_row "better_supabase"."care_plan_problems";
   v_system text;
-  v_title text := trim(add_care_plan_problem.input ->> 'title');
+  v_title text := trim(create_care_plan_problem.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_plan from "better_supabase"."care_plans" x where x."id" = add_care_plan_problem.plan_id for update;
+  select * into v_plan from "better_supabase"."care_plans" x where x."id" = create_care_plan_problem.plan_id for update;
   if not found then
     raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -6491,32 +6491,32 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_problem.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  v_system := coalesce(nullif(add_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
+  v_system := coalesce(nullif(create_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
   if not (v_system = any (array['custom']::text[])) then
     raise exception 'the code system is not one of options.codeSystems' using errcode = '22023', hint = 'CARE_PLAN_CODE_SYSTEM_UNKNOWN';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a problem needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'code') > 100 then
+  if length(create_care_plan_problem.input ->> 'code') > 100 then
     raise exception 'code is at most 100 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'description') > 10000 then
+  if length(create_care_plan_problem.input ->> 'description') > 10000 then
     raise exception 'description is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_problem.input ? 'rank' and (add_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_problem.input ? 'rank' and (create_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(y."rank") into v_last from "better_supabase"."care_plan_problems" y
   where y."tenant_id" = v_plan."tenant_id" and y."plan_id" = v_plan."id";
   insert into "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "code_system", "code", "title", "description", "rank")
   values (v_plan."tenant_id", v_plan."id", v_system,
-    nullif(trim(add_care_plan_problem.input ->> 'code'), ''), v_title,
-    nullif(trim(add_care_plan_problem.input ->> 'description'), ''),
-    coalesce(add_care_plan_problem.input ->> 'rank', case
+    nullif(trim(create_care_plan_problem.input ->> 'code'), ''), v_title,
+    nullif(trim(create_care_plan_problem.input ->> 'description'), ''),
+    coalesce(create_care_plan_problem.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -6526,8 +6526,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'codeSystem', v_row."code_system", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a problem. On a draft plan every key of { codeSystem, code, title,
 -- description, status, rank } changes; once the plan is active, only status
@@ -6612,7 +6612,7 @@ grant execute on function "better_supabase"."update_care_plan_problem"(uuid, jso
 
 -- A goal for a problem on a draft plan: input is { title, targetOn,
 -- measure, rank }. It starts planned.
-create or replace function "better_supabase"."add_care_plan_goal"(problem_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_goal"(problem_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6623,13 +6623,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_problem "better_supabase"."care_plan_problems";
   v_row "better_supabase"."care_plan_goals";
-  v_title text := trim(add_care_plan_goal.input ->> 'title');
+  v_title text := trim(create_care_plan_goal.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = add_care_plan_goal.problem_id;
+  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = create_care_plan_goal.problem_id;
   if not found then
     raise exception 'no such problem on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -6649,25 +6649,25 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_goal.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a goal needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'measure' and jsonb_typeof(add_care_plan_goal.input -> 'measure') not in ('object', 'null') then
+  if create_care_plan_goal.input ? 'measure' and jsonb_typeof(create_care_plan_goal.input -> 'measure') not in ('object', 'null') then
     raise exception 'measure must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'rank' and (add_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_goal.input ? 'rank' and (create_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(z."rank") into v_last from "better_supabase"."care_plan_goals" z
   where z."tenant_id" = v_problem."tenant_id" and z."plan_id" = v_problem."plan_id" and z."problem_id" = v_problem."id";
   insert into "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "problem_id", "title", "target_on", "measure", "rank")
   values (v_problem."tenant_id", v_problem."plan_id", v_problem."id", v_title,
-    nullif(add_care_plan_goal.input ->> 'targetOn', '')::date,
-    nullif(add_care_plan_goal.input -> 'measure', 'null'::jsonb),
-    coalesce(add_care_plan_goal.input ->> 'rank', case
+    nullif(create_care_plan_goal.input ->> 'targetOn', '')::date,
+    nullif(create_care_plan_goal.input -> 'measure', 'null'::jsonb),
+    coalesce(create_care_plan_goal.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -6677,8 +6677,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'problemId', v_row."problem_id", 'title', v_row."title", 'targetOn', v_row."target_on", 'status', v_row."status", 'measure', v_row."measure", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a goal. On a draft plan every key of { title, targetOn, measure,
 -- status, rank } changes; once the plan is active, only status, which needs
@@ -6761,7 +6761,7 @@ grant execute on function "better_supabase"."update_care_plan_goal"(uuid, jsonb)
 -- instructions, frequency, teamRole, measureKind, bookingSeriesId,
 -- requiresApproval, reviewEvery, startsOn, endsOn, rank }. A measure always
 -- requires an approval before it starts.
-create or replace function "better_supabase"."add_care_plan_action"(goal_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_action"(goal_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6772,17 +6772,17 @@ declare
   v_plan "better_supabase"."care_plans";
   v_goal "better_supabase"."care_plan_goals";
   v_row "better_supabase"."care_plan_actions";
-  v_kind text := coalesce(nullif(add_care_plan_action.input ->> 'kind', ''), 'intervention');
-  v_title text := trim(add_care_plan_action.input ->> 'title');
-  v_measure_kind text := nullif(trim(add_care_plan_action.input ->> 'measureKind'), '');
-  v_starts_on date := nullif(add_care_plan_action.input ->> 'startsOn', '')::date;
-  v_ends_on date := nullif(add_care_plan_action.input ->> 'endsOn', '')::date;
+  v_kind text := coalesce(nullif(create_care_plan_action.input ->> 'kind', ''), 'intervention');
+  v_title text := trim(create_care_plan_action.input ->> 'title');
+  v_measure_kind text := nullif(trim(create_care_plan_action.input ->> 'measureKind'), '');
+  v_starts_on date := nullif(create_care_plan_action.input ->> 'startsOn', '')::date;
+  v_ends_on date := nullif(create_care_plan_action.input ->> 'endsOn', '')::date;
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = add_care_plan_action.goal_id;
+  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = create_care_plan_action.goal_id;
   if not found then
     raise exception 'no such goal on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_GOAL_NOT_FOUND';
   end if;
@@ -6802,22 +6802,22 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_action.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'an action needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'frequency' and jsonb_typeof(add_care_plan_action.input -> 'frequency') not in ('object', 'null') then
+  if create_care_plan_action.input ? 'frequency' and jsonb_typeof(create_care_plan_action.input -> 'frequency') not in ('object', 'null') then
     raise exception 'frequency must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'rank' and (add_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_action.input ? 'rank' and (create_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'instructions') > 10000 then
+  if length(create_care_plan_action.input ->> 'instructions') > 10000 then
     raise exception 'instructions is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'teamRole') > 63 or length(add_care_plan_action.input ->> 'measureKind') > 63 then
+  if length(create_care_plan_action.input ->> 'teamRole') > 63 or length(create_care_plan_action.input ->> 'measureKind') > 63 then
     raise exception 'teamRole and measureKind are at most 63 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if v_kind is null or v_kind not in ('intervention', 'appointment', 'task', 'measure') then
@@ -6833,15 +6833,15 @@ begin
   where w."tenant_id" = v_goal."tenant_id" and w."plan_id" = v_goal."plan_id" and w."goal_id" = v_goal."id";
   insert into "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id", "kind", "title", "instructions", "frequency", "team_role", "measure_kind", "booking_series_id", "requires_approval", "review_every", "starts_on", "ends_on", "rank")
   values (v_goal."tenant_id", v_goal."plan_id", v_goal."id", v_kind, v_title,
-    nullif(trim(add_care_plan_action.input ->> 'instructions'), ''),
-    nullif(add_care_plan_action.input -> 'frequency', 'null'::jsonb),
-    nullif(trim(add_care_plan_action.input ->> 'teamRole'), ''),
+    nullif(trim(create_care_plan_action.input ->> 'instructions'), ''),
+    nullif(create_care_plan_action.input -> 'frequency', 'null'::jsonb),
+    nullif(trim(create_care_plan_action.input ->> 'teamRole'), ''),
     v_measure_kind,
-    nullif(add_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
-    v_kind = 'measure' or coalesce((add_care_plan_action.input ->> 'requiresApproval')::boolean, false),
-    nullif(add_care_plan_action.input ->> 'reviewEvery', '')::interval,
+    nullif(create_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
+    v_kind = 'measure' or coalesce((create_care_plan_action.input ->> 'requiresApproval')::boolean, false),
+    nullif(create_care_plan_action.input ->> 'reviewEvery', '')::interval,
     v_starts_on, v_ends_on,
-    coalesce(add_care_plan_action.input ->> 'rank', case
+    coalesce(create_care_plan_action.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -6853,10 +6853,10 @@ exception when check_violation then
   raise exception 'reviewEvery must be a positive interval' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) to authenticated, service_role;
 
--- Changes an action. On a draft plan every input key of add_care_plan_action
+-- Changes an action. On a draft plan every input key of create_care_plan_action
 -- changes; once the plan is active, only how it runs: bookingSeriesId,
 -- endsOn, frequency, instructions, reviewEvery and teamRole.
 create or replace function "better_supabase"."update_care_plan_action"(action_id uuid, changes jsonb)
@@ -8033,14 +8033,14 @@ as $$ select "better_supabase"."update_care_plan"($1, $2) $$;
 revoke execute on function "api"."update_care_plan"(uuid, jsonb) from public, anon;
 grant execute on function "api"."update_care_plan"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."add_care_plan_problem"(plan_id uuid, input jsonb)
+create or replace function "api"."create_care_plan_problem"(plan_id uuid, input jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_care_plan_problem"($1, $2) $$;
-revoke execute on function "api"."add_care_plan_problem"(uuid, jsonb) from public, anon;
-grant execute on function "api"."add_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."create_care_plan_problem"($1, $2) $$;
+revoke execute on function "api"."create_care_plan_problem"(uuid, jsonb) from public, anon;
+grant execute on function "api"."create_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."update_care_plan_problem"(problem_id uuid, changes jsonb)
 returns jsonb
@@ -8051,14 +8051,14 @@ as $$ select "better_supabase"."update_care_plan_problem"($1, $2) $$;
 revoke execute on function "api"."update_care_plan_problem"(uuid, jsonb) from public, anon;
 grant execute on function "api"."update_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."add_care_plan_goal"(problem_id uuid, input jsonb)
+create or replace function "api"."create_care_plan_goal"(problem_id uuid, input jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_care_plan_goal"($1, $2) $$;
-revoke execute on function "api"."add_care_plan_goal"(uuid, jsonb) from public, anon;
-grant execute on function "api"."add_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."create_care_plan_goal"($1, $2) $$;
+revoke execute on function "api"."create_care_plan_goal"(uuid, jsonb) from public, anon;
+grant execute on function "api"."create_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."update_care_plan_goal"(goal_id uuid, changes jsonb)
 returns jsonb
@@ -8069,14 +8069,14 @@ as $$ select "better_supabase"."update_care_plan_goal"($1, $2) $$;
 revoke execute on function "api"."update_care_plan_goal"(uuid, jsonb) from public, anon;
 grant execute on function "api"."update_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."add_care_plan_action"(goal_id uuid, input jsonb)
+create or replace function "api"."create_care_plan_action"(goal_id uuid, input jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_care_plan_action"($1, $2) $$;
-revoke execute on function "api"."add_care_plan_action"(uuid, jsonb) from public, anon;
-grant execute on function "api"."add_care_plan_action"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."create_care_plan_action"($1, $2) $$;
+revoke execute on function "api"."create_care_plan_action"(uuid, jsonb) from public, anon;
+grant execute on function "api"."create_care_plan_action"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."update_care_plan_action"(action_id uuid, changes jsonb)
 returns jsonb
@@ -8253,7 +8253,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:b5baa5b94da7a624e69be42212f083974052035d26d0a632002ed5ed45c1405c
+-- @bsb-hash sha256:e15b65a2b5f597f3cfb2ec54e851e32318df9e027021795ef6d34f5b51c53ee0
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8586,7 +8586,7 @@ grant execute on function "better_supabase"."update_care_plan"(uuid, jsonb) to a
 -- A problem on a draft plan: input is { codeSystem, code, title,
 -- description, rank }. codeSystem is one of options.codeSystems (the first
 -- when left out); new problems go last unless rank says where.
-create or replace function "better_supabase"."add_care_plan_problem"(plan_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_problem"(plan_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -8597,13 +8597,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_row "better_supabase"."care_plan_problems";
   v_system text;
-  v_title text := trim(add_care_plan_problem.input ->> 'title');
+  v_title text := trim(create_care_plan_problem.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_plan from "better_supabase"."care_plans" x where x."id" = add_care_plan_problem.plan_id for update;
+  select * into v_plan from "better_supabase"."care_plans" x where x."id" = create_care_plan_problem.plan_id for update;
   if not found then
     raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -8619,32 +8619,32 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_problem.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  v_system := coalesce(nullif(add_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
+  v_system := coalesce(nullif(create_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
   if not (v_system = any (array['custom']::text[])) then
     raise exception 'the code system is not one of options.codeSystems' using errcode = '22023', hint = 'CARE_PLAN_CODE_SYSTEM_UNKNOWN';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a problem needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'code') > 100 then
+  if length(create_care_plan_problem.input ->> 'code') > 100 then
     raise exception 'code is at most 100 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'description') > 10000 then
+  if length(create_care_plan_problem.input ->> 'description') > 10000 then
     raise exception 'description is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_problem.input ? 'rank' and (add_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_problem.input ? 'rank' and (create_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(y."rank") into v_last from "better_supabase"."care_plan_problems" y
   where y."tenant_id" = v_plan."tenant_id" and y."plan_id" = v_plan."id";
   insert into "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "code_system", "code", "title", "description", "rank")
   values (v_plan."tenant_id", v_plan."id", v_system,
-    nullif(trim(add_care_plan_problem.input ->> 'code'), ''), v_title,
-    nullif(trim(add_care_plan_problem.input ->> 'description'), ''),
-    coalesce(add_care_plan_problem.input ->> 'rank', case
+    nullif(trim(create_care_plan_problem.input ->> 'code'), ''), v_title,
+    nullif(trim(create_care_plan_problem.input ->> 'description'), ''),
+    coalesce(create_care_plan_problem.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -8654,8 +8654,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'codeSystem', v_row."code_system", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a problem. On a draft plan every key of { codeSystem, code, title,
 -- description, status, rank } changes; once the plan is active, only status
@@ -8740,7 +8740,7 @@ grant execute on function "better_supabase"."update_care_plan_problem"(uuid, jso
 
 -- A goal for a problem on a draft plan: input is { title, targetOn,
 -- measure, rank }. It starts planned.
-create or replace function "better_supabase"."add_care_plan_goal"(problem_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_goal"(problem_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -8751,13 +8751,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_problem "better_supabase"."care_plan_problems";
   v_row "better_supabase"."care_plan_goals";
-  v_title text := trim(add_care_plan_goal.input ->> 'title');
+  v_title text := trim(create_care_plan_goal.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = add_care_plan_goal.problem_id;
+  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = create_care_plan_goal.problem_id;
   if not found then
     raise exception 'no such problem on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -8777,25 +8777,25 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_goal.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a goal needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'measure' and jsonb_typeof(add_care_plan_goal.input -> 'measure') not in ('object', 'null') then
+  if create_care_plan_goal.input ? 'measure' and jsonb_typeof(create_care_plan_goal.input -> 'measure') not in ('object', 'null') then
     raise exception 'measure must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'rank' and (add_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_goal.input ? 'rank' and (create_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(z."rank") into v_last from "better_supabase"."care_plan_goals" z
   where z."tenant_id" = v_problem."tenant_id" and z."plan_id" = v_problem."plan_id" and z."problem_id" = v_problem."id";
   insert into "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "problem_id", "title", "target_on", "measure", "rank")
   values (v_problem."tenant_id", v_problem."plan_id", v_problem."id", v_title,
-    nullif(add_care_plan_goal.input ->> 'targetOn', '')::date,
-    nullif(add_care_plan_goal.input -> 'measure', 'null'::jsonb),
-    coalesce(add_care_plan_goal.input ->> 'rank', case
+    nullif(create_care_plan_goal.input ->> 'targetOn', '')::date,
+    nullif(create_care_plan_goal.input -> 'measure', 'null'::jsonb),
+    coalesce(create_care_plan_goal.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -8805,8 +8805,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'problemId', v_row."problem_id", 'title', v_row."title", 'targetOn', v_row."target_on", 'status', v_row."status", 'measure', v_row."measure", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a goal. On a draft plan every key of { title, targetOn, measure,
 -- status, rank } changes; once the plan is active, only status, which needs
@@ -8889,7 +8889,7 @@ grant execute on function "better_supabase"."update_care_plan_goal"(uuid, jsonb)
 -- instructions, frequency, teamRole, measureKind, bookingSeriesId,
 -- requiresApproval, reviewEvery, startsOn, endsOn, rank }. A measure always
 -- requires an approval before it starts.
-create or replace function "better_supabase"."add_care_plan_action"(goal_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_action"(goal_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -8900,17 +8900,17 @@ declare
   v_plan "better_supabase"."care_plans";
   v_goal "better_supabase"."care_plan_goals";
   v_row "better_supabase"."care_plan_actions";
-  v_kind text := coalesce(nullif(add_care_plan_action.input ->> 'kind', ''), 'intervention');
-  v_title text := trim(add_care_plan_action.input ->> 'title');
-  v_measure_kind text := nullif(trim(add_care_plan_action.input ->> 'measureKind'), '');
-  v_starts_on date := nullif(add_care_plan_action.input ->> 'startsOn', '')::date;
-  v_ends_on date := nullif(add_care_plan_action.input ->> 'endsOn', '')::date;
+  v_kind text := coalesce(nullif(create_care_plan_action.input ->> 'kind', ''), 'intervention');
+  v_title text := trim(create_care_plan_action.input ->> 'title');
+  v_measure_kind text := nullif(trim(create_care_plan_action.input ->> 'measureKind'), '');
+  v_starts_on date := nullif(create_care_plan_action.input ->> 'startsOn', '')::date;
+  v_ends_on date := nullif(create_care_plan_action.input ->> 'endsOn', '')::date;
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = add_care_plan_action.goal_id;
+  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = create_care_plan_action.goal_id;
   if not found then
     raise exception 'no such goal on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_GOAL_NOT_FOUND';
   end if;
@@ -8930,22 +8930,22 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_action.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'an action needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'frequency' and jsonb_typeof(add_care_plan_action.input -> 'frequency') not in ('object', 'null') then
+  if create_care_plan_action.input ? 'frequency' and jsonb_typeof(create_care_plan_action.input -> 'frequency') not in ('object', 'null') then
     raise exception 'frequency must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'rank' and (add_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_action.input ? 'rank' and (create_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'instructions') > 10000 then
+  if length(create_care_plan_action.input ->> 'instructions') > 10000 then
     raise exception 'instructions is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'teamRole') > 63 or length(add_care_plan_action.input ->> 'measureKind') > 63 then
+  if length(create_care_plan_action.input ->> 'teamRole') > 63 or length(create_care_plan_action.input ->> 'measureKind') > 63 then
     raise exception 'teamRole and measureKind are at most 63 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if v_kind is null or v_kind not in ('intervention', 'appointment', 'task', 'measure') then
@@ -8961,15 +8961,15 @@ begin
   where w."tenant_id" = v_goal."tenant_id" and w."plan_id" = v_goal."plan_id" and w."goal_id" = v_goal."id";
   insert into "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id", "kind", "title", "instructions", "frequency", "team_role", "measure_kind", "booking_series_id", "requires_approval", "review_every", "starts_on", "ends_on", "rank")
   values (v_goal."tenant_id", v_goal."plan_id", v_goal."id", v_kind, v_title,
-    nullif(trim(add_care_plan_action.input ->> 'instructions'), ''),
-    nullif(add_care_plan_action.input -> 'frequency', 'null'::jsonb),
-    nullif(trim(add_care_plan_action.input ->> 'teamRole'), ''),
+    nullif(trim(create_care_plan_action.input ->> 'instructions'), ''),
+    nullif(create_care_plan_action.input -> 'frequency', 'null'::jsonb),
+    nullif(trim(create_care_plan_action.input ->> 'teamRole'), ''),
     v_measure_kind,
-    nullif(add_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
-    v_kind = 'measure' or coalesce((add_care_plan_action.input ->> 'requiresApproval')::boolean, false),
-    nullif(add_care_plan_action.input ->> 'reviewEvery', '')::interval,
+    nullif(create_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
+    v_kind = 'measure' or coalesce((create_care_plan_action.input ->> 'requiresApproval')::boolean, false),
+    nullif(create_care_plan_action.input ->> 'reviewEvery', '')::interval,
     v_starts_on, v_ends_on,
-    coalesce(add_care_plan_action.input ->> 'rank', case
+    coalesce(create_care_plan_action.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -8981,10 +8981,10 @@ exception when check_violation then
   raise exception 'reviewEvery must be a positive interval' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) to authenticated, service_role;
 
--- Changes an action. On a draft plan every input key of add_care_plan_action
+-- Changes an action. On a draft plan every input key of create_care_plan_action
 -- changes; once the plan is active, only how it runs: bookingSeriesId,
 -- endsOn, frequency, instructions, reviewEvery and teamRole.
 create or replace function "better_supabase"."update_care_plan_action"(action_id uuid, changes jsonb)
@@ -10146,7 +10146,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:65ed3241d56fb8eb1b2c67de26f3128aab404a8bfc7fb27975cd2f1b85ffc08c
+-- @bsb-hash sha256:df4bd4c9c2380555f324cec2213f6cfec33d6a1340ab81ca991c97fc67be8f5d
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10512,7 +10512,7 @@ grant execute on function "better_supabase"."update_care_plan"(uuid, jsonb) to a
 -- A problem on a draft plan: input is { codeSystem, code, title,
 -- description, rank }. codeSystem is one of options.codeSystems (the first
 -- when left out); new problems go last unless rank says where.
-create or replace function "better_supabase"."add_care_plan_problem"(plan_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_problem"(plan_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -10523,13 +10523,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_row "better_supabase"."care_plan_problems";
   v_system text;
-  v_title text := trim(add_care_plan_problem.input ->> 'title');
+  v_title text := trim(create_care_plan_problem.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_plan from "better_supabase"."care_plans" x where x."id" = add_care_plan_problem.plan_id for update;
+  select * into v_plan from "better_supabase"."care_plans" x where x."id" = create_care_plan_problem.plan_id for update;
   if not found then
     raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -10545,32 +10545,32 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_problem.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_problem.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  v_system := coalesce(nullif(add_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
+  v_system := coalesce(nullif(create_care_plan_problem.input ->> 'codeSystem', ''), (array['custom']::text[])[1]);
   if not (v_system = any (array['custom']::text[])) then
     raise exception 'the code system is not one of options.codeSystems' using errcode = '22023', hint = 'CARE_PLAN_CODE_SYSTEM_UNKNOWN';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a problem needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'code') > 100 then
+  if length(create_care_plan_problem.input ->> 'code') > 100 then
     raise exception 'code is at most 100 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_problem.input ->> 'description') > 10000 then
+  if length(create_care_plan_problem.input ->> 'description') > 10000 then
     raise exception 'description is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_problem.input ? 'rank' and (add_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_problem.input ? 'rank' and (create_care_plan_problem.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(y."rank") into v_last from "better_supabase"."care_plan_problems" y
   where y."org_id" = v_plan."org_id" and y."plan_id" = v_plan."id";
   insert into "better_supabase"."care_plan_problems" ("org_id", "plan_id", "code_system", "code", "title", "description", "rank")
   values (v_plan."org_id", v_plan."id", v_system,
-    nullif(trim(add_care_plan_problem.input ->> 'code'), ''), v_title,
-    nullif(trim(add_care_plan_problem.input ->> 'description'), ''),
-    coalesce(add_care_plan_problem.input ->> 'rank', case
+    nullif(trim(create_care_plan_problem.input ->> 'code'), ''), v_title,
+    nullif(trim(create_care_plan_problem.input ->> 'description'), ''),
+    coalesce(create_care_plan_problem.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -10580,8 +10580,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'codeSystem', v_row."code_system", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'status', v_row."status", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_problem"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a problem. On a draft plan every key of { codeSystem, code, title,
 -- description, status, rank } changes; once the plan is active, only status
@@ -10666,7 +10666,7 @@ grant execute on function "better_supabase"."update_care_plan_problem"(uuid, jso
 
 -- A goal for a problem on a draft plan: input is { title, targetOn,
 -- measure, rank }. It starts planned.
-create or replace function "better_supabase"."add_care_plan_goal"(problem_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_goal"(problem_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -10677,13 +10677,13 @@ declare
   v_plan "better_supabase"."care_plans";
   v_problem "better_supabase"."care_plan_problems";
   v_row "better_supabase"."care_plan_goals";
-  v_title text := trim(add_care_plan_goal.input ->> 'title');
+  v_title text := trim(create_care_plan_goal.input ->> 'title');
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = add_care_plan_goal.problem_id;
+  select * into v_problem from "better_supabase"."care_plan_problems" y where y."id" = create_care_plan_goal.problem_id;
   if not found then
     raise exception 'no such problem on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
   end if;
@@ -10703,25 +10703,25 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_goal.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_goal.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'a goal needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'measure' and jsonb_typeof(add_care_plan_goal.input -> 'measure') not in ('object', 'null') then
+  if create_care_plan_goal.input ? 'measure' and jsonb_typeof(create_care_plan_goal.input -> 'measure') not in ('object', 'null') then
     raise exception 'measure must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_goal.input ? 'rank' and (add_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_goal.input ? 'rank' and (create_care_plan_goal.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   select max(z."rank") into v_last from "better_supabase"."care_plan_goals" z
   where z."org_id" = v_problem."org_id" and z."plan_id" = v_problem."plan_id" and z."problem_id" = v_problem."id";
   insert into "better_supabase"."care_plan_goals" ("org_id", "plan_id", "problem_id", "title", "target_on", "measure", "rank")
   values (v_problem."org_id", v_problem."plan_id", v_problem."id", v_title,
-    nullif(add_care_plan_goal.input ->> 'targetOn', '')::date,
-    nullif(add_care_plan_goal.input -> 'measure', 'null'::jsonb),
-    coalesce(add_care_plan_goal.input ->> 'rank', case
+    nullif(create_care_plan_goal.input ->> 'targetOn', '')::date,
+    nullif(create_care_plan_goal.input -> 'measure', 'null'::jsonb),
+    coalesce(create_care_plan_goal.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -10731,8 +10731,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'planId', v_row."plan_id", 'problemId', v_row."problem_id", 'title', v_row."title", 'targetOn', v_row."target_on", 'status', v_row."status", 'measure', v_row."measure", 'rank', v_row."rank", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_goal"(uuid, jsonb) to authenticated, service_role;
 
 -- Changes a goal. On a draft plan every key of { title, targetOn, measure,
 -- status, rank } changes; once the plan is active, only status, which needs
@@ -10815,7 +10815,7 @@ grant execute on function "better_supabase"."update_care_plan_goal"(uuid, jsonb)
 -- instructions, frequency, teamRole, measureKind, bookingSeriesId,
 -- requiresApproval, reviewEvery, startsOn, endsOn, rank }. A measure always
 -- requires an approval before it starts.
-create or replace function "better_supabase"."add_care_plan_action"(goal_id uuid, input jsonb)
+create or replace function "better_supabase"."create_care_plan_action"(goal_id uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -10826,17 +10826,17 @@ declare
   v_plan "better_supabase"."care_plans";
   v_goal "better_supabase"."care_plan_goals";
   v_row "better_supabase"."care_plan_actions";
-  v_kind text := coalesce(nullif(add_care_plan_action.input ->> 'kind', ''), 'intervention');
-  v_title text := trim(add_care_plan_action.input ->> 'title');
-  v_measure_kind text := nullif(trim(add_care_plan_action.input ->> 'measureKind'), '');
-  v_starts_on date := nullif(add_care_plan_action.input ->> 'startsOn', '')::date;
-  v_ends_on date := nullif(add_care_plan_action.input ->> 'endsOn', '')::date;
+  v_kind text := coalesce(nullif(create_care_plan_action.input ->> 'kind', ''), 'intervention');
+  v_title text := trim(create_care_plan_action.input ->> 'title');
+  v_measure_kind text := nullif(trim(create_care_plan_action.input ->> 'measureKind'), '');
+  v_starts_on date := nullif(create_care_plan_action.input ->> 'startsOn', '')::date;
+  v_ends_on date := nullif(create_care_plan_action.input ->> 'endsOn', '')::date;
   v_last text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = add_care_plan_action.goal_id;
+  select * into v_goal from "better_supabase"."care_plan_goals" z where z."id" = create_care_plan_action.goal_id;
   if not found then
     raise exception 'no such goal on a care plan' using errcode = 'P0002', hint = 'CARE_PLAN_GOAL_NOT_FOUND';
   end if;
@@ -10856,22 +10856,22 @@ begin
   if v_plan."status" <> 'draft' then
     raise exception 'only a draft care plan changes this way' using errcode = '55000', hint = 'CARE_PLAN_NOT_DRAFT';
   end if;
-  if jsonb_typeof(add_care_plan_action.input) is distinct from 'object' then
+  if jsonb_typeof(create_care_plan_action.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if coalesce(length(v_title), 0) not between 1 and 300 then
     raise exception 'an action needs a title of 1 to 300 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'frequency' and jsonb_typeof(add_care_plan_action.input -> 'frequency') not in ('object', 'null') then
+  if create_care_plan_action.input ? 'frequency' and jsonb_typeof(create_care_plan_action.input -> 'frequency') not in ('object', 'null') then
     raise exception 'frequency must be an object' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if add_care_plan_action.input ? 'rank' and (add_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
+  if create_care_plan_action.input ? 'rank' and (create_care_plan_action.input ->> 'rank') !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a rank key' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'instructions') > 10000 then
+  if length(create_care_plan_action.input ->> 'instructions') > 10000 then
     raise exception 'instructions is at most 10000 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
-  if length(add_care_plan_action.input ->> 'teamRole') > 63 or length(add_care_plan_action.input ->> 'measureKind') > 63 then
+  if length(create_care_plan_action.input ->> 'teamRole') > 63 or length(create_care_plan_action.input ->> 'measureKind') > 63 then
     raise exception 'teamRole and measureKind are at most 63 characters' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
   end if;
   if v_kind is null or v_kind not in ('intervention', 'appointment', 'task', 'measure') then
@@ -10887,15 +10887,15 @@ begin
   where w."org_id" = v_goal."org_id" and w."plan_id" = v_goal."plan_id" and w."goal_id" = v_goal."id";
   insert into "better_supabase"."care_plan_actions" ("org_id", "plan_id", "goal_id", "kind", "title", "instructions", "frequency", "team_role", "measure_kind", "booking_series_id", "requires_approval", "review_every", "starts_on", "ends_on", "rank")
   values (v_goal."org_id", v_goal."plan_id", v_goal."id", v_kind, v_title,
-    nullif(trim(add_care_plan_action.input ->> 'instructions'), ''),
-    nullif(add_care_plan_action.input -> 'frequency', 'null'::jsonb),
-    nullif(trim(add_care_plan_action.input ->> 'teamRole'), ''),
+    nullif(trim(create_care_plan_action.input ->> 'instructions'), ''),
+    nullif(create_care_plan_action.input -> 'frequency', 'null'::jsonb),
+    nullif(trim(create_care_plan_action.input ->> 'teamRole'), ''),
     v_measure_kind,
-    nullif(add_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
-    v_kind = 'measure' or coalesce((add_care_plan_action.input ->> 'requiresApproval')::boolean, false),
-    nullif(add_care_plan_action.input ->> 'reviewEvery', '')::interval,
+    nullif(create_care_plan_action.input ->> 'bookingSeriesId', '')::uuid,
+    v_kind = 'measure' or coalesce((create_care_plan_action.input ->> 'requiresApproval')::boolean, false),
+    nullif(create_care_plan_action.input ->> 'reviewEvery', '')::interval,
     v_starts_on, v_ends_on,
-    coalesce(add_care_plan_action.input ->> 'rank', case
+    coalesce(create_care_plan_action.input ->> 'rank', case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
@@ -10907,10 +10907,10 @@ exception when check_violation then
   raise exception 'reviewEvery must be a positive interval' using errcode = '22023', hint = 'CARE_PLAN_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_care_plan_action"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_care_plan_action"(uuid, jsonb) to authenticated, service_role;
 
--- Changes an action. On a draft plan every input key of add_care_plan_action
+-- Changes an action. On a draft plan every input key of create_care_plan_action
 -- changes; once the plan is active, only how it runs: bookingSeriesId,
 -- endsOn, frequency, instructions, reviewEvery and teamRole.
 create or replace function "better_supabase"."update_care_plan_action"(action_id uuid, changes jsonb)

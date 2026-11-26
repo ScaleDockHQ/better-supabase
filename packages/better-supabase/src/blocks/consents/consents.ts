@@ -456,7 +456,7 @@ export function createConsents(options: ConsentsOptions): Consents {
     input: ConsentPurposeInput,
   ): AsyncResult<ConsentPurpose> =>
     call(
-      "save_consent_purpose",
+      "upsert_consent_purpose",
       {
         tenant: organizationId,
         key: input.key,
@@ -467,7 +467,7 @@ export function createConsents(options: ConsentsOptions): Consents {
         requires_signature: input.requiresSignature ?? null,
         valid_months: input.validMonths ?? null,
       },
-      purpose("save_consent_purpose"),
+      purpose("upsert_consent_purpose"),
     );
 
   const client: Consents = {

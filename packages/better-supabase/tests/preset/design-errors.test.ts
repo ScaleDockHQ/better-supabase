@@ -6,7 +6,7 @@ import {
   DesignTooLongError,
   namedPreset,
   parseDesign,
-  readDesignFile,
+  getDesignFile,
   resolvePreset,
   safeDesignFileSource,
   safeParseDesign,
@@ -107,13 +107,13 @@ describe("DesignParseError", () => {
   it("points into a design file at the same paths as a design", () => {
     const text = JSON.stringify({ preset: "crm", tables: {} });
 
-    expect(() => readDesignFile(text)).toThrow(
+    expect(() => getDesignFile(text)).toThrow(
       expect.objectContaining({ code: "unknown_key", path: "/tables" }),
     );
   });
 
   it("reports a design file's bad preset at /preset", () => {
-    expect(() => readDesignFile('{"preset":"nope"}')).toThrow(
+    expect(() => getDesignFile('{"preset":"nope"}')).toThrow(
       expect.objectContaining({ code: "invalid_preset", path: "/preset" }),
     );
   });

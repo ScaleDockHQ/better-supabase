@@ -8,17 +8,15 @@ import { withBetterResult } from "better-supabase/better-result";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
 import { logos } from "@/lib/buckets";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { customerPage } from "./customer-record";
-import { CUSTOMERS_TAG } from "./customers-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -105,11 +103,10 @@ export const createShareLink = bsb.action(
     }),
     requireTenant: true,
     permission: "share_links.create",
+    tags: () => [tags.customers(), tags.crm(), tags.drive()],
+    refresh: true,
   },
-  async (
-    { customerId, expiresInDays },
-    { tenant: organizationId, db, auth },
-  ) => {
+  async ({ customerId, expiresInDays }, { tenant: organizationId, db }) => {
     const options =
       expiresInDays === 0
         ? { role: "view" }
@@ -131,8 +128,6 @@ export const createShareLink = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
-
     return ok({ token: created.data.token });
   },
 );
@@ -151,8 +146,10 @@ export const restoreCustomerVersion = bsb.action(
     requireTenant: true,
     permission: "versions.restore",
     authorize: async () => can(await getPermissions(), "customers.write"),
+    tags: () => [tags.customers(), tags.crm(), tags.drive()],
+    refresh: true,
   },
-  async ({ customerId, versionId }, { tenant: organizationId, db, auth }) => {
+  async ({ customerId, versionId }, { tenant: organizationId, db }) => {
     const { versions } = db.$with({ tenant: organizationId });
     const version = await versions.get(versionId);
 
@@ -183,8 +180,6 @@ export const restoreCustomerVersion = bsb.action(
     if (!restored.ok) {
       return restored;
     }
-
-    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
 
     return ok(null);
   },
@@ -232,7 +227,7 @@ export const startCustomerSla = bsb.action(
     const started = await sla.start({ subject });
 
     if (!started.ok || started.data.length > 0) {
-      await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
+      await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
       return started.ok ? ok(started.data.length) : started;
     }
@@ -254,7 +249,7 @@ export const startCustomerSla = bsb.action(
 
     const restarted = await sla.start({ subject });
 
-    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
+    await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
     return restarted.ok ? ok(restarted.data.length) : restarted;
   },

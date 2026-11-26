@@ -46,7 +46,7 @@ describe("catalog block", () => {
       .orThrow();
     expect(calls).toEqual([
       {
-        fn: "save_product",
+        fn: "upsert_product",
         args: {
           tenant: "org",
           product: "p1",
@@ -58,7 +58,7 @@ describe("catalog block", () => {
         },
       },
       {
-        fn: "save_variant",
+        fn: "upsert_variant",
         args: {
           product: "p1",
           variant: "v1",
@@ -74,7 +74,7 @@ describe("catalog block", () => {
     ]);
   });
 
-  it("creates and updates products through save_product", async () => {
+  it("creates and updates products through upsert_product", async () => {
     const { calls, transport } = recorder({
       id: "p1",
       slug: "linen-shirt",
@@ -99,7 +99,7 @@ describe("catalog block", () => {
       .orThrow();
     expect(calls).toEqual([
       {
-        fn: "save_product",
+        fn: "upsert_product",
         args: {
           tenant: "org",
           product: null,
@@ -110,7 +110,7 @@ describe("catalog block", () => {
         },
       },
       {
-        fn: "save_product",
+        fn: "upsert_product",
         args: {
           tenant: "org",
           product: "p1",
@@ -218,7 +218,7 @@ describe("catalog block", () => {
         .orThrow(),
     ).toEqual({ id: "x1", sku: "TEE-S", rank: "V" });
     expect(calls[1]).toEqual({
-      fn: "save_variant",
+      fn: "upsert_variant",
       args: {
         product: "p1",
         variant: null,
@@ -494,7 +494,7 @@ describe("catalog block", () => {
       ],
       ["delete_product_option", true, (c) => c.deleteOption("o1").orThrow()],
       [
-        "save_variant",
+        "upsert_variant",
         { id: "x1", sku: "S", rank: "V" },
         (c) =>
           c
@@ -527,7 +527,7 @@ describe("catalog block", () => {
         (c) => c.restoreVariant("x1").orThrow(),
       ],
       [
-        "save_price_list",
+        "upsert_price_list",
         { id: "l1" },
         (c) =>
           c
@@ -537,7 +537,7 @@ describe("catalog block", () => {
       ["delete_price_list", true, (c) => c.deletePriceList("l1").orThrow()],
       ["delete_price", true, (c) => c.deletePrice("r1").orThrow()],
       [
-        "save_category",
+        "upsert_category",
         { id: "c1", slug: "shirts", rank: "V" },
         (c) =>
           c
@@ -554,7 +554,7 @@ describe("catalog block", () => {
             .orThrow(),
       ],
       [
-        "save_collection",
+        "upsert_collection",
         { id: "k1", slug: "new", kind: "manual" },
         (c) =>
           c
@@ -656,7 +656,7 @@ describe("catalog block", () => {
     ).toBe(1);
     expect(calls).toEqual([
       {
-        fn: "save_catalog_channel",
+        fn: "upsert_catalog_channel",
         args: {
           tenant: "org",
           channel: null,
@@ -875,7 +875,7 @@ describe("catalog block", () => {
     ]);
     expect(calls).toEqual([
       {
-        fn: "add_product_media",
+        fn: "create_product_media",
         args: {
           product: "p1",
           attachment: "a1",
@@ -932,7 +932,7 @@ describe("catalog block", () => {
     ]);
     expect(calls).toEqual([
       {
-        fn: "save_product_identifier",
+        fn: "upsert_product_identifier",
         args: {
           tenant: "org",
           variant: "v1",
@@ -991,7 +991,7 @@ describe("catalog block", () => {
     ]);
     expect(await catalog.replacementVariant("v1").orThrow()).toBe("v2");
     expect(calls.map((call) => call.fn)).toEqual([
-      "save_product_relation",
+      "upsert_product_relation",
       "variant_relations",
       "replacement_variant",
     ]);

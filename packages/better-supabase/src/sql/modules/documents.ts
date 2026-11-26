@@ -365,7 +365,7 @@ ${lockTable(suggestions, { read: false })}
       ? ""
       : `
 -- Saves the client's merged state as a version of subject 'document'.
-create or replace function ${fn("save_document_version")}(document_id uuid, state text, label text default null)
+create or replace function ${fn("upsert_document_version")}(document_id uuid, state text, label text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -375,7 +375,7 @@ as $$
 declare
   v_doc ${documents}%rowtype;
 begin
-  select * into v_doc from ${documents} d where d.${c("id")} = save_document_version.document_id;
+  select * into v_doc from ${documents} d where d.${c("id")} = upsert_document_version.document_id;
   if not found then
     ${notFound}
   end if;
@@ -383,11 +383,11 @@ begin
     ${fail("DOCUMENT_FORBIDDEN", "not allowed to edit this document")}
   end if;
   return ${versions.fn("version_insert")}(v_doc.${c("tenant")}, 'document', v_doc.${c("id")}::text,
-    jsonb_build_object('state', save_document_version.state, 'name', v_doc.${c("name")}),
-    null, nullif(trim(save_document_version.label), ''), 'manual', false, auth.uid());
+    jsonb_build_object('state', upsert_document_version.state, 'name', v_doc.${c("name")}),
+    null, nullif(trim(upsert_document_version.label), ''), 'manual', false, auth.uid());
 end;
 $$;
-${userGrant(`${fn("save_document_version")}(uuid, text, text)`)}
+${userGrant(`${fn("upsert_document_version")}(uuid, text, text)`)}
 
 create or replace function ${fn("list_document_versions")}(document_id uuid)
 returns jsonb

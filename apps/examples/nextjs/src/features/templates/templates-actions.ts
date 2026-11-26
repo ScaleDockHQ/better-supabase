@@ -3,13 +3,11 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { TEMPLATES_TAG } from "./templates-cache";
 import {
   CustomerTemplateBody,
   customerTemplates,
@@ -24,8 +22,10 @@ export const createTemplate = bsbCore.action(
     input: v.object({ name: Name, ...CustomerTemplateBody.entries }),
     requireTenant: true,
     permission: "templates.manage",
+    tags: () => [tags.templates(), tags.customers()],
+    refresh: true,
   },
-  async ({ name, status }, { tenant, supabase, auth }) => {
+  async ({ name, status }, { tenant, supabase }) => {
     const templates = templatesOf(supabase);
 
     const saved = await templates.upsert({
@@ -53,8 +53,6 @@ export const createTemplate = bsbCore.action(
       return published;
     }
 
-    await refreshCaller(auth, [TEMPLATES_TAG, CUSTOMERS_TAG]);
-
     return ok({ id: saved.data.id, name: saved.data.name });
   },
 );
@@ -66,8 +64,10 @@ export const applyTemplate = bsbCore.action(
     requireTenant: true,
     permission: "templates.apply",
     authorize: async () => can(await getPermissions(), "customers.write"),
+    tags: () => [tags.templates(), tags.customers()],
+    refresh: true,
   },
-  async ({ templateId, name }, { tenant, supabase, db, auth }) => {
+  async ({ templateId, name }, { tenant, supabase, db }) => {
     const applied = await customerTemplates(supabase, (row) =>
       db.customers.create(row, { select: ["id"] }),
     ).apply({
@@ -78,8 +78,6 @@ export const applyTemplate = bsbCore.action(
     if (!applied.ok) {
       return applied;
     }
-
-    await refreshCaller(auth, [TEMPLATES_TAG, CUSTOMERS_TAG]);
 
     return ok({ customerId: applied.data.subject.id });
   },

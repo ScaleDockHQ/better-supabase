@@ -1,5 +1,5 @@
 import { deadlineList } from "@/features/deadlines/deadlines-list";
-import { loadDeadlinePage } from "@/features/deadlines/deadlines-queries";
+import { getDeadlinePage } from "@/features/deadlines/deadlines-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -11,7 +11,7 @@ export const GET = bsb.route(
   async (request, { db }) => {
     const query = deadlineList.parse(request.nextUrl.searchParams);
 
-    return Response.json(await loadDeadlinePage(db, query.value));
+    return Response.json(await getDeadlinePage(db, query.value));
   },
   { requireTenant: true, permission: "deadlines.read" },
 );

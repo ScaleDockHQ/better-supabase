@@ -109,13 +109,13 @@ const DRAFT = `
   if v_plan ->> 'status' <> 'draft' or (v_plan ->> 'version')::int <> 1 then
     raise exception 'created %', v_plan;
   end if;
-  v_problem := (better_supabase.add_care_plan_problem(v_id, '{"code": "R45.1", "title": "Restless at night"}'::jsonb) ->> 'id')::uuid;
-  v_goal := (better_supabase.add_care_plan_goal(v_problem, '{"title": "Sleeps through", "measure": {"nights": 5}}'::jsonb) ->> 'id')::uuid;
-  v_action := better_supabase.add_care_plan_action(v_goal, '{"kind": "task", "title": "Evening routine", "reviewEvery": "P1M"}'::jsonb);
+  v_problem := (better_supabase.create_care_plan_problem(v_id, '{"code": "R45.1", "title": "Restless at night"}'::jsonb) ->> 'id')::uuid;
+  v_goal := (better_supabase.create_care_plan_goal(v_problem, '{"title": "Sleeps through", "measure": {"nights": 5}}'::jsonb) ->> 'id')::uuid;
+  v_action := better_supabase.create_care_plan_action(v_goal, '{"kind": "task", "title": "Evening routine", "reviewEvery": "P1M"}'::jsonb);
   if v_action ->> 'reviewEvery' <> 'P0Y1M0DT0H0M0S' or (v_action ->> 'requiresApproval')::boolean then
     raise exception 'action %', v_action;
   end if;
-  v_measure := (better_supabase.add_care_plan_action(v_goal, '{"kind": "measure", "measureKind": "sensor", "title": "Door sensor"}'::jsonb) ->> 'id')::uuid;`;
+  v_measure := (better_supabase.create_care_plan_action(v_goal, '{"kind": "measure", "measureKind": "sensor", "title": "Door sensor"}'::jsonb) ->> 'id')::uuid;`;
 
 const DECLARE = `declare
   v_plan jsonb;
@@ -232,7 +232,7 @@ begin
   if v_plan -> 'problems' is null then
     raise exception 'tree';
   end if;
-  perform better_supabase.add_care_plan_problem(v_id, '{"codeSystem": "snomed", "title": "B"}'::jsonb);
+  perform better_supabase.create_care_plan_problem(v_id, '{"codeSystem": "snomed", "title": "B"}'::jsonb);
 end;
 $$;`,
         layout,
@@ -246,7 +246,7 @@ ${DECLARE}
 begin
   ${SERVICE}
   ${DRAFT}
-  perform better_supabase.add_care_plan_action(v_goal, '{"kind": "measure", "measureKind": "seclusion", "title": "B"}'::jsonb);
+  perform better_supabase.create_care_plan_action(v_goal, '{"kind": "measure", "measureKind": "seclusion", "title": "B"}'::jsonb);
 end;
 $$;`,
         layout,
@@ -259,7 +259,7 @@ ${DECLARE}
 begin
   ${SERVICE}
   ${DRAFT}
-  perform better_supabase.add_care_plan_action(v_goal, '{"title": "B", "reviewEvery": "-1 day"}'::jsonb);
+  perform better_supabase.create_care_plan_action(v_goal, '{"title": "B", "reviewEvery": "-1 day"}'::jsonb);
 end;
 $$;`),
     ).rejects.toThrow(/positive interval/);

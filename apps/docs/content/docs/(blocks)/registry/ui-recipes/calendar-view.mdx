@@ -29,7 +29,7 @@ export async function CalendarView({
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(() => loadCalendarMonth(from.toString(), until.toString())),
+    settle(() => getCalendarMonth(from.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "calendar.read")) {

@@ -34,7 +34,7 @@ export function isSqliteLiteDriver(driver: LiteDriver): boolean {
  * `@supabase/lite` is an optional peer, imported through variable specifiers so
  * the CLI build leaves it out; `undefined` when it is not installed.
  */
-export async function loadCliLite(): Promise<CliLite | undefined> {
+export async function getCliLite(): Promise<CliLite | undefined> {
   const root = "@supabase/lite";
   const pglite = "@supabase/lite/pglite";
 

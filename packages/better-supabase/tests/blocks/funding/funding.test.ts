@@ -143,7 +143,7 @@ const channelOf = (
 describe("createFunding", () => {
   it("saves and lists products with their rate as money", async () => {
     const t = fieldsTransport({
-      save_funding_product: () => PRODUCT,
+      upsert_funding_product: () => PRODUCT,
       list_funding_products: () => [PRODUCT],
     });
 
@@ -171,7 +171,7 @@ describe("createFunding", () => {
     expect(saved.validFrom?.toString()).toBe("2026-01-01");
     expect(saved.validUntil).toBeUndefined();
     expect(t.calls[0]).toEqual([
-      "save_funding_product",
+      "upsert_funding_product",
       {
         tenant: "org-1",
         code: "H126",
@@ -189,7 +189,7 @@ describe("createFunding", () => {
 
   it("creates, updates, ends and lists awards with checked fields", async () => {
     const t = fieldsTransport({
-      save_funding_award: () => AWARD,
+      upsert_funding_award: () => AWARD,
       end_funding_award: () => ({
         ...AWARD,
         status: "ended",
@@ -278,7 +278,7 @@ describe("createFunding", () => {
     expect(usage.periods[0]).toMatchObject({ used: 9, over: 1 });
     expect(usage.periods[1]?.end).toBeUndefined();
     expect(t.calls[0]).toEqual([
-      "save_funding_award",
+      "upsert_funding_award",
       {
         tenant: "org-1",
         subject_type: "client",
@@ -697,7 +697,7 @@ describe("createFunding", () => {
     const signals: (AbortSignal | undefined)[] = [];
 
     const t = fieldsTransport({
-      save_funding_product: () => PRODUCT,
+      upsert_funding_product: () => PRODUCT,
       list_funding_awards: () => [
         { ...AWARD, units: null, fields: null, product: PRODUCT },
       ],

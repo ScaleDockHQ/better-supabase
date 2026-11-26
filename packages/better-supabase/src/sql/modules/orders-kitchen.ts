@@ -268,7 +268,7 @@ $$;
 
 -- Creates or changes a station. attrs: key, name, position, default, active
 -- and productIds, which replaces the products routed to it.
-create or replace function ${fn("save_kitchen_station")}(tenant ${ctx.idType}, station uuid, attrs jsonb)
+create or replace function ${fn("upsert_kitchen_station")}(tenant ${ctx.idType}, station uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -277,7 +277,7 @@ as $$
 declare
   v_id uuid;
 begin
-  ${guard("save_kitchen_station.tenant", [manage])}
+  ${guard("upsert_kitchen_station.tenant", [manage])}
   if jsonb_typeof(attrs) is distinct from 'object' then
     ${fail("ORDERS_KITCHEN_STATION_INVALID", "attrs must be an object", "22023")}
   end if;
@@ -286,11 +286,11 @@ begin
   end if;
   if coalesce((attrs ->> 'default')::boolean, false) then
     update ${t("kitchenStations")} s set ${ks("isDefault")} = false
-    where s.${ks("tenant")} = save_kitchen_station.tenant and s.${ks("isDefault")} and s.${ks("id")} is distinct from save_kitchen_station.station;
+    where s.${ks("tenant")} = upsert_kitchen_station.tenant and s.${ks("isDefault")} and s.${ks("id")} is distinct from upsert_kitchen_station.station;
   end if;
-  if save_kitchen_station.station is null then
+  if upsert_kitchen_station.station is null then
     insert into ${t("kitchenStations")} (${ks("tenant")}, ${ks("key")}, ${ks("name")}, ${ks("position")}, ${ks("isDefault")}, ${ks("active")})
-    values (save_kitchen_station.tenant, attrs ->> 'key', coalesce(attrs ->> 'name', attrs ->> 'key'), coalesce((attrs ->> 'position')::integer, 0), coalesce((attrs ->> 'default')::boolean, false), coalesce((attrs ->> 'active')::boolean, true))
+    values (upsert_kitchen_station.tenant, attrs ->> 'key', coalesce(attrs ->> 'name', attrs ->> 'key'), coalesce((attrs ->> 'position')::integer, 0), coalesce((attrs ->> 'default')::boolean, false), coalesce((attrs ->> 'active')::boolean, true))
     returning ${ks("id")} into v_id;
   else
     update ${t("kitchenStations")} s set
@@ -300,7 +300,7 @@ begin
       ${ks("isDefault")} = coalesce((attrs ->> 'default')::boolean, s.${ks("isDefault")}),
       ${ks("active")} = coalesce((attrs ->> 'active')::boolean, s.${ks("active")}),
       ${ks("updatedAt")} = now()
-    where s.${ks("id")} = save_kitchen_station.station and s.${ks("tenant")} = save_kitchen_station.tenant
+    where s.${ks("id")} = upsert_kitchen_station.station and s.${ks("tenant")} = upsert_kitchen_station.tenant
     returning s.${ks("id")} into v_id;
     if v_id is null then
       ${fail("ORDERS_KITCHEN_STATION_NOT_FOUND", "no such kitchen station", "P0002")}
@@ -311,21 +311,21 @@ begin
       select 1 from jsonb_array_elements_text(attrs -> 'productIds') e(value)
       where not exists (
         select 1 from ${catalog.table("products")} p
-        where p.${catalog.col("products", "id")}::text = e.value and p.${catalog.col("products", "tenant")}::text = save_kitchen_station.tenant::text
+        where p.${catalog.col("products", "id")}::text = e.value and p.${catalog.col("products", "tenant")}::text = upsert_kitchen_station.tenant::text
       )
     ) then
       ${fail("ORDERS_KITCHEN_STATION_INVALID", "productIds must name products of this organization", "22023")}
     end if;
     delete from ${t("kitchenRoutes")} r where r.${kr("station")} = v_id;
     insert into ${t("kitchenRoutes")} (${kr("product")}, ${kr("tenant")}, ${kr("station")})
-    select distinct e.value::uuid, save_kitchen_station.tenant, v_id
+    select distinct e.value::uuid, upsert_kitchen_station.tenant, v_id
     from jsonb_array_elements_text(attrs -> 'productIds') e(value)
     on conflict (${kr("product")}) do update set ${kr("station")} = excluded.${kr("station")};
   end if;
   return (select ${stationJson("s")} from ${t("kitchenStations")} s where s.${ks("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_kitchen_station")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_kitchen_station")}(${ctx.idType}, uuid, jsonb)`)}
 
 create or replace function ${fn("delete_kitchen_station")}(station uuid)
 returns boolean
@@ -551,7 +551,7 @@ ${userGrant(`${fn("order_board")}(${ctx.idType}, timestamptz, integer)`)}
 export function kitchenContract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_kitchen_station",
+      name: "upsert_kitchen_station",
       args: ["{id}", "uuid", "jsonb"],
       returns: "jsonb",
     },

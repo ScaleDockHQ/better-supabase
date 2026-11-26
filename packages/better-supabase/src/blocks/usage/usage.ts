@@ -516,7 +516,7 @@ export function createUsage(options: UsageOptions): Usage {
       ),
     removeQuota: ({ meter, organizationId, plan }) =>
       call(
-        "remove_usage_quota",
+        "delete_usage_quota",
         { tenant: organizationId, plan, meter },
         (value) => value === true,
       ),

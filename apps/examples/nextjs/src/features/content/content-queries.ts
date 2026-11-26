@@ -5,9 +5,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { orMissing } from "@/lib/or-missing";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { CONTENT_TAG } from "./content-cache";
 
 export interface ContentRow {
   readonly id: string;
@@ -37,7 +36,7 @@ export async function getContentEntry(
 ): Promise<ContentDetailRow | undefined | null> {
   "use cache: private";
   const { db, session } = await bsb.cached();
-  cacheTag(CONTENT_TAG);
+  cacheTag(tags.contentEntries());
 
   if (!tenantOf(session)) {
     return null;

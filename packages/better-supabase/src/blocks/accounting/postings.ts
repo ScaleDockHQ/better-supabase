@@ -321,7 +321,7 @@ export function accountingPostings(call: BlockCall): AccountingPostings {
       ),
     saveBudget: ({ organizationId, input }) =>
       call(
-        "save_accounting_budget",
+        "upsert_accounting_budget",
         {
           tenant: organizationId,
           name: input.name,
@@ -330,7 +330,7 @@ export function accountingPostings(call: BlockCall): AccountingPostings {
           lines: input.lines?.map(lineArg) ?? null,
           budget_id: input.budgetId ?? null,
         },
-        (value) => budgetOf(value, "save_accounting_budget"),
+        (value) => budgetOf(value, "upsert_accounting_budget"),
       ),
     budget: (budgetId) =>
       call(

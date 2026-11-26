@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:7425bd95148c4a444a48ab976c8178756b4d7aa1473c6d219048851cb1019e79
+-- @bsb-hash sha256:3fe7d16a347190d7e7443736384313686ebd79663bdcd75fdee387f4ee2a01cc
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1032,7 +1032,7 @@ grant execute on function "better_supabase"."list_work_order_parts"(uuid) to aut
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function "better_supabase"."remove_work_order_part"(part_id uuid)
+create or replace function "better_supabase"."delete_work_order_part"(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1045,7 +1045,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
+  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = delete_work_order_part.part_id for update;
   if not found or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
     or (coalesce(v_row."recorded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))
@@ -1056,8 +1056,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1144,7 +1144,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:43722ef987c6ccd4035ab22289f34a54bcab09235e5271d4f093f0ec01bfecaf
+-- @bsb-hash sha256:3b2a57a1ae0350795eb5895bd65dc28485eab29cce568aec98ae78d28b785b21
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2283,7 +2283,7 @@ grant execute on function "better_supabase"."list_work_order_parts"(uuid) to aut
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function "better_supabase"."remove_work_order_part"(part_id uuid)
+create or replace function "better_supabase"."delete_work_order_part"(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2296,7 +2296,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
+  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = delete_work_order_part.part_id for update;
   if not found or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
     or (coalesce(v_row."recorded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))
@@ -2307,8 +2307,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2400,7 +2400,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:00eae71423411226e85d7f209b7cbf3fa06806b132a8dd8d9853566332b850ee
+-- @bsb-hash sha256:e4dd4afd69f0d7aaffae42dedc1a408166f53e08dd91c4a703d8a0bdc35df0d6
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3436,7 +3436,7 @@ grant execute on function "app_private"."list_work_order_parts"(uuid) to authent
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function "app_private"."remove_work_order_part"(part_id uuid)
+create or replace function "app_private"."delete_work_order_part"(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3449,7 +3449,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
+  select * into v_row from "app_private"."work_order_parts" y where y."id" = delete_work_order_part.part_id for update;
   if not found or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
     or (coalesce(v_row."recorded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))
@@ -3460,8 +3460,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "app_private"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "app_private"."remove_work_order_part"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "app_private"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3548,7 +3548,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:ee9aa73fe80e270bf2959a67edb33329c7d64b8f881e441ca4578f0a63937883
+-- @bsb-hash sha256:28dbcaeabd258c7fa21cd06de4a0ff2cec97fa4e252de153744c3e1b3767d755
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4579,7 +4579,7 @@ grant execute on function "better_supabase"."list_work_order_parts"(uuid) to aut
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function "better_supabase"."remove_work_order_part"(part_id uuid)
+create or replace function "better_supabase"."delete_work_order_part"(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4592,7 +4592,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
+  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = delete_work_order_part.part_id for update;
   if not found or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
     or (coalesce(v_row."recorded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))
@@ -4603,8 +4603,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -4801,14 +4801,14 @@ as $$ select "better_supabase"."list_work_order_parts"($1) $$;
 revoke execute on function "api"."list_work_order_parts"(uuid) from public, anon;
 grant execute on function "api"."list_work_order_parts"(uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_work_order_part"(part_id uuid)
+create or replace function "api"."delete_work_order_part"(part_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_work_order_part"($1) $$;
-revoke execute on function "api"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "api"."remove_work_order_part"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_work_order_part"($1) $$;
+revoke execute on function "api"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "api"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
@@ -4827,7 +4827,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:d8801a03e6868da3e1036b5c8afe41d67c27c7e25036c56169fc976d44bdb1f6
+-- @bsb-hash sha256:a858e3e07cc3ab6f10a469df250c6bb557c9b768c70484d22c13841ba17e942f
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5844,7 +5844,7 @@ grant execute on function "better_supabase"."list_work_order_parts"(uuid) to aut
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function "better_supabase"."remove_work_order_part"(part_id uuid)
+create or replace function "better_supabase"."delete_work_order_part"(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -5857,7 +5857,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
+  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = delete_work_order_part.part_id for update;
   if not found or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
     or (coalesce(v_row."recorded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))
@@ -5868,8 +5868,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5956,7 +5956,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:408419ed72665304e0d5d7cfa0921ad52f7d63ab2f104b6ad391f91fc9425220
+-- @bsb-hash sha256:edcef5da8c9fb20b319cd704d48a8439fbacf05d977491ef49ce8b441465f7a9
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6987,7 +6987,7 @@ grant execute on function "better_supabase"."list_work_order_parts"(uuid) to aut
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function "better_supabase"."remove_work_order_part"(part_id uuid)
+create or replace function "better_supabase"."delete_work_order_part"(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7000,7 +7000,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
+  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = delete_work_order_part.part_id for update;
   if not found or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'dispatch.manage'), false))
     or (coalesce(v_row."recorded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."org_id", 'dispatch.work'), false))
@@ -7011,8 +7011,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

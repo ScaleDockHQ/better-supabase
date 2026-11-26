@@ -5,9 +5,8 @@ import { revalidatePath } from "next/cache";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SUPPORT_TAG } from "./support-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -22,8 +21,10 @@ export const requestSupportSession = bsb.action(
       reason: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
     permission: "impersonation.start",
+    tags: () => [tags.supportSessions()],
+    refresh: true,
   },
-  async ({ target, reason }, { db, auth }) => {
+  async ({ target, reason }, { db }) => {
     const result = await db.impersonation.request({
       target,
       reason,
@@ -34,23 +35,24 @@ export const requestSupportSession = bsb.action(
       return err(result.error);
     }
 
-    await refreshCaller(auth, [SUPPORT_TAG]);
-
     return ok(target);
   },
 );
 
 /** Ends a support session before it expires. */
 export const endSupportSession = bsb.action(
-  { input: v.object({ sessionId: Id }), permission: "impersonation.revoke" },
-  async ({ sessionId }, { db, auth }) => {
+  {
+    input: v.object({ sessionId: Id }),
+    permission: "impersonation.revoke",
+    tags: () => [tags.supportSessions()],
+    refresh: true,
+  },
+  async ({ sessionId }, { db }) => {
     const result = await db.impersonation.end(sessionId);
 
     if (!result.ok) {
       return err(result.error);
     }
-
-    await refreshCaller(auth, [SUPPORT_TAG]);
 
     return ok(sessionId);
   },
@@ -107,7 +109,7 @@ export async function viewAsMember(input: {
     return err(requested.error);
   }
 
-  await refreshCaller(auth, [SUPPORT_TAG]);
+  await refreshCaller(auth, [tags.supportSessions()]);
 
   return ok<ViewAsOutcome>("requested");
 }

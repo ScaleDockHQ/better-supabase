@@ -429,7 +429,7 @@ function queryOf(
   };
 }
 
-async function readBody(request: Request): Promise<unknown> {
+async function getBody(request: Request): Promise<unknown> {
   const text = await request.text();
 
   if (text.length > MAX_BODY) {
@@ -741,7 +741,7 @@ export function scimHandler(
           throw new ScimError(405, "Use POST for .search");
         }
 
-        const body = await readBody(request);
+        const body = await getBody(request);
 
         if (
           !isRecord(body) ||
@@ -794,7 +794,7 @@ export function scimHandler(
       }
 
       if (method === "POST") {
-        const doc = resourceBody(await readBody(request), spec.urn);
+        const doc = resourceBody(await getBody(request), spec.urn);
 
         const created = await save(
           kind,
@@ -843,7 +843,7 @@ export function scimHandler(
       }
 
       case "PUT": {
-        const doc = resourceBody(await readBody(request), spec.urn);
+        const doc = resourceBody(await getBody(request), spec.urn);
 
         return respond(
           200,
@@ -853,7 +853,7 @@ export function scimHandler(
       }
 
       case "PATCH": {
-        const body = await readBody(request);
+        const body = await getBody(request);
         let patched: Doc;
 
         try {

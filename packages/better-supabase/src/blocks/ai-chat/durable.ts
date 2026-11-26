@@ -424,13 +424,13 @@ export function createHarnessSessions(
   return {
     load: ({ chatId, harnessId }) =>
       service(
-        "load_ai_harness_session",
+        "get_ai_harness_session",
         { chat: chatId, harness: harnessId },
         (value) => (value === null ? undefined : harnessOf(value)),
       ),
     upsert: ({ chatId, harnessId, patch, ...saveOptions }) =>
       service(
-        "save_ai_harness_session",
+        "upsert_ai_harness_session",
         {
           chat: chatId,
           harness: harnessId,

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
-import { assignShard, readDurations } from "./unit-shard.ts";
+import { assignShard, getDurations } from "./unit-shard.ts";
 
 describe("assignShard", () => {
   const durations = new Map([
@@ -50,7 +50,7 @@ describe("readDurations", () => {
 
     writeFileSync(path, '{"tests/a.test.ts": 12}\n');
 
-    expect(readDurations(path)).toEqual(new Map([["tests/a.test.ts", 12]]));
+    expect(getDurations(path)).toEqual(new Map([["tests/a.test.ts", 12]]));
   });
 
   it("rejects a duration that is not a number", () => {
@@ -59,6 +59,6 @@ describe("readDurations", () => {
 
     writeFileSync(path, '{"tests/a.test.ts": "slow"}\n');
 
-    expect(() => readDurations(path)).toThrow(v.ValiError);
+    expect(() => getDurations(path)).toThrow(v.ValiError);
   });
 });

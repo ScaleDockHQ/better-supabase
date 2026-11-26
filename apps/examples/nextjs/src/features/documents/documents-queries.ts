@@ -3,10 +3,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -36,7 +35,7 @@ export type Loaded<T> =
 async function loadDocuments(): Promise<readonly DocumentSummary[] | null> {
   "use cache: private";
   const { session, db } = await bsbShell.cached();
-  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.drive(), tags.customers());
 
   if (!tenantOf(session)) {
     return null;
@@ -73,13 +72,13 @@ export async function getDocuments(): Promise<
   }
 }
 
-async function loadTarget(
+async function getTarget(
   customerId: string,
 ): Promise<DocumentTarget | "not-found" | null> {
   "use cache: private";
 
   const request = await bsbShell.cached();
-  cacheTag(DRIVE_TAG, CUSTOMERS_TAG);
+  cacheTag(tags.drive(), tags.customers());
   const { session, db } = request;
   const permissions = await readPermissions(request);
 
@@ -117,7 +116,7 @@ export async function getDocumentTarget(
   let target: DocumentTarget | "not-found" | null;
 
   try {
-    target = await loadTarget(customerId);
+    target = await getTarget(customerId);
   } catch (error) {
     unstable_rethrow(error);
 

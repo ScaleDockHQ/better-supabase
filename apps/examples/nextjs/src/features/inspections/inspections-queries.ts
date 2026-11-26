@@ -8,10 +8,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { CASES_TAG } from "@/features/cases/cases-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { INSPECTIONS_TAG } from "./inspections-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -45,10 +43,10 @@ export interface InspectionRow {
   readonly plannedStart: string | null;
 }
 
-async function loadCalendar(): Promise<readonly InspectionRow[] | null> {
+async function getCalendar(): Promise<readonly InspectionRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INSPECTIONS_TAG, CASES_TAG);
+  cacheTag(tags.inspections(), tags.cases());
 
   if (!tenantOf(session)) {
     return null;
@@ -83,7 +81,7 @@ async function loadCalendar(): Promise<readonly InspectionRow[] | null> {
 export function getInspectionCalendar(): Promise<
   Loaded<readonly InspectionRow[]>
 > {
-  return settle(loadCalendar);
+  return settle(getCalendar);
 }
 
 /** One finding of an inspection, serializable. */
@@ -112,12 +110,10 @@ export interface InspectionRunView {
   readonly findings: readonly FindingView[];
 }
 
-async function loadRun(
-  inspectionId: string,
-): Promise<InspectionRunView | null> {
+async function getRun(inspectionId: string): Promise<InspectionRunView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(INSPECTIONS_TAG, CASES_TAG);
+  cacheTag(tags.inspections(), tags.cases());
 
   if (!tenantOf(session)) {
     return null;
@@ -152,5 +148,5 @@ async function loadRun(
 export function getInspectionRun(
   inspectionId: string,
 ): Promise<Loaded<InspectionRunView>> {
-  return settle(() => loadRun(inspectionId));
+  return settle(() => getRun(inspectionId));
 }

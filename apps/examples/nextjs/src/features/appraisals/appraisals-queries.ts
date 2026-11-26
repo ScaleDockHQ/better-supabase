@@ -3,10 +3,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { readMemberNames } from "@/features/people/member-names";
+import { getMemberNames } from "@/features/people/member-names";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { APPRAISALS_TAG } from "./appraisals-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -46,7 +45,7 @@ export interface AppraisalRow {
 
 async function loadAppraisals(): Promise<readonly AppraisalRow[] | null> {
   "use cache: private";
-  cacheTag(APPRAISALS_TAG);
+  cacheTag(tags.appraisals());
   const scope = await bsb.cached();
   const { session, db } = scope;
   const tenant = tenantOf(session);
@@ -57,7 +56,7 @@ async function loadAppraisals(): Promise<readonly AppraisalRow[] | null> {
 
   const [rows, names] = await Promise.all([
     db.appraisals.listAppraisals({ limit: 200 }).orThrow(),
-    readMemberNames(scope, tenant),
+    getMemberNames(scope, tenant),
   ]);
 
   return rows.map((row) => ({
@@ -114,7 +113,7 @@ async function loadAppraisal(
   id: string,
 ): Promise<AppraisalDetailData | "not-found" | null> {
   "use cache: private";
-  cacheTag(APPRAISALS_TAG);
+  cacheTag(tags.appraisals());
   const scope = await bsb.cached();
   const { session, db } = scope;
   const tenant = tenantOf(session);
@@ -138,7 +137,7 @@ async function loadAppraisal(
 
   const [cycles, names] = await Promise.all([
     db.appraisals.listCycles().orThrow(),
-    readMemberNames(scope, tenant),
+    getMemberNames(scope, tenant),
   ]);
 
   const name = (userId: string | undefined): string | null =>

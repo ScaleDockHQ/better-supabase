@@ -289,7 +289,7 @@ function sourceGrainCase(
   return `case p_grain ${branches.join(" ")} end`;
 }
 
-function readChecks(ctx: BlockSqlContext, metric: MetricDefinition): string {
+function getChecks(ctx: BlockSqlContext, metric: MetricDefinition): string {
   const permission = sqlString(
     metric.permission ?? ctx.permissionKey("read", OPERATIONS["metrics.read"]),
   );
@@ -316,7 +316,7 @@ function seriesBranch(
   const dims = textArray(metric.dimensions ?? []);
 
   return `    when ${sqlString(metric.key)} then
-${readChecks(ctx, metric)}
+${getChecks(ctx, metric)}
       if p_group_by is not null and p_group_by <> all (${dims}) then
         ${fail("METRIC_DIMENSION_UNKNOWN", "group_by is not a dimension of this metric", "22023")}
       end if;
@@ -362,7 +362,7 @@ function valueBranch(
   names: Names,
 ): string {
   return `    when ${sqlString(metric.key)} then
-${readChecks(ctx, metric)}
+${getChecks(ctx, metric)}
       v_source := ${sourceGrainCase(metric, "finest")};
       return (
         with ${sourceCte(metric, names, "p_from")},

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:dbf74b6bee99825aae5d337d7515c2523f39f7115709be0097c17a5b40bf84a8
+-- @bsb-hash sha256:575efd0209e79e22cb132acd3b498a298acb01f88640eedc9e8fddc7906d52a8
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -246,7 +246,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "better_supabase"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -257,9 +257,9 @@ begin
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."retention_policies" x
-  where x."kind" = remove_retention_policy.kind
-    and x."tenant_id" is not distinct from remove_retention_policy.tenant
-    and x."plan" is not distinct from remove_retention_policy.plan;
+  where x."kind" = delete_retention_policy.kind
+    and x."tenant_id" is not distinct from delete_retention_policy.tenant
+    and x."plan" is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -339,7 +339,7 @@ revoke execute on function "better_supabase"."retention_for_memo"(text, text) fr
 revoke execute on function "better_supabase"."is_held_memo"(text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
 revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
@@ -351,7 +351,7 @@ grant execute on function "better_supabase"."retention_for_memo"(text, text) to 
 grant execute on function "better_supabase"."is_held_memo"(text, text) to service_role;
 grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
 grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
-grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
 grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
@@ -1784,7 +1784,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:14052269f60cd8873b732eb3723a224ed05d89f97d7899d87ecc31bc83ec3f5a
+-- @bsb-hash sha256:66ddded8c867e70c88b25e8ab2eb7ee0e935c1e8a80aaef0235d8d7fe28b99c1
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2036,7 +2036,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "better_supabase"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -2047,9 +2047,9 @@ begin
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."retention_policies" x
-  where x."kind" = remove_retention_policy.kind
-    and x."tenant_id" is not distinct from remove_retention_policy.tenant
-    and x."plan" is not distinct from remove_retention_policy.plan;
+  where x."kind" = delete_retention_policy.kind
+    and x."tenant_id" is not distinct from delete_retention_policy.tenant
+    and x."plan" is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -2145,7 +2145,7 @@ revoke execute on function "better_supabase"."retention_for_memo"(text, text) fr
 revoke execute on function "better_supabase"."is_held_memo"(text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
 revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
@@ -2157,7 +2157,7 @@ grant execute on function "better_supabase"."retention_for_memo"(text, text) to 
 grant execute on function "better_supabase"."is_held_memo"(text, text) to service_role;
 grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
 grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
-grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
 grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
@@ -4009,7 +4009,7 @@ begin
     v_parts := v_parts || jsonb_build_object('better_supabase.subject_lifecycles', v_rows);
   end if;
   if v_tenant is not null then
-    v_fields := coalesce("better_supabase"."read_field_values"(v_tenant, request_subject_export.subject_type, request_subject_export.subject_id), '[]'::jsonb);
+    v_fields := coalesce("better_supabase"."get_field_values"(v_tenant, request_subject_export.subject_type, request_subject_export.subject_id), '[]'::jsonb);
     select coalesce(jsonb_agg(((to_jsonb(t.*)) || jsonb_build_object('value_text', f.value ->> 'text')) order by t.ctid), '[]'::jsonb) into v_rows
     from "better_supabase"."field_values" t
     join jsonb_array_elements(v_fields) f on f.value ->> 'id' = t."id"::text
@@ -4814,7 +4814,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:14464bebe05c2e70ebde17f35fb41f6e021c7586623ee0cfeb3dd9feaa0db463
+-- @bsb-hash sha256:dc9d39ee8fab6aeca9a0c2c5b05108e5a74300bc5703bfaeab95445c1573d748
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5064,7 +5064,7 @@ begin
 end;
 $$;
 
-create or replace function "app_private"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "app_private"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -5075,9 +5075,9 @@ begin
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "app_private"."retention_policies" x
-  where x."kind" = remove_retention_policy.kind
-    and x."tenant_id" is not distinct from remove_retention_policy.tenant
-    and x."plan" is not distinct from remove_retention_policy.plan;
+  where x."kind" = delete_retention_policy.kind
+    and x."tenant_id" is not distinct from delete_retention_policy.tenant
+    and x."plan" is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -5157,7 +5157,7 @@ revoke execute on function "app_private"."retention_for_memo"(text, text) from p
 revoke execute on function "app_private"."is_held_memo"(text, text) from public, anon, authenticated;
 revoke execute on function "app_private"."retention_cutoff"(text, interval) from public, anon, authenticated;
 revoke execute on function "app_private"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
-revoke execute on function "app_private"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "app_private"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "app_private"."list_retention_policies"(text) from public, anon, authenticated;
 revoke execute on function "app_private"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "app_private"."release_legal_hold"(uuid) from public, anon, authenticated;
@@ -5169,7 +5169,7 @@ grant execute on function "app_private"."retention_for_memo"(text, text) to serv
 grant execute on function "app_private"."is_held_memo"(text, text) to service_role;
 grant execute on function "app_private"."retention_cutoff"(text, interval) to service_role;
 grant execute on function "app_private"."set_retention_policy"(text, interval, uuid, text) to service_role;
-grant execute on function "app_private"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "app_private"."delete_retention_policy"(text, uuid, text) to service_role;
 grant execute on function "app_private"."list_retention_policies"(text) to service_role;
 grant execute on function "app_private"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "app_private"."release_legal_hold"(uuid) to service_role;
@@ -6602,7 +6602,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:f56c7c7d91b220c2232d7745192b5c8148482f98e9535850fac6aea0866466d5
+-- @bsb-hash sha256:da75a026ef49546b13338a2a25dbdad35e3035dec0a6a286e7b13c4ecb3e0fb8
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6847,7 +6847,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "better_supabase"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -6858,9 +6858,9 @@ begin
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."retention_policies" x
-  where x."kind" = remove_retention_policy.kind
-    and x."tenant_id" is not distinct from remove_retention_policy.tenant
-    and x."plan" is not distinct from remove_retention_policy.plan;
+  where x."kind" = delete_retention_policy.kind
+    and x."tenant_id" is not distinct from delete_retention_policy.tenant
+    and x."plan" is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -6940,7 +6940,7 @@ revoke execute on function "better_supabase"."retention_for_memo"(text, text) fr
 revoke execute on function "better_supabase"."is_held_memo"(text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
 revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
@@ -6952,7 +6952,7 @@ grant execute on function "better_supabase"."retention_for_memo"(text, text) to 
 grant execute on function "better_supabase"."is_held_memo"(text, text) to service_role;
 grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
 grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
-grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
 grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
@@ -8438,14 +8438,14 @@ as $$ select "better_supabase"."set_retention_policy"($1, $2, $3, $4) $$;
 revoke execute on function "api"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."set_retention_policy"(text, interval, uuid, text) to service_role;
 
-create or replace function "api"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "api"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_retention_policy"($1, $2, $3) $$;
-revoke execute on function "api"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
-grant execute on function "api"."remove_retention_policy"(text, uuid, text) to service_role;
+as $$ select "better_supabase"."delete_retention_policy"($1, $2, $3) $$;
+revoke execute on function "api"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
+grant execute on function "api"."delete_retention_policy"(text, uuid, text) to service_role;
 
 create or replace function "api"."list_retention_policies"(kind text default null)
 returns jsonb
@@ -8788,7 +8788,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:b68f6fad98bd95ad2b05a79c2e7469171d8e21ce5c6566914dab8e82a5e32c9b
+-- @bsb-hash sha256:72ce115d4d6b8069730d53191bb047bfbfef548e84e3e21146d54acfdc653adf
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9014,7 +9014,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "better_supabase"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -9025,9 +9025,9 @@ begin
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."retention_policies" x
-  where x."kind"::text = remove_retention_policy.kind
-    and x."tenant_id" is not distinct from remove_retention_policy.tenant
-    and x."plan" is not distinct from remove_retention_policy.plan;
+  where x."kind"::text = delete_retention_policy.kind
+    and x."tenant_id" is not distinct from delete_retention_policy.tenant
+    and x."plan" is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -9107,7 +9107,7 @@ revoke execute on function "better_supabase"."retention_for_memo"(text, text) fr
 revoke execute on function "better_supabase"."is_held_memo"(text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
 revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
@@ -9119,7 +9119,7 @@ grant execute on function "better_supabase"."retention_for_memo"(text, text) to 
 grant execute on function "better_supabase"."is_held_memo"(text, text) to service_role;
 grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
 grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
-grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
 grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;
@@ -10547,7 +10547,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:d290248a18cea0f1ea67b43b283f2c5221599c64f7d3fc395faf6b3657089995
+-- @bsb-hash sha256:f7086eec7ffe839f3c3e1c10d81cad9b1274aaef938cf51595b40dd5ca8e05a9
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10792,7 +10792,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_retention_policy"(kind text, tenant uuid default null, plan text default null)
+create or replace function "better_supabase"."delete_retention_policy"(kind text, tenant uuid default null, plan text default null)
 returns boolean
 language plpgsql
 security invoker
@@ -10803,9 +10803,9 @@ begin
     raise exception 'Only the service role removes retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
   delete from "better_supabase"."retention_policies" x
-  where x."kind" = remove_retention_policy.kind
-    and x."org_id" is not distinct from remove_retention_policy.tenant
-    and x."plan" is not distinct from remove_retention_policy.plan;
+  where x."kind" = delete_retention_policy.kind
+    and x."org_id" is not distinct from delete_retention_policy.tenant
+    and x."plan" is not distinct from delete_retention_policy.plan;
   return found;
 end;
 $$;
@@ -10885,7 +10885,7 @@ revoke execute on function "better_supabase"."retention_for_memo"(text, text) fr
 revoke execute on function "better_supabase"."is_held_memo"(text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."retention_cutoff"(text, interval) from public, anon, authenticated;
 revoke execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) from public, anon, authenticated;
-revoke execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_retention_policies"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."place_legal_hold"(text, uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."release_legal_hold"(uuid) from public, anon, authenticated;
@@ -10897,7 +10897,7 @@ grant execute on function "better_supabase"."retention_for_memo"(text, text) to 
 grant execute on function "better_supabase"."is_held_memo"(text, text) to service_role;
 grant execute on function "better_supabase"."retention_cutoff"(text, interval) to service_role;
 grant execute on function "better_supabase"."set_retention_policy"(text, interval, uuid, text) to service_role;
-grant execute on function "better_supabase"."remove_retention_policy"(text, uuid, text) to service_role;
+grant execute on function "better_supabase"."delete_retention_policy"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."list_retention_policies"(text) to service_role;
 grant execute on function "better_supabase"."place_legal_hold"(text, uuid, text) to service_role;
 grant execute on function "better_supabase"."release_legal_hold"(uuid) to service_role;

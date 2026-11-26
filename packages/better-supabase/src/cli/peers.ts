@@ -223,7 +223,7 @@ export function satisfies(version: string, range: string): boolean | undefined {
   );
 }
 
-async function readManifest(
+async function getManifest(
   path: string,
 ): Promise<Record<string, unknown> | undefined> {
   try {
@@ -249,7 +249,7 @@ export async function installedVersion(
   let dir = root;
 
   for (;;) {
-    const manifest = await readManifest(
+    const manifest = await getManifest(
       join(dir, "node_modules", name, "package.json"),
     );
 
@@ -272,7 +272,7 @@ export async function versionAt(file: string): Promise<string | undefined> {
   let dir = dirname(file);
 
   for (;;) {
-    const manifest = await readManifest(join(dir, "package.json"));
+    const manifest = await getManifest(join(dir, "package.json"));
 
     if (manifest && typeof manifest["version"] === "string") {
       return manifest["version"];
@@ -290,7 +290,7 @@ export async function versionAt(file: string): Promise<string | undefined> {
 
 /** The `peerDependencies` of the better-supabase package this CLI ships in. */
 export async function declaredPeers(): Promise<Record<string, string>> {
-  const manifest = await readManifest(
+  const manifest = await getManifest(
     fileURLToPath(import.meta.resolve("better-supabase/package.json")),
   );
 
@@ -315,7 +315,7 @@ export async function declaredPeers(): Promise<Record<string, string>> {
 export async function listedDependencies(
   root: string,
 ): Promise<ReadonlySet<string> | undefined> {
-  const project = await readManifest(join(root, "package.json"));
+  const project = await getManifest(join(root, "package.json"));
 
   if (project === undefined) {
     return undefined;

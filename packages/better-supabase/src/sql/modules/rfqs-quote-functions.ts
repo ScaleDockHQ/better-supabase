@@ -17,7 +17,7 @@ export function rfqsQuoteFunctions(ctx: BlockSqlContext): string {
     if exists (select 1 from ${lines} y where y.${l("rfq")} = v_row.${q("id")} and y.${l("variant")} is null) then
       ${sql.invalid("every line needs a variantId to create a purchase order")}
     end if;
-    v_order := (${sql.inventory.fn("save_purchase_order")}(
+    v_order := (${sql.inventory.fn("upsert_purchase_order")}(
       v_row.${q("tenant")}, null, award_rfq.location, v_invitation.${s("supplierType")}, v_invitation.${s("supplierId")},
       v_row.${q("currency")},
       case when v_quote.${k("leadTimeDays")} is null then null else now() + make_interval(days => v_quote.${k("leadTimeDays")}) end,

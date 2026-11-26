@@ -7,9 +7,9 @@ import * as v from "valibot";
 
 import { requirePostgres, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { JOBS_TAG } from "./jobs-cache";
 import { JOBS_PERMISSION, jobsOn, QUEUE_NAME, TEST_QUEUE } from "./jobs-server";
 
 /**
@@ -36,7 +36,7 @@ export const enqueueTestJob = bsbCore.action(
     });
 
     if (queued.ok) {
-      await refreshCaller(auth, [JOBS_TAG]);
+      await refreshCaller(auth, [tags.jobs()]);
     }
 
     return queued;
@@ -55,8 +55,10 @@ export const retryJobRun = bsbCore.action(
     }),
     requireTenant: true,
     permission: JOBS_PERMISSION,
+    tags: () => [tags.jobs()],
+    refresh: true,
   },
-  async ({ queue, id }, { tenant, auth }): Promise<Result<number>> => {
+  async ({ queue, id }, { tenant }): Promise<Result<number>> => {
     const connection = requirePostgres();
 
     if (!connection.ok) {
@@ -82,8 +84,6 @@ export const retryJobRun = bsbCore.action(
     if (newId === undefined || newId === null) {
       return err(dbError("not_found", "That job is not a failed run"));
     }
-
-    await refreshCaller(auth, [JOBS_TAG]);
 
     return ok(Number(newId));
   },

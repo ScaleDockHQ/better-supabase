@@ -27,7 +27,7 @@ import {
 } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
-/** The arguments of save_control before it took a source and a jurisdiction. */
+/** The arguments of upsert_control before it took a source and a jurisdiction. */
 const PREVIOUS_CONTROL_ARGS = "uuid, text, text, text, uuid, boolean, uuid";
 
 /** The framework, control, evidence and evidence task functions. */
@@ -75,7 +75,7 @@ export function complianceFunctions(ctx: BlockSqlContext): string {
 
   const labelUpdates = labels
     .map(
-      (column) => `${k(column)} = nullif(trim(save_control.${column}), ''), `,
+      (column) => `${k(column)} = nullif(trim(upsert_control.${column}), ''), `,
     )
     .join("");
 
@@ -212,12 +212,12 @@ export function complianceFunctions(ctx: BlockSqlContext): string {
 
   const attachmentCheck =
     attachments === undefined
-      ? `if add_control_evidence.attachment_id is not null then
+      ? `if create_control_evidence.attachment_id is not null then
     ${invalid("evidence files need the attachments module")}
   end if;`
-      : `if add_control_evidence.attachment_id is not null and not exists (
+      : `if create_control_evidence.attachment_id is not null and not exists (
     select 1 from ${attachments.table("attachments")} a
-    where a.${attachments.col("attachments", "id")} = add_control_evidence.attachment_id
+    where a.${attachments.col("attachments", "id")} = create_control_evidence.attachment_id
       and a.${attachments.col("attachments", "tenant")} = v_control.${k("tenant")}
   ) then
     ${invalid("the attachment isn't a file in this organization")}
@@ -251,8 +251,8 @@ export function complianceFunctions(ctx: BlockSqlContext): string {
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
 -- kind is standard, legal (a register of legal obligations), internal or
 -- contract.
-drop function if exists ${fn("save_control_framework")}(${idType}, text, text, text, text);
-create or replace function ${fn("save_control_framework")}(tenant ${idType}, key text, name text, version text default null, description text default null, kind text default 'standard')
+drop function if exists ${fn("upsert_control_framework")}(${idType}, text, text, text, text);
+create or replace function ${fn("upsert_control_framework")}(tenant ${idType}, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -262,21 +262,21 @@ as $$
 declare
   v_row ${frameworks}%rowtype;
 begin
-  if not ${allowed("save_control_framework.tenant", manage)} then
+  if not ${allowed("upsert_control_framework.tenant", manage)} then
     ${forbidden("not allowed to manage controls")}
   end if;
-  if save_control_framework.kind is null or save_control_framework.kind not in (${FRAMEWORK_KINDS.map((item) => `'${item}'`).join(", ")}) then
+  if upsert_control_framework.kind is null or upsert_control_framework.kind not in (${FRAMEWORK_KINDS.map((item) => `'${item}'`).join(", ")}) then
     ${invalid(`kind must be one of ${FRAMEWORK_KINDS.join(", ")}`)}
   end if;
   insert into ${frameworks} (${f("tenant")}, ${f("key")}, ${f("name")}${insertCol("frameworks", "kind")}${insertCol("frameworks", "version")}${insertCol("frameworks", "description")})
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name)${insertVal("frameworks", "kind", "save_control_framework.kind")}${insertVal("frameworks", "version", "nullif(trim(save_control_framework.version), '')")}${insertVal("frameworks", "description", "nullif(trim(save_control_framework.description), '')")})
+  values (upsert_control_framework.tenant, upsert_control_framework.key, trim(upsert_control_framework.name)${insertVal("frameworks", "kind", "upsert_control_framework.kind")}${insertVal("frameworks", "version", "nullif(trim(upsert_control_framework.version), '')")}${insertVal("frameworks", "description", "nullif(trim(upsert_control_framework.description), '')")})
   on conflict (${f("tenant")}, ${f("key")}) do update
     set ${frameworkSets}
   returning * into v_row;
   return ${frameworkJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_control_framework")}(${idType}, text, text, text, text, text)`)}
+${userGrant(`${fn("upsert_control_framework")}(${idType}, text, text, text, text, text)`)}
 
 create or replace function ${fn("list_control_frameworks")}(tenant ${idType})
 returns jsonb
@@ -337,10 +337,10 @@ ${userGrant(`${fn("get_control_framework")}(uuid)`)}
 -- control_id, a control with the same code in the framework is updated.
 -- source names where an obligation comes from (a law or a clause) and
 -- jurisdiction where it applies.
-drop function if exists ${fn("save_control")}(${PREVIOUS_CONTROL_ARGS});
-drop function if exists ${fn("save_control")}(${PREVIOUS_CONTROL_ARGS}, jsonb);
-${extra.drop(fn("save_control"), `${PREVIOUS_CONTROL_ARGS}, text, text`)}
-create or replace function ${fn("save_control")}(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null${extra.param})
+drop function if exists ${fn("upsert_control")}(${PREVIOUS_CONTROL_ARGS});
+drop function if exists ${fn("upsert_control")}(${PREVIOUS_CONTROL_ARGS}, jsonb);
+${extra.drop(fn("upsert_control"), `${PREVIOUS_CONTROL_ARGS}, text, text`)}
+create or replace function ${fn("upsert_control")}(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -352,41 +352,41 @@ declare
   v_row ${controls}%rowtype;
   v_new boolean;
 begin
-  select * into v_framework from ${frameworks} x where x.${f("id")} = save_control.framework_id;
+  select * into v_framework from ${frameworks} x where x.${f("id")} = upsert_control.framework_id;
   if not found then
     ${fail("CONTROL_FRAMEWORK_NOT_FOUND", "framework not found", "P0002")}
   end if;
   if not ${allowed(`v_framework.${f("tenant")}`, manage)} then
     ${forbidden("not allowed to manage controls")}
   end if;
-  if nullif(trim(save_control.code), '') is null or nullif(trim(save_control.title), '') is null then
+  if nullif(trim(upsert_control.code), '') is null or nullif(trim(upsert_control.title), '') is null then
     ${invalid("a control needs a code and a title")}
   end if;
 ${
   owner
-    ? `  if save_control.owner_id is not null and not ${isMember(`v_framework.${f("tenant")}`, "save_control.owner_id")} then
+    ? `  if upsert_control.owner_id is not null and not ${isMember(`v_framework.${f("tenant")}`, "upsert_control.owner_id")} then
     ${invalid("the owner must be a member of the organization")}
   end if;
 `
     : ""
 }  v_new := false;
-  if save_control.control_id is null then
-    v_new := not exists (select 1 from ${controls} x where x.${k("framework")} = v_framework.${f("id")} and x.${k("code")} = trim(save_control.code));
+  if upsert_control.control_id is null then
+    v_new := not exists (select 1 from ${controls} x where x.${k("framework")} = v_framework.${f("id")} and x.${k("code")} = trim(upsert_control.code));
     insert into ${controls} (${k("tenant")}, ${k("framework")}, ${k("code")}, ${k("title")}${insertCol("controls", "description")}${insertCol("controls", "owner")}${insertCol("controls", "source")}${insertCol("controls", "jurisdiction")}, ${k("applicable")})
-    values (v_framework.${f("tenant")}, v_framework.${f("id")}, trim(save_control.code), trim(save_control.title)${insertVal("controls", "description", "nullif(trim(save_control.description), '')")}${insertVal("controls", "owner", "save_control.owner_id")}${insertVal("controls", "source", "nullif(trim(save_control.source), '')")}${insertVal("controls", "jurisdiction", "nullif(trim(save_control.jurisdiction), '')")}, coalesce(save_control.applicable, true))
+    values (v_framework.${f("tenant")}, v_framework.${f("id")}, trim(upsert_control.code), trim(upsert_control.title)${insertVal("controls", "description", "nullif(trim(upsert_control.description), '')")}${insertVal("controls", "owner", "upsert_control.owner_id")}${insertVal("controls", "source", "nullif(trim(upsert_control.source), '')")}${insertVal("controls", "jurisdiction", "nullif(trim(upsert_control.jurisdiction), '')")}, coalesce(upsert_control.applicable, true))
     on conflict (${k("framework")}, ${k("code")}) do update
       set ${k("title")} = excluded.${k("title")}${has("controls", "description") ? `, ${k("description")} = excluded.${k("description")}` : ""}${labelSets("excluded")},
         ${owner ? `${k("owner")} = excluded.${k("owner")}, ` : ""}${k("applicable")} = excluded.${k("applicable")}${touch("controls")}
     returning * into v_row;
   else
-    update ${controls} x set ${k("code")} = trim(save_control.code), ${k("title")} = trim(save_control.title),
-      ${has("controls", "description") ? `${k("description")} = nullif(trim(save_control.description), ''), ` : ""}${labelUpdates}${owner ? `${k("owner")} = save_control.owner_id,\n      ` : ""}${k("applicable")} = coalesce(save_control.applicable, true)${touch("controls")}
-      where x.${k("id")} = save_control.control_id and x.${k("framework")} = v_framework.${f("id")}
+    update ${controls} x set ${k("code")} = trim(upsert_control.code), ${k("title")} = trim(upsert_control.title),
+      ${has("controls", "description") ? `${k("description")} = nullif(trim(upsert_control.description), ''), ` : ""}${labelUpdates}${owner ? `${k("owner")} = upsert_control.owner_id,\n      ` : ""}${k("applicable")} = coalesce(upsert_control.applicable, true)${touch("controls")}
+      where x.${k("id")} = upsert_control.control_id and x.${k("framework")} = v_framework.${f("id")}
       returning * into v_row;
     if not found then
       ${controlNotFound}
     end if;
-  end if;${writeExtraColumns(controls, extras, "save_control.fields", `x.${k("id")} = v_row.${k("id")}`, "v_row")}
+  end if;${writeExtraColumns(controls, extras, "upsert_control.fields", `x.${k("id")} = v_row.${k("id")}`, "v_row")}
   ${createdOrUpdated("v_new", (verb) =>
     ctx.record({
       type: `control.${verb}`,
@@ -404,7 +404,7 @@ ${
   return ${controlJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_control")}(${PREVIOUS_CONTROL_ARGS}, text, text${extra.type})`)}
+${userGrant(`${fn("upsert_control")}(${PREVIOUS_CONTROL_ARGS}, text, text${extra.type})`)}
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function ${fn("get_control")}(control_id uuid)
@@ -458,7 +458,7 @@ ${userGrant(`${fn("list_controls")}(${idType}, uuid, text, uuid, integer)`)}
 -- task_id it answers that recurring task, whose due date moves interval_days
 -- past today; valid_until then defaults to that date. The task's assignee
 -- may collect without the collect permission.
-create or replace function ${fn("add_control_evidence")}(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
+create or replace function ${fn("create_control_evidence")}(control_id uuid, attachment_id uuid default null, note text default null, valid_until date default null, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -470,13 +470,13 @@ declare
   v_task ${tasks}%rowtype;
   v_row ${evidence}%rowtype;
 begin
-  select * into v_control from ${controls} x where x.${k("id")} = add_control_evidence.control_id;
+  select * into v_control from ${controls} x where x.${k("id")} = create_control_evidence.control_id;
   if not found then
     ${controlNotFound}
   end if;
-  if add_control_evidence.task_id is not null then
+  if create_control_evidence.task_id is not null then
     select * into v_task from ${tasks} x
-      where x.${t("id")} = add_control_evidence.task_id and x.${t("control")} = v_control.${k("id")}
+      where x.${t("id")} = create_control_evidence.task_id and x.${t("control")} = v_control.${k("id")}
       for update;
     if not found then
       ${fail("EVIDENCE_TASK_NOT_FOUND", "the evidence task isn't a task of this control", "P0002")}
@@ -487,18 +487,18 @@ begin
   end if;
   ${
     has("evidence", "note")
-      ? `if add_control_evidence.attachment_id is null and nullif(trim(add_control_evidence.note), '') is null then
+      ? `if create_control_evidence.attachment_id is null and nullif(trim(create_control_evidence.note), '') is null then
     ${invalid("evidence needs an attachment or a note")}
   end if;`
-      : `if add_control_evidence.attachment_id is null then
+      : `if create_control_evidence.attachment_id is null then
     ${invalid("evidence needs an attachment")}
   end if;`
   }
   ${attachmentCheck}
   insert into ${evidence} (${e("tenant")}, ${e("control")}, ${e("task")}, ${e("attachment")}${insertCol("evidence", "note")}, ${e("collectedBy")}, ${e("validUntil")})
-  values (v_control.${k("tenant")}, v_control.${k("id")}, v_task.${t("id")}, add_control_evidence.attachment_id,
-    ${has("evidence", "note") ? "nullif(trim(add_control_evidence.note), ''), " : ""}auth.uid(),
-    coalesce(add_control_evidence.valid_until, current_date + v_task.${t("intervalDays")}))
+  values (v_control.${k("tenant")}, v_control.${k("id")}, v_task.${t("id")}, create_control_evidence.attachment_id,
+    ${has("evidence", "note") ? "nullif(trim(create_control_evidence.note), ''), " : ""}auth.uid(),
+    coalesce(create_control_evidence.valid_until, current_date + v_task.${t("intervalDays")}))
   returning * into v_row;
   if v_task.${t("id")} is not null then
     update ${tasks} x set ${t("dueOn")} = current_date + x.${t("intervalDays")}${has("tasks", "lastCollectedAt") ? `, ${t("lastCollectedAt")} = now()` : ""},
@@ -520,9 +520,9 @@ begin
   return ${evidenceJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_control_evidence")}(uuid, uuid, text, date, uuid)`)}
+${userGrant(`${fn("create_control_evidence")}(uuid, uuid, text, date, uuid)`)}
 
-create or replace function ${fn("remove_control_evidence")}(evidence_id uuid)
+create or replace function ${fn("delete_control_evidence")}(evidence_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -531,7 +531,7 @@ as $$
 declare
   v_row ${evidence}%rowtype;
 begin
-  select * into v_row from ${evidence} x where x.${e("id")} = remove_control_evidence.evidence_id;
+  select * into v_row from ${evidence} x where x.${e("id")} = delete_control_evidence.evidence_id;
   if not found then
     ${fail("CONTROL_EVIDENCE_NOT_FOUND", "evidence not found", "P0002")}
   end if;
@@ -542,11 +542,11 @@ begin
   return ${evidenceJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("remove_control_evidence")}(uuid)`)}
+${userGrant(`${fn("delete_control_evidence")}(uuid)`)}
 
 -- Creates a recurring evidence task on a control, or changes one (task_id).
 -- due_on defaults to today: the first evidence is due now.
-create or replace function ${fn("save_evidence_task")}(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
+create or replace function ${fn("upsert_evidence_task")}(control_id uuid, title text, interval_days integer, due_on date default null, assignee_id uuid default null, active boolean default true, task_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -557,36 +557,36 @@ declare
   v_control ${controls}%rowtype;
   v_row ${tasks}%rowtype;
 begin
-  select * into v_control from ${controls} x where x.${k("id")} = save_evidence_task.control_id;
+  select * into v_control from ${controls} x where x.${k("id")} = upsert_evidence_task.control_id;
   if not found then
     ${controlNotFound}
   end if;
   if not ${allowed(`v_control.${k("tenant")}`, manage)} then
     ${forbidden("not allowed to manage controls")}
   end if;
-  if nullif(trim(save_evidence_task.title), '') is null then
+  if nullif(trim(upsert_evidence_task.title), '') is null then
     ${invalid("an evidence task needs a title")}
   end if;
-  if save_evidence_task.interval_days is null or save_evidence_task.interval_days not between 1 and 3650 then
+  if upsert_evidence_task.interval_days is null or upsert_evidence_task.interval_days not between 1 and 3650 then
     ${invalid("interval_days must be from 1 to 3650")}
   end if;
 ${
   assignee
-    ? `  if save_evidence_task.assignee_id is not null and not ${isMember(`v_control.${k("tenant")}`, "save_evidence_task.assignee_id")} then
+    ? `  if upsert_evidence_task.assignee_id is not null and not ${isMember(`v_control.${k("tenant")}`, "upsert_evidence_task.assignee_id")} then
     ${invalid("the assignee must be a member of the organization")}
   end if;
 `
     : ""
-}  if save_evidence_task.task_id is null then
+}  if upsert_evidence_task.task_id is null then
     insert into ${tasks} (${t("tenant")}, ${t("control")}, ${t("title")}${insertCol("tasks", "assignee")}, ${t("intervalDays")}, ${t("dueOn")}, ${t("active")})
-    values (v_control.${k("tenant")}, v_control.${k("id")}, trim(save_evidence_task.title)${insertVal("tasks", "assignee", "save_evidence_task.assignee_id")},
-      save_evidence_task.interval_days, coalesce(save_evidence_task.due_on, current_date), coalesce(save_evidence_task.active, true))
+    values (v_control.${k("tenant")}, v_control.${k("id")}, trim(upsert_evidence_task.title)${insertVal("tasks", "assignee", "upsert_evidence_task.assignee_id")},
+      upsert_evidence_task.interval_days, coalesce(upsert_evidence_task.due_on, current_date), coalesce(upsert_evidence_task.active, true))
     returning * into v_row;
   else
-    update ${tasks} x set ${t("title")} = trim(save_evidence_task.title)${assignee ? `, ${t("assignee")} = save_evidence_task.assignee_id` : ""},
-      ${t("intervalDays")} = save_evidence_task.interval_days, ${t("dueOn")} = coalesce(save_evidence_task.due_on, x.${t("dueOn")}),
-      ${t("active")} = coalesce(save_evidence_task.active, true)${touch("tasks")}
-      where x.${t("id")} = save_evidence_task.task_id and x.${t("control")} = v_control.${k("id")}
+    update ${tasks} x set ${t("title")} = trim(upsert_evidence_task.title)${assignee ? `, ${t("assignee")} = upsert_evidence_task.assignee_id` : ""},
+      ${t("intervalDays")} = upsert_evidence_task.interval_days, ${t("dueOn")} = coalesce(upsert_evidence_task.due_on, x.${t("dueOn")}),
+      ${t("active")} = coalesce(upsert_evidence_task.active, true)${touch("tasks")}
+      where x.${t("id")} = upsert_evidence_task.task_id and x.${t("control")} = v_control.${k("id")}
       returning * into v_row;
     if not found then
       ${fail("EVIDENCE_TASK_NOT_FOUND", "the evidence task isn't a task of this control", "P0002")}
@@ -595,7 +595,7 @@ ${
   return ${taskJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_evidence_task")}(uuid, text, integer, date, uuid, boolean, uuid)`)}
+${userGrant(`${fn("upsert_evidence_task")}(uuid, text, integer, date, uuid, boolean, uuid)`)}
 
 -- The evidence tasks the caller can read, the earliest due first.
 create or replace function ${fn("list_evidence_tasks")}(tenant ${idType}, control_id uuid default null, assignee_id uuid default null, overdue_only boolean default false)

@@ -21,7 +21,7 @@ import { storageOf } from "./db-storage.ts";
 import {
   ensureFunctions,
   lazyRepository,
-  loadReachedTables,
+  getReachedTables,
   runSpec,
   withRelatedTables,
 } from "./define-lazy.ts";
@@ -302,7 +302,7 @@ class Connector {
         // A table the server loads on first use (ADR 0611) is known by its loader.
         const known = [
           ...Object.keys(this.meta.tables),
-          ...Object.keys(this.meta.tableLoaders ?? {}),
+          ...Object.keys(this.meta.tableGetters ?? {}),
         ];
 
         if (!known.includes(name)) {
@@ -397,7 +397,7 @@ class Connector {
       const table = this.meta.tables[key];
 
       if (table === undefined) {
-        const load = this.meta.tableLoaders?.[key];
+        const load = this.meta.tableGetters?.[key];
 
         if (load === undefined) {
           throw new TypeError(`better-supabase: unknown table "${key}"`);
@@ -408,7 +408,7 @@ class Connector {
 
       repository = this.#repository(state.runner, key, table, state.plugins);
 
-      if (this.meta.tableLoaders !== undefined) {
+      if (this.meta.tableGetters !== undefined) {
         for (const [name, method] of Object.entries(repository)) {
           if (typeof method === "function" && name !== "extend") {
             // SAFETY: the typeof check above narrows method to a function.
@@ -440,7 +440,7 @@ class Connector {
 
     const keys = new Set([
       ...Object.keys(this.meta.tables),
-      ...Object.keys(this.meta.tableLoaders ?? {}),
+      ...Object.keys(this.meta.tableGetters ?? {}),
     ]);
 
     for (const key of keys) {
@@ -605,7 +605,7 @@ function rpc(
     const fn = rpcFunction(meta, name, schema, args ?? {});
 
     if (options?.raw !== true && fn?.result && "table" in fn.result) {
-      await loadReachedTables(meta, fn.result.table, undefined, register);
+      await getReachedTables(meta, fn.result.table, undefined, register);
     }
 
     const select = options?.raw === true ? undefined : rpcSelect(meta, fn);

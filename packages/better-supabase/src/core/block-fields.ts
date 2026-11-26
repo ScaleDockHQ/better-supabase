@@ -78,7 +78,7 @@ export type WithFields<
 > = Omit<R, "fields"> & { readonly fields: R["fields"] & F };
 
 /** Parses the `fields` of one row with `fields.read`. */
-export function readFields<
+export function getFields<
   R extends { readonly fields: object },
   F extends object,
 >(fields: BlockFields<F>, row: R): AsyncResult<WithFields<R, F>> {
@@ -89,7 +89,7 @@ export function readFields<
 }
 
 /** Parses the `fields` of each row; the first rejected row fails the read. */
-export function readAllFields<
+export function getAllFields<
   R extends { readonly fields: object },
   F extends object,
 >(fields: BlockFields<F>, rows: readonly R[]): AsyncResult<WithFields<R, F>[]> {

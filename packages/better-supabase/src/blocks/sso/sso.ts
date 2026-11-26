@@ -247,7 +247,7 @@ export function createSso(options: SsoOptions): Sso {
     providerCount: (count) => providerList.count(count),
     addDomain: ({ organizationId, domain }) =>
       call(
-        "add_organization_domain",
+        "create_organization_domain",
         { tenant: organizationId, domain },
         domainOf,
       ),
@@ -281,7 +281,7 @@ export function createSso(options: SsoOptions): Sso {
       ),
     removeDomain: (domainId) =>
       call(
-        "remove_organization_domain",
+        "delete_organization_domain",
         { id: domainId },
         (value) => value === true,
       ),

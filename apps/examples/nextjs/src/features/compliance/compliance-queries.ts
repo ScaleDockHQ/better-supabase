@@ -8,10 +8,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COMPLIANCE_TAG } from "./compliance-cache";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -48,7 +47,7 @@ export interface RenewalRow {
 
 async function loadRenewals(): Promise<readonly RenewalRow[] | null> {
   "use cache: private";
-  cacheTag(COMPLIANCE_TAG);
+  cacheTag(tags.compliance());
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
@@ -56,7 +55,7 @@ async function loadRenewals(): Promise<readonly RenewalRow[] | null> {
     return null;
   }
 
-  const contracts = await readAllPages((page) =>
+  const contracts = await getAllPages((page) =>
     db.contracts.page({
       organizationId: tenant,
       filters: { status: ["active"] },
@@ -106,7 +105,7 @@ export interface Posture {
 
 async function loadPosture(): Promise<Posture | null> {
   "use cache: private";
-  cacheTag(COMPLIANCE_TAG);
+  cacheTag(tags.compliance());
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
@@ -158,7 +157,7 @@ export interface PurposeRow {
 
 async function loadPurposes(): Promise<readonly PurposeRow[] | null> {
   "use cache: private";
-  cacheTag(COMPLIANCE_TAG);
+  cacheTag(tags.compliance());
   const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
@@ -206,7 +205,7 @@ async function loadFramework(
   frameworkId: string,
 ): Promise<FrameworkDetail | null> {
   "use cache: private";
-  cacheTag(COMPLIANCE_TAG);
+  cacheTag(tags.compliance());
   const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
@@ -280,7 +279,7 @@ async function loadControl(
   controlId: string,
 ): Promise<ControlDetailData | null> {
   "use cache: private";
-  cacheTag(COMPLIANCE_TAG);
+  cacheTag(tags.compliance());
   const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {

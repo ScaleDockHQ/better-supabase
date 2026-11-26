@@ -13,7 +13,7 @@ import {
   providerPersonaTests,
   MATRIX_PERSONAS,
   openSandbox,
-  readSecurityCatalog,
+  getSecurityCatalog,
   verifyQuery,
 } from "../../../src/create/lite/index.ts";
 import { namedPreset, presetSpec } from "../../../src/preset/index.ts";
@@ -207,7 +207,7 @@ describe("a table with column insert grants", () => {
         throw new Error(query.error.message);
       }
 
-      const catalog = readSecurityCatalog(query.rows);
+      const catalog = getSecurityCatalog(query.rows);
       const drafts = catalog.tables.find((table) => table.name === "drafts");
 
       expect(drafts?.grants).toContainEqual({
@@ -252,7 +252,7 @@ describe("access matrix over random projects", () => {
           throw new Error(query.error.message);
         }
 
-        const matrix = accessMatrix(readSecurityCatalog(query.rows));
+        const matrix = accessMatrix(getSecurityCatalog(query.rows));
         expect(matrix.length).toBeGreaterThan(0);
 
         const sessions = {

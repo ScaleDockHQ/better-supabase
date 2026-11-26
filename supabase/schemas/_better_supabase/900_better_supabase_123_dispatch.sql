@@ -1,6 +1,6 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:eb80cc3560558fcd3dd6e540d0ae17cec94eebf8e3b77cfafba18effd9fdb494
+-- @bsb-hash sha256:ff123c57656f5e15fb6d775ce196c221b4d5d85d50f6e47a7db3bfc25ca12e97
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1204,7 +1204,7 @@ grant execute on function "better_supabase"."list_work_order_parts"(uuid) to aut
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function "better_supabase"."remove_work_order_part"(part_id uuid)
+create or replace function "better_supabase"."delete_work_order_part"(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1217,7 +1217,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = remove_work_order_part.part_id for update;
+  select * into v_row from "better_supabase"."work_order_parts" y where y."id" = delete_work_order_part.part_id for update;
   if not found or not (
     (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.manage'), false))
     or (coalesce(v_row."recorded_by" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.work'), false))
@@ -1228,8 +1228,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_work_order_part"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_work_order_part"(uuid) to authenticated, service_role;
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.
@@ -1459,11 +1459,11 @@ as $$ select "better_supabase"."list_work_order_parts"($1) $$;
 revoke execute on function "api"."list_work_order_parts"(uuid) from public, anon;
 grant execute on function "api"."list_work_order_parts"(uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_work_order_part"(part_id uuid)
+create or replace function "api"."delete_work_order_part"(part_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_work_order_part"($1) $$;
-revoke execute on function "api"."remove_work_order_part"(uuid) from public, anon;
-grant execute on function "api"."remove_work_order_part"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_work_order_part"($1) $$;
+revoke execute on function "api"."delete_work_order_part"(uuid) from public, anon;
+grant execute on function "api"."delete_work_order_part"(uuid) to authenticated, service_role;

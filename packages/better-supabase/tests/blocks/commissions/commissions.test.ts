@@ -35,7 +35,7 @@ const STATEMENT = {
 describe("createCommissions", () => {
   it("saves a tiered plan and accrues a commission as money", async () => {
     const t = fieldsTransport({
-      save_commission_plan: () => ({
+      upsert_commission_plan: () => ({
         id: "p1",
         organizationId: "org-1",
         name: "Tiered",

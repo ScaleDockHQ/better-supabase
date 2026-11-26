@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:e478c6a0db72a2d82c3c9fed5b3f1a65bb22a7508e446e41f011a4b7e50a368d
+-- @bsb-hash sha256:7a2a551fb4f361e715558a7510372786a327e08df06b196f5233ee06a52463f9
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -68,7 +68,7 @@ create policy bsb_posts_read on "better_supabase"."posts"
 
 -- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.
-create or replace function "better_supabase"."save_post_board"(tenant uuid, board jsonb)
+create or replace function "better_supabase"."upsert_post_board"(tenant uuid, board jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -86,25 +86,25 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_post_board.tenant is not null and coalesce(better_supabase.can('tenant', upsert_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_post_board.board) is distinct from 'object' then
+  if jsonb_typeof(upsert_post_board.board) is distinct from 'object' then
     raise exception 'board must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
-  v_id := nullif(save_post_board.board ->> 'id', '')::uuid;
+  v_id := nullif(upsert_post_board.board ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = save_post_board.tenant for update;
+    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = upsert_post_board.tenant for update;
     if v_old."id" is null then
       raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
     end if;
-    if save_post_board.board ? 'key' and save_post_board.board ->> 'key' is distinct from v_old."key" then
+    if upsert_post_board.board ? 'key' and upsert_post_board.board ->> 'key' is distinct from v_old."key" then
       raise exception 'a board''s key can''t change' using errcode = '22023', hint = 'POST_INVALID';
     end if;
   end if;
-  v_key := coalesce(v_old."key", save_post_board.board ->> 'key');
-  v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old."name");
-  v_kind := coalesce(save_post_board.board ->> 'kind', v_old."kind", 'forum');
+  v_key := coalesce(v_old."key", upsert_post_board.board ->> 'key');
+  v_name := coalesce(nullif(trim(upsert_post_board.board ->> 'name'), ''), v_old."name");
+  v_kind := coalesce(upsert_post_board.board ->> 'kind', v_old."kind", 'forum');
   if v_key is null or v_key !~ '^[a-z0-9][a-z0-9_-]{0,62}$' then
     raise exception 'a board needs a key of lowercase letters, digits, dashes and underscores' using errcode = '22023', hint = 'POST_INVALID';
   end if;
@@ -116,15 +116,15 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."post_boards" ("tenant_id", "key", "name", "description", "kind", "archived_at", "created_by")
-    values (save_post_board.tenant, v_key, v_name, nullif(trim(save_post_board.board ->> 'description'), ''), v_kind,
-      case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
+    values (upsert_post_board.tenant, v_key, v_name, nullif(trim(upsert_post_board.board ->> 'description'), ''), v_kind,
+      case when coalesce((upsert_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."post_boards" x set
       "name" = v_name,
-      "description" = case when save_post_board.board ? 'description' then nullif(trim(save_post_board.board ->> 'description'), '') else x."description" end,
+      "description" = case when upsert_post_board.board ? 'description' then nullif(trim(upsert_post_board.board ->> 'description'), '') else x."description" end,
       "kind" = v_kind,
-      "archived_at" = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
+      "archived_at" = case when upsert_post_board.board ? 'archived' then case when (upsert_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
       "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -137,8 +137,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_post_board"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_post_board"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's boards by name; archived ones only when asked.
 create or replace function "better_supabase"."list_post_boards"(tenant uuid, archived boolean default false)
@@ -1306,7 +1306,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:54b18af97989c13fea2a5a016e1d3ff2535e48c9d1359801bf383aaab5eee0b5
+-- @bsb-hash sha256:e2181a8f6ba40249a9e730b10748a24a9c1973087d1667262628b9fa5281a734
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1373,7 +1373,7 @@ create policy bsb_posts_read on "better_supabase"."posts"
 
 -- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.
-create or replace function "better_supabase"."save_post_board"(tenant uuid, board jsonb)
+create or replace function "better_supabase"."upsert_post_board"(tenant uuid, board jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1391,25 +1391,25 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_post_board.tenant is not null and coalesce(better_supabase.can('tenant', upsert_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_post_board.board) is distinct from 'object' then
+  if jsonb_typeof(upsert_post_board.board) is distinct from 'object' then
     raise exception 'board must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
-  v_id := nullif(save_post_board.board ->> 'id', '')::uuid;
+  v_id := nullif(upsert_post_board.board ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = save_post_board.tenant for update;
+    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = upsert_post_board.tenant for update;
     if v_old."id" is null then
       raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
     end if;
-    if save_post_board.board ? 'key' and save_post_board.board ->> 'key' is distinct from v_old."key" then
+    if upsert_post_board.board ? 'key' and upsert_post_board.board ->> 'key' is distinct from v_old."key" then
       raise exception 'a board''s key can''t change' using errcode = '22023', hint = 'POST_INVALID';
     end if;
   end if;
-  v_key := coalesce(v_old."key", save_post_board.board ->> 'key');
-  v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old."name");
-  v_kind := coalesce(save_post_board.board ->> 'kind', v_old."kind", 'forum');
+  v_key := coalesce(v_old."key", upsert_post_board.board ->> 'key');
+  v_name := coalesce(nullif(trim(upsert_post_board.board ->> 'name'), ''), v_old."name");
+  v_kind := coalesce(upsert_post_board.board ->> 'kind', v_old."kind", 'forum');
   if v_key is null or v_key !~ '^[a-z0-9][a-z0-9_-]{0,62}$' then
     raise exception 'a board needs a key of lowercase letters, digits, dashes and underscores' using errcode = '22023', hint = 'POST_INVALID';
   end if;
@@ -1421,15 +1421,15 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."post_boards" ("tenant_id", "key", "name", "description", "kind", "archived_at", "created_by")
-    values (save_post_board.tenant, v_key, v_name, nullif(trim(save_post_board.board ->> 'description'), ''), v_kind,
-      case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
+    values (upsert_post_board.tenant, v_key, v_name, nullif(trim(upsert_post_board.board ->> 'description'), ''), v_kind,
+      case when coalesce((upsert_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."post_boards" x set
       "name" = v_name,
-      "description" = case when save_post_board.board ? 'description' then nullif(trim(save_post_board.board ->> 'description'), '') else x."description" end,
+      "description" = case when upsert_post_board.board ? 'description' then nullif(trim(upsert_post_board.board ->> 'description'), '') else x."description" end,
       "kind" = v_kind,
-      "archived_at" = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
+      "archived_at" = case when upsert_post_board.board ? 'archived' then case when (upsert_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
       "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -1462,8 +1462,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_post_board"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_post_board"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's boards by name; archived ones only when asked.
 create or replace function "better_supabase"."list_post_boards"(tenant uuid, archived boolean default false)
@@ -2695,7 +2695,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:c8612e6a915018299f45d1759c1f3a87de8f9080054e47ea7fa5e6a835dfefeb
+-- @bsb-hash sha256:7231af20da094fc93deb07e089bd5352e6995803aae6e8c6196bd10293cede7f
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2767,7 +2767,7 @@ create policy bsb_posts_read on "app_private"."posts"
 
 -- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.
-create or replace function "app_private"."save_post_board"(tenant uuid, board jsonb)
+create or replace function "app_private"."upsert_post_board"(tenant uuid, board jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2785,25 +2785,25 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_post_board.tenant is not null and coalesce(better_supabase.can('tenant', upsert_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_post_board.board) is distinct from 'object' then
+  if jsonb_typeof(upsert_post_board.board) is distinct from 'object' then
     raise exception 'board must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
-  v_id := nullif(save_post_board.board ->> 'id', '')::uuid;
+  v_id := nullif(upsert_post_board.board ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "app_private"."post_boards" x where x."id" = v_id and x."tenant_id" = save_post_board.tenant for update;
+    select * into v_old from "app_private"."post_boards" x where x."id" = v_id and x."tenant_id" = upsert_post_board.tenant for update;
     if v_old."id" is null then
       raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
     end if;
-    if save_post_board.board ? 'key' and save_post_board.board ->> 'key' is distinct from v_old."key" then
+    if upsert_post_board.board ? 'key' and upsert_post_board.board ->> 'key' is distinct from v_old."key" then
       raise exception 'a board''s key can''t change' using errcode = '22023', hint = 'POST_INVALID';
     end if;
   end if;
-  v_key := coalesce(v_old."key", save_post_board.board ->> 'key');
-  v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old."name");
-  v_kind := coalesce(save_post_board.board ->> 'kind', v_old."kind", 'forum');
+  v_key := coalesce(v_old."key", upsert_post_board.board ->> 'key');
+  v_name := coalesce(nullif(trim(upsert_post_board.board ->> 'name'), ''), v_old."name");
+  v_kind := coalesce(upsert_post_board.board ->> 'kind', v_old."kind", 'forum');
   if v_key is null or v_key !~ '^[a-z0-9][a-z0-9_-]{0,62}$' then
     raise exception 'a board needs a key of lowercase letters, digits, dashes and underscores' using errcode = '22023', hint = 'POST_INVALID';
   end if;
@@ -2815,15 +2815,15 @@ begin
   end if;
   if v_old."id" is null then
     insert into "app_private"."post_boards" ("tenant_id", "key", "name", "description", "kind", "archived_at", "created_by")
-    values (save_post_board.tenant, v_key, v_name, nullif(trim(save_post_board.board ->> 'description'), ''), v_kind,
-      case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
+    values (upsert_post_board.tenant, v_key, v_name, nullif(trim(upsert_post_board.board ->> 'description'), ''), v_kind,
+      case when coalesce((upsert_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
     returning * into v_row;
   else
     update "app_private"."post_boards" x set
       "name" = v_name,
-      "description" = case when save_post_board.board ? 'description' then nullif(trim(save_post_board.board ->> 'description'), '') else x."description" end,
+      "description" = case when upsert_post_board.board ? 'description' then nullif(trim(upsert_post_board.board ->> 'description'), '') else x."description" end,
       "kind" = v_kind,
-      "archived_at" = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
+      "archived_at" = case when upsert_post_board.board ? 'archived' then case when (upsert_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
       "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -2836,8 +2836,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_post_board"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_post_board"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_post_board"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_post_board"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's boards by name; archived ones only when asked.
 create or replace function "app_private"."list_post_boards"(tenant uuid, archived boolean default false)
@@ -4005,7 +4005,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:ce58248d319a3b4d952dca8a39a14c4151a5fb28e62b73760e5d4094c44fca90
+-- @bsb-hash sha256:3c0448248c48bdbef7b3926b29516e1d9ed422b9b710f09ab27baf09abe139a5
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4072,7 +4072,7 @@ create policy bsb_posts_read on "better_supabase"."posts"
 
 -- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.
-create or replace function "better_supabase"."save_post_board"(tenant uuid, board jsonb)
+create or replace function "better_supabase"."upsert_post_board"(tenant uuid, board jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4090,25 +4090,25 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_post_board.tenant is not null and coalesce(better_supabase.can('tenant', upsert_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_post_board.board) is distinct from 'object' then
+  if jsonb_typeof(upsert_post_board.board) is distinct from 'object' then
     raise exception 'board must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
-  v_id := nullif(save_post_board.board ->> 'id', '')::uuid;
+  v_id := nullif(upsert_post_board.board ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = save_post_board.tenant for update;
+    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = upsert_post_board.tenant for update;
     if v_old."id" is null then
       raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
     end if;
-    if save_post_board.board ? 'key' and save_post_board.board ->> 'key' is distinct from v_old."key" then
+    if upsert_post_board.board ? 'key' and upsert_post_board.board ->> 'key' is distinct from v_old."key" then
       raise exception 'a board''s key can''t change' using errcode = '22023', hint = 'POST_INVALID';
     end if;
   end if;
-  v_key := coalesce(v_old."key", save_post_board.board ->> 'key');
-  v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old."name");
-  v_kind := coalesce(save_post_board.board ->> 'kind', v_old."kind", 'forum');
+  v_key := coalesce(v_old."key", upsert_post_board.board ->> 'key');
+  v_name := coalesce(nullif(trim(upsert_post_board.board ->> 'name'), ''), v_old."name");
+  v_kind := coalesce(upsert_post_board.board ->> 'kind', v_old."kind", 'forum');
   if v_key is null or v_key !~ '^[a-z0-9][a-z0-9_-]{0,62}$' then
     raise exception 'a board needs a key of lowercase letters, digits, dashes and underscores' using errcode = '22023', hint = 'POST_INVALID';
   end if;
@@ -4120,15 +4120,15 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."post_boards" ("tenant_id", "key", "name", "description", "kind", "archived_at", "created_by")
-    values (save_post_board.tenant, v_key, v_name, nullif(trim(save_post_board.board ->> 'description'), ''), v_kind,
-      case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
+    values (upsert_post_board.tenant, v_key, v_name, nullif(trim(upsert_post_board.board ->> 'description'), ''), v_kind,
+      case when coalesce((upsert_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."post_boards" x set
       "name" = v_name,
-      "description" = case when save_post_board.board ? 'description' then nullif(trim(save_post_board.board ->> 'description'), '') else x."description" end,
+      "description" = case when upsert_post_board.board ? 'description' then nullif(trim(upsert_post_board.board ->> 'description'), '') else x."description" end,
       "kind" = v_kind,
-      "archived_at" = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
+      "archived_at" = case when upsert_post_board.board ? 'archived' then case when (upsert_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
       "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -4141,8 +4141,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_post_board"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_post_board"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's boards by name; archived ones only when asked.
 create or replace function "better_supabase"."list_post_boards"(tenant uuid, archived boolean default false)
@@ -5297,14 +5297,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."posts" as restrictiv
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_post_board"(tenant uuid, board jsonb)
+create or replace function "api"."upsert_post_board"(tenant uuid, board jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_post_board"($1, $2) $$;
-revoke execute on function "api"."save_post_board"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_post_board"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_post_board"($1, $2) $$;
+revoke execute on function "api"."upsert_post_board"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_post_board"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_post_boards"(tenant uuid, archived boolean default false)
 returns jsonb
@@ -5445,7 +5445,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:eddfcab81d825e74b89383b4408cfe4940dcf351fbbdbafa54b846c13cc8e3d9
+-- @bsb-hash sha256:80565875176881cc807b24da12503b3e263b5863dacda37b61330f97a010846a
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5505,7 +5505,7 @@ create policy bsb_posts_select on "better_supabase"."posts"
 
 -- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.
-create or replace function "better_supabase"."save_post_board"(tenant uuid, board jsonb)
+create or replace function "better_supabase"."upsert_post_board"(tenant uuid, board jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5523,25 +5523,25 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_post_board.tenant is not null and coalesce(better_supabase.can('tenant', upsert_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_post_board.board) is distinct from 'object' then
+  if jsonb_typeof(upsert_post_board.board) is distinct from 'object' then
     raise exception 'board must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
-  v_id := nullif(save_post_board.board ->> 'id', '')::uuid;
+  v_id := nullif(upsert_post_board.board ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = save_post_board.tenant for update;
+    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."tenant_id" = upsert_post_board.tenant for update;
     if v_old."id" is null then
       raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
     end if;
-    if save_post_board.board ? 'key' and save_post_board.board ->> 'key' is distinct from v_old."key" then
+    if upsert_post_board.board ? 'key' and upsert_post_board.board ->> 'key' is distinct from v_old."key" then
       raise exception 'a board''s key can''t change' using errcode = '22023', hint = 'POST_INVALID';
     end if;
   end if;
-  v_key := coalesce(v_old."key", save_post_board.board ->> 'key');
-  v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old."name");
-  v_kind := coalesce(save_post_board.board ->> 'kind', v_old."kind"::text, 'forum');
+  v_key := coalesce(v_old."key", upsert_post_board.board ->> 'key');
+  v_name := coalesce(nullif(trim(upsert_post_board.board ->> 'name'), ''), v_old."name");
+  v_kind := coalesce(upsert_post_board.board ->> 'kind', v_old."kind"::text, 'forum');
   if v_key is null or v_key !~ '^[a-z0-9][a-z0-9_-]{0,62}$' then
     raise exception 'a board needs a key of lowercase letters, digits, dashes and underscores' using errcode = '22023', hint = 'POST_INVALID';
   end if;
@@ -5553,15 +5553,15 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."post_boards" ("tenant_id", "key", "name", "description", "kind", "archived_at", "created_by")
-    values (save_post_board.tenant, v_key, v_name, nullif(trim(save_post_board.board ->> 'description'), ''), better_supabase.as_column_type(v_kind, (null::"better_supabase"."post_boards")."kind"),
-      case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
+    values (upsert_post_board.tenant, v_key, v_name, nullif(trim(upsert_post_board.board ->> 'description'), ''), better_supabase.as_column_type(v_kind, (null::"better_supabase"."post_boards")."kind"),
+      case when coalesce((upsert_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."post_boards" x set
       "name" = v_name,
-      "description" = case when save_post_board.board ? 'description' then nullif(trim(save_post_board.board ->> 'description'), '') else x."description" end,
+      "description" = case when upsert_post_board.board ? 'description' then nullif(trim(upsert_post_board.board ->> 'description'), '') else x."description" end,
       "kind" = better_supabase.as_column_type(v_kind, (null::"better_supabase"."post_boards")."kind"),
-      "archived_at" = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
+      "archived_at" = case when upsert_post_board.board ? 'archived' then case when (upsert_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
       "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -5574,8 +5574,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_post_board"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_post_board"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's boards by name; archived ones only when asked.
 create or replace function "better_supabase"."list_post_boards"(tenant uuid, archived boolean default false)
@@ -6743,7 +6743,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:55f0a4d7a38406d626409f9ee94b209325d8996a0307a9efc3ab83f14324c19c
+-- @bsb-hash sha256:207b85b36630abc2f82e2dbbaed0b4d6f4136e2cf2bf008f6c8768284575131a
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6810,7 +6810,7 @@ create policy bsb_posts_read on "better_supabase"."posts"
 
 -- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.
-create or replace function "better_supabase"."save_post_board"(tenant uuid, board jsonb)
+create or replace function "better_supabase"."upsert_post_board"(tenant uuid, board jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6828,25 +6828,25 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_post_board.tenant is not null and coalesce(better_supabase.can('tenant', save_post_board.tenant, 'posts.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_post_board.tenant is not null and coalesce(better_supabase.can('tenant', upsert_post_board.tenant, 'posts.manage'), false))) then
     raise exception 'not allowed to manage boards' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_post_board.board) is distinct from 'object' then
+  if jsonb_typeof(upsert_post_board.board) is distinct from 'object' then
     raise exception 'board must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
-  v_id := nullif(save_post_board.board ->> 'id', '')::uuid;
+  v_id := nullif(upsert_post_board.board ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."org_id" = save_post_board.tenant for update;
+    select * into v_old from "better_supabase"."post_boards" x where x."id" = v_id and x."org_id" = upsert_post_board.tenant for update;
     if v_old."id" is null then
       raise exception 'no such board' using errcode = 'P0002', hint = 'POST_BOARD_NOT_FOUND';
     end if;
-    if save_post_board.board ? 'key' and save_post_board.board ->> 'key' is distinct from v_old."key" then
+    if upsert_post_board.board ? 'key' and upsert_post_board.board ->> 'key' is distinct from v_old."key" then
       raise exception 'a board''s key can''t change' using errcode = '22023', hint = 'POST_INVALID';
     end if;
   end if;
-  v_key := coalesce(v_old."key", save_post_board.board ->> 'key');
-  v_name := coalesce(nullif(trim(save_post_board.board ->> 'name'), ''), v_old."name");
-  v_kind := coalesce(save_post_board.board ->> 'kind', v_old."kind", 'forum');
+  v_key := coalesce(v_old."key", upsert_post_board.board ->> 'key');
+  v_name := coalesce(nullif(trim(upsert_post_board.board ->> 'name'), ''), v_old."name");
+  v_kind := coalesce(upsert_post_board.board ->> 'kind', v_old."kind", 'forum');
   if v_key is null or v_key !~ '^[a-z0-9][a-z0-9_-]{0,62}$' then
     raise exception 'a board needs a key of lowercase letters, digits, dashes and underscores' using errcode = '22023', hint = 'POST_INVALID';
   end if;
@@ -6858,15 +6858,15 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."post_boards" ("org_id", "key", "name", "description", "kind", "archived_at", "created_by")
-    values (save_post_board.tenant, v_key, v_name, nullif(trim(save_post_board.board ->> 'description'), ''), v_kind,
-      case when coalesce((save_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
+    values (upsert_post_board.tenant, v_key, v_name, nullif(trim(upsert_post_board.board ->> 'description'), ''), v_kind,
+      case when coalesce((upsert_post_board.board ->> 'archived')::boolean, false) then now() end, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."post_boards" x set
       "name" = v_name,
-      "description" = case when save_post_board.board ? 'description' then nullif(trim(save_post_board.board ->> 'description'), '') else x."description" end,
+      "description" = case when upsert_post_board.board ? 'description' then nullif(trim(upsert_post_board.board ->> 'description'), '') else x."description" end,
       "kind" = v_kind,
-      "archived_at" = case when save_post_board.board ? 'archived' then case when (save_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
+      "archived_at" = case when upsert_post_board.board ? 'archived' then case when (upsert_post_board.board ->> 'archived')::boolean then coalesce(x."archived_at", now()) end else x."archived_at" end,
       "updated_at" = now()
     where x."id" = v_old."id"
     returning * into v_row;
@@ -6879,8 +6879,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_post_board"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_post_board"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_post_board"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's boards by name; archived ones only when asked.
 create or replace function "better_supabase"."list_post_boards"(tenant uuid, archived boolean default false)

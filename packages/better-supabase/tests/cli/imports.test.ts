@@ -39,6 +39,7 @@ const BUNDLED = new Set([
 // with the library's own text rewriters (ADR 1212).
 const PURE = new Set([
   join(SRC, "sql/text-edit.ts"),
+  join(SRC, "sql/function-renames.ts"),
   join(SRC, "sql/layout-types.ts"),
   join(SRC, "sql/bsb-tags.ts"),
   join(SRC, "sql/table-facts.ts"),

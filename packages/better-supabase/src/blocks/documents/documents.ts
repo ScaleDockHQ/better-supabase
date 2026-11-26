@@ -394,14 +394,14 @@ export function createDocuments(options: DocumentsOptions): Documents {
       ),
     saveVersion: ({ documentId, state, label }) =>
       call(
-        "save_document_version",
+        "upsert_document_version",
         {
           document_id: documentId,
           state: toBase64(state),
           label: label ?? null,
         },
         (value) => {
-          const row = recordOf(value, "save_document_version");
+          const row = recordOf(value, "upsert_document_version");
 
           return {
             id: textOf(row["id"]),

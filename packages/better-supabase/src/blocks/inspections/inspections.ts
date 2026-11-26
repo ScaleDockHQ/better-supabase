@@ -512,7 +512,7 @@ export function createInspections<
     saveProgram: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_inspection_program",
+          "upsert_inspection_program",
           {
             tenant: organizationId,
             name: input.name,
@@ -522,7 +522,7 @@ export function createInspections<
             notes: input.notes ?? null,
             program_id: input.programId ?? null,
           },
-          program("save_inspection_program"),
+          program("upsert_inspection_program"),
         ),
       ),
     approveProgram: (programId) =>
@@ -584,11 +584,11 @@ export function createInspections<
       ).andThen(fields.row),
     saveChecklist: ({ inspectionId, answers, ...save }) =>
       call(
-        "save_inspection_checklist",
+        "upsert_inspection_checklist",
         { inspection_id: inspectionId, answers, draft: save.draft ?? true },
         (value) => ({
           submissionId: textOf(
-            recordOf(value, "save_inspection_checklist")["id"],
+            recordOf(value, "upsert_inspection_checklist")["id"],
           ),
         }),
       ),
@@ -652,7 +652,7 @@ export function createInspections<
     count: inspections.count,
     addFinding: ({ inspectionId, input }) =>
       call(
-        "add_inspection_finding",
+        "create_inspection_finding",
         {
           inspection_id: inspectionId,
           type: input.type,
@@ -662,7 +662,7 @@ export function createInspections<
           control_id: input.controlId ?? null,
           evidence: input.evidence ?? null,
         },
-        finding("add_inspection_finding"),
+        finding("create_inspection_finding"),
       ),
     updateFinding: ({ findingId, change }) =>
       call(

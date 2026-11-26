@@ -117,7 +117,7 @@ export function createCommandSearchController(
         state.set(view());
       };
 
-      const loadLists = async (): Promise<void> => {
+      const getLists = async (): Promise<void> => {
         listTicket += 1;
         const request = listTicket;
 
@@ -193,7 +193,7 @@ export function createCommandSearchController(
         open = next;
 
         if (open) {
-          void loadLists();
+          void getLists();
         } else {
           listTicket += 1;
         }
@@ -249,7 +249,7 @@ export function createCommandSearchController(
               return;
             }
 
-            await loadLists();
+            await getLists();
           },
         },
         start: () => {

@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { readAdminRows } from "@/features/admin-lists/admin-detail-read";
+import { getAdminRows } from "@/features/admin-lists/admin-detail-read";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsbShell } from "@/lib/supabase/server-shell";
@@ -52,7 +52,7 @@ export async function getSecurityStream(
     return "forbidden";
   }
 
-  const [row] = await readAdminRows<StreamRaw>(
+  const [row] = await getAdminRows<StreamRaw>(
     request.session,
     `select s.id::text as id, s.receiver, s.status, s.delivery_method, s.description, s.audience,
        s.events_requested, s.events_delivered, s.reason,

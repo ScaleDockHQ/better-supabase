@@ -306,7 +306,7 @@ grant execute on function "better_supabase"."validate_deadline_rules"(jsonb) to 
 -- Saves the rules of a rule set as a new draft version, creating the rule set
 -- on first use. A draft is replaced by the next save until it is approved.
 -- Service role only.
-create or replace function "better_supabase"."save_rule_version"(jurisdiction text, kind text, rules jsonb, effective_from date default null, title text default null)
+create or replace function "better_supabase"."upsert_rule_version"(jurisdiction text, kind text, rules jsonb, effective_from date default null, title text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -321,34 +321,34 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'only the service role may save rule set versions' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
-  if save_rule_version.jurisdiction is null or save_rule_version.jurisdiction !~ '^[a-z][a-z0-9_-]{0,62}$'
-    or save_rule_version.kind is null or save_rule_version.kind !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_rule_version.jurisdiction is null or upsert_rule_version.jurisdiction !~ '^[a-z][a-z0-9_-]{0,62}$'
+    or upsert_rule_version.kind is null or upsert_rule_version.kind !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a rule set has a lower case jurisdiction and kind' using errcode = '22023', hint = 'DEADLINE_RULES_INVALID';
   end if;
-  v_issues := "better_supabase"."validate_deadline_rules"(save_rule_version.rules);
+  v_issues := "better_supabase"."validate_deadline_rules"(upsert_rule_version.rules);
   if cardinality(v_issues) > 0 then
     raise exception 'invalid rules: %', array_to_string(v_issues, '; ') using errcode = '22023', hint = 'DEADLINE_RULES_INVALID', detail = jsonb_build_object('issues', to_jsonb(v_issues))::text;
   end if;
   insert into "better_supabase"."deadline_rule_sets" ("jurisdiction", "kind", "title")
-  values (save_rule_version.jurisdiction, save_rule_version.kind, nullif(btrim(save_rule_version.title), ''))
-  on conflict on constraint "deadline_rule_sets_key" do update set "title" = coalesce(nullif(btrim(save_rule_version.title), ''), "better_supabase"."deadline_rule_sets"."title")
+  values (upsert_rule_version.jurisdiction, upsert_rule_version.kind, nullif(btrim(upsert_rule_version.title), ''))
+  on conflict on constraint "deadline_rule_sets_key" do update set "title" = coalesce(nullif(btrim(upsert_rule_version.title), ''), "better_supabase"."deadline_rule_sets"."title")
   returning * into v_set;
   select * into v_row from "better_supabase"."deadline_rule_versions" x
   where x."rule_set_id" = v_set."id" and x."status" = 'draft'
   order by x."version" desc limit 1 for update;
   if found then
-    update "better_supabase"."deadline_rule_versions" x set "rules" = save_rule_version.rules, "effective_from" = save_rule_version.effective_from
+    update "better_supabase"."deadline_rule_versions" x set "rules" = upsert_rule_version.rules, "effective_from" = upsert_rule_version.effective_from
     where x."id" = v_row."id" returning * into v_row;
   else
     insert into "better_supabase"."deadline_rule_versions" ("rule_set_id", "version", "rules", "effective_from")
-    values (v_set."id", coalesce((select max(y."version") from "better_supabase"."deadline_rule_versions" y where y."rule_set_id" = v_set."id"), 0) + 1, save_rule_version.rules, save_rule_version.effective_from)
+    values (v_set."id", coalesce((select max(y."version") from "better_supabase"."deadline_rule_versions" y where y."rule_set_id" = v_set."id"), 0) + 1, upsert_rule_version.rules, upsert_rule_version.effective_from)
     returning * into v_row;
   end if;
   return jsonb_build_object('id', v_row."id", 'jurisdiction', (select z."jurisdiction" from "better_supabase"."deadline_rule_sets" z where z."id" = v_row."rule_set_id"), 'kind', (select z."kind" from "better_supabase"."deadline_rule_sets" z where z."id" = v_row."rule_set_id"), 'version', v_row."version", 'status', v_row."status", 'rules', v_row."rules", 'contentHash', v_row."content_hash", 'effectiveFrom', v_row."effective_from", 'approvedBy', v_row."approved_by", 'approvedAt', v_row."approved_at", 'createdAt', v_row."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_rule_version"(text, text, jsonb, date, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."save_rule_version"(text, text, jsonb, date, text) to service_role;
+revoke execute on function "better_supabase"."upsert_rule_version"(text, text, jsonb, date, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."upsert_rule_version"(text, text, jsonb, date, text) to service_role;
 
 -- Approves a draft version: freezes its rules with a SHA-256 content hash and
 -- records who approved it and from which date it applies. Service role only.

@@ -710,7 +710,7 @@ end;
 $$;
 ${callable(`${fn("pause_workflow_schedule")}(uuid, boolean)`)}
 
-create or replace function ${fn("remove_workflow_schedule")}(schedule uuid)
+create or replace function ${fn("delete_workflow_schedule")}(schedule uuid)
 returns boolean
 language plpgsql
 security definer
@@ -724,7 +724,7 @@ begin
   return found;
 end;
 $$;
-${callable(`${fn("remove_workflow_schedule")}(uuid)`)}
+${callable(`${fn("delete_workflow_schedule")}(uuid)`)}
 
 -- Leases up to batch due schedules for lease seconds:
 -- [{ id, tenant, name, workflow, input, cron, timezone, fireAt }].

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:1f6d86afdb8d49e6930d627395523a48409334e7dee464c20a21db821377cba8
+-- @bsb-hash sha256:9320331d4a292d04ccf83432b2d85873285a9ae836d08ab2253a948e1e2a4613
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -164,7 +164,7 @@ grant execute on function "better_supabase"."ensure_case_kinds"(uuid) to service
 
 -- Creates a kind or, with kind_id, changes one. The prefix starts the numbers
 -- of the kind's new cases; the flags set what case_close_blockers checks.
-create or replace function "better_supabase"."save_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function "better_supabase"."upsert_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -177,26 +177,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', save_case_kind.tenant, 'cases.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', upsert_case_kind.tenant, 'cases.manage'), false))) then
     raise exception 'not allowed to manage case kinds' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
-  if coalesce(save_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
+  if coalesce(upsert_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
     raise exception 'key must be lowercase letters, digits and underscores' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(length(trim(save_case_kind.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_case_kind.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(save_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
+  if coalesce(upsert_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
     raise exception 'prefix must be 1 to 6 capital letters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if save_case_kind.effectiveness_after_days is not null and save_case_kind.effectiveness_after_days not between 1 and 365 then
+  if upsert_case_kind.effectiveness_after_days is not null and upsert_case_kind.effectiveness_after_days not between 1 and 365 then
     raise exception 'effectiveness_after_days is a whole number from 1 to 365' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  perform "better_supabase"."ensure_case_kinds"(save_case_kind.tenant);
-  if save_case_kind.kind_id is null then
+  perform "better_supabase"."ensure_case_kinds"(upsert_case_kind.tenant);
+  if upsert_case_kind.kind_id is null then
     insert into "better_supabase"."case_kinds" ("tenant_id", "key", "name", "prefix", "investigation_form_id", "effectiveness_form_id", "effectiveness_after_days", "requires_root_cause", "requires_actions", "requires_effectiveness", "requires_revisions")
-    values (save_case_kind.tenant, save_case_kind.key, trim(save_case_kind.name), save_case_kind.prefix, save_case_kind.investigation_form_id, save_case_kind.effectiveness_form_id, save_case_kind.effectiveness_after_days,
-      coalesce(save_case_kind.requires_root_cause, true), coalesce(save_case_kind.requires_actions, true), coalesce(save_case_kind.requires_effectiveness, false), coalesce(save_case_kind.requires_revisions, false))
+    values (upsert_case_kind.tenant, upsert_case_kind.key, trim(upsert_case_kind.name), upsert_case_kind.prefix, upsert_case_kind.investigation_form_id, upsert_case_kind.effectiveness_form_id, upsert_case_kind.effectiveness_after_days,
+      coalesce(upsert_case_kind.requires_root_cause, true), coalesce(upsert_case_kind.requires_actions, true), coalesce(upsert_case_kind.requires_effectiveness, false), coalesce(upsert_case_kind.requires_revisions, false))
     returning * into v_row;
     update "better_supabase"."case_kinds" x set "pipeline_id" = "better_supabase"."default_pipeline"(v_row."tenant_id", 'case', v_row."id"::text)
     where x."id" = v_row."id"
@@ -204,18 +204,18 @@ begin
     null;
   else
     update "better_supabase"."case_kinds" x set
-      "key" = save_case_kind.key,
-      "name" = trim(save_case_kind.name),
-      "prefix" = save_case_kind.prefix,
-      "investigation_form_id" = save_case_kind.investigation_form_id,
-      "effectiveness_form_id" = save_case_kind.effectiveness_form_id,
-      "effectiveness_after_days" = save_case_kind.effectiveness_after_days,
-      "requires_root_cause" = coalesce(save_case_kind.requires_root_cause, true),
-      "requires_actions" = coalesce(save_case_kind.requires_actions, true),
-      "requires_effectiveness" = coalesce(save_case_kind.requires_effectiveness, false),
-      "requires_revisions" = coalesce(save_case_kind.requires_revisions, false),
+      "key" = upsert_case_kind.key,
+      "name" = trim(upsert_case_kind.name),
+      "prefix" = upsert_case_kind.prefix,
+      "investigation_form_id" = upsert_case_kind.investigation_form_id,
+      "effectiveness_form_id" = upsert_case_kind.effectiveness_form_id,
+      "effectiveness_after_days" = upsert_case_kind.effectiveness_after_days,
+      "requires_root_cause" = coalesce(upsert_case_kind.requires_root_cause, true),
+      "requires_actions" = coalesce(upsert_case_kind.requires_actions, true),
+      "requires_effectiveness" = coalesce(upsert_case_kind.requires_effectiveness, false),
+      "requires_revisions" = coalesce(upsert_case_kind.requires_revisions, false),
       "updated_at" = now()
-    where x."id" = save_case_kind.kind_id and x."tenant_id" = save_case_kind.tenant
+    where x."id" = upsert_case_kind.kind_id and x."tenant_id" = upsert_case_kind.tenant
     returning * into v_row;
     if not found then
       raise exception 'no such case kind in this organization' using errcode = 'P0002', hint = 'CASE_KIND_NOT_FOUND';
@@ -227,8 +227,8 @@ exception when unique_violation then
   raise exception 'another kind of this organization has this key' using errcode = '22023', hint = 'CASE_KIND_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
 
 -- Archives a kind: its cases stay, and no new case opens with it.
 create or replace function "better_supabase"."archive_case_kind"(kind_id uuid)
@@ -723,7 +723,7 @@ revoke execute on function "better_supabase"."link_case_action"(uuid, uuid, text
 grant execute on function "better_supabase"."link_case_action"(uuid, uuid, text, boolean) to authenticated, service_role;
 
 -- Removes an action from its case; the work item stays.
-create or replace function "better_supabase"."remove_case_action"(action_id uuid)
+create or replace function "better_supabase"."delete_case_action"(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -737,7 +737,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_action from "better_supabase"."case_actions" x where x."id" = remove_case_action.action_id;
+  select * into v_action from "better_supabase"."case_actions" x where x."id" = delete_case_action.action_id;
   if not found then
     raise exception 'no such case action' using errcode = 'P0002', hint = 'CASE_ACTION_NOT_FOUND';
   end if;
@@ -754,8 +754,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kindId', v_row."kind_id", 'number', v_row."number", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'source', v_row."source", 'reporterId', v_row."reporter_id", 'reporterContact', v_row."reporter_contact", 'ownerId', v_row."owner_id", 'occurredAt', v_row."occurred_at", 'detectedAt', v_row."detected_at", 'dueOn', v_row."due_on", 'pipelineId', v_row."pipeline_id", 'stageId', v_row."stage_id", 'stageEnteredAt', v_row."stage_entered_at", 'status', v_row."status", 'rootCause', v_row."root_cause", 'rootCauseSubmissionId', v_row."root_cause_submission_id", 'effective', v_row."effective", 'effectivenessDueOn', v_row."effectiveness_due_on", 'effectivenessNote', v_row."effectiveness_note", 'effectivenessSubmissionId', v_row."effectiveness_submission_id", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'closeNote', v_row."close_note", 'rank', v_row."rank", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_case_action"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_case_action"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_case_action"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_case_action"(uuid) to authenticated, service_role;
 
 
 -- What still stops the case in row from closing, as hint codes in check order.
@@ -1620,7 +1620,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:14e95848793ce2c58a2d4eb31e0cdb8bf2319f529ccb977a9edfa2d73df483ab
+-- @bsb-hash sha256:1a7ba63f37921d83e83ba0c720f22995cdd56a61106a87a637556980289275bd
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1783,7 +1783,7 @@ grant execute on function "better_supabase"."ensure_case_kinds"(uuid) to service
 
 -- Creates a kind or, with kind_id, changes one. The prefix starts the numbers
 -- of the kind's new cases; the flags set what case_close_blockers checks.
-create or replace function "better_supabase"."save_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function "better_supabase"."upsert_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1796,26 +1796,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', save_case_kind.tenant, 'cases.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', upsert_case_kind.tenant, 'cases.manage'), false))) then
     raise exception 'not allowed to manage case kinds' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
-  if coalesce(save_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
+  if coalesce(upsert_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
     raise exception 'key must be lowercase letters, digits and underscores' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(length(trim(save_case_kind.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_case_kind.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(save_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
+  if coalesce(upsert_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
     raise exception 'prefix must be 1 to 6 capital letters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if save_case_kind.effectiveness_after_days is not null and save_case_kind.effectiveness_after_days not between 1 and 365 then
+  if upsert_case_kind.effectiveness_after_days is not null and upsert_case_kind.effectiveness_after_days not between 1 and 365 then
     raise exception 'effectiveness_after_days is a whole number from 1 to 365' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  perform "better_supabase"."ensure_case_kinds"(save_case_kind.tenant);
-  if save_case_kind.kind_id is null then
+  perform "better_supabase"."ensure_case_kinds"(upsert_case_kind.tenant);
+  if upsert_case_kind.kind_id is null then
     insert into "better_supabase"."case_kinds" ("tenant_id", "key", "name", "prefix", "investigation_form_id", "effectiveness_form_id", "effectiveness_after_days", "requires_root_cause", "requires_actions", "requires_effectiveness", "requires_revisions")
-    values (save_case_kind.tenant, save_case_kind.key, trim(save_case_kind.name), save_case_kind.prefix, save_case_kind.investigation_form_id, save_case_kind.effectiveness_form_id, save_case_kind.effectiveness_after_days,
-      coalesce(save_case_kind.requires_root_cause, true), coalesce(save_case_kind.requires_actions, true), coalesce(save_case_kind.requires_effectiveness, false), coalesce(save_case_kind.requires_revisions, false))
+    values (upsert_case_kind.tenant, upsert_case_kind.key, trim(upsert_case_kind.name), upsert_case_kind.prefix, upsert_case_kind.investigation_form_id, upsert_case_kind.effectiveness_form_id, upsert_case_kind.effectiveness_after_days,
+      coalesce(upsert_case_kind.requires_root_cause, true), coalesce(upsert_case_kind.requires_actions, true), coalesce(upsert_case_kind.requires_effectiveness, false), coalesce(upsert_case_kind.requires_revisions, false))
     returning * into v_row;
     update "better_supabase"."case_kinds" x set "pipeline_id" = "better_supabase"."default_pipeline"(v_row."tenant_id", 'case', v_row."id"::text)
     where x."id" = v_row."id"
@@ -1833,18 +1833,18 @@ begin
   );
   else
     update "better_supabase"."case_kinds" x set
-      "key" = save_case_kind.key,
-      "name" = trim(save_case_kind.name),
-      "prefix" = save_case_kind.prefix,
-      "investigation_form_id" = save_case_kind.investigation_form_id,
-      "effectiveness_form_id" = save_case_kind.effectiveness_form_id,
-      "effectiveness_after_days" = save_case_kind.effectiveness_after_days,
-      "requires_root_cause" = coalesce(save_case_kind.requires_root_cause, true),
-      "requires_actions" = coalesce(save_case_kind.requires_actions, true),
-      "requires_effectiveness" = coalesce(save_case_kind.requires_effectiveness, false),
-      "requires_revisions" = coalesce(save_case_kind.requires_revisions, false),
+      "key" = upsert_case_kind.key,
+      "name" = trim(upsert_case_kind.name),
+      "prefix" = upsert_case_kind.prefix,
+      "investigation_form_id" = upsert_case_kind.investigation_form_id,
+      "effectiveness_form_id" = upsert_case_kind.effectiveness_form_id,
+      "effectiveness_after_days" = upsert_case_kind.effectiveness_after_days,
+      "requires_root_cause" = coalesce(upsert_case_kind.requires_root_cause, true),
+      "requires_actions" = coalesce(upsert_case_kind.requires_actions, true),
+      "requires_effectiveness" = coalesce(upsert_case_kind.requires_effectiveness, false),
+      "requires_revisions" = coalesce(upsert_case_kind.requires_revisions, false),
       "updated_at" = now()
-    where x."id" = save_case_kind.kind_id and x."tenant_id" = save_case_kind.tenant
+    where x."id" = upsert_case_kind.kind_id and x."tenant_id" = upsert_case_kind.tenant
     returning * into v_row;
     if not found then
       raise exception 'no such case kind in this organization' using errcode = 'P0002', hint = 'CASE_KIND_NOT_FOUND';
@@ -1866,8 +1866,8 @@ exception when unique_violation then
   raise exception 'another kind of this organization has this key' using errcode = '22023', hint = 'CASE_KIND_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
 
 -- Archives a kind: its cases stay, and no new case opens with it.
 create or replace function "better_supabase"."archive_case_kind"(kind_id uuid)
@@ -2571,7 +2571,7 @@ revoke execute on function "better_supabase"."link_case_action"(uuid, uuid, text
 grant execute on function "better_supabase"."link_case_action"(uuid, uuid, text, boolean) to authenticated, service_role;
 
 -- Removes an action from its case; the work item stays.
-create or replace function "better_supabase"."remove_case_action"(action_id uuid)
+create or replace function "better_supabase"."delete_case_action"(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -2585,7 +2585,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_action from "better_supabase"."case_actions" x where x."id" = remove_case_action.action_id;
+  select * into v_action from "better_supabase"."case_actions" x where x."id" = delete_case_action.action_id;
   if not found then
     raise exception 'no such case action' using errcode = 'P0002', hint = 'CASE_ACTION_NOT_FOUND';
   end if;
@@ -2612,8 +2612,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kindId', v_row."kind_id", 'number', v_row."number", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'source', v_row."source", 'reporterId', v_row."reporter_id", 'reporterContact', v_row."reporter_contact", 'ownerId', v_row."owner_id", 'occurredAt', v_row."occurred_at", 'detectedAt', v_row."detected_at", 'dueOn', v_row."due_on", 'pipelineId', v_row."pipeline_id", 'stageId', v_row."stage_id", 'stageEnteredAt', v_row."stage_entered_at", 'status', v_row."status", 'rootCause', v_row."root_cause", 'rootCauseSubmissionId', v_row."root_cause_submission_id", 'effective', v_row."effective", 'effectivenessDueOn', v_row."effectiveness_due_on", 'effectivenessNote', v_row."effectiveness_note", 'effectivenessSubmissionId', v_row."effectiveness_submission_id", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'closeNote', v_row."close_note", 'rank', v_row."rank", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_case_action"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_case_action"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_case_action"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_case_action"(uuid) to authenticated, service_role;
 
 
 -- What still stops the case in row from closing, as hint codes in check order.
@@ -3620,7 +3620,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:3fce8b8d2bcbbac31a033f2df4dd4da8a2c5df49c9aa2ffa35f78730408f021d
+-- @bsb-hash sha256:aafb23e5d186cf16bf9cf7417998da06aa7b5ea01a505bfa7726faec9e9dbed6
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3788,7 +3788,7 @@ grant execute on function "app_private"."ensure_case_kinds"(uuid) to service_rol
 
 -- Creates a kind or, with kind_id, changes one. The prefix starts the numbers
 -- of the kind's new cases; the flags set what case_close_blockers checks.
-create or replace function "app_private"."save_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function "app_private"."upsert_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3801,26 +3801,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', save_case_kind.tenant, 'cases.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', upsert_case_kind.tenant, 'cases.manage'), false))) then
     raise exception 'not allowed to manage case kinds' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
-  if coalesce(save_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
+  if coalesce(upsert_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
     raise exception 'key must be lowercase letters, digits and underscores' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(length(trim(save_case_kind.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_case_kind.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(save_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
+  if coalesce(upsert_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
     raise exception 'prefix must be 1 to 6 capital letters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if save_case_kind.effectiveness_after_days is not null and save_case_kind.effectiveness_after_days not between 1 and 365 then
+  if upsert_case_kind.effectiveness_after_days is not null and upsert_case_kind.effectiveness_after_days not between 1 and 365 then
     raise exception 'effectiveness_after_days is a whole number from 1 to 365' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  perform "app_private"."ensure_case_kinds"(save_case_kind.tenant);
-  if save_case_kind.kind_id is null then
+  perform "app_private"."ensure_case_kinds"(upsert_case_kind.tenant);
+  if upsert_case_kind.kind_id is null then
     insert into "app_private"."case_kinds" ("tenant_id", "key", "name", "prefix", "investigation_form_id", "effectiveness_form_id", "effectiveness_after_days", "requires_root_cause", "requires_actions", "requires_effectiveness", "requires_revisions")
-    values (save_case_kind.tenant, save_case_kind.key, trim(save_case_kind.name), save_case_kind.prefix, save_case_kind.investigation_form_id, save_case_kind.effectiveness_form_id, save_case_kind.effectiveness_after_days,
-      coalesce(save_case_kind.requires_root_cause, true), coalesce(save_case_kind.requires_actions, true), coalesce(save_case_kind.requires_effectiveness, false), coalesce(save_case_kind.requires_revisions, false))
+    values (upsert_case_kind.tenant, upsert_case_kind.key, trim(upsert_case_kind.name), upsert_case_kind.prefix, upsert_case_kind.investigation_form_id, upsert_case_kind.effectiveness_form_id, upsert_case_kind.effectiveness_after_days,
+      coalesce(upsert_case_kind.requires_root_cause, true), coalesce(upsert_case_kind.requires_actions, true), coalesce(upsert_case_kind.requires_effectiveness, false), coalesce(upsert_case_kind.requires_revisions, false))
     returning * into v_row;
     update "app_private"."case_kinds" x set "pipeline_id" = "better_supabase"."default_pipeline"(v_row."tenant_id", 'case', v_row."id"::text)
     where x."id" = v_row."id"
@@ -3828,18 +3828,18 @@ begin
     null;
   else
     update "app_private"."case_kinds" x set
-      "key" = save_case_kind.key,
-      "name" = trim(save_case_kind.name),
-      "prefix" = save_case_kind.prefix,
-      "investigation_form_id" = save_case_kind.investigation_form_id,
-      "effectiveness_form_id" = save_case_kind.effectiveness_form_id,
-      "effectiveness_after_days" = save_case_kind.effectiveness_after_days,
-      "requires_root_cause" = coalesce(save_case_kind.requires_root_cause, true),
-      "requires_actions" = coalesce(save_case_kind.requires_actions, true),
-      "requires_effectiveness" = coalesce(save_case_kind.requires_effectiveness, false),
-      "requires_revisions" = coalesce(save_case_kind.requires_revisions, false),
+      "key" = upsert_case_kind.key,
+      "name" = trim(upsert_case_kind.name),
+      "prefix" = upsert_case_kind.prefix,
+      "investigation_form_id" = upsert_case_kind.investigation_form_id,
+      "effectiveness_form_id" = upsert_case_kind.effectiveness_form_id,
+      "effectiveness_after_days" = upsert_case_kind.effectiveness_after_days,
+      "requires_root_cause" = coalesce(upsert_case_kind.requires_root_cause, true),
+      "requires_actions" = coalesce(upsert_case_kind.requires_actions, true),
+      "requires_effectiveness" = coalesce(upsert_case_kind.requires_effectiveness, false),
+      "requires_revisions" = coalesce(upsert_case_kind.requires_revisions, false),
       "updated_at" = now()
-    where x."id" = save_case_kind.kind_id and x."tenant_id" = save_case_kind.tenant
+    where x."id" = upsert_case_kind.kind_id and x."tenant_id" = upsert_case_kind.tenant
     returning * into v_row;
     if not found then
       raise exception 'no such case kind in this organization' using errcode = 'P0002', hint = 'CASE_KIND_NOT_FOUND';
@@ -3851,8 +3851,8 @@ exception when unique_violation then
   raise exception 'another kind of this organization has this key' using errcode = '22023', hint = 'CASE_KIND_INVALID';
 end;
 $$;
-revoke execute on function "app_private"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
-grant execute on function "app_private"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
+grant execute on function "app_private"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
 
 -- Archives a kind: its cases stay, and no new case opens with it.
 create or replace function "app_private"."archive_case_kind"(kind_id uuid)
@@ -4347,7 +4347,7 @@ revoke execute on function "app_private"."link_case_action"(uuid, uuid, text, bo
 grant execute on function "app_private"."link_case_action"(uuid, uuid, text, boolean) to authenticated, service_role;
 
 -- Removes an action from its case; the work item stays.
-create or replace function "app_private"."remove_case_action"(action_id uuid)
+create or replace function "app_private"."delete_case_action"(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -4361,7 +4361,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_action from "app_private"."case_actions" x where x."id" = remove_case_action.action_id;
+  select * into v_action from "app_private"."case_actions" x where x."id" = delete_case_action.action_id;
   if not found then
     raise exception 'no such case action' using errcode = 'P0002', hint = 'CASE_ACTION_NOT_FOUND';
   end if;
@@ -4378,8 +4378,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kindId', v_row."kind_id", 'number', v_row."number", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'source', v_row."source", 'reporterId', v_row."reporter_id", 'reporterContact', v_row."reporter_contact", 'ownerId', v_row."owner_id", 'occurredAt', v_row."occurred_at", 'detectedAt', v_row."detected_at", 'dueOn', v_row."due_on", 'pipelineId', v_row."pipeline_id", 'stageId', v_row."stage_id", 'stageEnteredAt', v_row."stage_entered_at", 'status', v_row."status", 'rootCause', v_row."root_cause", 'rootCauseSubmissionId', v_row."root_cause_submission_id", 'effective', v_row."effective", 'effectivenessDueOn', v_row."effectiveness_due_on", 'effectivenessNote', v_row."effectiveness_note", 'effectivenessSubmissionId', v_row."effectiveness_submission_id", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'closeNote', v_row."close_note", 'rank', v_row."rank", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."remove_case_action"(uuid) from public, anon;
-grant execute on function "app_private"."remove_case_action"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_case_action"(uuid) from public, anon;
+grant execute on function "app_private"."delete_case_action"(uuid) to authenticated, service_role;
 
 
 -- What still stops the case in row from closing, as hint codes in check order.
@@ -5244,7 +5244,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:1fd6f2c6cdb9dacdc8118d34ba575a869c16c3a09786c269229e1f4fc5bacca7
+-- @bsb-hash sha256:9faf35ea721dc6b5afc855e1793c3c54796044d456c1cbb9a90a666a369b19d8
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5407,7 +5407,7 @@ grant execute on function "better_supabase"."ensure_case_kinds"(uuid) to service
 
 -- Creates a kind or, with kind_id, changes one. The prefix starts the numbers
 -- of the kind's new cases; the flags set what case_close_blockers checks.
-create or replace function "better_supabase"."save_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function "better_supabase"."upsert_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5420,26 +5420,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', save_case_kind.tenant, 'cases.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', upsert_case_kind.tenant, 'cases.manage'), false))) then
     raise exception 'not allowed to manage case kinds' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
-  if coalesce(save_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
+  if coalesce(upsert_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
     raise exception 'key must be lowercase letters, digits and underscores' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(length(trim(save_case_kind.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_case_kind.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(save_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
+  if coalesce(upsert_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
     raise exception 'prefix must be 1 to 6 capital letters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if save_case_kind.effectiveness_after_days is not null and save_case_kind.effectiveness_after_days not between 1 and 365 then
+  if upsert_case_kind.effectiveness_after_days is not null and upsert_case_kind.effectiveness_after_days not between 1 and 365 then
     raise exception 'effectiveness_after_days is a whole number from 1 to 365' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  perform "better_supabase"."ensure_case_kinds"(save_case_kind.tenant);
-  if save_case_kind.kind_id is null then
+  perform "better_supabase"."ensure_case_kinds"(upsert_case_kind.tenant);
+  if upsert_case_kind.kind_id is null then
     insert into "better_supabase"."case_kinds" ("tenant_id", "key", "name", "prefix", "investigation_form_id", "effectiveness_form_id", "effectiveness_after_days", "requires_root_cause", "requires_actions", "requires_effectiveness", "requires_revisions")
-    values (save_case_kind.tenant, save_case_kind.key, trim(save_case_kind.name), save_case_kind.prefix, save_case_kind.investigation_form_id, save_case_kind.effectiveness_form_id, save_case_kind.effectiveness_after_days,
-      coalesce(save_case_kind.requires_root_cause, true), coalesce(save_case_kind.requires_actions, true), coalesce(save_case_kind.requires_effectiveness, false), coalesce(save_case_kind.requires_revisions, false))
+    values (upsert_case_kind.tenant, upsert_case_kind.key, trim(upsert_case_kind.name), upsert_case_kind.prefix, upsert_case_kind.investigation_form_id, upsert_case_kind.effectiveness_form_id, upsert_case_kind.effectiveness_after_days,
+      coalesce(upsert_case_kind.requires_root_cause, true), coalesce(upsert_case_kind.requires_actions, true), coalesce(upsert_case_kind.requires_effectiveness, false), coalesce(upsert_case_kind.requires_revisions, false))
     returning * into v_row;
     update "better_supabase"."case_kinds" x set "pipeline_id" = "better_supabase"."default_pipeline"(v_row."tenant_id", 'case', v_row."id"::text)
     where x."id" = v_row."id"
@@ -5447,18 +5447,18 @@ begin
     null;
   else
     update "better_supabase"."case_kinds" x set
-      "key" = save_case_kind.key,
-      "name" = trim(save_case_kind.name),
-      "prefix" = save_case_kind.prefix,
-      "investigation_form_id" = save_case_kind.investigation_form_id,
-      "effectiveness_form_id" = save_case_kind.effectiveness_form_id,
-      "effectiveness_after_days" = save_case_kind.effectiveness_after_days,
-      "requires_root_cause" = coalesce(save_case_kind.requires_root_cause, true),
-      "requires_actions" = coalesce(save_case_kind.requires_actions, true),
-      "requires_effectiveness" = coalesce(save_case_kind.requires_effectiveness, false),
-      "requires_revisions" = coalesce(save_case_kind.requires_revisions, false),
+      "key" = upsert_case_kind.key,
+      "name" = trim(upsert_case_kind.name),
+      "prefix" = upsert_case_kind.prefix,
+      "investigation_form_id" = upsert_case_kind.investigation_form_id,
+      "effectiveness_form_id" = upsert_case_kind.effectiveness_form_id,
+      "effectiveness_after_days" = upsert_case_kind.effectiveness_after_days,
+      "requires_root_cause" = coalesce(upsert_case_kind.requires_root_cause, true),
+      "requires_actions" = coalesce(upsert_case_kind.requires_actions, true),
+      "requires_effectiveness" = coalesce(upsert_case_kind.requires_effectiveness, false),
+      "requires_revisions" = coalesce(upsert_case_kind.requires_revisions, false),
       "updated_at" = now()
-    where x."id" = save_case_kind.kind_id and x."tenant_id" = save_case_kind.tenant
+    where x."id" = upsert_case_kind.kind_id and x."tenant_id" = upsert_case_kind.tenant
     returning * into v_row;
     if not found then
       raise exception 'no such case kind in this organization' using errcode = 'P0002', hint = 'CASE_KIND_NOT_FOUND';
@@ -5470,8 +5470,8 @@ exception when unique_violation then
   raise exception 'another kind of this organization has this key' using errcode = '22023', hint = 'CASE_KIND_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
 
 -- Archives a kind: its cases stay, and no new case opens with it.
 create or replace function "better_supabase"."archive_case_kind"(kind_id uuid)
@@ -5966,7 +5966,7 @@ revoke execute on function "better_supabase"."link_case_action"(uuid, uuid, text
 grant execute on function "better_supabase"."link_case_action"(uuid, uuid, text, boolean) to authenticated, service_role;
 
 -- Removes an action from its case; the work item stays.
-create or replace function "better_supabase"."remove_case_action"(action_id uuid)
+create or replace function "better_supabase"."delete_case_action"(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -5980,7 +5980,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_action from "better_supabase"."case_actions" x where x."id" = remove_case_action.action_id;
+  select * into v_action from "better_supabase"."case_actions" x where x."id" = delete_case_action.action_id;
   if not found then
     raise exception 'no such case action' using errcode = 'P0002', hint = 'CASE_ACTION_NOT_FOUND';
   end if;
@@ -5997,8 +5997,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kindId', v_row."kind_id", 'number', v_row."number", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'source', v_row."source", 'reporterId', v_row."reporter_id", 'reporterContact', v_row."reporter_contact", 'ownerId', v_row."owner_id", 'occurredAt', v_row."occurred_at", 'detectedAt', v_row."detected_at", 'dueOn', v_row."due_on", 'pipelineId', v_row."pipeline_id", 'stageId', v_row."stage_id", 'stageEnteredAt', v_row."stage_entered_at", 'status', v_row."status", 'rootCause', v_row."root_cause", 'rootCauseSubmissionId', v_row."root_cause_submission_id", 'effective', v_row."effective", 'effectivenessDueOn', v_row."effectiveness_due_on", 'effectivenessNote', v_row."effectiveness_note", 'effectivenessSubmissionId', v_row."effectiveness_submission_id", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'closeNote', v_row."close_note", 'rank', v_row."rank", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_case_action"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_case_action"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_case_action"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_case_action"(uuid) to authenticated, service_role;
 
 
 -- What still stops the case in row from closing, as hint codes in check order.
@@ -6859,14 +6859,14 @@ as $$ select "better_supabase"."ensure_case_kinds"($1) $$;
 revoke execute on function "api"."ensure_case_kinds"(uuid) from public, anon, authenticated;
 grant execute on function "api"."ensure_case_kinds"(uuid) to service_role;
 
-create or replace function "api"."save_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function "api"."upsert_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_case_kind"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) $$;
-revoke execute on function "api"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
-grant execute on function "api"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_case_kind"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) $$;
+revoke execute on function "api"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
+grant execute on function "api"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
 
 create or replace function "api"."archive_case_kind"(kind_id uuid)
 returns jsonb
@@ -6967,14 +6967,14 @@ as $$ select "better_supabase"."link_case_action"($1, $2, $3, $4) $$;
 revoke execute on function "api"."link_case_action"(uuid, uuid, text, boolean) from public, anon;
 grant execute on function "api"."link_case_action"(uuid, uuid, text, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_case_action"(action_id uuid)
+create or replace function "api"."delete_case_action"(action_id uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_case_action"($1) $$;
-revoke execute on function "api"."remove_case_action"(uuid) from public, anon;
-grant execute on function "api"."remove_case_action"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_case_action"($1) $$;
+revoke execute on function "api"."delete_case_action"(uuid) from public, anon;
+grant execute on function "api"."delete_case_action"(uuid) to authenticated, service_role;
 
 create or replace function "api"."case_blockers_of"(target "better_supabase"."cases")
 returns text[]
@@ -7107,7 +7107,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:300cca5f7e7b37f6e123b72002ed34fddc64b7bdf94515b67c075e3c2f9ec59a
+-- @bsb-hash sha256:19c86d8b9bfebc566eac9d1632be8129c4cab4fd43dd606df5ad9c1586516273
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7254,7 +7254,7 @@ grant execute on function "better_supabase"."ensure_case_kinds"(uuid) to service
 
 -- Creates a kind or, with kind_id, changes one. The prefix starts the numbers
 -- of the kind's new cases; the flags set what case_close_blockers checks.
-create or replace function "better_supabase"."save_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function "better_supabase"."upsert_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7267,26 +7267,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', save_case_kind.tenant, 'cases.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', upsert_case_kind.tenant, 'cases.manage'), false))) then
     raise exception 'not allowed to manage case kinds' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
-  if coalesce(save_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
+  if coalesce(upsert_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
     raise exception 'key must be lowercase letters, digits and underscores' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(length(trim(save_case_kind.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_case_kind.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(save_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
+  if coalesce(upsert_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
     raise exception 'prefix must be 1 to 6 capital letters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if save_case_kind.effectiveness_after_days is not null and save_case_kind.effectiveness_after_days not between 1 and 365 then
+  if upsert_case_kind.effectiveness_after_days is not null and upsert_case_kind.effectiveness_after_days not between 1 and 365 then
     raise exception 'effectiveness_after_days is a whole number from 1 to 365' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  perform "better_supabase"."ensure_case_kinds"(save_case_kind.tenant);
-  if save_case_kind.kind_id is null then
+  perform "better_supabase"."ensure_case_kinds"(upsert_case_kind.tenant);
+  if upsert_case_kind.kind_id is null then
     insert into "better_supabase"."case_kinds" ("tenant_id", "key", "name", "prefix", "investigation_form_id", "effectiveness_form_id", "effectiveness_after_days", "requires_root_cause", "requires_actions", "requires_effectiveness", "requires_revisions")
-    values (save_case_kind.tenant, save_case_kind.key, trim(save_case_kind.name), save_case_kind.prefix, save_case_kind.investigation_form_id, save_case_kind.effectiveness_form_id, save_case_kind.effectiveness_after_days,
-      coalesce(save_case_kind.requires_root_cause, true), coalesce(save_case_kind.requires_actions, true), coalesce(save_case_kind.requires_effectiveness, false), coalesce(save_case_kind.requires_revisions, false))
+    values (upsert_case_kind.tenant, upsert_case_kind.key, trim(upsert_case_kind.name), upsert_case_kind.prefix, upsert_case_kind.investigation_form_id, upsert_case_kind.effectiveness_form_id, upsert_case_kind.effectiveness_after_days,
+      coalesce(upsert_case_kind.requires_root_cause, true), coalesce(upsert_case_kind.requires_actions, true), coalesce(upsert_case_kind.requires_effectiveness, false), coalesce(upsert_case_kind.requires_revisions, false))
     returning * into v_row;
     update "better_supabase"."case_kinds" x set "pipeline_id" = "better_supabase"."default_pipeline"(v_row."tenant_id", 'case', v_row."id"::text)
     where x."id" = v_row."id"
@@ -7294,18 +7294,18 @@ begin
     null;
   else
     update "better_supabase"."case_kinds" x set
-      "key" = save_case_kind.key,
-      "name" = trim(save_case_kind.name),
-      "prefix" = save_case_kind.prefix,
-      "investigation_form_id" = save_case_kind.investigation_form_id,
-      "effectiveness_form_id" = save_case_kind.effectiveness_form_id,
-      "effectiveness_after_days" = save_case_kind.effectiveness_after_days,
-      "requires_root_cause" = coalesce(save_case_kind.requires_root_cause, true),
-      "requires_actions" = coalesce(save_case_kind.requires_actions, true),
-      "requires_effectiveness" = coalesce(save_case_kind.requires_effectiveness, false),
-      "requires_revisions" = coalesce(save_case_kind.requires_revisions, false),
+      "key" = upsert_case_kind.key,
+      "name" = trim(upsert_case_kind.name),
+      "prefix" = upsert_case_kind.prefix,
+      "investigation_form_id" = upsert_case_kind.investigation_form_id,
+      "effectiveness_form_id" = upsert_case_kind.effectiveness_form_id,
+      "effectiveness_after_days" = upsert_case_kind.effectiveness_after_days,
+      "requires_root_cause" = coalesce(upsert_case_kind.requires_root_cause, true),
+      "requires_actions" = coalesce(upsert_case_kind.requires_actions, true),
+      "requires_effectiveness" = coalesce(upsert_case_kind.requires_effectiveness, false),
+      "requires_revisions" = coalesce(upsert_case_kind.requires_revisions, false),
       "updated_at" = now()
-    where x."id" = save_case_kind.kind_id and x."tenant_id" = save_case_kind.tenant
+    where x."id" = upsert_case_kind.kind_id and x."tenant_id" = upsert_case_kind.tenant
     returning * into v_row;
     if not found then
       raise exception 'no such case kind in this organization' using errcode = 'P0002', hint = 'CASE_KIND_NOT_FOUND';
@@ -7317,8 +7317,8 @@ exception when unique_violation then
   raise exception 'another kind of this organization has this key' using errcode = '22023', hint = 'CASE_KIND_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
 
 -- Archives a kind: its cases stay, and no new case opens with it.
 create or replace function "better_supabase"."archive_case_kind"(kind_id uuid)
@@ -7813,7 +7813,7 @@ revoke execute on function "better_supabase"."link_case_action"(uuid, uuid, text
 grant execute on function "better_supabase"."link_case_action"(uuid, uuid, text, boolean) to authenticated, service_role;
 
 -- Removes an action from its case; the work item stays.
-create or replace function "better_supabase"."remove_case_action"(action_id uuid)
+create or replace function "better_supabase"."delete_case_action"(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -7827,7 +7827,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_action from "better_supabase"."case_actions" x where x."id" = remove_case_action.action_id;
+  select * into v_action from "better_supabase"."case_actions" x where x."id" = delete_case_action.action_id;
   if not found then
     raise exception 'no such case action' using errcode = 'P0002', hint = 'CASE_ACTION_NOT_FOUND';
   end if;
@@ -7844,8 +7844,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kindId', v_row."kind_id", 'number', v_row."number", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'source', v_row."source", 'reporterId', v_row."reporter_id", 'reporterContact', v_row."reporter_contact", 'ownerId', v_row."owner_id", 'occurredAt', v_row."occurred_at", 'detectedAt', v_row."detected_at", 'dueOn', v_row."due_on", 'pipelineId', v_row."pipeline_id", 'stageId', v_row."stage_id", 'stageEnteredAt', v_row."stage_entered_at", 'status', v_row."status", 'rootCause', v_row."root_cause", 'rootCauseSubmissionId', v_row."root_cause_submission_id", 'effective', v_row."effective", 'effectivenessDueOn', v_row."effectiveness_due_on", 'effectivenessNote', v_row."effectiveness_note", 'effectivenessSubmissionId', v_row."effectiveness_submission_id", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'closeNote', v_row."close_note", 'rank', v_row."rank", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_case_action"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_case_action"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_case_action"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_case_action"(uuid) to authenticated, service_role;
 
 
 -- What still stops the case in row from closing, as hint codes in check order.
@@ -8710,7 +8710,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:0a00dd434219ca2275c3c4b65d6b6a9d5a39e4523755dcdee71afcd7fd9d749f
+-- @bsb-hash sha256:66138a1784855a53c3d3203fc158b799b0b02efc166254a8ab380177f5b21dab
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8873,7 +8873,7 @@ grant execute on function "better_supabase"."ensure_case_kinds"(uuid) to service
 
 -- Creates a kind or, with kind_id, changes one. The prefix starts the numbers
 -- of the kind's new cases; the flags set what case_close_blockers checks.
-create or replace function "better_supabase"."save_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
+create or replace function "better_supabase"."upsert_case_kind"(tenant uuid, key text, name text, prefix text, investigation_form_id uuid default null, effectiveness_form_id uuid default null, effectiveness_after_days integer default null, requires_root_cause boolean default true, requires_actions boolean default true, requires_effectiveness boolean default false, requires_revisions boolean default false, kind_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8886,26 +8886,26 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', save_case_kind.tenant, 'cases.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_case_kind.tenant is not null and coalesce(better_supabase.can('tenant', upsert_case_kind.tenant, 'cases.manage'), false))) then
     raise exception 'not allowed to manage case kinds' using errcode = '42501', hint = 'CASE_FORBIDDEN';
   end if;
-  if coalesce(save_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
+  if coalesce(upsert_case_kind.key, '') !~ '^[a-z][a-z0-9_]{0,40}$' then
     raise exception 'key must be lowercase letters, digits and underscores' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(length(trim(save_case_kind.name)), 0) not between 1 and 200 then
+  if coalesce(length(trim(upsert_case_kind.name)), 0) not between 1 and 200 then
     raise exception 'name must be 1 to 200 characters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if coalesce(save_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
+  if coalesce(upsert_case_kind.prefix, '') !~ '^[A-Z]{1,6}$' then
     raise exception 'prefix must be 1 to 6 capital letters' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  if save_case_kind.effectiveness_after_days is not null and save_case_kind.effectiveness_after_days not between 1 and 365 then
+  if upsert_case_kind.effectiveness_after_days is not null and upsert_case_kind.effectiveness_after_days not between 1 and 365 then
     raise exception 'effectiveness_after_days is a whole number from 1 to 365' using errcode = '22023', hint = 'CASE_KIND_INVALID';
   end if;
-  perform "better_supabase"."ensure_case_kinds"(save_case_kind.tenant);
-  if save_case_kind.kind_id is null then
+  perform "better_supabase"."ensure_case_kinds"(upsert_case_kind.tenant);
+  if upsert_case_kind.kind_id is null then
     insert into "better_supabase"."case_kinds" ("org_id", "key", "name", "prefix", "investigation_form_id", "effectiveness_form_id", "effectiveness_after_days", "requires_root_cause", "requires_actions", "requires_effectiveness", "requires_revisions")
-    values (save_case_kind.tenant, save_case_kind.key, trim(save_case_kind.name), save_case_kind.prefix, save_case_kind.investigation_form_id, save_case_kind.effectiveness_form_id, save_case_kind.effectiveness_after_days,
-      coalesce(save_case_kind.requires_root_cause, true), coalesce(save_case_kind.requires_actions, true), coalesce(save_case_kind.requires_effectiveness, false), coalesce(save_case_kind.requires_revisions, false))
+    values (upsert_case_kind.tenant, upsert_case_kind.key, trim(upsert_case_kind.name), upsert_case_kind.prefix, upsert_case_kind.investigation_form_id, upsert_case_kind.effectiveness_form_id, upsert_case_kind.effectiveness_after_days,
+      coalesce(upsert_case_kind.requires_root_cause, true), coalesce(upsert_case_kind.requires_actions, true), coalesce(upsert_case_kind.requires_effectiveness, false), coalesce(upsert_case_kind.requires_revisions, false))
     returning * into v_row;
     update "better_supabase"."case_kinds" x set "pipeline_id" = "better_supabase"."default_pipeline"(v_row."org_id", 'case', v_row."id"::text)
     where x."id" = v_row."id"
@@ -8913,18 +8913,18 @@ begin
     null;
   else
     update "better_supabase"."case_kinds" x set
-      "key" = save_case_kind.key,
-      "name" = trim(save_case_kind.name),
-      "prefix" = save_case_kind.prefix,
-      "investigation_form_id" = save_case_kind.investigation_form_id,
-      "effectiveness_form_id" = save_case_kind.effectiveness_form_id,
-      "effectiveness_after_days" = save_case_kind.effectiveness_after_days,
-      "requires_root_cause" = coalesce(save_case_kind.requires_root_cause, true),
-      "requires_actions" = coalesce(save_case_kind.requires_actions, true),
-      "requires_effectiveness" = coalesce(save_case_kind.requires_effectiveness, false),
-      "requires_revisions" = coalesce(save_case_kind.requires_revisions, false),
+      "key" = upsert_case_kind.key,
+      "name" = trim(upsert_case_kind.name),
+      "prefix" = upsert_case_kind.prefix,
+      "investigation_form_id" = upsert_case_kind.investigation_form_id,
+      "effectiveness_form_id" = upsert_case_kind.effectiveness_form_id,
+      "effectiveness_after_days" = upsert_case_kind.effectiveness_after_days,
+      "requires_root_cause" = coalesce(upsert_case_kind.requires_root_cause, true),
+      "requires_actions" = coalesce(upsert_case_kind.requires_actions, true),
+      "requires_effectiveness" = coalesce(upsert_case_kind.requires_effectiveness, false),
+      "requires_revisions" = coalesce(upsert_case_kind.requires_revisions, false),
       "updated_at" = now()
-    where x."id" = save_case_kind.kind_id and x."org_id" = save_case_kind.tenant
+    where x."id" = upsert_case_kind.kind_id and x."org_id" = upsert_case_kind.tenant
     returning * into v_row;
     if not found then
       raise exception 'no such case kind in this organization' using errcode = 'P0002', hint = 'CASE_KIND_NOT_FOUND';
@@ -8936,8 +8936,8 @@ exception when unique_violation then
   raise exception 'another kind of this organization has this key' using errcode = '22023', hint = 'CASE_KIND_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_case_kind"(uuid, text, text, text, uuid, uuid, integer, boolean, boolean, boolean, boolean, uuid) to authenticated, service_role;
 
 -- Archives a kind: its cases stay, and no new case opens with it.
 create or replace function "better_supabase"."archive_case_kind"(kind_id uuid)
@@ -9432,7 +9432,7 @@ revoke execute on function "better_supabase"."link_case_action"(uuid, uuid, text
 grant execute on function "better_supabase"."link_case_action"(uuid, uuid, text, boolean) to authenticated, service_role;
 
 -- Removes an action from its case; the work item stays.
-create or replace function "better_supabase"."remove_case_action"(action_id uuid)
+create or replace function "better_supabase"."delete_case_action"(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -9446,7 +9446,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_action from "better_supabase"."case_actions" x where x."id" = remove_case_action.action_id;
+  select * into v_action from "better_supabase"."case_actions" x where x."id" = delete_case_action.action_id;
   if not found then
     raise exception 'no such case action' using errcode = 'P0002', hint = 'CASE_ACTION_NOT_FOUND';
   end if;
@@ -9463,8 +9463,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'kindId', v_row."kind_id", 'number', v_row."number", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'source', v_row."source", 'reporterId', v_row."reporter_id", 'reporterContact', v_row."reporter_contact", 'ownerId', v_row."owner_id", 'occurredAt', v_row."occurred_at", 'detectedAt', v_row."detected_at", 'dueOn', v_row."due_on", 'pipelineId', v_row."pipeline_id", 'stageId', v_row."stage_id", 'stageEnteredAt', v_row."stage_entered_at", 'status', v_row."status", 'rootCause', v_row."root_cause", 'rootCauseSubmissionId', v_row."root_cause_submission_id", 'effective', v_row."effective", 'effectivenessDueOn', v_row."effectiveness_due_on", 'effectivenessNote', v_row."effectiveness_note", 'effectivenessSubmissionId', v_row."effectiveness_submission_id", 'closedAt', v_row."closed_at", 'closedBy', v_row."closed_by", 'closeNote', v_row."close_note", 'rank', v_row."rank", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_case_action"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_case_action"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_case_action"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_case_action"(uuid) to authenticated, service_role;
 
 
 -- What still stops the case in row from closing, as hint codes in check order.

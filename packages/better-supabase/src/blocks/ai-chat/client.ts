@@ -117,7 +117,7 @@ export function createAiChatsController(
         state.set({ items, hasMore: cursor !== undefined, error: undefined });
       };
 
-      const loadWindow = async (): Promise<void> => {
+      const getWindow = async (): Promise<void> => {
         if (user === null) {
           return;
         }
@@ -169,7 +169,7 @@ export function createAiChatsController(
 
       return {
         actions: {
-          refresh: loadWindow,
+          refresh: getWindow,
           loadMore: async () => {
             if (next === undefined || user === null) {
               return;
@@ -245,12 +245,12 @@ export function createAiChatsController(
             pages = 1;
             next = undefined;
             state.set({ items: undefined, hasMore: false, error: undefined });
-            void loadWindow();
+            void getWindow();
 
             const leave = prefix
               ? options.ports.topic(aiChatListTopic(userId, prefix), {
-                  onMessage: () => void loadWindow(),
-                  onRejoin: () => void loadWindow(),
+                  onMessage: () => void getWindow(),
+                  onRejoin: () => void getWindow(),
                   onStatus: (status) => {
                     state.set({ status });
                   },
@@ -335,7 +335,7 @@ export function createAiChatTreeController(
         );
       };
 
-      const loadPath = async (leafId?: string): Promise<void> => {
+      const getPath = async (leafId?: string): Promise<void> => {
         if (!chatId) {
           return;
         }
@@ -366,7 +366,7 @@ export function createAiChatTreeController(
         }
 
         if (result.ok) {
-          await loadPath(result.data);
+          await getPath(result.data);
         } else {
           state.set({ error: result.error });
         }
@@ -374,7 +374,7 @@ export function createAiChatTreeController(
 
       return {
         actions: {
-          refresh: () => loadPath(),
+          refresh: () => getPath(),
           switchBranch,
           step: async ({ messageId, offset }) => {
             if (!chatId) {
@@ -404,17 +404,17 @@ export function createAiChatTreeController(
           },
         },
         start: () => {
-          void loadPath();
+          void getPath();
 
           const leave =
             chatId && prefix
               ? options.ports.topic(aiChatTopic(chatId, prefix), {
                   onMessage: (event) => {
                     if (event === "message.saved" || event === "leaf.changed") {
-                      void loadPath();
+                      void getPath();
                     }
                   },
-                  onRejoin: () => void loadPath(),
+                  onRejoin: () => void getPath(),
                   onStatus: (status) => {
                     state.set({ status });
                   },

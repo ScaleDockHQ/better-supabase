@@ -865,7 +865,7 @@ ${userGrant(`${fn("list_work_order_parts")}(uuid)`)}
 
 -- Removes a part recorded by mistake: the dispatcher, or the technician who
 -- recorded it.
-create or replace function ${fn("remove_work_order_part")}(part_id uuid)
+create or replace function ${fn("delete_work_order_part")}(part_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -875,7 +875,7 @@ as $$
 declare
   v_row ${parts}%rowtype;
 begin
-  select * into v_row from ${parts} y where y.${q("id")} = remove_work_order_part.part_id for update;
+  select * into v_row from ${parts} y where y.${q("id")} = delete_work_order_part.part_id for update;
   if not found or not (
     ${allowed(`v_row.${q("tenant")}`, manage)}
     or (coalesce(v_row.${q("recordedBy")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${q("tenant")}`, work)})
@@ -886,7 +886,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_work_order_part")}(uuid)`)}
+${userGrant(`${fn("delete_work_order_part")}(uuid)`)}
 `;
 }
 

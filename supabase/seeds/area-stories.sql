@@ -69,12 +69,12 @@ declare
   insp jsonb;
   found jsonb;
 begin
-  bench := better_supabase.save_work_center(t,
+  bench := better_supabase.upsert_work_center(t,
     jsonb_build_object('name', 'Assembly bench', 'hoursPerDay', 8, 'costRate', '4500', 'currency', 'EUR'), null);
 
   perform better_supabase.adjust_stock(filter, '00000000-0000-4000-8000-0000000b2001', 20, 'receipt', 'Filters for the grinder build', null);
 
-  bom := better_supabase.save_bom(t, grinder,
+  bom := better_supabase.upsert_bom(t, grinder,
     jsonb_build_object('quantity', 1, 'note', 'Grinder with the steel filter in the box',
       'components', jsonb_build_array(
         jsonb_build_object('variantId', filter, 'quantity', 1, 'scrapBps', 0, 'operation', null)),
@@ -105,13 +105,13 @@ begin
       'plannedStart', current_date::text, 'plannedEnd', current_date::text));
   perform better_supabase.start_inspection((insp ->> 'id')::uuid);
 
-  found := better_supabase.add_inspection_finding((insp ->> 'id')::uuid, 'major_nonconformity',
+  found := better_supabase.create_inspection_finding((insp ->> 'id')::uuid, 'major_nonconformity',
     'Calibration records missing for the torque tool', 'The tool was used after its due date.', 'ISO 9001 7.1.5', null, null);
   perform better_supabase.raise_inspection_finding_case((found ->> 'id')::uuid, 'finding', null);
 
-  perform better_supabase.add_inspection_finding((insp ->> 'id')::uuid, 'minor_nonconformity',
+  perform better_supabase.create_inspection_finding((insp ->> 'id')::uuid, 'minor_nonconformity',
     'Work instruction revision not on the bench', null, 'ISO 9001 7.5.3', null, null);
-  perform better_supabase.add_inspection_finding((insp ->> 'id')::uuid, 'positive',
+  perform better_supabase.create_inspection_finding((insp ->> 'id')::uuid, 'positive',
     'Clean and orderly work area', null, null, null, null);
 end
 $seed$;
@@ -154,7 +154,7 @@ declare
   coll jsonb;
   prod uuid;
 begin
-  coll := better_supabase.save_collection(t, null, 'Brew at home', 'brew-at-home', 'manual', null);
+  coll := better_supabase.upsert_collection(t, null, 'Brew at home', 'brew-at-home', 'manual', null);
 
   foreach prod in array array[
     '00000000-0000-4000-8000-0000000b0001'::uuid,

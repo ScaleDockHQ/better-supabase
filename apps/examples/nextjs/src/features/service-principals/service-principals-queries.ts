@@ -2,9 +2,8 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SERVICE_PRINCIPALS_TAG } from "./service-principals-cache";
 
 export interface ServicePrincipalRow {
   readonly id: string;
@@ -20,12 +19,12 @@ export interface ServicePrincipalRow {
  * (`service_accounts.read`). A failed read throws, so it is never cached and
  * Retry reads again. `null` without an organization.
  */
-export async function loadServicePrincipals(): Promise<
+export async function getServicePrincipals(): Promise<
   readonly ServicePrincipalRow[] | null
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SERVICE_PRINCIPALS_TAG);
+  cacheTag(tags.servicePrincipals());
   const tenant = tenantOf(session);
 
   if (!tenant) {

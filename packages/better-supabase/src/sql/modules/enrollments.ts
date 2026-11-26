@@ -312,7 +312,7 @@ ${enrollmentsFunctions(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
-      name: "save_enrollment_program",
+      name: "upsert_enrollment_program",
       args: ["{id}", "jsonb"],
       returns: "jsonb",
     },

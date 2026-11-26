@@ -12,7 +12,7 @@ import type { SqlClient } from "../../../src/postgres/executor.ts";
 
 import { createNotifications } from "../../../src/blocks/notifications/index.ts";
 import { sqlTransport } from "../../../src/core/block-transport.ts";
-import { loadLite, migrateLite } from "../../../src/lite/runtime.ts";
+import { getLite, migrateLite } from "../../../src/lite/runtime.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
@@ -121,7 +121,7 @@ describe("notifications to profiles with an enum locale", BOOT, () => {
   };
 
   beforeAll(async () => {
-    const lite = await loadLite();
+    const lite = await getLite();
 
     if (!lite) {
       throw new Error("@supabase/lite is a devDependency of these tests");

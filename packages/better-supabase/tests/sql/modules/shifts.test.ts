@@ -108,7 +108,7 @@ describe("shifts module", () => {
     ).toThrow('"Mars/Base" is not a time zone');
   });
 
-  it("writes extra columns on shifts through save_shift", () => {
+  it("writes extra columns on shifts through upsert_shift", () => {
     const sql = sqlOf(BASE, {
       modules: { shifts: { options: { extraColumns: { site_code: "text" } } } },
     });
@@ -127,7 +127,7 @@ describe("shifts module", () => {
     expect(SHIFTS.build(context, {})).toBe("");
     const [contract] = customContracts(["shifts"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
-      expect.arrayContaining(["save_shift", "assign_shift", "roster"]),
+      expect.arrayContaining(["upsert_shift", "assign_shift", "roster"]),
     );
   });
 });

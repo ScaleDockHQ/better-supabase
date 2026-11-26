@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:2ec64b85aba3e476f34ce47ca19d7b28d00b1396c1209766d2dfd3e4f7b4aa4f
+-- @bsb-hash sha256:61f596d089c913526c7a0fa8db34a1e63f44e83063891a2f41fa6b457c9b01b3
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connect
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
 -- Adds a server (id null) or changes one ('connectors.manage').
-create or replace function "better_supabase"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "better_supabase"."upsert_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -115,41 +115,41 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'connectors.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_connector_server.tenant, 'connectors.manage'), false)) then
     raise exception 'you may not manage connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_connector_server.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'CONNECTOR_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(save_connector_server.fields -> 'credential_ref') <> 'null'
-    and (jsonb_typeof(save_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_connector_server.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(upsert_connector_server.fields -> 'credential_ref') <> 'null'
+    and (jsonb_typeof(upsert_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (upsert_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (upsert_connector_server.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_connector_server.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
-    values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
+    values (upsert_connector_server.tenant, upsert_connector_server.fields ->> 'name', upsert_connector_server.fields ->> 'url',
+      coalesce(upsert_connector_server.fields ->> 'auth_type', 'oauth'), upsert_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = upsert_connector_server.id and x."tenant_id" = upsert_connector_server.tenant for update;
     if not found then
-      raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
+      raise exception 'connector % not found', upsert_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
   end if;
   update "better_supabase"."connector_servers" x set
-    "name" = coalesce(save_connector_server.fields ->> 'name', x."name"),
-    "url" = coalesce(save_connector_server.fields ->> 'url', x."url"),
-    "transport" = coalesce(save_connector_server.fields ->> 'transport', x."transport"),
-    "auth_type" = coalesce(save_connector_server.fields ->> 'auth_type', x."auth_type"),
-    "credential_ref" = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
-    "scopes" = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x."scopes" end,
-    "client_metadata" = coalesce(save_connector_server.fields -> 'client_metadata', x."client_metadata"),
-    "enabled" = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
+    "name" = coalesce(upsert_connector_server.fields ->> 'name', x."name"),
+    "url" = coalesce(upsert_connector_server.fields ->> 'url', x."url"),
+    "transport" = coalesce(upsert_connector_server.fields ->> 'transport', x."transport"),
+    "auth_type" = coalesce(upsert_connector_server.fields ->> 'auth_type', x."auth_type"),
+    "credential_ref" = case when upsert_connector_server.fields ? 'credential_ref' then nullif(upsert_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
+    "scopes" = case when upsert_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(upsert_connector_server.fields -> 'scopes')) else x."scopes" end,
+    "client_metadata" = coalesce(upsert_connector_server.fields -> 'client_metadata', x."client_metadata"),
+    "enabled" = coalesce((upsert_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     null;
   else
     null;
@@ -157,8 +157,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a server and returns the grants it had, so the caller revokes
 -- each credential through its provider.
@@ -348,7 +348,7 @@ revoke execute on function "better_supabase"."get_connector_session"(uuid, text)
 grant execute on function "better_supabase"."get_connector_session"(uuid, text) to authenticated, service_role;
 
 -- Saves the caller's MCP session; a null session_id forgets it.
-create or replace function "better_supabase"."save_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function "better_supabase"."upsert_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language plpgsql
 security definer
@@ -362,26 +362,26 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  if save_connector_session.session_id is null and save_connector_session.initialize_result is null then
-    delete from "better_supabase"."connector_sessions" z where z."server_id" = save_connector_session.server_id and z."user_id" = auth.uid()
-      and z."chat_key" = coalesce(save_connector_session.chat_key, '');
+  if upsert_connector_session.session_id is null and upsert_connector_session.initialize_result is null then
+    delete from "better_supabase"."connector_sessions" z where z."server_id" = upsert_connector_session.server_id and z."user_id" = auth.uid()
+      and z."chat_key" = coalesce(upsert_connector_session.chat_key, '');
     return true;
   end if;
-  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
+  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = upsert_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = upsert_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
-  values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    save_connector_session.initialize_result, now() + interval '1 hour')
+  values (upsert_connector_session.server_id, auth.uid(), coalesce(upsert_connector_session.chat_key, ''), upsert_connector_session.session_id,
+    upsert_connector_session.initialize_result, now() + interval '1 hour')
   on conflict ("server_id", "user_id", "chat_key") do update set
     "session_id" = excluded."session_id", "initialize_result" = excluded."initialize_result",
     "last_used_at" = now(), "expires_at" = excluded."expires_at";
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
 
 -- Checks a server's tool list fingerprint: 'approved', 'pending' or
 -- 'rejected'. A new fingerprint is recorded as pending, except the first one of a server, which is approved.
@@ -520,7 +520,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:ffe7809f532761aadc93ae4e9475899015213a52bff3691039cf034bcf045300
+-- @bsb-hash sha256:7d07d476fb901ae17e4434cbb23bc0a7316b60b72d7adc4536454d22cd6df3f5
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -622,7 +622,7 @@ create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connect
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
 -- Adds a server (id null) or changes one ('connectors.manage').
-create or replace function "better_supabase"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "better_supabase"."upsert_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -634,41 +634,41 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'connectors.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_connector_server.tenant, 'connectors.manage'), false)) then
     raise exception 'you may not manage connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_connector_server.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'CONNECTOR_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(save_connector_server.fields -> 'credential_ref') <> 'null'
-    and (jsonb_typeof(save_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_connector_server.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(upsert_connector_server.fields -> 'credential_ref') <> 'null'
+    and (jsonb_typeof(upsert_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (upsert_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (upsert_connector_server.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_connector_server.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
-    values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
+    values (upsert_connector_server.tenant, upsert_connector_server.fields ->> 'name', upsert_connector_server.fields ->> 'url',
+      coalesce(upsert_connector_server.fields ->> 'auth_type', 'oauth'), upsert_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = upsert_connector_server.id and x."tenant_id" = upsert_connector_server.tenant for update;
     if not found then
-      raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
+      raise exception 'connector % not found', upsert_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
   end if;
   update "better_supabase"."connector_servers" x set
-    "name" = coalesce(save_connector_server.fields ->> 'name', x."name"),
-    "url" = coalesce(save_connector_server.fields ->> 'url', x."url"),
-    "transport" = coalesce(save_connector_server.fields ->> 'transport', x."transport"),
-    "auth_type" = coalesce(save_connector_server.fields ->> 'auth_type', x."auth_type"),
-    "credential_ref" = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
-    "scopes" = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x."scopes" end,
-    "client_metadata" = coalesce(save_connector_server.fields -> 'client_metadata', x."client_metadata"),
-    "enabled" = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
+    "name" = coalesce(upsert_connector_server.fields ->> 'name', x."name"),
+    "url" = coalesce(upsert_connector_server.fields ->> 'url', x."url"),
+    "transport" = coalesce(upsert_connector_server.fields ->> 'transport', x."transport"),
+    "auth_type" = coalesce(upsert_connector_server.fields ->> 'auth_type', x."auth_type"),
+    "credential_ref" = case when upsert_connector_server.fields ? 'credential_ref' then nullif(upsert_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
+    "scopes" = case when upsert_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(upsert_connector_server.fields -> 'scopes')) else x."scopes" end,
+    "client_metadata" = coalesce(upsert_connector_server.fields -> 'client_metadata', x."client_metadata"),
+    "enabled" = coalesce((upsert_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     perform "better_supabase".emit_event('connector.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."tenant_id"::text || '/connectors/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
     event_type => 'connector.created',
@@ -694,8 +694,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a server and returns the grants it had, so the caller revokes
 -- each credential through its provider.
@@ -910,7 +910,7 @@ revoke execute on function "better_supabase"."get_connector_session"(uuid, text)
 grant execute on function "better_supabase"."get_connector_session"(uuid, text) to authenticated, service_role;
 
 -- Saves the caller's MCP session; a null session_id forgets it.
-create or replace function "better_supabase"."save_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function "better_supabase"."upsert_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language plpgsql
 security definer
@@ -924,26 +924,26 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  if save_connector_session.session_id is null and save_connector_session.initialize_result is null then
-    delete from "better_supabase"."connector_sessions" z where z."server_id" = save_connector_session.server_id and z."user_id" = auth.uid()
-      and z."chat_key" = coalesce(save_connector_session.chat_key, '');
+  if upsert_connector_session.session_id is null and upsert_connector_session.initialize_result is null then
+    delete from "better_supabase"."connector_sessions" z where z."server_id" = upsert_connector_session.server_id and z."user_id" = auth.uid()
+      and z."chat_key" = coalesce(upsert_connector_session.chat_key, '');
     return true;
   end if;
-  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
+  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = upsert_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = upsert_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
-  values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    save_connector_session.initialize_result, now() + interval '1 hour')
+  values (upsert_connector_session.server_id, auth.uid(), coalesce(upsert_connector_session.chat_key, ''), upsert_connector_session.session_id,
+    upsert_connector_session.initialize_result, now() + interval '1 hour')
   on conflict ("server_id", "user_id", "chat_key") do update set
     "session_id" = excluded."session_id", "initialize_result" = excluded."initialize_result",
     "last_used_at" = now(), "expires_at" = excluded."expires_at";
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
 
 -- Checks a server's tool list fingerprint: 'approved', 'pending' or
 -- 'rejected'. A new fingerprint is recorded as pending, except the first one of a server, which is approved.
@@ -1094,7 +1094,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:e00ba1071fae59bf20ff83643aac55eea56015a080e2f1a9eccd699a36693e37
+-- @bsb-hash sha256:e7ebe7858543f51d10db263f346ad97698b0d4a30a9c489d9ac7cb1246022e9a
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1201,7 +1201,7 @@ create policy bsb_connector_tool_fingerprints_read on "app_private"."connector_t
   using (exists (select 1 from "app_private"."connector_servers" x where x."id" = "server_id"));
 
 -- Adds a server (id null) or changes one ('connectors.manage').
-create or replace function "app_private"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "app_private"."upsert_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -1213,41 +1213,41 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'connectors.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_connector_server.tenant, 'connectors.manage'), false)) then
     raise exception 'you may not manage connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_connector_server.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'CONNECTOR_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(save_connector_server.fields -> 'credential_ref') <> 'null'
-    and (jsonb_typeof(save_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_connector_server.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(upsert_connector_server.fields -> 'credential_ref') <> 'null'
+    and (jsonb_typeof(upsert_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (upsert_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (upsert_connector_server.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_connector_server.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     insert into "app_private"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
-    values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
+    values (upsert_connector_server.tenant, upsert_connector_server.fields ->> 'name', upsert_connector_server.fields ->> 'url',
+      coalesce(upsert_connector_server.fields ->> 'auth_type', 'oauth'), upsert_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "app_private"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
+    select * into v_row from "app_private"."connector_servers" x where x."id" = upsert_connector_server.id and x."tenant_id" = upsert_connector_server.tenant for update;
     if not found then
-      raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
+      raise exception 'connector % not found', upsert_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
   end if;
   update "app_private"."connector_servers" x set
-    "name" = coalesce(save_connector_server.fields ->> 'name', x."name"),
-    "url" = coalesce(save_connector_server.fields ->> 'url', x."url"),
-    "transport" = coalesce(save_connector_server.fields ->> 'transport', x."transport"),
-    "auth_type" = coalesce(save_connector_server.fields ->> 'auth_type', x."auth_type"),
-    "credential_ref" = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
-    "scopes" = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x."scopes" end,
-    "client_metadata" = coalesce(save_connector_server.fields -> 'client_metadata', x."client_metadata"),
-    "enabled" = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
+    "name" = coalesce(upsert_connector_server.fields ->> 'name', x."name"),
+    "url" = coalesce(upsert_connector_server.fields ->> 'url', x."url"),
+    "transport" = coalesce(upsert_connector_server.fields ->> 'transport', x."transport"),
+    "auth_type" = coalesce(upsert_connector_server.fields ->> 'auth_type', x."auth_type"),
+    "credential_ref" = case when upsert_connector_server.fields ? 'credential_ref' then nullif(upsert_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
+    "scopes" = case when upsert_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(upsert_connector_server.fields -> 'scopes')) else x."scopes" end,
+    "client_metadata" = coalesce(upsert_connector_server.fields -> 'client_metadata', x."client_metadata"),
+    "enabled" = coalesce((upsert_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     null;
   else
     null;
@@ -1255,8 +1255,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_connector_server"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a server and returns the grants it had, so the caller revokes
 -- each credential through its provider.
@@ -1446,7 +1446,7 @@ revoke execute on function "app_private"."get_connector_session"(uuid, text) fro
 grant execute on function "app_private"."get_connector_session"(uuid, text) to authenticated, service_role;
 
 -- Saves the caller's MCP session; a null session_id forgets it.
-create or replace function "app_private"."save_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function "app_private"."upsert_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language plpgsql
 security definer
@@ -1460,26 +1460,26 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  if save_connector_session.session_id is null and save_connector_session.initialize_result is null then
-    delete from "app_private"."connector_sessions" z where z."server_id" = save_connector_session.server_id and z."user_id" = auth.uid()
-      and z."chat_key" = coalesce(save_connector_session.chat_key, '');
+  if upsert_connector_session.session_id is null and upsert_connector_session.initialize_result is null then
+    delete from "app_private"."connector_sessions" z where z."server_id" = upsert_connector_session.server_id and z."user_id" = auth.uid()
+      and z."chat_key" = coalesce(upsert_connector_session.chat_key, '');
     return true;
   end if;
-  if not exists (select 1 from "app_private"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "app_private"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
+  if not exists (select 1 from "app_private"."connector_grants" y where y."server_id" = upsert_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
+    and not exists (select 1 from "app_private"."connector_servers" x where x."id" = upsert_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "app_private"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
-  values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    save_connector_session.initialize_result, now() + interval '1 hour')
+  values (upsert_connector_session.server_id, auth.uid(), coalesce(upsert_connector_session.chat_key, ''), upsert_connector_session.session_id,
+    upsert_connector_session.initialize_result, now() + interval '1 hour')
   on conflict ("server_id", "user_id", "chat_key") do update set
     "session_id" = excluded."session_id", "initialize_result" = excluded."initialize_result",
     "last_used_at" = now(), "expires_at" = excluded."expires_at";
   return true;
 end;
 $$;
-revoke execute on function "app_private"."save_connector_session"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "app_private"."save_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_connector_session"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
 
 -- Checks a server's tool list fingerprint: 'approved', 'pending' or
 -- 'rejected'. A new fingerprint is recorded as pending, except the first one of a server, which is approved.
@@ -1618,7 +1618,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:75a683b4d42718f21b712b790ddda43c66ef2371b86c0ee2b5ca9e55070fddd3
+-- @bsb-hash sha256:52b5d11ede80cd4cf38ca2d065d02ade0a94bf0aac538b8a88f4a19091602764
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1720,7 +1720,7 @@ create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connect
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
 -- Adds a server (id null) or changes one ('connectors.manage').
-create or replace function "better_supabase"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "better_supabase"."upsert_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -1732,41 +1732,41 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'connectors.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_connector_server.tenant, 'connectors.manage'), false)) then
     raise exception 'you may not manage connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_connector_server.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'CONNECTOR_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(save_connector_server.fields -> 'credential_ref') <> 'null'
-    and (jsonb_typeof(save_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_connector_server.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(upsert_connector_server.fields -> 'credential_ref') <> 'null'
+    and (jsonb_typeof(upsert_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (upsert_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (upsert_connector_server.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_connector_server.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
-    values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
+    values (upsert_connector_server.tenant, upsert_connector_server.fields ->> 'name', upsert_connector_server.fields ->> 'url',
+      coalesce(upsert_connector_server.fields ->> 'auth_type', 'oauth'), upsert_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = upsert_connector_server.id and x."tenant_id" = upsert_connector_server.tenant for update;
     if not found then
-      raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
+      raise exception 'connector % not found', upsert_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
   end if;
   update "better_supabase"."connector_servers" x set
-    "name" = coalesce(save_connector_server.fields ->> 'name', x."name"),
-    "url" = coalesce(save_connector_server.fields ->> 'url', x."url"),
-    "transport" = coalesce(save_connector_server.fields ->> 'transport', x."transport"),
-    "auth_type" = coalesce(save_connector_server.fields ->> 'auth_type', x."auth_type"),
-    "credential_ref" = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
-    "scopes" = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x."scopes" end,
-    "client_metadata" = coalesce(save_connector_server.fields -> 'client_metadata', x."client_metadata"),
-    "enabled" = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
+    "name" = coalesce(upsert_connector_server.fields ->> 'name', x."name"),
+    "url" = coalesce(upsert_connector_server.fields ->> 'url', x."url"),
+    "transport" = coalesce(upsert_connector_server.fields ->> 'transport', x."transport"),
+    "auth_type" = coalesce(upsert_connector_server.fields ->> 'auth_type', x."auth_type"),
+    "credential_ref" = case when upsert_connector_server.fields ? 'credential_ref' then nullif(upsert_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
+    "scopes" = case when upsert_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(upsert_connector_server.fields -> 'scopes')) else x."scopes" end,
+    "client_metadata" = coalesce(upsert_connector_server.fields -> 'client_metadata', x."client_metadata"),
+    "enabled" = coalesce((upsert_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     null;
   else
     null;
@@ -1774,8 +1774,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a server and returns the grants it had, so the caller revokes
 -- each credential through its provider.
@@ -1965,7 +1965,7 @@ revoke execute on function "better_supabase"."get_connector_session"(uuid, text)
 grant execute on function "better_supabase"."get_connector_session"(uuid, text) to authenticated, service_role;
 
 -- Saves the caller's MCP session; a null session_id forgets it.
-create or replace function "better_supabase"."save_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function "better_supabase"."upsert_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language plpgsql
 security definer
@@ -1979,26 +1979,26 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  if save_connector_session.session_id is null and save_connector_session.initialize_result is null then
-    delete from "better_supabase"."connector_sessions" z where z."server_id" = save_connector_session.server_id and z."user_id" = auth.uid()
-      and z."chat_key" = coalesce(save_connector_session.chat_key, '');
+  if upsert_connector_session.session_id is null and upsert_connector_session.initialize_result is null then
+    delete from "better_supabase"."connector_sessions" z where z."server_id" = upsert_connector_session.server_id and z."user_id" = auth.uid()
+      and z."chat_key" = coalesce(upsert_connector_session.chat_key, '');
     return true;
   end if;
-  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
+  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = upsert_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = upsert_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
-  values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    save_connector_session.initialize_result, now() + interval '1 hour')
+  values (upsert_connector_session.server_id, auth.uid(), coalesce(upsert_connector_session.chat_key, ''), upsert_connector_session.session_id,
+    upsert_connector_session.initialize_result, now() + interval '1 hour')
   on conflict ("server_id", "user_id", "chat_key") do update set
     "session_id" = excluded."session_id", "initialize_result" = excluded."initialize_result",
     "last_used_at" = now(), "expires_at" = excluded."expires_at";
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
 
 -- Checks a server's tool list fingerprint: 'approved', 'pending' or
 -- 'rejected'. A new fingerprint is recorded as pending, except the first one of a server, which is approved.
@@ -2124,14 +2124,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "api"."upsert_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_connector_server"($1, $2, $3) $$;
-revoke execute on function "api"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_connector_server"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_connector_server"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_connector_server"(id uuid)
 returns jsonb
@@ -2209,14 +2209,14 @@ as $$ select "better_supabase"."get_connector_session"($1, $2) $$;
 revoke execute on function "api"."get_connector_session"(uuid, text) from public, anon;
 grant execute on function "api"."get_connector_session"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."save_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function "api"."upsert_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_connector_session"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_connector_session"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "api"."save_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_connector_session"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_connector_session"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "api"."upsert_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."check_connector_fingerprint"(server_id uuid, fingerprint text, tools jsonb default '{}')
 returns text
@@ -2262,7 +2262,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:76c62f2825bd74a5a26af5143d7e50ce45ac15a480bb4909be563e290da31fdd
+-- @bsb-hash sha256:63199a537bc2184b18b57a23eebeda2223562dc97df6fa2e70f7b2199a97e616
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2355,7 +2355,7 @@ create policy bsb_connector_tool_fingerprints_select on "better_supabase"."conne
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
 -- Adds a server (id null) or changes one ('connectors.manage').
-create or replace function "better_supabase"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "better_supabase"."upsert_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -2367,41 +2367,41 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'connectors.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_connector_server.tenant, 'connectors.manage'), false)) then
     raise exception 'you may not manage connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_connector_server.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'CONNECTOR_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(save_connector_server.fields -> 'credential_ref') <> 'null'
-    and (jsonb_typeof(save_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_connector_server.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(upsert_connector_server.fields -> 'credential_ref') <> 'null'
+    and (jsonb_typeof(upsert_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (upsert_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (upsert_connector_server.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_connector_server.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     insert into "better_supabase"."connector_servers" ("tenant_id", "name", "url", "auth_type", "credential_ref", "created_by")
-    values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      better_supabase.as_column_type(coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), (null::"better_supabase"."connector_servers")."auth_type"), save_connector_server.fields -> 'credential_ref', auth.uid())
+    values (upsert_connector_server.tenant, upsert_connector_server.fields ->> 'name', upsert_connector_server.fields ->> 'url',
+      better_supabase.as_column_type(coalesce(upsert_connector_server.fields ->> 'auth_type', 'oauth'), (null::"better_supabase"."connector_servers")."auth_type"), upsert_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."tenant_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = upsert_connector_server.id and x."tenant_id" = upsert_connector_server.tenant for update;
     if not found then
-      raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
+      raise exception 'connector % not found', upsert_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
   end if;
   update "better_supabase"."connector_servers" x set
-    "name" = coalesce(save_connector_server.fields ->> 'name', x."name"),
-    "url" = coalesce(save_connector_server.fields ->> 'url', x."url"),
-    "transport" = better_supabase.as_column_type(coalesce(save_connector_server.fields ->> 'transport', x."transport"::text), (null::"better_supabase"."connector_servers")."transport"),
-    "auth_type" = better_supabase.as_column_type(coalesce(save_connector_server.fields ->> 'auth_type', x."auth_type"::text), (null::"better_supabase"."connector_servers")."auth_type"),
-    "credential_ref" = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
-    "scopes" = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x."scopes" end,
-    "client_metadata" = coalesce(save_connector_server.fields -> 'client_metadata', x."client_metadata"),
-    "enabled" = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
+    "name" = coalesce(upsert_connector_server.fields ->> 'name', x."name"),
+    "url" = coalesce(upsert_connector_server.fields ->> 'url', x."url"),
+    "transport" = better_supabase.as_column_type(coalesce(upsert_connector_server.fields ->> 'transport', x."transport"::text), (null::"better_supabase"."connector_servers")."transport"),
+    "auth_type" = better_supabase.as_column_type(coalesce(upsert_connector_server.fields ->> 'auth_type', x."auth_type"::text), (null::"better_supabase"."connector_servers")."auth_type"),
+    "credential_ref" = case when upsert_connector_server.fields ? 'credential_ref' then nullif(upsert_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
+    "scopes" = case when upsert_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(upsert_connector_server.fields -> 'scopes')) else x."scopes" end,
+    "client_metadata" = coalesce(upsert_connector_server.fields -> 'client_metadata', x."client_metadata"),
+    "enabled" = coalesce((upsert_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     null;
   else
     null;
@@ -2409,8 +2409,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a server and returns the grants it had, so the caller revokes
 -- each credential through its provider.
@@ -2600,7 +2600,7 @@ revoke execute on function "better_supabase"."get_connector_session"(uuid, text)
 grant execute on function "better_supabase"."get_connector_session"(uuid, text) to authenticated, service_role;
 
 -- Saves the caller's MCP session; a null session_id forgets it.
-create or replace function "better_supabase"."save_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function "better_supabase"."upsert_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language plpgsql
 security definer
@@ -2614,26 +2614,26 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  if save_connector_session.session_id is null and save_connector_session.initialize_result is null then
-    delete from "better_supabase"."connector_sessions" z where z."server_id" = save_connector_session.server_id and z."user_id" = auth.uid()
-      and z."chat_key" = coalesce(save_connector_session.chat_key, '');
+  if upsert_connector_session.session_id is null and upsert_connector_session.initialize_result is null then
+    delete from "better_supabase"."connector_sessions" z where z."server_id" = upsert_connector_session.server_id and z."user_id" = auth.uid()
+      and z."chat_key" = coalesce(upsert_connector_session.chat_key, '');
     return true;
   end if;
-  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
+  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = upsert_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = upsert_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."tenant_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
-  values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    save_connector_session.initialize_result, now() + interval '1 hour')
+  values (upsert_connector_session.server_id, auth.uid(), coalesce(upsert_connector_session.chat_key, ''), upsert_connector_session.session_id,
+    upsert_connector_session.initialize_result, now() + interval '1 hour')
   on conflict ("server_id", "user_id", "chat_key") do update set
     "session_id" = excluded."session_id", "initialize_result" = excluded."initialize_result",
     "last_used_at" = now(), "expires_at" = excluded."expires_at";
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
 
 -- Checks a server's tool list fingerprint: 'approved', 'pending' or
 -- 'rejected'. A new fingerprint is recorded as pending, except the first one of a server, which is approved.
@@ -2772,7 +2772,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:9bfc288d5e708a055700ee6b8181905ec7020fe08d7f4ec377489a65cc0f7f97
+-- @bsb-hash sha256:785a5fdf4bb67bd2984a26aad7c2f869e4f079987b80c1e35cb5d790cea3028b
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2874,7 +2874,7 @@ create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connect
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
 -- Adds a server (id null) or changes one ('connectors.manage').
-create or replace function "better_supabase"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
+create or replace function "better_supabase"."upsert_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -2886,41 +2886,41 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'connectors.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_connector_server.tenant, 'connectors.manage'), false)) then
     raise exception 'you may not manage connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_connector_server.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'CONNECTOR_INVALID';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(save_connector_server.fields -> 'credential_ref') <> 'null'
-    and (jsonb_typeof(save_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (save_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (save_connector_server.tenant)::text) then
-    raise exception 'credential_ref must carry the tenant % that owns it', save_connector_server.tenant
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and upsert_connector_server.fields -> 'credential_ref' is not null and jsonb_typeof(upsert_connector_server.fields -> 'credential_ref') <> 'null'
+    and (jsonb_typeof(upsert_connector_server.fields -> 'credential_ref' -> 'tenant') is distinct from 'string' or (upsert_connector_server.fields -> 'credential_ref' ->> 'tenant') is distinct from (upsert_connector_server.tenant)::text) then
+    raise exception 'credential_ref must carry the tenant % that owns it', upsert_connector_server.tenant
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     insert into "better_supabase"."connector_servers" ("org_id", "name", "url", "auth_type", "credential_ref", "created_by")
-    values (save_connector_server.tenant, save_connector_server.fields ->> 'name', save_connector_server.fields ->> 'url',
-      coalesce(save_connector_server.fields ->> 'auth_type', 'oauth'), save_connector_server.fields -> 'credential_ref', auth.uid())
+    values (upsert_connector_server.tenant, upsert_connector_server.fields ->> 'name', upsert_connector_server.fields ->> 'url',
+      coalesce(upsert_connector_server.fields ->> 'auth_type', 'oauth'), upsert_connector_server.fields -> 'credential_ref', auth.uid())
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."connector_servers" x where x."id" = save_connector_server.id and x."org_id" = save_connector_server.tenant for update;
+    select * into v_row from "better_supabase"."connector_servers" x where x."id" = upsert_connector_server.id and x."org_id" = upsert_connector_server.tenant for update;
     if not found then
-      raise exception 'connector % not found', save_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
+      raise exception 'connector % not found', upsert_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
     end if;
   end if;
   update "better_supabase"."connector_servers" x set
-    "name" = coalesce(save_connector_server.fields ->> 'name', x."name"),
-    "url" = coalesce(save_connector_server.fields ->> 'url', x."url"),
-    "transport" = coalesce(save_connector_server.fields ->> 'transport', x."transport"),
-    "auth_type" = coalesce(save_connector_server.fields ->> 'auth_type', x."auth_type"),
-    "credential_ref" = case when save_connector_server.fields ? 'credential_ref' then nullif(save_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
-    "scopes" = case when save_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(save_connector_server.fields -> 'scopes')) else x."scopes" end,
-    "client_metadata" = coalesce(save_connector_server.fields -> 'client_metadata', x."client_metadata"),
-    "enabled" = coalesce((save_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
+    "name" = coalesce(upsert_connector_server.fields ->> 'name', x."name"),
+    "url" = coalesce(upsert_connector_server.fields ->> 'url', x."url"),
+    "transport" = coalesce(upsert_connector_server.fields ->> 'transport', x."transport"),
+    "auth_type" = coalesce(upsert_connector_server.fields ->> 'auth_type', x."auth_type"),
+    "credential_ref" = case when upsert_connector_server.fields ? 'credential_ref' then nullif(upsert_connector_server.fields -> 'credential_ref', 'null') else x."credential_ref" end,
+    "scopes" = case when upsert_connector_server.fields ? 'scopes' then array(select jsonb_array_elements_text(upsert_connector_server.fields -> 'scopes')) else x."scopes" end,
+    "client_metadata" = coalesce(upsert_connector_server.fields -> 'client_metadata', x."client_metadata"),
+    "enabled" = coalesce((upsert_connector_server.fields ->> 'enabled')::boolean, x."enabled"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if save_connector_server.id is null then
+  if upsert_connector_server.id is null then
     null;
   else
     null;
@@ -2928,8 +2928,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_server"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- Deletes a server and returns the grants it had, so the caller revokes
 -- each credential through its provider.
@@ -3119,7 +3119,7 @@ revoke execute on function "better_supabase"."get_connector_session"(uuid, text)
 grant execute on function "better_supabase"."get_connector_session"(uuid, text) to authenticated, service_role;
 
 -- Saves the caller's MCP session; a null session_id forgets it.
-create or replace function "better_supabase"."save_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
+create or replace function "better_supabase"."upsert_connector_session"(server_id uuid, chat_key text default '', session_id text default null, initialize_result jsonb default null)
 returns boolean
 language plpgsql
 security definer
@@ -3133,26 +3133,26 @@ begin
   if auth.uid() is null then
     return false;
   end if;
-  if save_connector_session.session_id is null and save_connector_session.initialize_result is null then
-    delete from "better_supabase"."connector_sessions" z where z."server_id" = save_connector_session.server_id and z."user_id" = auth.uid()
-      and z."chat_key" = coalesce(save_connector_session.chat_key, '');
+  if upsert_connector_session.session_id is null and upsert_connector_session.initialize_result is null then
+    delete from "better_supabase"."connector_sessions" z where z."server_id" = upsert_connector_session.server_id and z."user_id" = auth.uid()
+      and z."chat_key" = coalesce(upsert_connector_session.chat_key, '');
     return true;
   end if;
-  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."org_id", 'connectors.use'), false)) then
+  if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = upsert_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = upsert_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."org_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
-  values (save_connector_session.server_id, auth.uid(), coalesce(save_connector_session.chat_key, ''), save_connector_session.session_id,
-    save_connector_session.initialize_result, now() + interval '1 hour')
+  values (upsert_connector_session.server_id, auth.uid(), coalesce(upsert_connector_session.chat_key, ''), upsert_connector_session.session_id,
+    upsert_connector_session.initialize_result, now() + interval '1 hour')
   on conflict ("server_id", "user_id", "chat_key") do update set
     "session_id" = excluded."session_id", "initialize_result" = excluded."initialize_result",
     "last_used_at" = now(), "expires_at" = excluded."expires_at";
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_connector_session"(uuid, text, text, jsonb) to authenticated, service_role;
 
 -- Checks a server's tool list fingerprint: 'approved', 'pending' or
 -- 'rejected'. A new fingerprint is recorded as pending, except the first one of a server, which is approved.

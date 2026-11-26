@@ -380,7 +380,7 @@ describe("tables the server loads on first use", () => {
       ...schema.meta,
       tables: rest,
       lazyTables: true,
-      tableLoaders: { lazyTags: load },
+      tableGetters: { lazyTags: load },
     }),
   );
 

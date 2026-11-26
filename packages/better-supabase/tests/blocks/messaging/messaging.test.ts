@@ -68,8 +68,8 @@ const messageRow = {
 
 const answers = {
   open_conversation: conversationRow,
-  add_conversation_members: 2,
-  remove_conversation_member: true,
+  create_conversation_members: 2,
+  delete_conversation_member: true,
   archive_conversation: true,
   list_conversations: [
     {

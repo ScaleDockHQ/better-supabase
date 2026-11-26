@@ -305,14 +305,14 @@ export function createReactions(options: ReactionsOptions): Reactions {
     saveCustomEmoji: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_custom_emoji",
+          "upsert_custom_emoji",
           {
             tenant: organizationId,
             shortcode: input.shortcode,
             attachment_id: input.attachmentId ?? null,
             url: input.url ?? null,
           },
-          (value) => emojiOf(value, "save_custom_emoji"),
+          (value) => emojiOf(value, "upsert_custom_emoji"),
         ),
       ),
     deleteCustomEmoji: (id) =>

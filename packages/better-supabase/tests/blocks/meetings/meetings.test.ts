@@ -220,7 +220,7 @@ describe("createMeetings", () => {
 
   it("opens an action item as a task", async () => {
     const t = fieldsTransport({
-      add_meeting_action_item: () => ({ id: "t1", title: "Send it" }),
+      create_meeting_action_item: () => ({ id: "t1", title: "Send it" }),
       list_meetings: () => [MEETING],
     });
 
@@ -244,7 +244,7 @@ describe("createMeetings", () => {
     expect(listed).toHaveLength(1);
     expect(t.calls).toEqual([
       [
-        "add_meeting_action_item",
+        "create_meeting_action_item",
         {
           meeting_id: "m1",
           task: { title: "Send it" },
@@ -270,7 +270,7 @@ describe("createMeetings", () => {
         attendance: "absent",
       }),
       decide_meeting_decision: () => ({ ...DECISION, status: "rejected" }),
-      add_meeting_action_item: () => ({ id: "t2", title: "Call" }),
+      create_meeting_action_item: () => ({ id: "t2", title: "Call" }),
     });
 
     const meetings = createMeetings({ transport: t, tenant: "org-1" });
@@ -306,7 +306,7 @@ describe("createMeetings", () => {
       "cancel_meeting",
       "set_meeting_attendee",
       "decide_meeting_decision",
-      "add_meeting_action_item",
+      "create_meeting_action_item",
     ]);
     expect(t.calls[1]?.[1]).toEqual({ meeting_id: "m1", reason: "No quorum" });
     expect(t.calls[3]?.[1]).toEqual({ decision_id: "d1", status: "rejected" });

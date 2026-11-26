@@ -6,9 +6,9 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { TEMPLATES_TAG } from "./templates-cache";
 import { CustomerTemplateBody, templatesOf } from "./templates-server";
 
 export interface TemplateCard {
@@ -33,7 +33,7 @@ export type TemplatesView =
 async function loadTemplates(): Promise<readonly TemplateCard[] | null> {
   "use cache: private";
   const { session, supabase } = await bsbCore.cached();
-  cacheTag(TEMPLATES_TAG);
+  cacheTag(tags.templates());
   const tenant = tenantOf(session);
 
   if (!tenant) {

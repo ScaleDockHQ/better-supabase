@@ -50,9 +50,9 @@ const queueRow = {
 };
 
 const answers = {
-  save_assignment_queue: queueRow,
+  upsert_assignment_queue: queueRow,
   set_assignment_members: { ...queueRow, conditions: null, enabled: false },
-  remove_assignment_queue: true,
+  delete_assignment_queue: true,
   list_assignment_queues: [{ ...queueRow, strategy: "round_robin" }],
   assign_subject: { queueId: "q1", userId: "u1", strategy: "weighted" },
   assignment_history: [
@@ -222,7 +222,7 @@ describe("createAssignment", () => {
 
   it("rejects an unknown strategy and logs failures", async () => {
     const { transport } = fakeTransport({
-      save_assignment_queue: { ...queueRow, strategy: "random" },
+      upsert_assignment_queue: { ...queueRow, strategy: "random" },
     });
 
     const logger = {

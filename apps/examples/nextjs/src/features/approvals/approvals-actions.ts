@@ -4,11 +4,9 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { ACCESS_REQUESTS_TAG } from "@/features/access-requests/access-requests-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { APPROVALS_TAG } from "./approvals-cache";
 import { APPROVAL_ACTIONS, APPROVAL_SUBJECT } from "./approvals-types";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -24,8 +22,10 @@ export const requestApproval = bsb.action(
     }),
     requireTenant: true,
     permission: "approvals.request",
+    tags: () => [tags.approvals(), tags.accessRequests()],
+    refresh: true,
   },
-  async ({ subjectId, action, reason }, { db, auth }) => {
+  async ({ subjectId, action, reason }, { db }) => {
     const requested = await db.approvals.request({
       subject: { type: APPROVAL_SUBJECT, id: subjectId },
       input: { action, reason },
@@ -34,8 +34,6 @@ export const requestApproval = bsb.action(
     if (!requested.ok) {
       return requested;
     }
-
-    await refreshCaller(auth, [APPROVALS_TAG, ACCESS_REQUESTS_TAG]);
 
     return ok(requested.data.id);
   },
@@ -54,8 +52,10 @@ export const decideApproval = bsb.action(
     }),
     requireTenant: true,
     permission: "approvals.read",
+    tags: () => [tags.approvals(), tags.accessRequests()],
+    refresh: true,
   },
-  async ({ id, decision, comment }, { db, auth }) => {
+  async ({ id, decision, comment }, { db }) => {
     const { approvals } = db;
     const note = comment === "" ? undefined : comment;
 
@@ -67,8 +67,6 @@ export const decideApproval = bsb.action(
     if (!decided.ok) {
       return decided;
     }
-
-    await refreshCaller(auth, [APPROVALS_TAG, ACCESS_REQUESTS_TAG]);
 
     return ok(decided.data.status);
   },

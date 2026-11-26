@@ -28,13 +28,13 @@ import {
   formatDiagnostics,
   isFailOn,
 } from "../spec/diagnostics.ts";
-import { loadSpecEntry } from "../spec/entry.ts";
+import { getSpecEntry } from "../spec/entry.ts";
 import { formatRegistry } from "../spec/formats.ts";
 import { renderTarget } from "../spec/render.ts";
 import { TargetError, resolveTargets } from "../spec/targets.ts";
 import { fieldOf, parseAs } from "../spec/text.ts";
 import { undocumentedTopics } from "../spec/topics.ts";
-import { loadTopics } from "../topics.ts";
+import { getTopics } from "../topics.ts";
 import { parseInterval, stampFiles, watchLoop } from "../watch.ts";
 
 type SpecAction = "emit" | "check" | "validate";
@@ -291,7 +291,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   let entry;
 
   try {
-    entry = await loadSpecEntry(resolve(root, entryPath));
+    entry = await getSpecEntry(resolve(root, entryPath));
   } catch (cause) {
     return {
       code: 1,
@@ -341,7 +341,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     try {
       topicFindings = undocumentedTopics(
         entry.api.model,
-        await loadTopics(root, policies.from),
+        await getTopics(root, policies.from),
       );
     } catch (cause) {
       return {

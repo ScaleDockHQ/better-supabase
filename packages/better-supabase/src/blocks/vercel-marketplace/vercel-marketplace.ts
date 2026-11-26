@@ -657,7 +657,7 @@ export function createVercelMarketplace(
 
         if (type === "integration-configuration.removed") {
           return call(
-            "remove_marketplace_installation",
+            "delete_marketplace_installation",
             { configuration_id: configurationId },
             () => undefined,
           ).map(() => ({ type, handled: true }));
@@ -961,7 +961,7 @@ export function createVercelMarketplace(
 
     removeInstallation: (configurationId) =>
       call(
-        "remove_marketplace_installation",
+        "delete_marketplace_installation",
         { configuration_id: configurationId },
         (value) => (isRecord(value) ? installationOf(value) : undefined),
       ),

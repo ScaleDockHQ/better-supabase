@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:5c769957ce009411af707bb5033877c9a49e293575a8eb383f882cadeac11dd5
+-- @bsb-hash sha256:de328458bab6268dd54317e4a69ed23453ea021c93750e34014e8d337b45ff23
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -167,7 +167,7 @@ create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveri
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function "better_supabase"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -176,15 +176,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_products"%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_product.tenant, 'funding.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_product.tenant, 'funding.manage'), false)) then
     raise exception 'not allowed to manage funding products' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) > 50 then
@@ -196,36 +196,36 @@ begin
   if v_unit is null or v_unit not in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece') then
     raise exception 'unit is minute, hour, day_part, day, visit or piece' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     raise exception 'a rate is zero or more minor units' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     raise exception 'a product is valid until on or after it is valid from' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if exists (
     select 1 from "better_supabase"."funding_products" x
-    where x."tenant_id" = save_funding_product.tenant and x."code" = v_code
-      and x."id" is distinct from save_funding_product.product_id
+    where x."tenant_id" = upsert_funding_product.tenant and x."code" = v_code
+      and x."id" is distinct from upsert_funding_product.product_id
   ) then
     raise exception 'the organization already has a funding product with this code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into "better_supabase"."funding_products" ("tenant_id", "code", "title", "unit", "rate", "currency", "valid_from", "valid_until")
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update "better_supabase"."funding_products" x set
       "code" = v_code,
       "title" = v_title,
       "unit" = v_unit,
-      "rate" = save_funding_product.rate,
+      "rate" = upsert_funding_product.rate,
       "currency" = v_currency,
-      "valid_from" = save_funding_product.valid_from,
-      "valid_until" = save_funding_product.valid_until, "updated_at" = now()
-    where x."id" = save_funding_product.product_id and x."tenant_id" = save_funding_product.tenant
+      "valid_from" = upsert_funding_product.valid_from,
+      "valid_until" = upsert_funding_product.valid_until, "updated_at" = now()
+    where x."id" = upsert_funding_product.product_id and x."tenant_id" = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
@@ -234,8 +234,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'title', v_row."title", 'unit', v_row."unit", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -257,7 +257,7 @@ grant execute on function "better_supabase"."list_funding_products"(uuid, boolea
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function "better_supabase"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -266,7 +266,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_awards"%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -279,14 +279,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_award.tenant, 'funding.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_award.tenant, 'funding.write'), false)) then
     raise exception 'not allowed to change funding awards' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs is an object' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     if not false then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
@@ -300,12 +300,12 @@ begin
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else 'active' end;
   else
     select * into v_row from "better_supabase"."funding_awards" x
-    where x."id" = save_funding_award.award_id and x."tenant_id" = save_funding_award.tenant
+    where x."id" = upsert_funding_award.award_id and x."tenant_id" = upsert_funding_award.tenant
     for update;
     if not found then
       raise exception 'funding award not found' using errcode = 'P0002', hint = 'FUNDING_AWARD_NOT_FOUND';
     end if;
-    if v_row."subject_type" <> save_funding_award.subject_type or v_row."subject_id" <> save_funding_award.subject_id then
+    if v_row."subject_type" <> upsert_funding_award.subject_type or v_row."subject_id" <> upsert_funding_award.subject_id then
       raise exception 'an award stays with its record' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     if v_row."status" in ('ended', 'canceled') then
@@ -320,10 +320,10 @@ begin
   v_reference := case when v_attrs ? 'reference' then nullif(trim(v_attrs ->> 'reference'), '') else v_row."reference" end;
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else v_row."status" end;
   end if;
-  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
+  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
     raise exception 'the funder is a company or person in this organization''s contacts with the funder role' using errcode = '22023', hint = 'FUNDING_FUNDER_INVALID';
   end if;
-  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = save_funding_award.tenant) then
+  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = upsert_funding_award.tenant) then
     raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
   end if;
   if v_units is null or v_units <= 0 then
@@ -349,12 +349,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_attrs;
+        using upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_attrs;
     end if;
   end;
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into "better_supabase"."funding_awards" ("tenant_id", "subject_type", "subject_id", "funder_id", "product_id", "units", "period", "starts_on", "ends_on", "reference", "status", "created_by")
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
     returning * into v_row;
     null;
   else
@@ -382,8 +382,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'funderId', v_row."funder_id", 'productId', v_row."product_id", 'units', v_row."units", 'period', v_row."period", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'reference', v_row."reference", 'status', v_row."status", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.
@@ -1235,7 +1235,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:4bdac6862620b41cdb113d33cdcf7d9b99c28ecc8c78db7ab1d6c83671c00083
+-- @bsb-hash sha256:896fb73928a61999deb86f076ced59ddc2805d44159a8bd12a9cfa4233c6e0b4
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1401,7 +1401,7 @@ create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveri
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function "better_supabase"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1410,15 +1410,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_products"%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_product.tenant, 'funding.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_product.tenant, 'funding.manage'), false)) then
     raise exception 'not allowed to manage funding products' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) > 50 then
@@ -1430,36 +1430,36 @@ begin
   if v_unit is null or v_unit not in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece') then
     raise exception 'unit is minute, hour, day_part, day, visit or piece' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     raise exception 'a rate is zero or more minor units' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     raise exception 'a product is valid until on or after it is valid from' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if exists (
     select 1 from "better_supabase"."funding_products" x
-    where x."tenant_id" = save_funding_product.tenant and x."code" = v_code
-      and x."id" is distinct from save_funding_product.product_id
+    where x."tenant_id" = upsert_funding_product.tenant and x."code" = v_code
+      and x."id" is distinct from upsert_funding_product.product_id
   ) then
     raise exception 'the organization already has a funding product with this code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into "better_supabase"."funding_products" ("tenant_id", "code", "title", "unit", "rate", "currency", "valid_from", "valid_until")
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update "better_supabase"."funding_products" x set
       "code" = v_code,
       "title" = v_title,
       "unit" = v_unit,
-      "rate" = save_funding_product.rate,
+      "rate" = upsert_funding_product.rate,
       "currency" = v_currency,
-      "valid_from" = save_funding_product.valid_from,
-      "valid_until" = save_funding_product.valid_until, "updated_at" = now()
-    where x."id" = save_funding_product.product_id and x."tenant_id" = save_funding_product.tenant
+      "valid_from" = upsert_funding_product.valid_from,
+      "valid_until" = upsert_funding_product.valid_until, "updated_at" = now()
+    where x."id" = upsert_funding_product.product_id and x."tenant_id" = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
@@ -1468,8 +1468,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'title', v_row."title", 'unit', v_row."unit", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -1491,7 +1491,7 @@ grant execute on function "better_supabase"."list_funding_products"(uuid, boolea
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function "better_supabase"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1500,7 +1500,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_awards"%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -1513,14 +1513,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_award.tenant, 'funding.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_award.tenant, 'funding.write'), false)) then
     raise exception 'not allowed to change funding awards' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs is an object' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     if not false then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
@@ -1534,12 +1534,12 @@ begin
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else 'active' end;
   else
     select * into v_row from "better_supabase"."funding_awards" x
-    where x."id" = save_funding_award.award_id and x."tenant_id" = save_funding_award.tenant
+    where x."id" = upsert_funding_award.award_id and x."tenant_id" = upsert_funding_award.tenant
     for update;
     if not found then
       raise exception 'funding award not found' using errcode = 'P0002', hint = 'FUNDING_AWARD_NOT_FOUND';
     end if;
-    if v_row."subject_type" <> save_funding_award.subject_type or v_row."subject_id" <> save_funding_award.subject_id then
+    if v_row."subject_type" <> upsert_funding_award.subject_type or v_row."subject_id" <> upsert_funding_award.subject_id then
       raise exception 'an award stays with its record' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     if v_row."status" in ('ended', 'canceled') then
@@ -1554,10 +1554,10 @@ begin
   v_reference := case when v_attrs ? 'reference' then nullif(trim(v_attrs ->> 'reference'), '') else v_row."reference" end;
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else v_row."status" end;
   end if;
-  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
+  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
     raise exception 'the funder is a company or person in this organization''s contacts with the funder role' using errcode = '22023', hint = 'FUNDING_FUNDER_INVALID';
   end if;
-  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = save_funding_award.tenant) then
+  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = upsert_funding_award.tenant) then
     raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
   end if;
   if v_units is null or v_units <= 0 then
@@ -1583,12 +1583,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_attrs;
+        using upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_attrs;
     end if;
   end;
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into "better_supabase"."funding_awards" ("tenant_id", "subject_type", "subject_id", "funder_id", "product_id", "units", "period", "starts_on", "ends_on", "reference", "status", "created_by")
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
     returning * into v_row;
     perform "better_supabase".emit_event('funding_award.created', jsonb_build_object('organizationId', v_row."tenant_id", 'fundingAwardId', v_row."id", 'fundingProductId', v_row."product_id", 'funderId', v_row."funder_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status"), 'funding-awards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/funding');
   perform better_supabase.audit_event(
@@ -1634,8 +1634,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'funderId', v_row."funder_id", 'productId', v_row."product_id", 'units', v_row."units", 'period', v_row."period", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'reference', v_row."reference", 'status', v_row."status", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.
@@ -2759,7 +2759,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:829b072a4c3fd035abb0923d095676e6fbc4ebe66cf76a425d20ec62608d450d
+-- @bsb-hash sha256:1c014bb373deae1ebe22949f7aee3bd6da189bddd490108f88d23a00024df521
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2930,7 +2930,7 @@ create policy bsb_funding_deliveries_read on "app_private"."funding_deliveries"
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function "app_private"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "app_private"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2939,15 +2939,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."funding_products"%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_product.tenant, 'funding.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_product.tenant, 'funding.manage'), false)) then
     raise exception 'not allowed to manage funding products' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) > 50 then
@@ -2959,36 +2959,36 @@ begin
   if v_unit is null or v_unit not in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece') then
     raise exception 'unit is minute, hour, day_part, day, visit or piece' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     raise exception 'a rate is zero or more minor units' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     raise exception 'a product is valid until on or after it is valid from' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if exists (
     select 1 from "app_private"."funding_products" x
-    where x."tenant_id" = save_funding_product.tenant and x."code" = v_code
-      and x."id" is distinct from save_funding_product.product_id
+    where x."tenant_id" = upsert_funding_product.tenant and x."code" = v_code
+      and x."id" is distinct from upsert_funding_product.product_id
   ) then
     raise exception 'the organization already has a funding product with this code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into "app_private"."funding_products" ("tenant_id", "code", "title", "unit", "rate", "currency", "valid_from", "valid_until")
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update "app_private"."funding_products" x set
       "code" = v_code,
       "title" = v_title,
       "unit" = v_unit,
-      "rate" = save_funding_product.rate,
+      "rate" = upsert_funding_product.rate,
       "currency" = v_currency,
-      "valid_from" = save_funding_product.valid_from,
-      "valid_until" = save_funding_product.valid_until, "updated_at" = now()
-    where x."id" = save_funding_product.product_id and x."tenant_id" = save_funding_product.tenant
+      "valid_from" = upsert_funding_product.valid_from,
+      "valid_until" = upsert_funding_product.valid_until, "updated_at" = now()
+    where x."id" = upsert_funding_product.product_id and x."tenant_id" = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
@@ -2997,8 +2997,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'title', v_row."title", 'unit', v_row."unit", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "app_private"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "app_private"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "app_private"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -3020,7 +3020,7 @@ grant execute on function "app_private"."list_funding_products"(uuid, boolean) t
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function "app_private"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "app_private"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3029,7 +3029,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."funding_awards"%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -3042,14 +3042,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_award.tenant, 'funding.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_award.tenant, 'funding.write'), false)) then
     raise exception 'not allowed to change funding awards' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs is an object' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     if not false then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
@@ -3063,12 +3063,12 @@ begin
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else 'active' end;
   else
     select * into v_row from "app_private"."funding_awards" x
-    where x."id" = save_funding_award.award_id and x."tenant_id" = save_funding_award.tenant
+    where x."id" = upsert_funding_award.award_id and x."tenant_id" = upsert_funding_award.tenant
     for update;
     if not found then
       raise exception 'funding award not found' using errcode = 'P0002', hint = 'FUNDING_AWARD_NOT_FOUND';
     end if;
-    if v_row."subject_type" <> save_funding_award.subject_type or v_row."subject_id" <> save_funding_award.subject_id then
+    if v_row."subject_type" <> upsert_funding_award.subject_type or v_row."subject_id" <> upsert_funding_award.subject_id then
       raise exception 'an award stays with its record' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     if v_row."status" in ('ended', 'canceled') then
@@ -3083,10 +3083,10 @@ begin
   v_reference := case when v_attrs ? 'reference' then nullif(trim(v_attrs ->> 'reference'), '') else v_row."reference" end;
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else v_row."status" end;
   end if;
-  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
+  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
     raise exception 'the funder is a company or person in this organization''s contacts with the funder role' using errcode = '22023', hint = 'FUNDING_FUNDER_INVALID';
   end if;
-  if v_product is null or not exists (select 1 from "app_private"."funding_products" x where x."id" = v_product and x."tenant_id" = save_funding_award.tenant) then
+  if v_product is null or not exists (select 1 from "app_private"."funding_products" x where x."id" = v_product and x."tenant_id" = upsert_funding_award.tenant) then
     raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
   end if;
   if v_units is null or v_units <= 0 then
@@ -3112,12 +3112,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_attrs;
+        using upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_attrs;
     end if;
   end;
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into "app_private"."funding_awards" ("tenant_id", "subject_type", "subject_id", "funder_id", "product_id", "units", "period", "starts_on", "ends_on", "reference", "status", "created_by")
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
     returning * into v_row;
     null;
   else
@@ -3145,8 +3145,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'funderId', v_row."funder_id", 'productId', v_row."product_id", 'units', v_row."units", 'period', v_row."period", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'reference', v_row."reference", 'status', v_row."status", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "app_private"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "app_private"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.
@@ -3998,7 +3998,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:d72eefcac07a3dd40f338b3539d714a005fbcdcc997940afeb29d9ff1b785859
+-- @bsb-hash sha256:6c42fae01e1e97e3b1ac7be3e0edfcee9ea6e8b73ce7d93f1311b65845920885
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4164,7 +4164,7 @@ create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveri
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function "better_supabase"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4173,15 +4173,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_products"%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_product.tenant, 'funding.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_product.tenant, 'funding.manage'), false)) then
     raise exception 'not allowed to manage funding products' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) > 50 then
@@ -4193,36 +4193,36 @@ begin
   if v_unit is null or v_unit not in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece') then
     raise exception 'unit is minute, hour, day_part, day, visit or piece' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     raise exception 'a rate is zero or more minor units' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     raise exception 'a product is valid until on or after it is valid from' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if exists (
     select 1 from "better_supabase"."funding_products" x
-    where x."tenant_id" = save_funding_product.tenant and x."code" = v_code
-      and x."id" is distinct from save_funding_product.product_id
+    where x."tenant_id" = upsert_funding_product.tenant and x."code" = v_code
+      and x."id" is distinct from upsert_funding_product.product_id
   ) then
     raise exception 'the organization already has a funding product with this code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into "better_supabase"."funding_products" ("tenant_id", "code", "title", "unit", "rate", "currency", "valid_from", "valid_until")
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update "better_supabase"."funding_products" x set
       "code" = v_code,
       "title" = v_title,
       "unit" = v_unit,
-      "rate" = save_funding_product.rate,
+      "rate" = upsert_funding_product.rate,
       "currency" = v_currency,
-      "valid_from" = save_funding_product.valid_from,
-      "valid_until" = save_funding_product.valid_until, "updated_at" = now()
-    where x."id" = save_funding_product.product_id and x."tenant_id" = save_funding_product.tenant
+      "valid_from" = upsert_funding_product.valid_from,
+      "valid_until" = upsert_funding_product.valid_until, "updated_at" = now()
+    where x."id" = upsert_funding_product.product_id and x."tenant_id" = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
@@ -4231,8 +4231,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'title', v_row."title", 'unit', v_row."unit", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -4254,7 +4254,7 @@ grant execute on function "better_supabase"."list_funding_products"(uuid, boolea
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function "better_supabase"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4263,7 +4263,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_awards"%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -4276,14 +4276,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_award.tenant, 'funding.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_award.tenant, 'funding.write'), false)) then
     raise exception 'not allowed to change funding awards' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs is an object' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     if not false then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
@@ -4297,12 +4297,12 @@ begin
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else 'active' end;
   else
     select * into v_row from "better_supabase"."funding_awards" x
-    where x."id" = save_funding_award.award_id and x."tenant_id" = save_funding_award.tenant
+    where x."id" = upsert_funding_award.award_id and x."tenant_id" = upsert_funding_award.tenant
     for update;
     if not found then
       raise exception 'funding award not found' using errcode = 'P0002', hint = 'FUNDING_AWARD_NOT_FOUND';
     end if;
-    if v_row."subject_type" <> save_funding_award.subject_type or v_row."subject_id" <> save_funding_award.subject_id then
+    if v_row."subject_type" <> upsert_funding_award.subject_type or v_row."subject_id" <> upsert_funding_award.subject_id then
       raise exception 'an award stays with its record' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     if v_row."status" in ('ended', 'canceled') then
@@ -4317,10 +4317,10 @@ begin
   v_reference := case when v_attrs ? 'reference' then nullif(trim(v_attrs ->> 'reference'), '') else v_row."reference" end;
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else v_row."status" end;
   end if;
-  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
+  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
     raise exception 'the funder is a company or person in this organization''s contacts with the funder role' using errcode = '22023', hint = 'FUNDING_FUNDER_INVALID';
   end if;
-  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = save_funding_award.tenant) then
+  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = upsert_funding_award.tenant) then
     raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
   end if;
   if v_units is null or v_units <= 0 then
@@ -4346,12 +4346,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_attrs;
+        using upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_attrs;
     end if;
   end;
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into "better_supabase"."funding_awards" ("tenant_id", "subject_type", "subject_id", "funder_id", "product_id", "units", "period", "starts_on", "ends_on", "reference", "status", "created_by")
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
     returning * into v_row;
     null;
   else
@@ -4379,8 +4379,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'funderId', v_row."funder_id", 'productId', v_row."product_id", 'units', v_row."units", 'period', v_row."period", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'reference', v_row."reference", 'status', v_row."status", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.
@@ -5219,14 +5219,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines"
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "api"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_funding_product"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
-revoke execute on function "api"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "api"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_funding_product"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "api"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -5238,14 +5238,14 @@ as $$ select "better_supabase"."list_funding_products"($1, $2) $$;
 revoke execute on function "api"."list_funding_products"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_funding_products"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "api"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_funding_award"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_funding_award"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."end_funding_award"(award_id uuid, ends_on date default null, canceled boolean default false)
 returns jsonb
@@ -5395,7 +5395,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:9acbce83edb1fe8afc368c07c54629c75b7835cb32dcff2a79f8720e097c03b1
+-- @bsb-hash sha256:d78dc1176063451e8fa862d3c067dac63f76ddf4d8f78bf0d7174699c67ccbb9
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5528,7 +5528,7 @@ create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveri
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function "better_supabase"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5537,15 +5537,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_products"%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_product.tenant, 'funding.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_product.tenant, 'funding.manage'), false)) then
     raise exception 'not allowed to manage funding products' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) > 50 then
@@ -5557,36 +5557,36 @@ begin
   if v_unit is null or v_unit not in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece') then
     raise exception 'unit is minute, hour, day_part, day, visit or piece' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     raise exception 'a rate is zero or more minor units' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     raise exception 'a product is valid until on or after it is valid from' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if exists (
     select 1 from "better_supabase"."funding_products" x
-    where x."tenant_id" = save_funding_product.tenant and x."code" = v_code
-      and x."id" is distinct from save_funding_product.product_id
+    where x."tenant_id" = upsert_funding_product.tenant and x."code" = v_code
+      and x."id" is distinct from upsert_funding_product.product_id
   ) then
     raise exception 'the organization already has a funding product with this code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into "better_supabase"."funding_products" ("tenant_id", "code", "title", "unit", "rate", "currency", "valid_from", "valid_until")
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update "better_supabase"."funding_products" x set
       "code" = v_code,
       "title" = v_title,
       "unit" = v_unit,
-      "rate" = save_funding_product.rate,
+      "rate" = upsert_funding_product.rate,
       "currency" = v_currency,
-      "valid_from" = save_funding_product.valid_from,
-      "valid_until" = save_funding_product.valid_until, "updated_at" = now()
-    where x."id" = save_funding_product.product_id and x."tenant_id" = save_funding_product.tenant
+      "valid_from" = upsert_funding_product.valid_from,
+      "valid_until" = upsert_funding_product.valid_until, "updated_at" = now()
+    where x."id" = upsert_funding_product.product_id and x."tenant_id" = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
@@ -5595,8 +5595,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'title', v_row."title", 'unit', v_row."unit", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -5618,7 +5618,7 @@ grant execute on function "better_supabase"."list_funding_products"(uuid, boolea
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function "better_supabase"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5627,7 +5627,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_awards"%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -5640,14 +5640,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_award.tenant, 'funding.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_award.tenant, 'funding.write'), false)) then
     raise exception 'not allowed to change funding awards' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs is an object' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     if not false then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
@@ -5661,12 +5661,12 @@ begin
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else 'active' end;
   else
     select * into v_row from "better_supabase"."funding_awards" x
-    where x."id" = save_funding_award.award_id and x."tenant_id" = save_funding_award.tenant
+    where x."id" = upsert_funding_award.award_id and x."tenant_id" = upsert_funding_award.tenant
     for update;
     if not found then
       raise exception 'funding award not found' using errcode = 'P0002', hint = 'FUNDING_AWARD_NOT_FOUND';
     end if;
-    if v_row."subject_type" <> save_funding_award.subject_type or v_row."subject_id" <> save_funding_award.subject_id then
+    if v_row."subject_type" <> upsert_funding_award.subject_type or v_row."subject_id" <> upsert_funding_award.subject_id then
       raise exception 'an award stays with its record' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     if v_row."status" in ('ended', 'canceled') then
@@ -5681,10 +5681,10 @@ begin
   v_reference := case when v_attrs ? 'reference' then nullif(trim(v_attrs ->> 'reference'), '') else v_row."reference" end;
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else v_row."status" end;
   end if;
-  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
+  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."tenant_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
     raise exception 'the funder is a company or person in this organization''s contacts with the funder role' using errcode = '22023', hint = 'FUNDING_FUNDER_INVALID';
   end if;
-  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = save_funding_award.tenant) then
+  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."tenant_id" = upsert_funding_award.tenant) then
     raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
   end if;
   if v_units is null or v_units <= 0 then
@@ -5710,12 +5710,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_attrs;
+        using upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_attrs;
     end if;
   end;
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into "better_supabase"."funding_awards" ("tenant_id", "subject_type", "subject_id", "funder_id", "product_id", "units", "period", "starts_on", "ends_on", "reference", "status", "created_by")
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
     returning * into v_row;
     null;
   else
@@ -5743,8 +5743,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'funderId', v_row."funder_id", 'productId', v_row."product_id", 'units', v_row."units", 'period', v_row."period", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'reference', v_row."reference", 'status', v_row."status", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.
@@ -6596,7 +6596,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:682ba9044db9a36aa76584e28284741c7eb91343f45f983a629818865e9ebbe5
+-- @bsb-hash sha256:9179e80f01e23a04642a48d74fa617ab5182641f332f3d5d651d84dbc45b915f
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6762,7 +6762,7 @@ create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveri
 
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function "better_supabase"."save_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_product"(tenant uuid, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6771,15 +6771,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_products"%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_product.tenant, 'funding.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_product.tenant, 'funding.manage'), false)) then
     raise exception 'not allowed to manage funding products' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_code is null or length(v_code) > 50 then
@@ -6791,36 +6791,36 @@ begin
   if v_unit is null or v_unit not in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece') then
     raise exception 'unit is minute, hour, day_part, day, visit or piece' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     raise exception 'a rate is zero or more minor units' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'currency is a three-letter ISO 4217 code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     raise exception 'a product is valid until on or after it is valid from' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   if exists (
     select 1 from "better_supabase"."funding_products" x
-    where x."org_id" = save_funding_product.tenant and x."code" = v_code
-      and x."id" is distinct from save_funding_product.product_id
+    where x."org_id" = upsert_funding_product.tenant and x."code" = v_code
+      and x."id" is distinct from upsert_funding_product.product_id
   ) then
     raise exception 'the organization already has a funding product with this code' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into "better_supabase"."funding_products" ("org_id", "code", "title", "unit", "rate", "currency", "valid_from", "valid_until")
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update "better_supabase"."funding_products" x set
       "code" = v_code,
       "title" = v_title,
       "unit" = v_unit,
-      "rate" = save_funding_product.rate,
+      "rate" = upsert_funding_product.rate,
       "currency" = v_currency,
-      "valid_from" = save_funding_product.valid_from,
-      "valid_until" = save_funding_product.valid_until, "updated_at" = now()
-    where x."id" = save_funding_product.product_id and x."org_id" = save_funding_product.tenant
+      "valid_from" = upsert_funding_product.valid_from,
+      "valid_until" = upsert_funding_product.valid_until, "updated_at" = now()
+    where x."id" = upsert_funding_product.product_id and x."org_id" = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
@@ -6829,8 +6829,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'code', v_row."code", 'title', v_row."title", 'unit', v_row."unit", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'validFrom', v_row."valid_from", 'validUntil', v_row."valid_until", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_product"(uuid, text, text, text, bigint, text, date, date, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_funding_products"(tenant uuid, include_expired boolean default false)
 returns jsonb
@@ -6852,7 +6852,7 @@ grant execute on function "better_supabase"."list_funding_products"(uuid, boolea
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function "better_supabase"."save_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function "better_supabase"."upsert_funding_award"(tenant uuid, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6861,7 +6861,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."funding_awards"%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -6874,14 +6874,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_funding_award.tenant, 'funding.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_funding_award.tenant, 'funding.write'), false)) then
     raise exception 'not allowed to change funding awards' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     raise exception 'attrs is an object' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
   
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     if not false then
       raise exception 'the record isn''t in this organization' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
@@ -6895,12 +6895,12 @@ begin
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else 'active' end;
   else
     select * into v_row from "better_supabase"."funding_awards" x
-    where x."id" = save_funding_award.award_id and x."org_id" = save_funding_award.tenant
+    where x."id" = upsert_funding_award.award_id and x."org_id" = upsert_funding_award.tenant
     for update;
     if not found then
       raise exception 'funding award not found' using errcode = 'P0002', hint = 'FUNDING_AWARD_NOT_FOUND';
     end if;
-    if v_row."subject_type" <> save_funding_award.subject_type or v_row."subject_id" <> save_funding_award.subject_id then
+    if v_row."subject_type" <> upsert_funding_award.subject_type or v_row."subject_id" <> upsert_funding_award.subject_id then
       raise exception 'an award stays with its record' using errcode = '22023', hint = 'FUNDING_INVALID';
     end if;
     if v_row."status" in ('ended', 'canceled') then
@@ -6915,10 +6915,10 @@ begin
   v_reference := case when v_attrs ? 'reference' then nullif(trim(v_attrs ->> 'reference'), '') else v_row."reference" end;
   v_status := case when v_attrs ? 'status' then nullif(trim(v_attrs ->> 'status'), '') else v_row."status" end;
   end if;
-  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."org_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."org_id" = save_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
+  if v_funder is null or not (exists (select 1 from "better_supabase"."companies" x where x."id" = v_funder and x."org_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles")) or exists (select 1 from "better_supabase"."people" x where x."id" = v_funder and x."org_id" = upsert_funding_award.tenant and x."merged_into" is null and 'funder' = any (x."roles"))) then
     raise exception 'the funder is a company or person in this organization''s contacts with the funder role' using errcode = '22023', hint = 'FUNDING_FUNDER_INVALID';
   end if;
-  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."org_id" = save_funding_award.tenant) then
+  if v_product is null or not exists (select 1 from "better_supabase"."funding_products" x where x."id" = v_product and x."org_id" = upsert_funding_award.tenant) then
     raise exception 'funding product not found' using errcode = 'P0002', hint = 'FUNDING_PRODUCT_NOT_FOUND';
   end if;
   if v_units is null or v_units <= 0 then
@@ -6944,12 +6944,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text, $3::text, $4::jsonb)', v_hook::oid::regproc)
-        using save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_attrs;
+        using upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_attrs;
     end if;
   end;
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into "better_supabase"."funding_awards" ("org_id", "subject_type", "subject_id", "funder_id", "product_id", "units", "period", "starts_on", "ends_on", "reference", "status", "created_by")
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status, (select auth.uid()))
     returning * into v_row;
     null;
   else
@@ -6977,8 +6977,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'funderId', v_row."funder_id", 'productId', v_row."product_id", 'units', v_row."units", 'period', v_row."period", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'reference', v_row."reference", 'status', v_row."status", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_funding_award"(uuid, text, text, jsonb, uuid) to authenticated, service_role;
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.

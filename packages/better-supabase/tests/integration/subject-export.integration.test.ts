@@ -134,7 +134,7 @@ describe.skipIf(!live)("subject export", () => {
     await s.asRole(ann);
 
     const definition = await s.value<string>(
-      "(better_supabase.save_field_definition($1, 'it_chart', 'ward', 'Ward', 'text', false) ->> 'id')",
+      "(better_supabase.upsert_field_definition($1, 'it_chart', 'ward', 'Ward', 'text', false) ->> 'id')",
       [org],
     );
 

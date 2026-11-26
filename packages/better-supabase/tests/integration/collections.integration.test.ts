@@ -213,10 +213,10 @@ describe.skipIf(!live)("collections", () => {
       );
 
       for (const member of [owner, rep]) {
-        await s.client.query("select better_supabase.add_team_member($1, $2)", [
-          team,
-          member.id,
-        ]);
+        await s.client.query(
+          "select better_supabase.create_team_member($1, $2)",
+          [team, member.id],
+        );
       }
 
       await s.as(rep);

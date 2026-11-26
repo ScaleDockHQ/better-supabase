@@ -19,7 +19,7 @@ describe("custom-fields module", () => {
     const sql = sqlOf();
     expect(sql).toContain(`"rank" text collate "C" not null default 'V',`);
     expect(sql).toContain(
-      `where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;`,
+      `where d."tenant_id" = upsert_field_definition.tenant and d."entity" = upsert_field_definition.entity;`,
     );
     expect(sql).toContain(`do update set "label" = excluded."label"`);
     expect(sql).not.toMatch(/do update set[^\n]*"rank"/);
@@ -240,13 +240,13 @@ describe("custom-fields module", () => {
     );
 
     expect(sql).toContain(
-      `case when read_field_values.subject_type in ('drive_node') then case read_field_values.subject_type`,
+      `case when get_field_values.subject_type in ('drive_node') then case get_field_values.subject_type`,
     );
     expect(sql).toContain(
       `coalesce("better_supabase"."drive_node_readable"(s."id"), false)`,
     );
     expect(sql).toContain(
-      `else coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false) end`,
+      `else coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false) end`,
     );
     expect(sql).toContain(
       `coalesce("better_supabase"."can_subject"(set_field_value.subject_type, set_field_value.subject_id, 'fields'), false)`,
@@ -268,9 +268,9 @@ describe("custom-fields module", () => {
       ["subjects"],
     );
 
-    expect(sql).not.toContain("read_field_values.tenant, 'custom_fields.read'");
+    expect(sql).not.toContain("get_field_values.tenant, 'custom_fields.read'");
     expect(sql).toContain(
-      `when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (read_field_values.subject_id)::bigint`,
+      `when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (get_field_values.subject_id)::bigint`,
     );
   });
 
@@ -292,16 +292,16 @@ describe("custom-fields module", () => {
 
     expect(sql).not.toContain(`when 'note' then exists`);
     expect(sql).toContain(
-      `when read_field_values.subject_type in ('task') then case read_field_values.subject_type`,
+      `when get_field_values.subject_type in ('task') then case get_field_values.subject_type`,
     );
     expect(sql).toContain(
-      `else coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false) end`,
+      `else coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false) end`,
     );
   });
 
   it("keeps the tenant read key without record-checked types", () => {
     expect(sqlOf()).toContain(
-      `and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))`,
+      `and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', get_field_values.tenant, 'custom_fields.read'), false))`,
     );
   });
 
@@ -336,7 +336,7 @@ describe("custom-fields module", () => {
       const sql = sqlOf(registry, ["subjects"]);
 
       expect(sql).toContain(
-        `if save_field_definition.entity is null or save_field_definition.entity <> all (array['task']::text[]) then`,
+        `if upsert_field_definition.entity is null or upsert_field_definition.entity <> all (array['task']::text[]) then`,
       );
       expect(sql).toContain("CUSTOM_FIELD_ENTITY_UNKNOWN");
     });
@@ -381,7 +381,7 @@ describe("custom-fields module", () => {
       ]);
 
       expect(sql).toContain(
-        `read_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)`,
+        `get_field_values"(tenant uuid, subject_type text, subject_id text, legal_entity uuid default null)`,
       );
       expect(sql).toContain("x.legal_entity_id nulls last");
       expect(sql).toContain("legal_entity uuid default null)");

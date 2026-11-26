@@ -31,7 +31,7 @@ import type { AccountTransport } from "./suspend-account.ts";
 import { authContext } from "../auth/context.ts";
 import { contextClaims, narrowCap } from "../auth/delegation.ts";
 import { actClaim, userContext } from "../auth/impersonation.ts";
-import { loadJwks } from "../auth/resolve.ts";
+import { getJwks } from "../auth/resolve.ts";
 import { sessionCookieName } from "../auth/session.ts";
 import { bindAuthorizer, requestMemo } from "../core/authorizer.ts";
 import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
@@ -809,7 +809,7 @@ export function createServer<
           jwks: () =>
             lite || options.auth?.jwks !== undefined
               ? undefined
-              : loadJwks({ ...options.auth, env: env() }),
+              : getJwks({ ...options.auth, env: env() }),
         },
         warmOptions,
       ),

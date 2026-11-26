@@ -2,13 +2,13 @@ import { getExtracted } from "next-intl/server";
 
 import { KpiBand } from "@/components/record-list/kpi-band";
 
-import { loadSeatsLeft } from "../seats/seats-queries";
+import { getSeatsLeft } from "../seats/seats-queries";
 
 /** The seat figures of the members page; render inside `<Suspense>`. */
 // skeleton: its parent page or section renders it inside a Suspense with a fallback of the same shape.
 export async function SeatUsage({ used }: { used: number }) {
   const [left, t] = await Promise.all([
-    loadSeatsLeft(used),
+    getSeatsLeft(used),
     getExtracted("members"),
   ]);
 

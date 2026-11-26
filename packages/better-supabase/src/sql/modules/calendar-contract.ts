@@ -44,7 +44,7 @@ export function contract(
             returns: "boolean",
           },
           {
-            name: "remove_calendar_grant",
+            name: "delete_calendar_grant",
             args: ["uuid", "uuid"],
             returns: "boolean",
           },
@@ -53,7 +53,7 @@ export function contract(
       : []),
     { name: "delete_calendar", args: ["uuid"], returns: "boolean" },
     {
-      name: "save_calendar_event",
+      name: "upsert_calendar_event",
       args: ["uuid", "jsonb", "uuid"],
       returns: "jsonb",
     },
@@ -104,7 +104,7 @@ export function contract(
                   returns: "jsonb",
                 },
                 {
-                  name: "remove_calendar_attendee",
+                  name: "delete_calendar_attendee",
                   args: ["uuid"],
                   returns: "boolean",
                 },

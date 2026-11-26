@@ -8,7 +8,7 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   DEFAULT_ROLES,
   modulePermissionKeys,
-  readArgSource,
+  getArgSource,
   resolveBlock,
   SQL_MODULES,
 } from "../../sql/index.ts";
@@ -490,7 +490,7 @@ function keyUnionLines(config: NamesConfig): string[] {
  * The tables a read lists, and the views the app projects over them: a read is
  * served from the view, so a write to the table must invalidate it too.
  */
-function readTables(
+function getTables(
   key: string,
   tables: readonly string[],
   fanOut: ViewFanOut | undefined,
@@ -537,7 +537,7 @@ function readLines(
       const args = Object.entries(read.args)
         .map(
           ([name, arg]) =>
-            `readonly ${prop(name)}${arg.optional ? "?" : ""}: ${readArgSource(arg.type)}`,
+            `readonly ${prop(name)}${arg.optional ? "?" : ""}: ${getArgSource(arg.type)}`,
         )
         .join("; ");
 
@@ -556,7 +556,7 @@ function readLines(
         .map(([name, arg]) => `${prop(name)}: ${q(arg.param)}`)
         .join(", ");
 
-      return `    ${prop(read.name)}: blockRead<${base}Args, ${base}Result>(${q(fn)}, { ${params} }, [${readTables(key, read.tables, fanOut).map(q).join(", ")}], ${q(entry.api ?? entry.schema)}),`;
+      return `    ${prop(read.name)}: blockRead<${base}Args, ${base}Result>(${q(fn)}, { ${params} }, [${getTables(key, read.tables, fanOut).map(q).join(", ")}], ${q(entry.api ?? entry.schema)}),`;
     });
 
     groups.push(`  ${prop(camel(key))}: {`, ...lines, "  },");

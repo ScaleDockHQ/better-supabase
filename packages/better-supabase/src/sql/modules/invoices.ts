@@ -776,7 +776,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(ctx.hasTable("charges")
       ? [
           {
-            name: "add_invoice_charge",
+            name: "create_invoice_charge",
             args: [
               "uuid",
               "bigint",
@@ -788,7 +788,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             returns: "jsonb",
           },
           {
-            name: "remove_invoice_charge",
+            name: "delete_invoice_charge",
             args: ["uuid", "jsonb"],
             returns: "jsonb",
           },

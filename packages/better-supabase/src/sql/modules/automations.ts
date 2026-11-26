@@ -261,7 +261,7 @@ function build(ctx: BlockSqlContext): string {
   ]);
 
   const ruleInsert = present("rules", [
-    ["tenant", "save_rule.tenant"],
+    ["tenant", "upsert_rule.tenant"],
     ["subjectType", "v_subject_type"],
     ["trigger", "v_trigger"],
     ["name", "v_name"],
@@ -326,13 +326,13 @@ function build(ctx: BlockSqlContext): string {
     fieldsList: `${fn("rule_fields_list")}(text)`,
     fieldMap: `${fn("rule_field_map")}(text)`,
     check: `${fn("rule_check")}(jsonb, jsonb, integer)`,
-    save: `${fn("save_rule")}(${id}, jsonb)`,
+    save: `${fn("upsert_rule")}(${id}, jsonb)`,
     list: `${fn("rules_list")}(${id}, text, text, boolean)`,
     get: `${fn("rule_get")}(uuid)`,
     versions: `${fn("rule_versions_list")}(uuid)`,
     enable: `${fn("set_rule_enabled")}(uuid, boolean)`,
     rank: `${fn("rank_rule")}(uuid, text)`,
-    remove: `${fn("remove_rule")}(uuid)`,
+    remove: `${fn("delete_rule")}(uuid)`,
     matching: `${fn("matching_rules")}(${id}, text, text, jsonb, text)`,
     record: `${fn("record_rule_evaluation")}(uuid, text, boolean, jsonb, text)`,
     run: `${fn("run_rules")}(${id}, text, text, text, jsonb, text)`,
@@ -542,7 +542,7 @@ $$;
 -- description, conditions, actions, enabled, stopProcessing }; keys left out keep
 -- their value. Creating or changing a disabled rule takes the edit permission;
 -- enabling one, or changing an enabled one, takes publish. version must be the stored one.
-create or replace function ${fn("save_rule")}(tenant ${id}, rule jsonb)
+create or replace function ${fn("upsert_rule")}(tenant ${id}, rule jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -569,7 +569,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from ${t} x where x.${r("id")} = v_id and x.${r("tenant")} = save_rule.tenant for update;
+    select * into v_old from ${t} x where x.${r("id")} = v_id and x.${r("tenant")} = upsert_rule.tenant for update;
     if v_old.${r("id")} is null then
       ${fail("AUTOMATION_NOT_FOUND", "No rule in this organization has this id", "P0002")}
     end if;
@@ -588,7 +588,7 @@ begin
   v_actions := coalesce(rule -> 'actions', v_old.${r("actions")}, '[]'::jsonb);
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old.${r("enabled")}, false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, ${columnOr("rules", "v_old", "stopProcessing", "null")}, false);
-  if not ${canKey("save_rule.tenant", `(v_enabled or coalesce(v_old.${r("enabled")}, false))`)} then
+  if not ${canKey("upsert_rule.tenant", `(v_enabled or coalesce(v_old.${r("enabled")}, false))`)} then
     ${raise("You need % to save this rule", "42501", "AUTOMATION_FORBIDDEN", keyFor(`(v_enabled or coalesce(v_old.${r("enabled")}, false))`))}
   end if;
   if v_subject_type is null or v_subject_type !~ ${sqlString(SUBJECT_TYPE)} then
@@ -616,13 +616,13 @@ begin
     end if;
   end loop;
   ${ctx.hook("before_automation_save", [
-    [id, "save_rule.tenant"],
-    ["jsonb", "save_rule.rule"],
+    [id, "upsert_rule.tenant"],
+    ["jsonb", "upsert_rule.rule"],
   ])}
   if v_old.${r("id")} is null then
     insert into ${t} (${[...ruleInsert.map(([column]) => r(column)), r("rank")].join(", ")})
     values (${values(ruleInsert)},
-      ${rankAfter(`(select max(x.${r("rank")} collate "C") from ${t} x where x.${r("tenant")} = save_rule.tenant and x.${r("subjectType")} = v_subject_type)`)})
+      ${rankAfter(`(select max(x.${r("rank")} collate "C") from ${t} x where x.${r("tenant")} = upsert_rule.tenant and x.${r("subjectType")} = v_subject_type)`)})
     returning * into v_row;
   elsif v_old.${r("trigger")} = v_trigger and v_old.${r("name")} = v_name
     and ${columnOr("rules", "v_old", "description", "null::text")} is not distinct from v_description
@@ -797,7 +797,7 @@ $$;
 
 -- Removes a rule with its versions and evaluations (admin permission);
 -- false when there is none the caller may remove.
-create or replace function ${fn("remove_rule")}(id uuid)
+create or replace function ${fn("delete_rule")}(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -806,7 +806,7 @@ as $$
 declare
   v_row ${t};
 begin
-  select * into v_row from ${t} x where x.${r("id")} = remove_rule.id;
+  select * into v_row from ${t} x where x.${r("id")} = delete_rule.id;
   if v_row.${r("id")} is null or not ${can(`v_row.${r("tenant")}`, admin)} then
     return false;
   end if;
@@ -817,7 +817,7 @@ ${
   end if;
 `
     : ""
-}  ${ctx.hook("before_automation_remove", [["uuid", "remove_rule.id"]])}
+}  ${ctx.hook("before_automation_remove", [["uuid", "delete_rule.id"]])}
   delete from ${t} x where x.${r("id")} = v_row.${r("id")};
   ${ruleEvent("automation.deleted", "v_row")}
   ${ctx.hook("after_automation_remove", [["uuid", `v_row.${r("id")}`]])}
@@ -987,7 +987,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "sync_rule_fields", args: ["text", "jsonb"], returns: "integer" },
     { name: "rule_fields_list", args: ["text"], returns: "jsonb" },
     { name: "rule_field_map", args: ["text"], returns: "jsonb" },
-    { name: "save_rule", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "upsert_rule", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "rules_list",
       args: ["{id}", "text", "text", "boolean"],
@@ -997,7 +997,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "rule_versions_list", args: ["uuid"], returns: "jsonb" },
     { name: "set_rule_enabled", args: ["uuid", "boolean"], returns: "jsonb" },
     { name: "rank_rule", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "remove_rule", args: ["uuid"], returns: "boolean" },
+    { name: "delete_rule", args: ["uuid"], returns: "boolean" },
     {
       name: "matching_rules",
       args: ["{id}", "text", "text", "jsonb", "text"],

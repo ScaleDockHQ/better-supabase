@@ -1,5 +1,5 @@
 import { passList } from "../../../../features/passes/passes-list";
-import { loadPassPage } from "../../../../features/passes/passes-queries";
+import { getPassPage } from "../../../../features/passes/passes-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -13,7 +13,7 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const page = await loadPassPage(db, query.value);
+  const page = await getPassPage(db, query.value);
 
   return page.ok
     ? Response.json(page.data)

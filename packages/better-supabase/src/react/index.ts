@@ -26,7 +26,12 @@ export { ErrorMessagesProvider, useErrorMessage } from "./error-messages.ts";
 
 export type { ErrorMessageResolver } from "./error-messages.ts";
 
-export { useAction, useActionForm, useOptimisticAction } from "./actions.ts";
+export {
+  ActionDefaultsProvider,
+  useAction,
+  useActionForm,
+  useOptimisticAction,
+} from "./actions.ts";
 
 export { createRecordProvider } from "./record.ts";
 
@@ -73,6 +78,8 @@ export {
 export type { DataHooks, DataView, InfiniteList } from "./data-hooks.ts";
 
 export { can, PermissionsProvider, useCan } from "./permissions.ts";
+
+export { TenantProvider, useTenant } from "./tenant.ts";
 
 export { OfflineContext } from "./offline.ts";
 
@@ -122,7 +129,9 @@ export { fieldErrorsOf } from "../bindings/field-errors.ts";
 export { tenantOf } from "../auth/tenant.ts";
 
 export type {
+  ActionDefaults,
   ActionForm,
+  ActionOutcome,
   ActionHandle,
   ActionInputOf,
   ActionResultOf,

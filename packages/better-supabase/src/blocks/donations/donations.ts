@@ -789,7 +789,7 @@ export function createDonations<
     saveFund: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_donation_fund",
+          "upsert_donation_fund",
           {
             tenant: organizationId,
             key: input.key,
@@ -800,7 +800,7 @@ export function createDonations<
             starts_on: input.startsOn?.toString() ?? null,
             ends_on: input.endsOn?.toString() ?? null,
           },
-          fund("save_donation_fund"),
+          fund("upsert_donation_fund"),
         ),
       ),
     archiveFund: (fundId) =>

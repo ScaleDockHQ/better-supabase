@@ -48,7 +48,7 @@ const FRAMEWORK_PACKAGES: readonly (readonly [Framework, string])[] = [
   ["tanstack-query", "@tanstack/react-query"],
 ];
 
-async function readJson(
+async function getJson(
   path: string,
 ): Promise<Record<string, unknown> | undefined> {
   if (!existsSync(path)) {
@@ -102,14 +102,14 @@ export async function detectProject(
   root: string,
   bindings: readonly FrameworkBinding[] = [],
 ): Promise<Project> {
-  const pkg = (await readJson(join(root, "package.json"))) ?? {};
+  const pkg = (await getJson(join(root, "package.json"))) ?? {};
   const dependencies: Record<string, string> = {};
 
   for (const field of ["peerDependencies", "devDependencies", "dependencies"]) {
     Object.assign(dependencies, pkg[field] ?? {});
   }
 
-  const tsconfig = await readJson(join(root, "tsconfig.json"));
+  const tsconfig = await getJson(join(root, "tsconfig.json"));
 
   // SAFETY: compilerOptions is an object in a valid tsconfig, and callers check each option.
   const options = (tsconfig?.["compilerOptions"] ?? {}) as Record<

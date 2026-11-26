@@ -193,6 +193,7 @@ const PURE_BARRELS = [
   "generators/standard-schema",
   "generators/factories",
   "generators/nuqs",
+  "generators/tags",
   "sql",
   "storage",
   "storage/client",

@@ -447,7 +447,7 @@ export function createActivities<
     transcript,
   }) =>
     service(
-      "save_activity_transcript",
+      "upsert_activity_transcript",
       {
         recording: recordingId,
         segments: segmentsArg(transcript.segments),
@@ -688,7 +688,7 @@ export function createActivities<
       ),
     saveNotes: ({ activityId, notes }) =>
       call(
-        "save_activity_notes",
+        "upsert_activity_notes",
         { activity: activityId, notes: notesArg(notes, "member", undefined) },
         notesOf,
       ),
@@ -730,7 +730,7 @@ export function createActivities<
         )
         .andThen((notes) =>
           call(
-            "save_activity_notes",
+            "upsert_activity_notes",
             {
               activity: activityId,
               notes: notesArg(notes, "ai", noteTaker.model),

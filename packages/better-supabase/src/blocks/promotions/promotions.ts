@@ -11,7 +11,7 @@ import type { BlockOptions } from "../shared.ts";
 
 import {
   blockFields,
-  readFields,
+  getFields,
   rowFields,
   writeFields,
 } from "../../core/block-fields.ts";
@@ -292,7 +292,7 @@ export function createPromotions<
 
       return writeFields(fields, input.fields, (checked) =>
         call(
-          "save_promotion",
+          "upsert_promotion",
           {
             tenant: organizationId,
             promotion: input.id ?? null,
@@ -300,12 +300,12 @@ export function createPromotions<
             fields: checked,
           },
           (value) => {
-            const row = recordOf(value, "save_promotion");
+            const row = recordOf(value, "upsert_promotion");
 
             return { id: textOf(row["id"]), fields: rowFields(row["fields"]) };
           },
         ),
-      ).andThen((saved) => readFields(fields, saved));
+      ).andThen((saved) => getFields(fields, saved));
     },
     setPromotionActive: ({ promotionId, active }) =>
       call("set_promotion_active", { promotion: promotionId, active }, isTrue),

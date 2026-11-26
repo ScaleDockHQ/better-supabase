@@ -207,9 +207,9 @@ export function createSegments(options: SegmentsOptions): Segments {
 
   const client: Segments = {
     upsert: ({ organizationId, segment }) =>
-      call("save_segment", { tenant: organizationId, segment }, segmentOf),
+      call("upsert_segment", { tenant: organizationId, segment }, segmentOf),
     remove: (segmentId) =>
-      call("remove_segment", { segment: segmentId }, (value) => value === true),
+      call("delete_segment", { segment: segmentId }, (value) => value === true),
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) =>
       call(

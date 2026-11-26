@@ -4,8 +4,8 @@ import type { Policy, PolicyCommand } from "./policy.ts";
 import { sqlString } from "../core/template.ts";
 import {
   policy as buildPolicy,
-  readGrants,
-  readPolicies,
+  getGrants,
+  getPolicies,
   renderPolicy,
 } from "./policy.ts";
 import { withoutComments } from "./text-edit.ts";
@@ -208,7 +208,7 @@ function tableKey(name: string): string {
  */
 function grantedTables(sql: string): ReadonlySet<string> {
   return new Set(
-    readGrants(sql)
+    getGrants(sql)
       .filter((grant) =>
         grant.roles.some(
           (role) =>
@@ -277,7 +277,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
   }
 
   const source = withoutComments(sql);
-  const policies = readPolicies(source).map((read) => read.policy);
+  const policies = getPolicies(source).map((read) => read.policy);
   const granted = grantedTables(source);
   const statements: string[] = [];
   const targets: string[] = [];

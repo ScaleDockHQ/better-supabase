@@ -4,8 +4,8 @@ import type { Money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
-import { readAllPages, readAllPagesResult } from "@/lib/read-all-pages";
+import { getAllPages, getAllPagesResult } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { TILLS_TAG } from "./tills-cache";
@@ -21,7 +21,7 @@ export interface TillRow {
 }
 
 /** The tills, with whether one has a session open right now. */
-export async function loadTills(): Promise<readonly TillRow[] | null> {
+export async function getTills(): Promise<readonly TillRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(TILLS_TAG);
@@ -31,7 +31,7 @@ export async function loadTills(): Promise<readonly TillRow[] | null> {
   }
 
   const [tills, open] = await Promise.all([
-    readAllPages((page) =>
+    getAllPages((page) =>
       db.tills.tillPage({ ...page, filters: { includeArchived: ["true"] } }),
     ),
     db.tills.listSessions({ status: "open", limit: 200 }).orThrow(),
@@ -51,7 +51,7 @@ export async function loadTills(): Promise<readonly TillRow[] | null> {
 }
 
 /** The ids of the tills with a session open right now. */
-export async function loadOpenTillIds(): Promise<readonly string[] | null> {
+export async function getOpenTillIds(): Promise<readonly string[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(TILLS_TAG);
@@ -134,7 +134,7 @@ export async function loadSession(
 
   const row = found.data;
 
-  const tills = await readAllPages((page) =>
+  const tills = await getAllPages((page) =>
     db.tills.tillPage({ ...page, filters: { includeArchived: ["true"] } }),
   );
 
@@ -191,16 +191,16 @@ export interface BankTargets {
  * The bank accounts and their unmatched incoming transactions, for the import
  * and the match of a cash deposit (EX-1113).
  */
-export async function loadBankTargets(): Promise<BankTargets | null> {
+export async function getBankTargets(): Promise<BankTargets | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(TILLS_TAG, BANKING_TAG);
+  cacheTag(TILLS_TAG, tags.banking());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const accounts = await readAllPagesResult((page) =>
+  const accounts = await getAllPagesResult((page) =>
     db.banking.accountPage(page),
   ).orThrow();
 

@@ -244,18 +244,18 @@ describe.skipIf(!live)("pipelines", () => {
       await s.as(owner);
 
       const second = await s.value<{ id: string }>(
-        "better_supabase.save_pipeline($1, null, 'deal', 'renewals', 'Renewals', null, false)",
+        "better_supabase.upsert_pipeline($1, null, 'deal', 'renewals', 'Renewals', null, false)",
         [tenant],
       );
 
       const renewalStage = await s.value<{ id: string }>(
-        "better_supabase.save_pipeline_stage($1, null, 'due', 'Due', 'open', 30, 14, null, null)",
+        "better_supabase.upsert_pipeline_stage($1, null, 'due', 'Due', 'open', 30, 14, null, null)",
         [second.id],
       );
 
       expect(
         await s.hint(
-          "better_supabase.save_pipeline_stage($1, null, 'odd', 'Odd', 'maybe', null, null, null, null)",
+          "better_supabase.upsert_pipeline_stage($1, null, 'odd', 'Odd', 'maybe', null, null, null, null)",
           [second.id],
         ),
       ).toBe("PIPELINE_CATEGORY_UNKNOWN");
@@ -276,7 +276,7 @@ describe.skipIf(!live)("pipelines", () => {
       );
       expect(
         await s.hint(
-          "better_supabase.save_pipeline($1, null, 'deal', 'x', 'X', null, false)",
+          "better_supabase.upsert_pipeline($1, null, 'deal', 'x', 'X', null, false)",
           [tenant],
         ),
       ).toBe("PIPELINE_FORBIDDEN");

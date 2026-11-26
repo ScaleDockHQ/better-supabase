@@ -1100,7 +1100,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     saveChecklistItem: ({ taskId, input, checklistItemId }) =>
       call(
-        "save_task_checklist_item",
+        "upsert_task_checklist_item",
         { task: taskId, checklist_item: checklistItemId ?? null, attrs: input },
         checklistItemOf,
       ),
@@ -1175,7 +1175,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             };
 
       return call(
-        "save_project",
+        "upsert_project",
         {
           tenant: organizationId,
           project: id ?? null,
@@ -1188,7 +1188,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       const { id, ...attrs } = iteration;
 
       return call(
-        "save_iteration",
+        "upsert_iteration",
         { tenant: organizationId, iteration: id ?? null, attrs: args(attrs) },
         iterationOf,
       );

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:f0d89e2f98a5d1d93d17815c9be611309ccc5f90b78b89d6ee90ecf63595022b
+-- @bsb-hash sha256:be6d6d4ae5252c46437b80ee12093c2c7a2853c94eec62bce47c7b33ee41fbdc
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -190,7 +190,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = join_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  perform "better_supabase"."add_conversation_members"(join_channel.channel, array[auth.uid()]);
+  perform "better_supabase"."create_conversation_members"(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -208,7 +208,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = leave_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."remove_conversation_member"(leave_channel.channel, auth.uid());
+  return "better_supabase"."delete_conversation_member"(leave_channel.channel, auth.uid());
 end;
 $$;
 revoke execute on function "better_supabase"."leave_channel"(uuid) from public, anon;
@@ -226,7 +226,7 @@ begin
   if not exists (select 1 from "better_supabase"."channels" x where x."id" = invite_to_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."add_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
+  return "better_supabase"."create_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 revoke execute on function "better_supabase"."invite_to_channel"(uuid, uuid[]) from public, anon;
@@ -691,7 +691,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:5b3a303141b1e428807ff87625e57d72af287717337ebd8e903e155cddf55bca
+-- @bsb-hash sha256:dcfffd9f8ee2a13e7bdb113ae7429aadde1e9bf643a26dc76f7bd7ba205dd49a
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -898,7 +898,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = join_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  perform "better_supabase"."add_conversation_members"(join_channel.channel, array[auth.uid()]);
+  perform "better_supabase"."create_conversation_members"(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -916,7 +916,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = leave_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."remove_conversation_member"(leave_channel.channel, auth.uid());
+  return "better_supabase"."delete_conversation_member"(leave_channel.channel, auth.uid());
 end;
 $$;
 revoke execute on function "better_supabase"."leave_channel"(uuid) from public, anon;
@@ -934,7 +934,7 @@ begin
   if not exists (select 1 from "better_supabase"."channels" x where x."id" = invite_to_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."add_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
+  return "better_supabase"."create_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 revoke execute on function "better_supabase"."invite_to_channel"(uuid, uuid[]) from public, anon;
@@ -1402,7 +1402,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:3d4d8202b7bd294e0205dd0e21daccbf52a968fc464eba53e6ccfaf4f9f6f437
+-- @bsb-hash sha256:637aceb85be75121fdf4d6cd4514b66c5648f222b91b8c0da66b5e76800c8c51
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1596,7 +1596,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "app_private"."channels" x where x."id" = join_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  perform "better_supabase"."add_conversation_members"(join_channel.channel, array[auth.uid()]);
+  perform "better_supabase"."create_conversation_members"(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -1614,7 +1614,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "app_private"."channels" x where x."id" = leave_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."remove_conversation_member"(leave_channel.channel, auth.uid());
+  return "better_supabase"."delete_conversation_member"(leave_channel.channel, auth.uid());
 end;
 $$;
 revoke execute on function "app_private"."leave_channel"(uuid) from public, anon;
@@ -1632,7 +1632,7 @@ begin
   if not exists (select 1 from "app_private"."channels" x where x."id" = invite_to_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."add_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
+  return "better_supabase"."create_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 revoke execute on function "app_private"."invite_to_channel"(uuid, uuid[]) from public, anon;
@@ -2097,7 +2097,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:a85224a36c46c1b597e6bfcac50a01e9d8fbd41fbac84831f7b2995b78d3555a
+-- @bsb-hash sha256:9d3bbb949af448a62f028b184293c4d2dd5a60e74cd2b7ee7c4f7bd2d3650fb6
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2286,7 +2286,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = join_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  perform "better_supabase"."add_conversation_members"(join_channel.channel, array[auth.uid()]);
+  perform "better_supabase"."create_conversation_members"(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -2304,7 +2304,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = leave_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."remove_conversation_member"(leave_channel.channel, auth.uid());
+  return "better_supabase"."delete_conversation_member"(leave_channel.channel, auth.uid());
 end;
 $$;
 revoke execute on function "better_supabase"."leave_channel"(uuid) from public, anon;
@@ -2322,7 +2322,7 @@ begin
   if not exists (select 1 from "better_supabase"."channels" x where x."id" = invite_to_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."add_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
+  return "better_supabase"."create_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 revoke execute on function "better_supabase"."invite_to_channel"(uuid, uuid[]) from public, anon;
@@ -2895,7 +2895,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:9d3aebbd73a0cb5dadd712ce60b46d76553b03da3b24bc28f78778faeeeaf2e6
+-- @bsb-hash sha256:1562456cbe41396b8a1b42027457f9fe3583d00a9dd0e7544eda1bc60ef70765
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3081,7 +3081,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = join_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  perform "better_supabase"."add_conversation_members"(join_channel.channel, array[auth.uid()]);
+  perform "better_supabase"."create_conversation_members"(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -3099,7 +3099,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = leave_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."remove_conversation_member"(leave_channel.channel, auth.uid());
+  return "better_supabase"."delete_conversation_member"(leave_channel.channel, auth.uid());
 end;
 $$;
 revoke execute on function "better_supabase"."leave_channel"(uuid) from public, anon;
@@ -3117,7 +3117,7 @@ begin
   if not exists (select 1 from "better_supabase"."channels" x where x."id" = invite_to_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."add_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
+  return "better_supabase"."create_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 revoke execute on function "better_supabase"."invite_to_channel"(uuid, uuid[]) from public, anon;
@@ -3582,7 +3582,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:7bd1ce356d94f6b77d396ae5d19e39313a50417f892974d87d191961955c2770
+-- @bsb-hash sha256:b12134600ca0f5493e67767c1724ede12af5586bc5aa74f957dfbdd70c9c9ddd
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3771,7 +3771,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = join_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  perform "better_supabase"."add_conversation_members"(join_channel.channel, array[auth.uid()]);
+  perform "better_supabase"."create_conversation_members"(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -3789,7 +3789,7 @@ begin
   if auth.uid() is null or not exists (select 1 from "better_supabase"."channels" x where x."id" = leave_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."remove_conversation_member"(leave_channel.channel, auth.uid());
+  return "better_supabase"."delete_conversation_member"(leave_channel.channel, auth.uid());
 end;
 $$;
 revoke execute on function "better_supabase"."leave_channel"(uuid) from public, anon;
@@ -3807,7 +3807,7 @@ begin
   if not exists (select 1 from "better_supabase"."channels" x where x."id" = invite_to_channel.channel) then
     raise exception 'no such channel you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
-  return "better_supabase"."add_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
+  return "better_supabase"."create_conversation_members"(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 revoke execute on function "better_supabase"."invite_to_channel"(uuid, uuid[]) from public, anon;

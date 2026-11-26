@@ -372,12 +372,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "remove_meeting_attendee",
+      name: "delete_meeting_attendee",
       args: ["uuid", "uuid"],
       returns: "jsonb",
     },
     {
-      name: "save_meeting_agenda_item",
+      name: "upsert_meeting_agenda_item",
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
@@ -393,7 +393,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "add_meeting_action_item",
+      name: "create_meeting_action_item",
       args: ["uuid", "jsonb", "uuid[]", "uuid", "uuid"],
       returns: "jsonb",
     },

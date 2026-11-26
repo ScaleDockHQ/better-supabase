@@ -172,7 +172,7 @@ begin
   if (select url_value from public.attributes where key = 'manual') <> 'https://example.test' then
     raise exception 'url column';
   end if;
-  v_list := better_supabase.read_field_values('${TENANT}', 'asset', '${ASSET}');
+  v_list := better_supabase.get_field_values('${TENANT}', 'asset', '${ASSET}');
   if jsonb_array_length(v_list) <> 2 or v_list -> 0 ->> 'key' <> 'insured' or v_list -> 1 ->> 'value' <> 'https://example.test' then
     raise exception 'read %', v_list;
   end if;
@@ -232,7 +232,7 @@ $$;`),
       'unique ("tenant_id", "subject_type", "subject_id", "key")',
     );
     expect(sql).toContain("delete_field_value");
-    expect(sql).not.toContain("save_field_definition");
+    expect(sql).not.toContain("upsert_field_definition");
   });
 
   it("ranks by an integer column of the app's own type", async () => {
@@ -267,7 +267,7 @@ begin
     raise exception 'rank %', v_row;
   end if;
   perform better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'a', 'A', 'text', '"a"');
-  v_list := better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}');
+  v_list := better_supabase.get_field_values('${TENANT}', 'product', '${PRODUCT}');
   if v_list -> 0 ->> 'key' <> 'a' or v_list -> 1 ->> 'key' <> 'b' then
     raise exception 'order %', v_list;
   end if;
@@ -332,7 +332,7 @@ $$;`,
 
     const sql = files.map((file) => file.contents).join("\n");
 
-    expect(sql).toContain('can_subject"(read_field_values.subject_type');
+    expect(sql).toContain('can_subject"(get_field_values.subject_type');
 
     const deny = ALLOW.replace(
       "returns boolean language sql stable as $$ select true $$;",
@@ -351,15 +351,15 @@ begin
   insert into public.attributes (organization_id, asset_id, key, label, value_type, text_value)
   values ('${TENANT}', '${ASSET}', 'serial', 'Serial', 'text', 'A1');
   ${AS_ALICE}
-  v_list := better_supabase.read_field_values('${TENANT}', 'asset', '${ASSET}');
+  v_list := better_supabase.get_field_values('${TENANT}', 'asset', '${ASSET}');
   if jsonb_array_length(v_list) <> 0 then
     raise exception 'asset without a read permission %', v_list;
   end if;
-  v_list := better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}');
+  v_list := better_supabase.get_field_values('${TENANT}', 'product', '${PRODUCT}');
   if jsonb_array_length(v_list) <> 0 then
     raise exception 'product %', v_list;
   end if;
-  v_list := better_supabase.read_field_values('${OTHER}', 'asset', '${ASSET}');
+  v_list := better_supabase.get_field_values('${OTHER}', 'asset', '${ASSET}');
   if jsonb_array_length(v_list) <> 0 then
     raise exception 'other tenant %', v_list;
   end if;
@@ -427,11 +427,11 @@ begin
   if v_hint <> 'CUSTOM_FIELD_FORBIDDEN' then
     raise exception 'product delete %', v_hint;
   end if;
-  if jsonb_array_length(better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}')) <> 0 then
+  if jsonb_array_length(better_supabase.get_field_values('${TENANT}', 'product', '${PRODUCT}')) <> 0 then
     raise exception 'read a product value';
   end if;
   v_row := better_supabase.set_field_value('${TENANT}', 'asset', '${ASSET}', 'serial', 'Serial', 'text', '"A1"');
-  if jsonb_array_length(better_supabase.read_field_values('${TENANT}', 'asset', '${ASSET}')) <> 1 then
+  if jsonb_array_length(better_supabase.get_field_values('${TENANT}', 'asset', '${ASSET}')) <> 1 then
     raise exception 'asset %', v_row;
   end if;
 end;

@@ -225,8 +225,8 @@ export {
   catalogPolicy,
   maskSql,
   policy,
-  readGrants,
-  readPolicies,
+  getGrants,
+  getPolicies,
   readPolicy,
   renderPolicy,
 } from "./policy.ts";
@@ -245,7 +245,7 @@ export {
   isRule,
   POLICY_FUNCTIONS,
   policyFunctionsSql,
-  readRulePolicies,
+  getRulePolicies,
   renderRule,
   renderRulePolicy,
   rulePolicy,
@@ -326,7 +326,7 @@ export {
 
 export type { ListSortKey, ListTemplateOptions } from "./list-template.ts";
 
-export { declareRead, readArgSource, readArgSqlType } from "./reads.ts";
+export { declareRead, getArgSource, getArgSqlType } from "./reads.ts";
 
 export type {
   BlockSqlRead,

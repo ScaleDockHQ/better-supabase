@@ -775,7 +775,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         ),
     );
 
-  const readFile = (
+  const getFile = (
     fileId: string,
   ): AsyncResult<{ readonly file: AiFile; readonly text: string }> => {
     const files = options.files;
@@ -813,7 +813,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
                 hint: "KNOWLEDGE_NO_FILE",
               }),
             )
-          : readFile(document.fileId).andThen(({ text }) =>
+          : getFile(document.fileId).andThen(({ text }) =>
               run(() => Promise.resolve(chunk(text, options.chunking))).andThen(
                 (chunks) =>
                   service(
@@ -990,7 +990,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           documentOf,
         ),
       file: ({ organizationId, fileId, document = {} }) =>
-        readFile(fileId).andThen(({ file, text }) =>
+        getFile(fileId).andThen(({ file, text }) =>
           fromText(
             organizationId,
             {

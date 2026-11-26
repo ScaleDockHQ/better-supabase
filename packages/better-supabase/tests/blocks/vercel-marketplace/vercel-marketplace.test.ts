@@ -154,7 +154,7 @@ describe("createVercelMarketplace", () => {
       handled: true,
     });
     expect(calls).toEqual([
-      ["remove_marketplace_installation", { configuration_id: "icfg_1" }],
+      ["delete_marketplace_installation", { configuration_id: "icfg_1" }],
     ]);
   });
 
@@ -432,7 +432,7 @@ describe("createVercelMarketplace", () => {
       "marketplace_resource",
       "marketplace_resources",
       "delete_marketplace_resource",
-      "remove_marketplace_installation",
+      "delete_marketplace_installation",
       "seal_marketplace_access_token",
     ]);
   });

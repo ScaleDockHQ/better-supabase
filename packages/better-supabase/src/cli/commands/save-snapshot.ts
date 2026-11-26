@@ -12,7 +12,7 @@ import { applyPlan, insideRoot, planResult } from "../core/files.ts";
 import { restrictSchemas, serializeGenerator } from "../introspect/typegen.ts";
 import {
   DEFAULT_SNAPSHOT_PATH,
-  loadSnapshot,
+  getSnapshot,
   serializeSnapshot,
 } from "./snapshot.ts";
 import { sourceArgs } from "./source-args.ts";
@@ -77,7 +77,7 @@ export async function saveSnapshot(
   // Without `--snapshot`, the database is read even when the config names a
   // snapshot, since that file is what this writes.
   const snapshot = await log.progress("Reading the schema", () =>
-    loadSnapshot(config, env, {
+    getSnapshot(config, env, {
       ...source,
       live: true,
       ...(signal ? { signal } : {}),

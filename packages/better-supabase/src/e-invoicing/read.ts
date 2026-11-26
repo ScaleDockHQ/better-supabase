@@ -7,7 +7,7 @@ import { isCurrency, money, parseMoney } from "../commerce/money.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { roundDiv } from "../core/round-div.ts";
 import { temporal } from "../core/temporal-required.ts";
-import { loadXmlParser } from "../core/xml.ts";
+import { getXmlParser } from "../core/xml.ts";
 
 type Tree = Readonly<Record<string, unknown>>;
 
@@ -315,7 +315,7 @@ export async function fromUbl(
 ): Promise<UblBill> {
   const parserModule =
     options.xmlParser ??
-    (await loadXmlParser("fromUbl", ", or pass it as options.xmlParser"));
+    (await getXmlParser("fromUbl", ", or pass it as options.xmlParser"));
 
   const parser = new parserModule.XMLParser({
     ignoreAttributes: false,

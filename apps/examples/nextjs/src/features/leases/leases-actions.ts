@@ -10,10 +10,8 @@ import * as v from "valibot";
 import type { Mutable } from "@/lib/block-status-list";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { LEASES_TAG } from "./leases-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Amount = v.pipe(v.string(), v.regex(/^\d+(\.\d{1,2})?$/));
@@ -36,8 +34,10 @@ export const createLease = bsb.action(
     }),
     requireTenant: true,
     permission: "leases.manage",
+    tags: () => [tags.leases()],
+    refresh: true,
   },
-  async ({ unitId, customerId, startsOn, rent, deposit }, { db, auth }) => {
+  async ({ unitId, customerId, startsOn, rent, deposit }, { db }) => {
     const input: Mutable<LeaseInput> = {
       unitId,
       party: { type: "customer", id: customerId },
@@ -55,8 +55,6 @@ export const createLease = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [LEASES_TAG]);
-
     return ok(created.data.id);
   },
 );
@@ -67,15 +65,15 @@ export const activateLease = bsb.action(
     input: v.object({ leaseId: Id }),
     requireTenant: true,
     permission: "leases.manage",
+    tags: () => [tags.leases()],
+    refresh: true,
   },
-  async ({ leaseId }, { db, auth }) => {
+  async ({ leaseId }, { db }) => {
     const activated = await db.leases.activate(leaseId);
 
     if (!activated.ok) {
       return activated;
     }
-
-    await refreshCaller(auth, [LEASES_TAG]);
 
     return ok(activated.data.id);
   },
@@ -90,8 +88,10 @@ export const terminateLease = bsb.action(
     }),
     requireTenant: true,
     permission: "leases.manage",
+    tags: () => [tags.leases()],
+    refresh: true,
   },
-  async ({ leaseId, reason }, { db, auth }) => {
+  async ({ leaseId, reason }, { db }) => {
     const ended = await db.leases.terminate(
       reason ? { leaseId, termination: { reason } } : { leaseId },
     );
@@ -99,8 +99,6 @@ export const terminateLease = bsb.action(
     if (!ended.ok) {
       return ended;
     }
-
-    await refreshCaller(auth, [LEASES_TAG]);
 
     return ok(ended.data.id);
   },
@@ -112,8 +110,10 @@ export const recordRentPayment = bsb.action(
     input: v.object({ leaseId: Id, amount: Amount }),
     requireTenant: true,
     permission: "leases.manage",
+    tags: () => [tags.leases()],
+    refresh: true,
   },
-  async ({ leaseId, amount }, { db, auth }) => {
+  async ({ leaseId, amount }, { db }) => {
     const paid = await db.leases.recordPayment({
       leaseId,
       payment: { amount: parseMoney(amount, SHOP_CURRENCY) },
@@ -122,8 +122,6 @@ export const recordRentPayment = bsb.action(
     if (!paid.ok) {
       return paid;
     }
-
-    await refreshCaller(auth, [LEASES_TAG]);
 
     return ok(paid.data.leaseId);
   },

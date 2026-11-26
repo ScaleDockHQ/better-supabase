@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:4065d68054488a021ee107841e43988e2f0c6e655620cbc42fc349ba245297d8
+-- @bsb-hash sha256:f253fc551e2552184c14e89df4da7fdfb90bc0852f437fd2670f2e509a9dc42c
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,7 +71,7 @@ create policy bsb_assignments_read on "better_supabase"."assignments"
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
 -- FilterQuery over the subject type's rule fields; null matches every record.
-create or replace function "better_supabase"."save_assignment_queue"(tenant uuid, queue jsonb)
+create or replace function "better_supabase"."upsert_assignment_queue"(tenant uuid, queue jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -88,7 +88,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_assignment_queue.tenant, 'assignment.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_assignment_queue.tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to change assignment queues' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(queue) is distinct from 'object' then
@@ -97,7 +97,7 @@ begin
   v_id := nullif(queue ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."assignment_queues" x
-    where x."id" = v_id and x."tenant_id" = save_assignment_queue.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_assignment_queue.tenant for update;
     if v_old."id" is null then
       raise exception 'No assignment queue in this organization has this id' using errcode = 'P0002', hint = 'ASSIGNMENT_NOT_FOUND';
     end if;
@@ -116,7 +116,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."assignment_queues" ("tenant_id", "name", "subject_type", "strategy", "conditions", "rank", "enabled")
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
+    values (upsert_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
       v_conditions, coalesce((queue ->> 'rank')::integer, 0), coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
@@ -142,8 +142,8 @@ exception
     raise exception 'A queue needs a name of at most 200 characters and a strategy of round_robin or weighted' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a queue's members: members is [{ userId, weight?, active? }], each
 -- a member of the queue's organization. Members who stay keep their place in
@@ -194,7 +194,7 @@ $$;
 revoke execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_assignment_queue"(queue uuid)
+create or replace function "better_supabase"."delete_assignment_queue"(queue uuid)
 returns boolean
 language plpgsql
 security definer
@@ -206,19 +206,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   if v_tenant is null then
     return false;
   end if;
   if not coalesce(better_supabase.can('tenant', v_tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to remove an assignment queue' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  delete from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_assignment_queue"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_assignment_queue"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_assignment_queue"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_assignment_queue"(uuid) to authenticated, service_role;
 
 -- The organization's queues, optionally of one subject type, in the order
 -- assign tries them, with their members.
@@ -419,7 +419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:081f35c84568eaf6b14d9980c339e75b95c8f5219680c30c9712fb67b8fd6bb3
+-- @bsb-hash sha256:bd4332c7cc52ca16d6539a2c5dd8c1d38654d0c5f0ad3a9acc5fd265bb13dfa3
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -489,7 +489,7 @@ create policy bsb_assignments_read on "better_supabase"."assignments"
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
 -- FilterQuery over the subject type's rule fields; null matches every record.
-create or replace function "better_supabase"."save_assignment_queue"(tenant uuid, queue jsonb)
+create or replace function "better_supabase"."upsert_assignment_queue"(tenant uuid, queue jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -506,7 +506,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_assignment_queue.tenant, 'assignment.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_assignment_queue.tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to change assignment queues' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(queue) is distinct from 'object' then
@@ -515,7 +515,7 @@ begin
   v_id := nullif(queue ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."assignment_queues" x
-    where x."id" = v_id and x."tenant_id" = save_assignment_queue.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_assignment_queue.tenant for update;
     if v_old."id" is null then
       raise exception 'No assignment queue in this organization has this id' using errcode = 'P0002', hint = 'ASSIGNMENT_NOT_FOUND';
     end if;
@@ -534,7 +534,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."assignment_queues" ("tenant_id", "name", "subject_type", "strategy", "conditions", "rank", "enabled")
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
+    values (upsert_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
       v_conditions, coalesce((queue ->> 'rank')::integer, 0), coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
@@ -560,8 +560,8 @@ exception
     raise exception 'A queue needs a name of at most 200 characters and a strategy of round_robin or weighted' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a queue's members: members is [{ userId, weight?, active? }], each
 -- a member of the queue's organization. Members who stay keep their place in
@@ -612,7 +612,7 @@ $$;
 revoke execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_assignment_queue"(queue uuid)
+create or replace function "better_supabase"."delete_assignment_queue"(queue uuid)
 returns boolean
 language plpgsql
 security definer
@@ -624,19 +624,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   if v_tenant is null then
     return false;
   end if;
   if not coalesce(better_supabase.can('tenant', v_tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to remove an assignment queue' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  delete from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_assignment_queue"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_assignment_queue"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_assignment_queue"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_assignment_queue"(uuid) to authenticated, service_role;
 
 -- The organization's queues, optionally of one subject type, in the order
 -- assign tries them, with their members.
@@ -840,7 +840,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:8a5685d57a1380f79178276b063d3e45f9a4df31d5e4aa8377ea65cb6ecc4b61
+-- @bsb-hash sha256:f5778bafba68f78de55436fa7fca4340f7ed7689830023188366c60239cb62b8
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -915,7 +915,7 @@ create policy bsb_assignments_read on "app_private"."assignments"
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
 -- FilterQuery over the subject type's rule fields; null matches every record.
-create or replace function "app_private"."save_assignment_queue"(tenant uuid, queue jsonb)
+create or replace function "app_private"."upsert_assignment_queue"(tenant uuid, queue jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -932,7 +932,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_assignment_queue.tenant, 'assignment.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_assignment_queue.tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to change assignment queues' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(queue) is distinct from 'object' then
@@ -941,7 +941,7 @@ begin
   v_id := nullif(queue ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "app_private"."assignment_queues" x
-    where x."id" = v_id and x."tenant_id" = save_assignment_queue.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_assignment_queue.tenant for update;
     if v_old."id" is null then
       raise exception 'No assignment queue in this organization has this id' using errcode = 'P0002', hint = 'ASSIGNMENT_NOT_FOUND';
     end if;
@@ -960,7 +960,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "app_private"."assignment_queues" ("tenant_id", "name", "subject_type", "strategy", "conditions", "rank", "enabled")
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
+    values (upsert_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
       v_conditions, coalesce((queue ->> 'rank')::integer, 0), coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
@@ -986,8 +986,8 @@ exception
     raise exception 'A queue needs a name of at most 200 characters and a strategy of round_robin or weighted' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
 end;
 $$;
-revoke execute on function "app_private"."save_assignment_queue"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_assignment_queue"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_assignment_queue"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_assignment_queue"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a queue's members: members is [{ userId, weight?, active? }], each
 -- a member of the queue's organization. Members who stay keep their place in
@@ -1038,7 +1038,7 @@ $$;
 revoke execute on function "app_private"."set_assignment_members"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."set_assignment_members"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "app_private"."remove_assignment_queue"(queue uuid)
+create or replace function "app_private"."delete_assignment_queue"(queue uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1050,19 +1050,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  select x."tenant_id" into v_tenant from "app_private"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   if v_tenant is null then
     return false;
   end if;
   if not coalesce(better_supabase.can('tenant', v_tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to remove an assignment queue' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
-  delete from "app_private"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  delete from "app_private"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   return true;
 end;
 $$;
-revoke execute on function "app_private"."remove_assignment_queue"(uuid) from public, anon;
-grant execute on function "app_private"."remove_assignment_queue"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_assignment_queue"(uuid) from public, anon;
+grant execute on function "app_private"."delete_assignment_queue"(uuid) to authenticated, service_role;
 
 -- The organization's queues, optionally of one subject type, in the order
 -- assign tries them, with their members.
@@ -1263,7 +1263,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:1e52d0022b2c905987d79ba04ea6af414fea11a8f10eaa21f2ec3b599364cf35
+-- @bsb-hash sha256:506fa6571a39bafb0383f44294fd501d5943fefbc7f6efa1db961be6fbb17258
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1333,7 +1333,7 @@ create policy bsb_assignments_read on "better_supabase"."assignments"
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
 -- FilterQuery over the subject type's rule fields; null matches every record.
-create or replace function "better_supabase"."save_assignment_queue"(tenant uuid, queue jsonb)
+create or replace function "better_supabase"."upsert_assignment_queue"(tenant uuid, queue jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1350,7 +1350,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_assignment_queue.tenant, 'assignment.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_assignment_queue.tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to change assignment queues' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(queue) is distinct from 'object' then
@@ -1359,7 +1359,7 @@ begin
   v_id := nullif(queue ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."assignment_queues" x
-    where x."id" = v_id and x."tenant_id" = save_assignment_queue.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_assignment_queue.tenant for update;
     if v_old."id" is null then
       raise exception 'No assignment queue in this organization has this id' using errcode = 'P0002', hint = 'ASSIGNMENT_NOT_FOUND';
     end if;
@@ -1378,7 +1378,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."assignment_queues" ("tenant_id", "name", "subject_type", "strategy", "conditions", "rank", "enabled")
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
+    values (upsert_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
       v_conditions, coalesce((queue ->> 'rank')::integer, 0), coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
@@ -1404,8 +1404,8 @@ exception
     raise exception 'A queue needs a name of at most 200 characters and a strategy of round_robin or weighted' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a queue's members: members is [{ userId, weight?, active? }], each
 -- a member of the queue's organization. Members who stay keep their place in
@@ -1456,7 +1456,7 @@ $$;
 revoke execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_assignment_queue"(queue uuid)
+create or replace function "better_supabase"."delete_assignment_queue"(queue uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1468,19 +1468,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   if v_tenant is null then
     return false;
   end if;
   if not coalesce(better_supabase.can('tenant', v_tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to remove an assignment queue' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  delete from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_assignment_queue"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_assignment_queue"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_assignment_queue"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_assignment_queue"(uuid) to authenticated, service_role;
 
 -- The organization's queues, optionally of one subject type, in the order
 -- assign tries them, with their members.
@@ -1668,14 +1668,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."assignments" as rest
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_assignment_queue"(tenant uuid, queue jsonb)
+create or replace function "api"."upsert_assignment_queue"(tenant uuid, queue jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_assignment_queue"($1, $2) $$;
-revoke execute on function "api"."save_assignment_queue"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_assignment_queue"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_assignment_queue"($1, $2) $$;
+revoke execute on function "api"."upsert_assignment_queue"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_assignment_queue"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_assignment_members"(queue uuid, members jsonb)
 returns jsonb
@@ -1686,14 +1686,14 @@ as $$ select "better_supabase"."set_assignment_members"($1, $2) $$;
 revoke execute on function "api"."set_assignment_members"(uuid, jsonb) from public, anon;
 grant execute on function "api"."set_assignment_members"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."remove_assignment_queue"(queue uuid)
+create or replace function "api"."delete_assignment_queue"(queue uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_assignment_queue"($1) $$;
-revoke execute on function "api"."remove_assignment_queue"(uuid) from public, anon;
-grant execute on function "api"."remove_assignment_queue"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_assignment_queue"($1) $$;
+revoke execute on function "api"."delete_assignment_queue"(uuid) from public, anon;
+grant execute on function "api"."delete_assignment_queue"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_assignment_queues"(tenant uuid, subject_type text default null)
 returns jsonb
@@ -1741,7 +1741,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:d701d2e6708f938c5d43e50cf9edc5d6f36eaea850d1a48a9d4b91b48ac6e0e5
+-- @bsb-hash sha256:302b2f80adde76b6faf7b1fc8f9cbdb7181be4b9ae96901821f5f8d5fdf28587
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1804,7 +1804,7 @@ create policy bsb_assignments_select on "better_supabase"."assignments"
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
 -- FilterQuery over the subject type's rule fields; null matches every record.
-create or replace function "better_supabase"."save_assignment_queue"(tenant uuid, queue jsonb)
+create or replace function "better_supabase"."upsert_assignment_queue"(tenant uuid, queue jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1821,7 +1821,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_assignment_queue.tenant, 'assignment.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_assignment_queue.tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to change assignment queues' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(queue) is distinct from 'object' then
@@ -1830,7 +1830,7 @@ begin
   v_id := nullif(queue ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."assignment_queues" x
-    where x."id" = v_id and x."tenant_id" = save_assignment_queue.tenant for update;
+    where x."id" = v_id and x."tenant_id" = upsert_assignment_queue.tenant for update;
     if v_old."id" is null then
       raise exception 'No assignment queue in this organization has this id' using errcode = 'P0002', hint = 'ASSIGNMENT_NOT_FOUND';
     end if;
@@ -1849,7 +1849,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."assignment_queues" ("tenant_id", "name", "subject_type", "strategy", "conditions", "rank", "enabled")
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, better_supabase.as_column_type(coalesce(queue ->> 'strategy', 'round_robin'), (null::"better_supabase"."assignment_queues")."strategy"),
+    values (upsert_assignment_queue.tenant, trim(queue ->> 'name'), v_type, better_supabase.as_column_type(coalesce(queue ->> 'strategy', 'round_robin'), (null::"better_supabase"."assignment_queues")."strategy"),
       v_conditions, coalesce((queue ->> 'rank')::integer, 0), coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
@@ -1875,8 +1875,8 @@ exception
     raise exception 'A queue needs a name of at most 200 characters and a strategy of round_robin or weighted' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a queue's members: members is [{ userId, weight?, active? }], each
 -- a member of the queue's organization. Members who stay keep their place in
@@ -1927,7 +1927,7 @@ $$;
 revoke execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_assignment_queue"(queue uuid)
+create or replace function "better_supabase"."delete_assignment_queue"(queue uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1939,19 +1939,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  select x."tenant_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   if v_tenant is null then
     return false;
   end if;
   if not coalesce(better_supabase.can('tenant', v_tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to remove an assignment queue' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  delete from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_assignment_queue"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_assignment_queue"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_assignment_queue"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_assignment_queue"(uuid) to authenticated, service_role;
 
 -- The organization's queues, optionally of one subject type, in the order
 -- assign tries them, with their members.
@@ -2152,7 +2152,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:de7ca93b0e091fb4f80d69012d078a503d9f09c3574cac8391e56ca9b8047bf1
+-- @bsb-hash sha256:ba62d98abf8f78ef02b76ae895200462bca0d322b5fca2acc0e2f9ad04dd2e1d
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2222,7 +2222,7 @@ create policy bsb_assignments_read on "better_supabase"."assignments"
 -- Creates or changes a queue: queue is { id?, name, subjectType, strategy?,
 -- conditions?, rank?, enabled? }. conditions, the queue's territory, is a
 -- FilterQuery over the subject type's rule fields; null matches every record.
-create or replace function "better_supabase"."save_assignment_queue"(tenant uuid, queue jsonb)
+create or replace function "better_supabase"."upsert_assignment_queue"(tenant uuid, queue jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2239,7 +2239,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_assignment_queue.tenant, 'assignment.manage'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_assignment_queue.tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to change assignment queues' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(queue) is distinct from 'object' then
@@ -2248,7 +2248,7 @@ begin
   v_id := nullif(queue ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."assignment_queues" x
-    where x."id" = v_id and x."org_id" = save_assignment_queue.tenant for update;
+    where x."id" = v_id and x."org_id" = upsert_assignment_queue.tenant for update;
     if v_old."id" is null then
       raise exception 'No assignment queue in this organization has this id' using errcode = 'P0002', hint = 'ASSIGNMENT_NOT_FOUND';
     end if;
@@ -2267,7 +2267,7 @@ begin
   end if;
   if v_old."id" is null then
     insert into "better_supabase"."assignment_queues" ("org_id", "name", "subject_type", "strategy", "conditions", "rank", "enabled")
-    values (save_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
+    values (upsert_assignment_queue.tenant, trim(queue ->> 'name'), v_type, coalesce(queue ->> 'strategy', 'round_robin'),
       v_conditions, coalesce((queue ->> 'rank')::integer, 0), coalesce((queue ->> 'enabled')::boolean, true))
     returning * into v_row;
   else
@@ -2293,8 +2293,8 @@ exception
     raise exception 'A queue needs a name of at most 200 characters and a strategy of round_robin or weighted' using errcode = '22023', hint = 'ASSIGNMENT_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_assignment_queue"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_assignment_queue"(uuid, jsonb) to authenticated, service_role;
 
 -- Replaces a queue's members: members is [{ userId, weight?, active? }], each
 -- a member of the queue's organization. Members who stay keep their place in
@@ -2345,7 +2345,7 @@ $$;
 revoke execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."set_assignment_members"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_assignment_queue"(queue uuid)
+create or replace function "better_supabase"."delete_assignment_queue"(queue uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2357,19 +2357,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  select x."org_id" into v_tenant from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   if v_tenant is null then
     return false;
   end if;
   if not coalesce(better_supabase.can('tenant', v_tenant, 'assignment.manage'), false) then
     raise exception 'You need assignment.manage to remove an assignment queue' using errcode = '42501', hint = 'ASSIGNMENT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."assignment_queues" x where x."id" = remove_assignment_queue.queue;
+  delete from "better_supabase"."assignment_queues" x where x."id" = delete_assignment_queue.queue;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_assignment_queue"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_assignment_queue"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_assignment_queue"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_assignment_queue"(uuid) to authenticated, service_role;
 
 -- The organization's queues, optionally of one subject type, in the order
 -- assign tries them, with their members.

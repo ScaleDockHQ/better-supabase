@@ -492,7 +492,7 @@ $$;
 
 -- Claims a domain for the organization (needs the manage permission).
 -- Returns it with the TXT record to publish; adding it again returns it.
-create or replace function ${fn("add_organization_domain")}(tenant ${id}, domain text)
+create or replace function ${fn("create_organization_domain")}(tenant ${id}, domain text)
 returns jsonb
 language plpgsql
 security definer
@@ -501,15 +501,15 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${d};
-  v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
+  v_domain text := lower(trim(trailing '.' from trim(create_organization_domain.domain)));
 begin
-  if not ${can("add_organization_domain.tenant")} then
+  if not ${can("create_organization_domain.tenant")} then
     ${fail("SSO_FORBIDDEN", "You may not manage this organization's domains")}
   end if;
   if v_domain !~ ${sqlString(DOMAIN)} then
-    ${raise("Not a domain name: %", "22023", "SSO_DOMAIN_INVALID", "add_organization_domain.domain")}
+    ${raise("Not a domain name: %", "22023", "SSO_DOMAIN_INVALID", "create_organization_domain.domain")}
   end if;
-  insert into ${d} as x (${cd("tenant")}, ${cd("domain")}) values (add_organization_domain.tenant, v_domain)
+  insert into ${d} as x (${cd("tenant")}, ${cd("domain")}) values (create_organization_domain.tenant, v_domain)
   on conflict (${cd("tenant")}, ${cd("domain")}) do update set ${cd("domain")} = x.${cd("domain")}
   returning * into v_row;
   ${domainEvent("sso_domain.created", "auth.uid()")}
@@ -608,7 +608,7 @@ begin
 end;
 $$;
 
-create or replace function ${fn("remove_organization_domain")}(id uuid)
+create or replace function ${fn("delete_organization_domain")}(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -617,7 +617,7 @@ as $$
 declare
   v_row ${d};
 begin
-  select * into v_row from ${d} x where x.${cd("id")} = remove_organization_domain.id;
+  select * into v_row from ${d} x where x.${cd("id")} = delete_organization_domain.id;
   if v_row.${cd("id")} is null or not (${SERVICE_CALLER} or ${can(`v_row.${cd("tenant")}`)}) then
     return false;
   end if;
@@ -910,11 +910,11 @@ ${scimSql(names)}
 revoke execute on function ${fn("scim_group_role")}(text) from public, anon, authenticated;
 revoke execute on function ${fn("scim_sync_member")}(uuid) from public, anon, authenticated;
 revoke execute on function ${fn("sso_on_auth_user")}() from public, anon, authenticated;
-revoke execute on function ${fn("add_organization_domain")}(${id}, text) from public, anon;
+revoke execute on function ${fn("create_organization_domain")}(${id}, text) from public, anon;
 revoke execute on function ${fn("list_organization_domains")}(${id}) from public, anon;
 revoke execute on function ${fn("organization_domain")}(uuid) from public, anon;
 revoke execute on function ${fn("update_organization_domain")}(uuid, text, boolean) from public, anon;
-revoke execute on function ${fn("remove_organization_domain")}(uuid) from public, anon;
+revoke execute on function ${fn("delete_organization_domain")}(uuid) from public, anon;
 revoke execute on function ${fn("verify_organization_domain")}(uuid, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("check_sso_provider")}(${id}, text[], uuid) from public, anon, authenticated;
 revoke execute on function ${fn("register_sso_provider")}(${id}, uuid, text[], text, uuid) from public, anon, authenticated;
@@ -935,11 +935,11 @@ revoke execute on function ${fn("scim_save_group")}(${id}, uuid, jsonb, integer)
 revoke execute on function ${fn("scim_delete_group")}(${id}, uuid) from public, anon, authenticated;
 grant execute on function ${fn("scim_group_role")}(text) to service_role;
 grant execute on function ${fn("scim_sync_member")}(uuid) to service_role;
-grant execute on function ${fn("add_organization_domain")}(${id}, text) to authenticated, service_role;
+grant execute on function ${fn("create_organization_domain")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("list_organization_domains")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("organization_domain")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("update_organization_domain")}(uuid, text, boolean) to authenticated, service_role;
-grant execute on function ${fn("remove_organization_domain")}(uuid) to authenticated, service_role;
+grant execute on function ${fn("delete_organization_domain")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("verify_organization_domain")}(uuid, uuid) to service_role;
 grant execute on function ${fn("check_sso_provider")}(${id}, text[], uuid) to service_role;
 grant execute on function ${fn("register_sso_provider")}(${id}, uuid, text[], text, uuid) to service_role;
@@ -966,7 +966,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "scim_group_role", args: ["text"], returns: "text" },
     { name: "scim_sync_member", args: ["uuid"], returns: "void" },
     {
-      name: "add_organization_domain",
+      name: "create_organization_domain",
       args: ["{id}", "text"],
       returns: "jsonb",
     },
@@ -977,7 +977,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text", "boolean"],
       returns: "jsonb",
     },
-    { name: "remove_organization_domain", args: ["uuid"], returns: "boolean" },
+    { name: "delete_organization_domain", args: ["uuid"], returns: "boolean" },
     {
       name: "verify_organization_domain",
       args: ["uuid", "uuid"],

@@ -4,11 +4,9 @@ import { dbError, err, ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
-import { CALENDAR_TAG } from "./calendar-cache";
 import { EVENT_SUBJECT, REMINDER_OFFSETS } from "./calendar-subjects";
 
 const Id = v.pipe(v.string(), v.uuid());
@@ -22,8 +20,10 @@ export const addEventReminder = bsb.action(
     }),
     requireTenant: true,
     permission: "reminders.manage",
+    tags: () => [tags.calendar(), tags.bookings()],
+    refresh: true,
   },
-  async ({ eventId, offsetMinutes }, { db, auth }) => {
+  async ({ eventId, offsetMinutes }, { db }) => {
     const saved = await db.reminders.upsert({
       subject: { type: EVENT_SUBJECT, id: eventId },
       when: offsetMinutes,
@@ -32,8 +32,6 @@ export const addEventReminder = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok(null);
   },
@@ -45,8 +43,10 @@ export const removeEventReminder = bsb.action(
     input: v.object({ reminderId: Id }),
     requireTenant: true,
     permission: "reminders.manage",
+    tags: () => [tags.calendar(), tags.bookings()],
+    refresh: true,
   },
-  async ({ reminderId }, { db, auth }) => {
+  async ({ reminderId }, { db }) => {
     const removed = await db.reminders.remove(reminderId);
 
     if (!removed.ok) {
@@ -56,8 +56,6 @@ export const removeEventReminder = bsb.action(
     if (!removed.data) {
       return err(dbError("not_found", "Reminder not found"));
     }
-
-    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok(null);
   },
@@ -76,8 +74,10 @@ export const createCalendar = bsb.action(
     }),
     requireTenant: true,
     permission: "calendar.manage",
+    tags: () => [tags.calendar(), tags.bookings()],
+    refresh: true,
   },
-  async ({ name, tz }, { tenant, db, auth }) => {
+  async ({ name, tz }, { tenant, db }) => {
     const created = await db.calendar.createCalendar({
       organizationId: tenant,
       name,
@@ -87,8 +87,6 @@ export const createCalendar = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok({ id: created.data.id });
   },
@@ -118,8 +116,10 @@ export const createEvent = bsb.action(
     ),
     requireTenant: true,
     permission: "calendar.write",
+    tags: () => [tags.calendar(), tags.bookings()],
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const day = Temporal.PlainDate.from(input.date);
     const allDay = input.allDay === "on";
 
@@ -148,8 +148,6 @@ export const createEvent = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -170,8 +168,10 @@ export const setWorkingHours = bsb.action(
     ),
     requireTenant: true,
     permission: "calendar.read",
+    tags: () => [tags.calendar(), tags.bookings()],
+    refresh: true,
   },
-  async ({ tz, start, end }, { tenant, db, auth }) => {
+  async ({ tz, start, end }, { tenant, db }) => {
     const saved = await db.calendar.setWorkingHours({
       organizationId: tenant,
       input: {
@@ -183,8 +183,6 @@ export const setWorkingHours = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [CALENDAR_TAG, BOOKINGS_TAG]);
 
     return ok({ rows: saved.data });
   },

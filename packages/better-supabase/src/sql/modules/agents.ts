@@ -258,14 +258,14 @@ function build(ctx: BlockSqlContext): string {
   ): string[] =>
     agent(key)
       ? [
-          `${a[key]} = coalesce(save_agent.fields ->> '${AGENTS[key]}', x.${a[key]})`,
+          `${a[key]} = coalesce(upsert_agent.fields ->> '${AGENTS[key]}', x.${a[key]})`,
         ]
       : [];
 
   const setJson = (key: "tools" | "knowledgeScope" | "starters"): string[] =>
     agent(key)
       ? [
-          `${a[key]} = coalesce(save_agent.fields -> '${AGENTS[key]}', x.${a[key]})`,
+          `${a[key]} = coalesce(upsert_agent.fields -> '${AGENTS[key]}', x.${a[key]})`,
         ]
       : [];
 
@@ -276,14 +276,14 @@ function build(ctx: BlockSqlContext): string {
     ...setText("instructions"),
     ...(agent("model")
       ? [
-          `${a.model} = case when save_agent.fields ? 'model' then save_agent.fields ->> 'model' else x.${a.model} end`,
+          `${a.model} = case when upsert_agent.fields ? 'model' then upsert_agent.fields ->> 'model' else x.${a.model} end`,
         ]
       : []),
     ...setJson("tools"),
     ...(agent("connectors")
       ? [
-          `${a.connectors} = case when save_agent.fields ? 'connector_ids'
-      then array(select jsonb_array_elements_text(save_agent.fields -> 'connector_ids')::uuid)
+          `${a.connectors} = case when upsert_agent.fields ? 'connector_ids'
+      then array(select jsonb_array_elements_text(upsert_agent.fields -> 'connector_ids')::uuid)
       else x.${a.connectors} end`,
         ]
       : []),
@@ -510,7 +510,7 @@ ${renderPolicy(makePolicy({ table: skills, name: ctx.naming.rename("agent_skills
 -- Creates an agent (id null, needs ${create}) or changes one its owner or a
 -- moderator may change. fields holds the columns to set; visibility and
 -- published_at change through publish_agent only.
-create or replace function ${fn("save_agent")}(tenant ${id}, id uuid default null, fields jsonb default '{}')
+create or replace function ${fn("upsert_agent")}(tenant ${id}, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
 security definer
@@ -519,38 +519,38 @@ as $$
 declare
   v_row ${agents}%rowtype;
 begin
-  if jsonb_typeof(save_agent.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_agent.fields) is distinct from 'object' then
     ${raise("fields must be an object", "22023", "AGENT_INVALID")}
   end if;
-  if save_agent.id is null then
-    if auth.uid() is null or not ${ctx.scope.can("save_agent.tenant", create)} then
+  if upsert_agent.id is null then
+    if auth.uid() is null or not ${ctx.scope.can("upsert_agent.tenant", create)} then
       ${raise("you may not create agents here", "42501", "AGENT_FORBIDDEN")}
     end if;
-    if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
+    if upsert_agent.fields ->> 'slug' is null or upsert_agent.fields ->> 'name' is null then
       ${raise("a new agent needs a slug and a name", "22023", "AGENT_INVALID")}
     end if;
     insert into ${agents} (${a.tenant}, ${a.owner}, ${a.slug}, ${a.name})
-    values (save_agent.tenant, auth.uid(), save_agent.fields ->> 'slug', save_agent.fields ->> 'name')
+    values (upsert_agent.tenant, auth.uid(), upsert_agent.fields ->> 'slug', upsert_agent.fields ->> 'name')
     returning * into v_row;
   else
-    select * into v_row from ${agents} x where x.${a.id} = save_agent.id and x.${a.tenant} = save_agent.tenant for update;
+    select * into v_row from ${agents} x where x.${a.id} = upsert_agent.id and x.${a.tenant} = upsert_agent.tenant for update;
     if not found or not ${canChange("v_row")} then
-      ${notFound("save_agent.id")}
+      ${notFound("upsert_agent.id")}
     end if;
     ${refuseArchived("v_row")}
   end if;
   update ${agents} x set
     ${agentUpdate.join(",\n    ")}
   where x.${a.id} = v_row.${a.id}
-  returning * into v_row;${writeExtraColumns(agents, extras, "save_agent.fields", `x.${a.id} = v_row.${a.id}`, "v_row")}
-  ${createdOrUpdated("save_agent.id is null", (verb) => agentEvent(`agent.${verb}`, "v_row"))}
+  returning * into v_row;${writeExtraColumns(agents, extras, "upsert_agent.fields", `x.${a.id} = v_row.${a.id}`, "v_row")}
+  ${createdOrUpdated("upsert_agent.id is null", (verb) => agentEvent(`agent.${verb}`, "v_row"))}
   return ${json("v_row")};
 exception
   when unique_violation then
-    ${raise("an agent with slug % exists", "23505", "AGENT_SLUG_TAKEN", "save_agent.fields ->> 'slug'")}
+    ${raise("an agent with slug % exists", "23505", "AGENT_SLUG_TAKEN", "upsert_agent.fields ->> 'slug'")}
 end;
 $$;
-${userGrant(`${fn("save_agent")}(${id}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_agent")}(${id}, uuid, jsonb)`)}
 
 -- Publishes an agent to the organization or the public store, or makes it
 -- private again. The owner needs ${publish}; a moderator may always unpublish.

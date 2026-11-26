@@ -16,7 +16,7 @@ import type { ResolveInput } from "../../../src/config/index.ts";
 
 import { BROADCAST_ONCE_SQL } from "../../../src/cli/broadcast-once.ts";
 import { migrationsDir, runSql } from "../../../src/cli/commands/sql.ts";
-import { readIfExists } from "../../../src/cli/core/io.ts";
+import { getIfExists } from "../../../src/cli/core/io.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { hasMigrationSuffix } from "../../../src/cli/sql/migration-names.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
@@ -1471,8 +1471,8 @@ create policy b on public.notes for select to authenticated using (true);
 
     const synced = await sql(["sync"], config);
     expect(synced.code).toBe(0);
-    expect(await readIfExists(twoDigit)).toBeUndefined();
-    expect(await readIfExists(orphan)).toBeUndefined();
+    expect(await getIfExists(twoDigit)).toBeUndefined();
+    expect(await getIfExists(orphan)).toBeUndefined();
     expect(await readFile(current, "utf-8")).toBe(file!.contents);
     expect(await readFile(mine, "utf-8")).toBe("create table mine ();\n");
   });

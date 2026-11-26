@@ -61,9 +61,9 @@ export function managerCheck(ctx: BlockSqlContext, employee: boolean): string {
   const e = ctx.of("employees");
 
   return `
-  if save_job.attrs ->> 'hiringManagerId' is not null and not exists (
+  if upsert_job.attrs ->> 'hiringManagerId' is not null and not exists (
     select 1 from ${e.table("employees")} x
-    where x.${e.col("employees", "id")}::text = save_job.attrs ->> 'hiringManagerId' and x.${e.col("employees", "tenant")}::text = save_job.tenant::text) then
+    where x.${e.col("employees", "id")}::text = upsert_job.attrs ->> 'hiringManagerId' and x.${e.col("employees", "tenant")}::text = upsert_job.tenant::text) then
     ${fail("HIRING_HIRING_MANAGER_INVALID", "the hiring manager is no employee of this organization", "22023")}
   end if;`;
 }

@@ -1,5 +1,5 @@
 -- Archiving a score model (ADR 1053): an archived model leaves list_score_models,
--- subject_scores and top_scores, compute_score and save_score_model refuse it,
+-- subject_scores and top_scores, compute_score and upsert_score_model refuse it,
 -- its scores stay, restore brings it back, and purge is the hard delete behind
 -- manage. Run with `supabase test db`.
 begin;
@@ -23,7 +23,7 @@ set local role authenticated;
 select set_config('test.base',
   jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001'))::text, true);
 
-select set_config('test.model', better_supabase.save_score_model(
+select set_config('test.model', better_supabase.upsert_score_model(
   '00000000-0000-4000-8000-000000000001',
   '{"key": "size", "name": "Size", "subjectType": "lead",
     "metrics": [{"id": "size", "source": "field", "field": "employees", "weight": 1, "cap": 100}],
@@ -72,9 +72,9 @@ select throws_ok(
   '55000', null, 'compute_score refuses an archived model'
 );
 select throws_ok(
-  format('select better_supabase.save_score_model(%L, %L)', '00000000-0000-4000-8000-000000000001',
+  format('select better_supabase.upsert_score_model(%L, %L)', '00000000-0000-4000-8000-000000000001',
     format('{"id": "%s", "name": "Renamed"}', current_setting('test.model'))),
-  '55000', null, 'save_score_model refuses an archived model'
+  '55000', null, 'upsert_score_model refuses an archived model'
 );
 
 select better_supabase.archive_score_model(current_setting('test.model')::uuid);

@@ -251,7 +251,7 @@ export function createOptionSets(options: OptionSetsOptions): OptionSets {
       ),
     upsert: ({ organizationId, input }) =>
       call(
-        "save_option_set",
+        "upsert_option_set",
         {
           tenant: organizationId,
           option_set: input.id ?? null,
@@ -266,7 +266,7 @@ export function createOptionSets(options: OptionSetsOptions): OptionSets {
       ),
     saveItem: ({ optionSetId, input }) =>
       call(
-        "save_option_set_item",
+        "upsert_option_set_item",
         {
           option_set: optionSetId,
           item: input.id ?? null,

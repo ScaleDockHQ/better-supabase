@@ -108,7 +108,7 @@ describe("reminder client", () => {
       tenant: "org-1",
       transport: {
         call: (_schema: string, fn: string) =>
-          Promise.resolve(fn === "save_reminder" ? { id: "r1" } : true),
+          Promise.resolve(fn === "upsert_reminder" ? { id: "r1" } : true),
       },
       logger: { debug() {}, info() {}, warn() {}, error() {} },
     });

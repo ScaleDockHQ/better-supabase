@@ -135,7 +135,7 @@ blocks: {
 
 ## Entities are registered subject types
 
-In the normalized layout, `entity` names a subject type that the app registers: a key of [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) or a type an installed block registers (`blocks.custom-fields.on` narrows the list). `save_field_definition` and `install_field_pack` fail with `CUSTOM_FIELD_ENTITY_UNKNOWN` (SQLSTATE `22023`) for any other value. Without registered types the entity stays free text, so a project that has no subjects keeps working.
+In the normalized layout, `entity` names a subject type that the app registers: a key of [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) or a type an installed block registers (`blocks.custom-fields.on` narrows the list). `upsert_field_definition` and `install_field_pack` fail with `CUSTOM_FIELD_ENTITY_UNKNOWN` (SQLSTATE `22023`) for any other value. Without registered types the entity stays free text, so a project that has no subjects keeps working.
 
 The list of registered types is one function, `better_supabase.subject_types()`, which returns `text[]`. Code that needs to ask the database which types exist calls it instead of keeping its own list.
 
@@ -210,7 +210,7 @@ three functions instead of the definition ones:
 | Function                                                                                            | What it does                                                                                                                                                                                                   |
 | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `set_field_value(tenant, subject_type, subject_id, key, label, type, value jsonb, rank, if_absent)` | Sets the field `key` of the record: a new row, or the existing one with its label, type and value replaced. Every other value column is set to null. `if_absent` fails with `FIELD_EXISTS` instead of updating |
-| `read_field_values(tenant, subject_type, subject_id)`                                               | The record's fields as `{ id, subjectType, subjectId, key, label, type, rank, value, createdAt, updatedAt }`, ordered by `rank` and then `key`                                                                 |
+| `get_field_values(tenant, subject_type, subject_id)`                                                | The record's fields as `{ id, subjectType, subjectId, key, label, type, rank, value, createdAt, updatedAt }`, ordered by `rank` and then `key`                                                                 |
 | `delete_field_value(value_id)`                                                                      | Removes one value and records `field_value.deleted`                                                                                                                                                            |
 
 The client calls them as `setField(record, { key, label, type, value, rank?,
@@ -286,7 +286,7 @@ export default defineConfig({
 ```
 
 Reading needs `custom_fields.read` in the tenant. With
-`options.readAccess: "record"`, `read_field_values` checks each record instead:
+`options.readAccess: "record"`, `get_field_values` checks each record instead:
 the record is in the tenant and `can_subject(type, id, 'read')` passes, so the
 record's own policies and its `read` action decide, and `permissions.read` is
 not checked. It needs the `subjects` block. The keyed layout has no sensitive
@@ -297,7 +297,7 @@ To check only some records, set `readAccess: "record"` on their type in
 follow the record's `read` entry, and the other types keep the tenant key.
 A record type that declares no read permission (no `permissions.read` and no
 `read` entry), or has no tenant column, also keeps the tenant key, because
-`read_field_values` runs as the definer and would otherwise only check that
+`get_field_values` runs as the definer and would otherwise only check that
 the record exists in the tenant the caller names.
 `driveSubject()` sets it for `drive_node`, so a member without a grant on a
 node can't read its field values. This works in every layout; in the

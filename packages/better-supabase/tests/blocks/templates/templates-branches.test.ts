@@ -169,7 +169,7 @@ describe("template writes", () => {
   });
 
   it("saves a template with defaults and with every optional value", async () => {
-    const fake = transport({ save_template: () => TEMPLATE });
+    const fake = transport({ upsert_template: () => TEMPLATE });
     const templates = createTemplates({ transport: fake, types: { project } });
 
     await templates
@@ -200,7 +200,7 @@ describe("template writes", () => {
   });
 
   it("rejects extra fields the schema refuses", async () => {
-    const fake = transport({ save_template: () => TEMPLATE });
+    const fake = transport({ upsert_template: () => TEMPLATE });
 
     const templates = createTemplates({
       transport: fake,
@@ -254,7 +254,7 @@ describe("template writes", () => {
               ...TEMPLATE,
               type: args["template_id"] === "loose" ? "other" : "project",
             },
-      save_template_draft: () => VERSION,
+      upsert_template_draft: () => VERSION,
     });
 
     const templates = createTemplates({

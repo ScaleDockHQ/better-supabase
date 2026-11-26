@@ -22,7 +22,7 @@ app can block a breaking change before it deploys.
 
 ## Load and check a project
 
-`loadProject(input, { preset })` reads a design object, a design code or a
+`getProject(input, { preset })` reads a design object, a design code or a
 `/create` URL into a `Project`: the preset, the design and the files `upgrade`
 would write. Pass `ownTables` (and `ownColumns`) to render the files over the
 tables the project already has, as the CLI does. `checkProject(project)`
@@ -31,9 +31,9 @@ Postgres rejects, for example `checkProject(project, { sql: sqlIssues })` with
 `sqlIssues` from `better-supabase/create/lite`.
 
 ```ts
-import { checkProject, loadProject } from "better-supabase/create";
+import { checkProject, getProject } from "better-supabase/create";
 
-const loaded = await loadProject(body.design, { preset: body.preset });
+const loaded = await getProject(body.design, { preset: body.preset });
 
 if (!loaded.ok) {
   return reply(loaded.issues);
@@ -255,7 +255,7 @@ composite keys, generated columns and types such as `interval`. Tables named
 off), `locked` (on, no policies) or `protected` (on, with policies).
 `report.issues` holds SQL errors from a `files` source and the security
 findings, which have `source: "verifier"`: `verify_rls_disabled` and
-`verify_no_policies`. Pass `design` to `loadProject` with a preset to check and
+`verify_no_policies`. Pass `design` to `getProject` with a preset to check and
 render it.
 
 ## Try a design in a sandbox
@@ -266,10 +266,10 @@ them by default. Queries run as the database owner, or as a persona with row
 level security applied.
 
 ```ts
-import { loadProject } from "better-supabase/create";
+import { getProject } from "better-supabase/create";
 import { openSandbox } from "better-supabase/create/lite";
 
-const loaded = await loadProject(design, { preset: "saas" });
+const loaded = await getProject(design, { preset: "saas" });
 
 if (loaded.ok) {
   const sandbox = await openSandbox(loaded.project);
@@ -365,7 +365,7 @@ const { issues, matrix, skipped } = await verifyFiles(files, {
 // (denied, policy or open).
 ```
 
-`verifyQuery`, `readSecurityCatalog` and `verifyCatalog` do the same over a live database:
+`verifyQuery`, `getSecurityCatalog` and `verifyCatalog` do the same over a live database:
 run the query, read the row, then verify it.
 
 On [/create](https://app.bettersupabase.com/create), the Migrations tab of Get code

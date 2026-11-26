@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@2 managed
--- @bsb-hash sha256:b49720708b1b46d6f7d6f2e861053f2724f6acdc5880857a2ba6cfd97ea50a77
+-- @bsb-hash sha256:1eaef068ceb40a86708edb2f0cff84cd483b19c00160f1084d1e7761b290295e
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,7 +94,7 @@ create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
 -- Creates or updates the category with this key and its spend policy. fields:
 -- the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+create or replace function "better_supabase"."upsert_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -107,38 +107,38 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_expense_category.tenant, 'expenses.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_expense_category.tenant, 'expenses.manage'), false)) then
     raise exception 'not allowed to manage expense categories' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
-  if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_expense_category.key is null or upsert_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if nullif(trim(save_expense_category.name), '') is null then
+  if nullif(trim(upsert_expense_category.name), '') is null then
     raise exception 'a category needs a name' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if (save_expense_category.limit_amount is not null or save_expense_category.receipt_over is not null)
-    and (save_expense_category.currency is null or save_expense_category.currency !~ '^[A-Z]{3}$') then
+  if (upsert_expense_category.limit_amount is not null or upsert_expense_category.receipt_over is not null)
+    and (upsert_expense_category.currency is null or upsert_expense_category.currency !~ '^[A-Z]{3}$') then
     raise exception 'a limit or receipt threshold needs a three-letter currency code' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.limit_amount is not null and save_expense_category.limit_amount <= 0 then
+  if upsert_expense_category.limit_amount is not null and upsert_expense_category.limit_amount <= 0 then
     raise exception 'a limit is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
+  if upsert_expense_category.receipt_over is not null and upsert_expense_category.receipt_over < 0 then
     raise exception 'a receipt threshold is zero or more minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null then
+  if upsert_expense_category.receipt_over is not null then
     raise exception 'a receipt threshold needs the attachments block' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   insert into "better_supabase"."expense_categories" as x ("tenant_id", "key", "name", "currency", "limit_amount", "receipt_over")
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency, save_expense_category.limit_amount, save_expense_category.receipt_over)
+  values (upsert_expense_category.tenant, upsert_expense_category.key, trim(upsert_expense_category.name), upsert_expense_category.currency, upsert_expense_category.limit_amount, upsert_expense_category.receipt_over)
   on conflict ("tenant_id", "key") do update set
-    "name" = trim(save_expense_category.name), "currency" = save_expense_category.currency, "limit_amount" = save_expense_category.limit_amount, "receipt_over" = save_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
+    "name" = trim(upsert_expense_category.name), "currency" = upsert_expense_category.currency, "limit_amount" = upsert_expense_category.limit_amount, "receipt_over" = upsert_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
-grant execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
+grant execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_expense_category"(category_id uuid)
 returns jsonb
@@ -605,7 +605,7 @@ $$;
 revoke execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function "better_supabase"."create_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -621,7 +621,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."expense_reports" x where x."id" = add_expense_line.report_id for update;
+  select * into v_row from "better_supabase"."expense_reports" x where x."id" = create_expense_line.report_id for update;
   if not found then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
@@ -633,38 +633,38 @@ begin
     raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   select * into v_category from "better_supabase"."expense_categories" c
-    where c."id" = add_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
+    where c."id" = create_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
   if not found then
     raise exception 'the category is unknown, archived or not in this organization' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   if v_category."currency" is not null and v_category."currency" <> v_row."currency" then
     raise exception 'the category''s policy is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.spent_on is null then
+  if create_expense_line.spent_on is null then
     raise exception 'a line needs spent_on' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.currency is not null and add_expense_line.currency <> v_row."currency" then
+  if create_expense_line.currency is not null and create_expense_line.currency <> v_row."currency" then
     raise exception 'the amount is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.amount is null or add_expense_line.amount <= 0 then
+  if create_expense_line.amount is null or create_expense_line.amount <= 0 then
     raise exception 'an amount is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if nullif(trim(add_expense_line.description), '') is null then
+  if nullif(trim(create_expense_line.description), '') is null then
     raise exception 'a line needs a description' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.dimensions is not null and jsonb_typeof(add_expense_line.dimensions) not in ('object', 'null') then
+  if create_expense_line.dimensions is not null and jsonb_typeof(create_expense_line.dimensions) not in ('object', 'null') then
     raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
   insert into "better_supabase"."expense_lines" ("tenant_id", "report_id", "category_id", "spent_on", "description", "merchant", "dimensions", "amount")
-  values (v_row."tenant_id", v_row."id", v_category."id", add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), add_expense_line.amount)
+  values (v_row."tenant_id", v_row."id", v_category."id", create_expense_line.spent_on, trim(create_expense_line.description),
+    nullif(trim(create_expense_line.merchant), ''), coalesce(nullif(create_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), create_expense_line.amount)
   returning * into v_line;
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
   return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 -- Changes a line of a draft or rejected report; null keeps a value.
 create or replace function "better_supabase"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
@@ -734,7 +734,7 @@ $$;
 revoke execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_expense_line"(line_id uuid)
+create or replace function "better_supabase"."delete_expense_line"(line_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -748,7 +748,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_line from "better_supabase"."expense_lines" l where l."id" = remove_expense_line.line_id;
+  select * into v_line from "better_supabase"."expense_lines" l where l."id" = delete_expense_line.line_id;
   if not found then
     raise exception 'no such expense line' using errcode = 'P0002', hint = 'EXPENSE_LINE_NOT_FOUND';
   end if;
@@ -770,8 +770,8 @@ begin
       'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_expense_line"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_expense_line"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_expense_line"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_expense_line"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."check_expense_report"(report_id uuid)
 returns jsonb
@@ -1367,7 +1367,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@2 managed
--- @bsb-hash sha256:0007ca3a6ee65954a7f69ae3c7794f014bf5acaa660800259a16281b20839472
+-- @bsb-hash sha256:b4e7484f12216047a5b6e42dde381418917f9377d61c32537942e150c1a39bad
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1460,7 +1460,7 @@ create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
 -- Creates or updates the category with this key and its spend policy. fields:
 -- the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+create or replace function "better_supabase"."upsert_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1473,35 +1473,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_expense_category.tenant, 'expenses.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_expense_category.tenant, 'expenses.manage'), false)) then
     raise exception 'not allowed to manage expense categories' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
-  if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_expense_category.key is null or upsert_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if nullif(trim(save_expense_category.name), '') is null then
+  if nullif(trim(upsert_expense_category.name), '') is null then
     raise exception 'a category needs a name' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if (save_expense_category.limit_amount is not null or save_expense_category.receipt_over is not null)
-    and (save_expense_category.currency is null or save_expense_category.currency !~ '^[A-Z]{3}$') then
+  if (upsert_expense_category.limit_amount is not null or upsert_expense_category.receipt_over is not null)
+    and (upsert_expense_category.currency is null or upsert_expense_category.currency !~ '^[A-Z]{3}$') then
     raise exception 'a limit or receipt threshold needs a three-letter currency code' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.limit_amount is not null and save_expense_category.limit_amount <= 0 then
+  if upsert_expense_category.limit_amount is not null and upsert_expense_category.limit_amount <= 0 then
     raise exception 'a limit is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
+  if upsert_expense_category.receipt_over is not null and upsert_expense_category.receipt_over < 0 then
     raise exception 'a receipt threshold is zero or more minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   insert into "better_supabase"."expense_categories" as x ("tenant_id", "key", "name", "currency", "limit_amount", "receipt_over")
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency, save_expense_category.limit_amount, save_expense_category.receipt_over)
+  values (upsert_expense_category.tenant, upsert_expense_category.key, trim(upsert_expense_category.name), upsert_expense_category.currency, upsert_expense_category.limit_amount, upsert_expense_category.receipt_over)
   on conflict ("tenant_id", "key") do update set
-    "name" = trim(save_expense_category.name), "currency" = save_expense_category.currency, "limit_amount" = save_expense_category.limit_amount, "receipt_over" = save_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
+    "name" = trim(upsert_expense_category.name), "currency" = upsert_expense_category.currency, "limit_amount" = upsert_expense_category.limit_amount, "receipt_over" = upsert_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
-grant execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
+grant execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_expense_category"(category_id uuid)
 returns jsonb
@@ -1996,7 +1996,7 @@ $$;
 revoke execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function "better_supabase"."create_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2012,7 +2012,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."expense_reports" x where x."id" = add_expense_line.report_id for update;
+  select * into v_row from "better_supabase"."expense_reports" x where x."id" = create_expense_line.report_id for update;
   if not found then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
@@ -2024,38 +2024,38 @@ begin
     raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   select * into v_category from "better_supabase"."expense_categories" c
-    where c."id" = add_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
+    where c."id" = create_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
   if not found then
     raise exception 'the category is unknown, archived or not in this organization' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   if v_category."currency" is not null and v_category."currency" <> v_row."currency" then
     raise exception 'the category''s policy is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.spent_on is null then
+  if create_expense_line.spent_on is null then
     raise exception 'a line needs spent_on' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.currency is not null and add_expense_line.currency <> v_row."currency" then
+  if create_expense_line.currency is not null and create_expense_line.currency <> v_row."currency" then
     raise exception 'the amount is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.amount is null or add_expense_line.amount <= 0 then
+  if create_expense_line.amount is null or create_expense_line.amount <= 0 then
     raise exception 'an amount is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if nullif(trim(add_expense_line.description), '') is null then
+  if nullif(trim(create_expense_line.description), '') is null then
     raise exception 'a line needs a description' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.dimensions is not null and jsonb_typeof(add_expense_line.dimensions) not in ('object', 'null') then
+  if create_expense_line.dimensions is not null and jsonb_typeof(create_expense_line.dimensions) not in ('object', 'null') then
     raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
   insert into "better_supabase"."expense_lines" ("tenant_id", "report_id", "category_id", "spent_on", "description", "merchant", "dimensions", "amount")
-  values (v_row."tenant_id", v_row."id", v_category."id", add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), add_expense_line.amount)
+  values (v_row."tenant_id", v_row."id", v_category."id", create_expense_line.spent_on, trim(create_expense_line.description),
+    nullif(trim(create_expense_line.merchant), ''), coalesce(nullif(create_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), create_expense_line.amount)
   returning * into v_line;
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
   return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = v_line."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 -- Changes a line of a draft or rejected report; null keeps a value.
 create or replace function "better_supabase"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
@@ -2125,7 +2125,7 @@ $$;
 revoke execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_expense_line"(line_id uuid)
+create or replace function "better_supabase"."delete_expense_line"(line_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -2139,7 +2139,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_line from "better_supabase"."expense_lines" l where l."id" = remove_expense_line.line_id;
+  select * into v_line from "better_supabase"."expense_lines" l where l."id" = delete_expense_line.line_id;
   if not found then
     raise exception 'no such expense line' using errcode = 'P0002', hint = 'EXPENSE_LINE_NOT_FOUND';
   end if;
@@ -2161,8 +2161,8 @@ begin
       'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = l."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_expense_line"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_expense_line"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_expense_line"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_expense_line"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."check_expense_report"(report_id uuid)
 returns jsonb
@@ -2856,7 +2856,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@2 managed
--- @bsb-hash sha256:d44d2e1e649cb34c45f1d7df89d1e226f8c6d0412e40ab7441126dfd2b8ba974
+-- @bsb-hash sha256:cb52ba146c7519b6768d3d926c4270be1abafaa81ca0a1c68635971f197f5bfc
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2954,7 +2954,7 @@ create policy bsb_expense_lines_read on "app_private"."expense_lines"
 -- Creates or updates the category with this key and its spend policy. fields:
 -- the extra columns (columns your schema files add) to set.
 
-create or replace function "app_private"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+create or replace function "app_private"."upsert_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2967,38 +2967,38 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_expense_category.tenant, 'expenses.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_expense_category.tenant, 'expenses.manage'), false)) then
     raise exception 'not allowed to manage expense categories' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
-  if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_expense_category.key is null or upsert_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if nullif(trim(save_expense_category.name), '') is null then
+  if nullif(trim(upsert_expense_category.name), '') is null then
     raise exception 'a category needs a name' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if (save_expense_category.limit_amount is not null or save_expense_category.receipt_over is not null)
-    and (save_expense_category.currency is null or save_expense_category.currency !~ '^[A-Z]{3}$') then
+  if (upsert_expense_category.limit_amount is not null or upsert_expense_category.receipt_over is not null)
+    and (upsert_expense_category.currency is null or upsert_expense_category.currency !~ '^[A-Z]{3}$') then
     raise exception 'a limit or receipt threshold needs a three-letter currency code' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.limit_amount is not null and save_expense_category.limit_amount <= 0 then
+  if upsert_expense_category.limit_amount is not null and upsert_expense_category.limit_amount <= 0 then
     raise exception 'a limit is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
+  if upsert_expense_category.receipt_over is not null and upsert_expense_category.receipt_over < 0 then
     raise exception 'a receipt threshold is zero or more minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null then
+  if upsert_expense_category.receipt_over is not null then
     raise exception 'a receipt threshold needs the attachments block' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   insert into "app_private"."expense_categories" as x ("tenant_id", "key", "name", "currency", "limit_amount", "receipt_over")
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency, save_expense_category.limit_amount, save_expense_category.receipt_over)
+  values (upsert_expense_category.tenant, upsert_expense_category.key, trim(upsert_expense_category.name), upsert_expense_category.currency, upsert_expense_category.limit_amount, upsert_expense_category.receipt_over)
   on conflict ("tenant_id", "key") do update set
-    "name" = trim(save_expense_category.name), "currency" = save_expense_category.currency, "limit_amount" = save_expense_category.limit_amount, "receipt_over" = save_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
+    "name" = trim(upsert_expense_category.name), "currency" = upsert_expense_category.currency, "limit_amount" = upsert_expense_category.limit_amount, "receipt_over" = upsert_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
-grant execute on function "app_private"."save_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
+grant execute on function "app_private"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
 
 create or replace function "app_private"."archive_expense_category"(category_id uuid)
 returns jsonb
@@ -3465,7 +3465,7 @@ $$;
 revoke execute on function "app_private"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "app_private"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "app_private"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function "app_private"."create_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3481,7 +3481,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."expense_reports" x where x."id" = add_expense_line.report_id for update;
+  select * into v_row from "app_private"."expense_reports" x where x."id" = create_expense_line.report_id for update;
   if not found then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
@@ -3493,38 +3493,38 @@ begin
     raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   select * into v_category from "app_private"."expense_categories" c
-    where c."id" = add_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
+    where c."id" = create_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
   if not found then
     raise exception 'the category is unknown, archived or not in this organization' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   if v_category."currency" is not null and v_category."currency" <> v_row."currency" then
     raise exception 'the category''s policy is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.spent_on is null then
+  if create_expense_line.spent_on is null then
     raise exception 'a line needs spent_on' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.currency is not null and add_expense_line.currency <> v_row."currency" then
+  if create_expense_line.currency is not null and create_expense_line.currency <> v_row."currency" then
     raise exception 'the amount is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.amount is null or add_expense_line.amount <= 0 then
+  if create_expense_line.amount is null or create_expense_line.amount <= 0 then
     raise exception 'an amount is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if nullif(trim(add_expense_line.description), '') is null then
+  if nullif(trim(create_expense_line.description), '') is null then
     raise exception 'a line needs a description' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.dimensions is not null and jsonb_typeof(add_expense_line.dimensions) not in ('object', 'null') then
+  if create_expense_line.dimensions is not null and jsonb_typeof(create_expense_line.dimensions) not in ('object', 'null') then
     raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
   insert into "app_private"."expense_lines" ("tenant_id", "report_id", "category_id", "spent_on", "description", "merchant", "dimensions", "amount")
-  values (v_row."tenant_id", v_row."id", v_category."id", add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), add_expense_line.amount)
+  values (v_row."tenant_id", v_row."id", v_category."id", create_expense_line.spent_on, trim(create_expense_line.description),
+    nullif(trim(create_expense_line.merchant), ''), coalesce(nullif(create_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), create_expense_line.amount)
   returning * into v_line;
   update "app_private"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
   return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "app_private"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
-grant execute on function "app_private"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "app_private"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 -- Changes a line of a draft or rejected report; null keeps a value.
 create or replace function "app_private"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
@@ -3594,7 +3594,7 @@ $$;
 revoke execute on function "app_private"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
 grant execute on function "app_private"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "app_private"."remove_expense_line"(line_id uuid)
+create or replace function "app_private"."delete_expense_line"(line_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -3608,7 +3608,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_line from "app_private"."expense_lines" l where l."id" = remove_expense_line.line_id;
+  select * into v_line from "app_private"."expense_lines" l where l."id" = delete_expense_line.line_id;
   if not found then
     raise exception 'no such expense line' using errcode = 'P0002', hint = 'EXPENSE_LINE_NOT_FOUND';
   end if;
@@ -3630,8 +3630,8 @@ begin
       'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "app_private"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "app_private"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "app_private"."remove_expense_line"(uuid) from public, anon;
-grant execute on function "app_private"."remove_expense_line"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_expense_line"(uuid) from public, anon;
+grant execute on function "app_private"."delete_expense_line"(uuid) to authenticated, service_role;
 
 create or replace function "app_private"."check_expense_report"(report_id uuid)
 returns jsonb
@@ -4227,7 +4227,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@2 managed
--- @bsb-hash sha256:b1591e3bfdf860d81d88049ae818bf1abd0f9cadc3226908f4f12748ef281a80
+-- @bsb-hash sha256:16f61bbcbd2861fa796a1bba59fbc37e282a270632c3c730021cd373b8d7b031
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4320,7 +4320,7 @@ create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
 -- Creates or updates the category with this key and its spend policy. fields:
 -- the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+create or replace function "better_supabase"."upsert_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4333,38 +4333,38 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_expense_category.tenant, 'expenses.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_expense_category.tenant, 'expenses.manage'), false)) then
     raise exception 'not allowed to manage expense categories' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
-  if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_expense_category.key is null or upsert_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if nullif(trim(save_expense_category.name), '') is null then
+  if nullif(trim(upsert_expense_category.name), '') is null then
     raise exception 'a category needs a name' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if (save_expense_category.limit_amount is not null or save_expense_category.receipt_over is not null)
-    and (save_expense_category.currency is null or save_expense_category.currency !~ '^[A-Z]{3}$') then
+  if (upsert_expense_category.limit_amount is not null or upsert_expense_category.receipt_over is not null)
+    and (upsert_expense_category.currency is null or upsert_expense_category.currency !~ '^[A-Z]{3}$') then
     raise exception 'a limit or receipt threshold needs a three-letter currency code' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.limit_amount is not null and save_expense_category.limit_amount <= 0 then
+  if upsert_expense_category.limit_amount is not null and upsert_expense_category.limit_amount <= 0 then
     raise exception 'a limit is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
+  if upsert_expense_category.receipt_over is not null and upsert_expense_category.receipt_over < 0 then
     raise exception 'a receipt threshold is zero or more minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null then
+  if upsert_expense_category.receipt_over is not null then
     raise exception 'a receipt threshold needs the attachments block' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   insert into "better_supabase"."expense_categories" as x ("tenant_id", "key", "name", "currency", "limit_amount", "receipt_over")
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency, save_expense_category.limit_amount, save_expense_category.receipt_over)
+  values (upsert_expense_category.tenant, upsert_expense_category.key, trim(upsert_expense_category.name), upsert_expense_category.currency, upsert_expense_category.limit_amount, upsert_expense_category.receipt_over)
   on conflict ("tenant_id", "key") do update set
-    "name" = trim(save_expense_category.name), "currency" = save_expense_category.currency, "limit_amount" = save_expense_category.limit_amount, "receipt_over" = save_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
+    "name" = trim(upsert_expense_category.name), "currency" = upsert_expense_category.currency, "limit_amount" = upsert_expense_category.limit_amount, "receipt_over" = upsert_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
-grant execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
+grant execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_expense_category"(category_id uuid)
 returns jsonb
@@ -4831,7 +4831,7 @@ $$;
 revoke execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function "better_supabase"."create_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4847,7 +4847,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."expense_reports" x where x."id" = add_expense_line.report_id for update;
+  select * into v_row from "better_supabase"."expense_reports" x where x."id" = create_expense_line.report_id for update;
   if not found then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
@@ -4859,38 +4859,38 @@ begin
     raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   select * into v_category from "better_supabase"."expense_categories" c
-    where c."id" = add_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
+    where c."id" = create_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
   if not found then
     raise exception 'the category is unknown, archived or not in this organization' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   if v_category."currency" is not null and v_category."currency" <> v_row."currency" then
     raise exception 'the category''s policy is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.spent_on is null then
+  if create_expense_line.spent_on is null then
     raise exception 'a line needs spent_on' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.currency is not null and add_expense_line.currency <> v_row."currency" then
+  if create_expense_line.currency is not null and create_expense_line.currency <> v_row."currency" then
     raise exception 'the amount is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.amount is null or add_expense_line.amount <= 0 then
+  if create_expense_line.amount is null or create_expense_line.amount <= 0 then
     raise exception 'an amount is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if nullif(trim(add_expense_line.description), '') is null then
+  if nullif(trim(create_expense_line.description), '') is null then
     raise exception 'a line needs a description' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.dimensions is not null and jsonb_typeof(add_expense_line.dimensions) not in ('object', 'null') then
+  if create_expense_line.dimensions is not null and jsonb_typeof(create_expense_line.dimensions) not in ('object', 'null') then
     raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
   insert into "better_supabase"."expense_lines" ("tenant_id", "report_id", "category_id", "spent_on", "description", "merchant", "dimensions", "amount")
-  values (v_row."tenant_id", v_row."id", v_category."id", add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), add_expense_line.amount)
+  values (v_row."tenant_id", v_row."id", v_category."id", create_expense_line.spent_on, trim(create_expense_line.description),
+    nullif(trim(create_expense_line.merchant), ''), coalesce(nullif(create_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), create_expense_line.amount)
   returning * into v_line;
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
   return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 -- Changes a line of a draft or rejected report; null keeps a value.
 create or replace function "better_supabase"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
@@ -4960,7 +4960,7 @@ $$;
 revoke execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_expense_line"(line_id uuid)
+create or replace function "better_supabase"."delete_expense_line"(line_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -4974,7 +4974,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_line from "better_supabase"."expense_lines" l where l."id" = remove_expense_line.line_id;
+  select * into v_line from "better_supabase"."expense_lines" l where l."id" = delete_expense_line.line_id;
   if not found then
     raise exception 'no such expense line' using errcode = 'P0002', hint = 'EXPENSE_LINE_NOT_FOUND';
   end if;
@@ -4996,8 +4996,8 @@ begin
       'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_expense_line"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_expense_line"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_expense_line"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_expense_line"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."check_expense_report"(report_id uuid)
 returns jsonb
@@ -5583,14 +5583,14 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 
 
-create or replace function "api"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+create or replace function "api"."upsert_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_expense_category"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
-grant execute on function "api"."save_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_expense_category"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
+grant execute on function "api"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
 
 create or replace function "api"."archive_expense_category"(category_id uuid)
 returns jsonb
@@ -5639,14 +5639,14 @@ as $$ select "better_supabase"."create_expense_report"($1, $2, $3, $4) $$;
 revoke execute on function "api"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "api"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "api"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function "api"."create_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_expense_line"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
-grant execute on function "api"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."create_expense_line"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "api"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "api"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
@@ -5657,14 +5657,14 @@ as $$ select "better_supabase"."update_expense_line"($1, $2, $3, $4, $5, $6, $7,
 revoke execute on function "api"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
 grant execute on function "api"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "api"."remove_expense_line"(line_id uuid)
+create or replace function "api"."delete_expense_line"(line_id uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_expense_line"($1) $$;
-revoke execute on function "api"."remove_expense_line"(uuid) from public, anon;
-grant execute on function "api"."remove_expense_line"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_expense_line"($1) $$;
+revoke execute on function "api"."delete_expense_line"(uuid) from public, anon;
+grant execute on function "api"."delete_expense_line"(uuid) to authenticated, service_role;
 
 create or replace function "api"."check_expense_report"(report_id uuid)
 returns jsonb
@@ -5750,7 +5750,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@2 managed
--- @bsb-hash sha256:2e893427341c853dbaf7684ca099035d525a0d9e184b2aa974a7f8e8a8fb1c12
+-- @bsb-hash sha256:f2ec98c47b035ed14a98d61a52d4a75edf2506b7490dea69f4f15d90371914b9
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5835,7 +5835,7 @@ create policy bsb_expense_lines_select on "better_supabase"."expense_lines"
 -- Creates or updates the category with this key and its spend policy. fields:
 -- the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+create or replace function "better_supabase"."upsert_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5848,38 +5848,38 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_expense_category.tenant, 'expenses.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_expense_category.tenant, 'expenses.manage'), false)) then
     raise exception 'not allowed to manage expense categories' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
-  if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_expense_category.key is null or upsert_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if nullif(trim(save_expense_category.name), '') is null then
+  if nullif(trim(upsert_expense_category.name), '') is null then
     raise exception 'a category needs a name' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if (save_expense_category.limit_amount is not null or save_expense_category.receipt_over is not null)
-    and (save_expense_category.currency is null or save_expense_category.currency !~ '^[A-Z]{3}$') then
+  if (upsert_expense_category.limit_amount is not null or upsert_expense_category.receipt_over is not null)
+    and (upsert_expense_category.currency is null or upsert_expense_category.currency !~ '^[A-Z]{3}$') then
     raise exception 'a limit or receipt threshold needs a three-letter currency code' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.limit_amount is not null and save_expense_category.limit_amount <= 0 then
+  if upsert_expense_category.limit_amount is not null and upsert_expense_category.limit_amount <= 0 then
     raise exception 'a limit is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
+  if upsert_expense_category.receipt_over is not null and upsert_expense_category.receipt_over < 0 then
     raise exception 'a receipt threshold is zero or more minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null then
+  if upsert_expense_category.receipt_over is not null then
     raise exception 'a receipt threshold needs the attachments block' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   insert into "better_supabase"."expense_categories" as x ("tenant_id", "key", "name", "currency", "limit_amount", "receipt_over")
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency, save_expense_category.limit_amount, save_expense_category.receipt_over)
+  values (upsert_expense_category.tenant, upsert_expense_category.key, trim(upsert_expense_category.name), upsert_expense_category.currency, upsert_expense_category.limit_amount, upsert_expense_category.receipt_over)
   on conflict ("tenant_id", "key") do update set
-    "name" = trim(save_expense_category.name), "currency" = save_expense_category.currency, "limit_amount" = save_expense_category.limit_amount, "receipt_over" = save_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
+    "name" = trim(upsert_expense_category.name), "currency" = upsert_expense_category.currency, "limit_amount" = upsert_expense_category.limit_amount, "receipt_over" = upsert_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
-grant execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
+grant execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_expense_category"(category_id uuid)
 returns jsonb
@@ -6346,7 +6346,7 @@ $$;
 revoke execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function "better_supabase"."create_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6362,7 +6362,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."expense_reports" x where x."id" = add_expense_line.report_id for update;
+  select * into v_row from "better_supabase"."expense_reports" x where x."id" = create_expense_line.report_id for update;
   if not found then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
@@ -6374,38 +6374,38 @@ begin
     raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   select * into v_category from "better_supabase"."expense_categories" c
-    where c."id" = add_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
+    where c."id" = create_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
   if not found then
     raise exception 'the category is unknown, archived or not in this organization' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   if v_category."currency" is not null and v_category."currency" <> v_row."currency" then
     raise exception 'the category''s policy is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.spent_on is null then
+  if create_expense_line.spent_on is null then
     raise exception 'a line needs spent_on' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.currency is not null and add_expense_line.currency <> v_row."currency" then
+  if create_expense_line.currency is not null and create_expense_line.currency <> v_row."currency" then
     raise exception 'the amount is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.amount is null or add_expense_line.amount <= 0 then
+  if create_expense_line.amount is null or create_expense_line.amount <= 0 then
     raise exception 'an amount is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if nullif(trim(add_expense_line.description), '') is null then
+  if nullif(trim(create_expense_line.description), '') is null then
     raise exception 'a line needs a description' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.dimensions is not null and jsonb_typeof(add_expense_line.dimensions) not in ('object', 'null') then
+  if create_expense_line.dimensions is not null and jsonb_typeof(create_expense_line.dimensions) not in ('object', 'null') then
     raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
   insert into "better_supabase"."expense_lines" ("tenant_id", "report_id", "category_id", "spent_on", "description", "merchant", "dimensions", "amount")
-  values (v_row."tenant_id", v_row."id", v_category."id", add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), add_expense_line.amount)
+  values (v_row."tenant_id", v_row."id", v_category."id", create_expense_line.spent_on, trim(create_expense_line.description),
+    nullif(trim(create_expense_line.merchant), ''), coalesce(nullif(create_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), create_expense_line.amount)
   returning * into v_line;
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
   return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 -- Changes a line of a draft or rejected report; null keeps a value.
 create or replace function "better_supabase"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
@@ -6475,7 +6475,7 @@ $$;
 revoke execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_expense_line"(line_id uuid)
+create or replace function "better_supabase"."delete_expense_line"(line_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -6489,7 +6489,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_line from "better_supabase"."expense_lines" l where l."id" = remove_expense_line.line_id;
+  select * into v_line from "better_supabase"."expense_lines" l where l."id" = delete_expense_line.line_id;
   if not found then
     raise exception 'no such expense line' using errcode = 'P0002', hint = 'EXPENSE_LINE_NOT_FOUND';
   end if;
@@ -6511,8 +6511,8 @@ begin
       'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_expense_line"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_expense_line"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_expense_line"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_expense_line"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."check_expense_report"(report_id uuid)
 returns jsonb
@@ -7108,7 +7108,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@2 managed
--- @bsb-hash sha256:961d7ab8eac1b78789221e898748384d9d9d38873ed5249b2e84d46e29cb3968
+-- @bsb-hash sha256:489d6c9c90c8611500a7169f727784176efa9fe5fe6db2d52b7e7cd0c3d83b90
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7201,7 +7201,7 @@ create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
 -- Creates or updates the category with this key and its spend policy. fields:
 -- the extra columns (columns your schema files add) to set.
 
-create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
+create or replace function "better_supabase"."upsert_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7214,38 +7214,38 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_expense_category.tenant, 'expenses.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_expense_category.tenant, 'expenses.manage'), false)) then
     raise exception 'not allowed to manage expense categories' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
-  if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
+  if upsert_expense_category.key is null or upsert_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
     raise exception 'a key is lowercase letters, digits and underscores' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if nullif(trim(save_expense_category.name), '') is null then
+  if nullif(trim(upsert_expense_category.name), '') is null then
     raise exception 'a category needs a name' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if (save_expense_category.limit_amount is not null or save_expense_category.receipt_over is not null)
-    and (save_expense_category.currency is null or save_expense_category.currency !~ '^[A-Z]{3}$') then
+  if (upsert_expense_category.limit_amount is not null or upsert_expense_category.receipt_over is not null)
+    and (upsert_expense_category.currency is null or upsert_expense_category.currency !~ '^[A-Z]{3}$') then
     raise exception 'a limit or receipt threshold needs a three-letter currency code' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.limit_amount is not null and save_expense_category.limit_amount <= 0 then
+  if upsert_expense_category.limit_amount is not null and upsert_expense_category.limit_amount <= 0 then
     raise exception 'a limit is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null and save_expense_category.receipt_over < 0 then
+  if upsert_expense_category.receipt_over is not null and upsert_expense_category.receipt_over < 0 then
     raise exception 'a receipt threshold is zero or more minor units' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
-  if save_expense_category.receipt_over is not null then
+  if upsert_expense_category.receipt_over is not null then
     raise exception 'a receipt threshold needs the attachments block' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   insert into "better_supabase"."expense_categories" as x ("org_id", "key", "name", "currency", "limit_amount", "receipt_over")
-  values (save_expense_category.tenant, save_expense_category.key, trim(save_expense_category.name), save_expense_category.currency, save_expense_category.limit_amount, save_expense_category.receipt_over)
+  values (upsert_expense_category.tenant, upsert_expense_category.key, trim(upsert_expense_category.name), upsert_expense_category.currency, upsert_expense_category.limit_amount, upsert_expense_category.receipt_over)
   on conflict ("org_id", "key") do update set
-    "name" = trim(save_expense_category.name), "currency" = save_expense_category.currency, "limit_amount" = save_expense_category.limit_amount, "receipt_over" = save_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
+    "name" = trim(upsert_expense_category.name), "currency" = upsert_expense_category.currency, "limit_amount" = upsert_expense_category.limit_amount, "receipt_over" = upsert_expense_category.receipt_over, "archived_at" = null, "updated_at" = now()
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
-grant execute on function "better_supabase"."save_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) from public, anon;
+grant execute on function "better_supabase"."upsert_expense_category"(uuid, text, text, text, bigint, bigint) to authenticated, service_role;
 
 create or replace function "better_supabase"."archive_expense_category"(category_id uuid)
 returns jsonb
@@ -7712,7 +7712,7 @@ $$;
 revoke execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_expense_report"(uuid, text, text, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."add_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
+create or replace function "better_supabase"."create_expense_line"(report_id uuid, category_id uuid, spent_on date, amount bigint, description text, merchant text default null, currency text default null, dimensions jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7728,7 +7728,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."expense_reports" x where x."id" = add_expense_line.report_id for update;
+  select * into v_row from "better_supabase"."expense_reports" x where x."id" = create_expense_line.report_id for update;
   if not found then
     raise exception 'no such expense report' using errcode = 'P0002', hint = 'EXPENSE_REPORT_NOT_FOUND';
   end if;
@@ -7740,38 +7740,38 @@ begin
     raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   select * into v_category from "better_supabase"."expense_categories" c
-    where c."id" = add_expense_line.category_id and c."org_id" = v_row."org_id" and c."archived_at" is null;
+    where c."id" = create_expense_line.category_id and c."org_id" = v_row."org_id" and c."archived_at" is null;
   if not found then
     raise exception 'the category is unknown, archived or not in this organization' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
   end if;
   if v_category."currency" is not null and v_category."currency" <> v_row."currency" then
     raise exception 'the category''s policy is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.spent_on is null then
+  if create_expense_line.spent_on is null then
     raise exception 'a line needs spent_on' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.currency is not null and add_expense_line.currency <> v_row."currency" then
+  if create_expense_line.currency is not null and create_expense_line.currency <> v_row."currency" then
     raise exception 'the amount is in another currency than the report' using errcode = '22023', hint = 'EXPENSE_CURRENCY_MISMATCH';
   end if;
-  if add_expense_line.amount is null or add_expense_line.amount <= 0 then
+  if create_expense_line.amount is null or create_expense_line.amount <= 0 then
     raise exception 'an amount is more than zero minor units' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if nullif(trim(add_expense_line.description), '') is null then
+  if nullif(trim(create_expense_line.description), '') is null then
     raise exception 'a line needs a description' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
-  if add_expense_line.dimensions is not null and jsonb_typeof(add_expense_line.dimensions) not in ('object', 'null') then
+  if create_expense_line.dimensions is not null and jsonb_typeof(create_expense_line.dimensions) not in ('object', 'null') then
     raise exception 'dimensions is an object of dimension keys and value codes' using errcode = '22023', hint = 'EXPENSE_LINE_INVALID';
   end if;
   insert into "better_supabase"."expense_lines" ("org_id", "report_id", "category_id", "spent_on", "description", "merchant", "dimensions", "amount")
-  values (v_row."org_id", v_row."id", v_category."id", add_expense_line.spent_on, trim(add_expense_line.description),
-    nullif(trim(add_expense_line.merchant), ''), coalesce(nullif(add_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), add_expense_line.amount)
+  values (v_row."org_id", v_row."id", v_category."id", create_expense_line.spent_on, trim(create_expense_line.description),
+    nullif(trim(create_expense_line.merchant), ''), coalesce(nullif(create_expense_line.dimensions, 'null'::jsonb), '{}'::jsonb), create_expense_line.amount)
   returning * into v_line;
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id";
   return jsonb_build_object('id', v_line."id", 'reportId', v_line."report_id", 'categoryId', v_line."category_id", 'spentOn', v_line."spent_on", 'description', v_line."description", 'merchant', v_line."merchant", 'dimensions', v_line."dimensions", 'amount', v_line."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = v_line."report_id"), 'receipts', 0, 'createdAt', v_line."created_at", 'updatedAt', v_line."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
 -- Changes a line of a draft or rejected report; null keeps a value.
 create or replace function "better_supabase"."update_expense_line"(line_id uuid, category_id uuid default null, spent_on date default null, amount bigint default null, description text default null, merchant text default null, currency text default null, dimensions jsonb default null)
@@ -7841,7 +7841,7 @@ $$;
 revoke execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_expense_line"(uuid, uuid, date, bigint, text, text, text, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_expense_line"(line_id uuid)
+create or replace function "better_supabase"."delete_expense_line"(line_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -7855,7 +7855,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_line from "better_supabase"."expense_lines" l where l."id" = remove_expense_line.line_id;
+  select * into v_line from "better_supabase"."expense_lines" l where l."id" = delete_expense_line.line_id;
   if not found then
     raise exception 'no such expense line' using errcode = 'P0002', hint = 'EXPENSE_LINE_NOT_FOUND';
   end if;
@@ -7877,8 +7877,8 @@ begin
       'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', 0, 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."remove_expense_line"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_expense_line"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_expense_line"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_expense_line"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."check_expense_report"(report_id uuid)
 returns jsonb

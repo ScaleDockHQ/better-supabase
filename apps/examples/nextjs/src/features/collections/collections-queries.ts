@@ -10,11 +10,11 @@ import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
 import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { CollectionRow } from "./collection-row";
 
-import { COLLECTIONS_TAG } from "./collections-cache";
 import { COLLECTION_PAGE_SIZE, collectionList } from "./collections-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -36,7 +36,7 @@ function toRow(collection: Collection): CollectionRow {
  * one list filter, `q` searches the name and the description, and the keyset
  * cursor `after` holds pages on.
  */
-export async function loadCollectionPage(
+export async function getCollectionPage(
   db: Db,
   organizationId: string,
   query: BlockListQuery<"newest">,
@@ -72,7 +72,7 @@ export async function loadCollectionPage(
 export async function getCollections(): Promise<BlockPage<CollectionRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(COLLECTIONS_TAG);
+  cacheTag(tags.collections());
 
   const organizationId = tenantOf(session);
 
@@ -80,7 +80,7 @@ export async function getCollections(): Promise<BlockPage<CollectionRow> | null>
     return null;
   }
 
-  const result = await loadCollectionPage(
+  const result = await getCollectionPage(
     db,
     organizationId,
     collectionList.defaults,
@@ -112,7 +112,7 @@ export async function getCollection(
 ): Promise<CollectionDetailData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(COLLECTIONS_TAG);
+  cacheTag(tags.collections());
 
   if (!tenantOf(session)) {
     return null;

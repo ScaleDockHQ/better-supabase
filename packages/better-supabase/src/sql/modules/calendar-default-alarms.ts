@@ -84,7 +84,7 @@ ${renderPolicy(
 }
 
 /**
- * The statements of `save_calendar_event` that copy the calendar's default
+ * The statements of `upsert_calendar_event` that copy the calendar's default
  * alarms onto a new event (not an override) whose item has no `alarms`.
  */
 export function defaultAlarmWrites(ctx: BlockSqlContext): string {
@@ -139,7 +139,7 @@ export function defaultAlarmWrites(ctx: BlockSqlContext): string {
     select ${columns.map(([, value]) => value).join(", ")}
     from ${ctx.table("defaultAlarms")} d
     join ${ctx.table("events")} e on ${e("id")} = v_id
-    where ${d("calendar")} = save_calendar_event.calendar_id and ${d("allDay")} = ${e("allDay")}${displayOnly};
+    where ${d("calendar")} = upsert_calendar_event.calendar_id and ${d("allDay")} = ${e("allDay")}${displayOnly};
   end if;`;
 }
 

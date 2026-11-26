@@ -26,7 +26,7 @@ import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 import { initials } from "@/lib/initials";
 
-import { loadSeatsLeft } from "../seats/seats-queries";
+import { getSeatsLeft } from "../seats/seats-queries";
 
 /**
  * Render inside `<Suspense>`: one member of the active organization with their
@@ -66,7 +66,7 @@ export async function MemberDetail({ userId }: { userId: string }) {
     ...(roles?.find((role) => role.key === member.role)?.permissions ?? []),
   ].toSorted();
 
-  const seatsLeft = await loadSeatsLeft(members.length);
+  const seatsLeft = await getSeatsLeft(members.length);
 
   return (
     <div data-testid="member-detail">

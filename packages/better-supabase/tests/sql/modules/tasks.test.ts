@@ -93,13 +93,13 @@ describe("tasks module", () => {
   it("renders projects and iterations unless turned off", () => {
     const all = body("tasks");
     expect(all).toContain('references "better_supabase"."projects"');
-    expect(all).toContain("save_iteration");
+    expect(all).toContain("upsert_iteration");
 
     const bare = body("tasks", {
       modules: { tasks: { tables: { projects: null, iterations: null } } },
     });
 
-    expect(bare).not.toContain("save_project");
+    expect(bare).not.toContain("upsert_project");
     expect(bare).not.toContain('references "better_supabase"."projects"');
   });
 

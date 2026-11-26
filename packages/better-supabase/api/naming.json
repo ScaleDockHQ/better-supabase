@@ -2505,6 +2505,1504 @@
       "to": "ssrSession",
       "kind": "function",
       "since": "0.67"
+    },
+    {
+      "from": "loadBindings",
+      "to": "getBindings",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadConfig",
+      "to": "getConfig",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadEnv",
+      "to": "getEnv",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadJsonPath",
+      "to": "getJsonPath",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadMyWork",
+      "to": "getMyWork",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadProject",
+      "to": "getProject",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadSnapshot",
+      "to": "getSnapshot",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadTimeline",
+      "to": "getTimeline",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readArgSource",
+      "to": "getArgSource",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readArgSqlType",
+      "to": "getArgSqlType",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readBitstringStatus",
+      "to": "getBitstringStatus",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readC2paManifest",
+      "to": "getC2paManifest",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readCatalog",
+      "to": "getCatalog",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readDesignFile",
+      "to": "getDesignFile",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readGrants",
+      "to": "getGrants",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readPolicies",
+      "to": "getPolicies",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readRulePolicies",
+      "to": "getRulePolicies",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readSecurityCatalog",
+      "to": "getSecurityCatalog",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "readStatus",
+      "to": "getStatus",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "tableLoaders",
+      "to": "tableGetters",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "loadFunctions",
+      "to": "getFunctions",
+      "kind": "function",
+      "since": "0.88"
+    },
+    {
+      "from": "save_accounting_account",
+      "to": "upsert_accounting_account",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "accounting"
+    },
+    {
+      "from": "save_accounting_budget",
+      "to": "upsert_accounting_budget",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "accounting"
+    },
+    {
+      "from": "save_accounting_dimension",
+      "to": "upsert_accounting_dimension",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "accounting"
+    },
+    {
+      "from": "save_accounting_dimension_value",
+      "to": "upsert_accounting_dimension_value",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "accounting"
+    },
+    {
+      "from": "save_accounting_entry",
+      "to": "upsert_accounting_entry",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "accounting"
+    },
+    {
+      "from": "save_accounting_journal",
+      "to": "upsert_accounting_journal",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "accounting"
+    },
+    {
+      "from": "save_accounting_opening_balances",
+      "to": "upsert_accounting_opening_balances",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "accounting"
+    },
+    {
+      "from": "save_activity_notes",
+      "to": "upsert_activity_notes",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "activities"
+    },
+    {
+      "from": "save_activity_transcript",
+      "to": "upsert_activity_transcript",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "activities"
+    },
+    {
+      "from": "save_advisory",
+      "to": "upsert_advisory",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "advisories"
+    },
+    {
+      "from": "save_advisory_product",
+      "to": "upsert_advisory_product",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "advisories"
+    },
+    {
+      "from": "save_vex_statement",
+      "to": "upsert_vex_statement",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "advisories"
+    },
+    {
+      "from": "save_vulnerability",
+      "to": "upsert_vulnerability",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "advisories"
+    },
+    {
+      "from": "save_agent",
+      "to": "upsert_agent",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "agents"
+    },
+    {
+      "from": "add_ai_chat_participant",
+      "to": "create_ai_chat_participant",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "add_ai_chat_party",
+      "to": "create_ai_chat_party",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "load_ai_harness_session",
+      "to": "get_ai_harness_session",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "remove_ai_chat_participant",
+      "to": "delete_ai_chat_participant",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "remove_ai_chat_party",
+      "to": "delete_ai_chat_party",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "save_ai_assistant_message",
+      "to": "upsert_ai_assistant_message",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "save_ai_harness_session",
+      "to": "upsert_ai_harness_session",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "save_ai_project",
+      "to": "upsert_ai_project",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-chat"
+    },
+    {
+      "from": "add_eval_items",
+      "to": "create_eval_items",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-evals"
+    },
+    {
+      "from": "add_eval_items_from_feedback",
+      "to": "create_eval_items_from_feedback",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-evals"
+    },
+    {
+      "from": "save_ai_batch_items",
+      "to": "upsert_ai_batch_items",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-keys"
+    },
+    {
+      "from": "save_ai_provider_key",
+      "to": "upsert_ai_provider_key",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-keys"
+    },
+    {
+      "from": "save_ai_task",
+      "to": "upsert_ai_task",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "ai-schedules"
+    },
+    {
+      "from": "save_announcement",
+      "to": "upsert_announcement",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "announcements"
+    },
+    {
+      "from": "remove_approval_policy",
+      "to": "delete_approval_policy",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "approvals"
+    },
+    {
+      "from": "save_approval_policy",
+      "to": "upsert_approval_policy",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "approvals"
+    },
+    {
+      "from": "remove_assignment_queue",
+      "to": "delete_assignment_queue",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "assignment"
+    },
+    {
+      "from": "save_assignment_queue",
+      "to": "upsert_assignment_queue",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "assignment"
+    },
+    {
+      "from": "remove_rule",
+      "to": "delete_rule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "automations"
+    },
+    {
+      "from": "save_rule",
+      "to": "upsert_rule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "automations"
+    },
+    {
+      "from": "save_bank_account",
+      "to": "upsert_bank_account",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "banking"
+    },
+    {
+      "from": "save_bank_rule",
+      "to": "upsert_bank_rule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "banking"
+    },
+    {
+      "from": "add_booking_exception",
+      "to": "create_booking_exception",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "bookings"
+    },
+    {
+      "from": "save_booking_resource",
+      "to": "upsert_booking_resource",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "bookings"
+    },
+    {
+      "from": "save_booking_service",
+      "to": "upsert_booking_service",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "bookings"
+    },
+    {
+      "from": "remove_calendar_attendee",
+      "to": "delete_calendar_attendee",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "calendar"
+    },
+    {
+      "from": "remove_calendar_grant",
+      "to": "delete_calendar_grant",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "calendar"
+    },
+    {
+      "from": "save_calendar_event",
+      "to": "upsert_calendar_event",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "calendar"
+    },
+    {
+      "from": "add_care_plan_action",
+      "to": "create_care_plan_action",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "care-plans"
+    },
+    {
+      "from": "add_care_plan_goal",
+      "to": "create_care_plan_goal",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "care-plans"
+    },
+    {
+      "from": "add_care_plan_problem",
+      "to": "create_care_plan_problem",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "care-plans"
+    },
+    {
+      "from": "remove_case_action",
+      "to": "delete_case_action",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "cases"
+    },
+    {
+      "from": "save_case_kind",
+      "to": "upsert_case_kind",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "cases"
+    },
+    {
+      "from": "add_product_media",
+      "to": "create_product_media",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "remove_product_media",
+      "to": "delete_product_media",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_catalog_channel",
+      "to": "upsert_catalog_channel",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_category",
+      "to": "upsert_category",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_collection",
+      "to": "upsert_collection",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_discount_group",
+      "to": "upsert_discount_group",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_discount_rule",
+      "to": "upsert_discount_rule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_price_list",
+      "to": "upsert_price_list",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_product",
+      "to": "upsert_product",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_product_identifier",
+      "to": "upsert_product_identifier",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_product_option",
+      "to": "upsert_product_option",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_product_relation",
+      "to": "upsert_product_relation",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_supplier_item",
+      "to": "upsert_supplier_item",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_variant",
+      "to": "upsert_variant",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "catalog"
+    },
+    {
+      "from": "save_care_rule",
+      "to": "upsert_care_rule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "clinical-decision-support"
+    },
+    {
+      "from": "add_collection_entries",
+      "to": "create_collection_entries",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "collections"
+    },
+    {
+      "from": "remove_collection_entries",
+      "to": "delete_collection_entries",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "collections"
+    },
+    {
+      "from": "remove_saved_item",
+      "to": "delete_saved_item",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "collections"
+    },
+    {
+      "from": "save_for_later",
+      "to": "upsert_for_later",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "collections"
+    },
+    {
+      "from": "save_commission_plan",
+      "to": "upsert_commission_plan",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "commissions"
+    },
+    {
+      "from": "add_control_evidence",
+      "to": "create_control_evidence",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "compliance"
+    },
+    {
+      "from": "remove_control_evidence",
+      "to": "delete_control_evidence",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "compliance"
+    },
+    {
+      "from": "save_compliance_policy",
+      "to": "upsert_compliance_policy",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "compliance"
+    },
+    {
+      "from": "save_control",
+      "to": "upsert_control",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "compliance"
+    },
+    {
+      "from": "save_control_framework",
+      "to": "upsert_control_framework",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "compliance"
+    },
+    {
+      "from": "save_evidence_task",
+      "to": "upsert_evidence_task",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "compliance"
+    },
+    {
+      "from": "save_connector_server",
+      "to": "upsert_connector_server",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "connectors"
+    },
+    {
+      "from": "save_connector_session",
+      "to": "upsert_connector_session",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "connectors"
+    },
+    {
+      "from": "save_consent_purpose",
+      "to": "upsert_consent_purpose",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "consents"
+    },
+    {
+      "from": "add_person_identity",
+      "to": "create_person_identity",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "contacts"
+    },
+    {
+      "from": "remove_company_person",
+      "to": "delete_company_person",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "contacts"
+    },
+    {
+      "from": "remove_person_identity",
+      "to": "delete_person_identity",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "contacts"
+    },
+    {
+      "from": "save_company",
+      "to": "upsert_company",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "contacts"
+    },
+    {
+      "from": "save_payment_term",
+      "to": "upsert_payment_term",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "contacts"
+    },
+    {
+      "from": "save_person",
+      "to": "upsert_person",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "contacts"
+    },
+    {
+      "from": "save_contract_obligation",
+      "to": "upsert_contract_obligation",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "contracts"
+    },
+    {
+      "from": "save_course",
+      "to": "upsert_course",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "courses"
+    },
+    {
+      "from": "save_course_lesson",
+      "to": "upsert_course_lesson",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "courses"
+    },
+    {
+      "from": "save_course_module",
+      "to": "upsert_course_module",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "courses"
+    },
+    {
+      "from": "read_field_values",
+      "to": "get_field_values",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "custom-fields"
+    },
+    {
+      "from": "save_field_definition",
+      "to": "upsert_field_definition",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "custom-fields"
+    },
+    {
+      "from": "remove_retention_policy",
+      "to": "delete_retention_policy",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "data-lifecycle"
+    },
+    {
+      "from": "save_rule_version",
+      "to": "upsert_rule_version",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "deadlines"
+    },
+    {
+      "from": "remove_work_order_part",
+      "to": "delete_work_order_part",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "dispatch"
+    },
+    {
+      "from": "save_document_template",
+      "to": "upsert_document_template",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "document-templates"
+    },
+    {
+      "from": "save_document_text_block",
+      "to": "upsert_document_text_block",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "document-templates"
+    },
+    {
+      "from": "save_document_version",
+      "to": "upsert_document_version",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "documents"
+    },
+    {
+      "from": "add_hostname",
+      "to": "create_hostname",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "domains"
+    },
+    {
+      "from": "remove_hostname",
+      "to": "delete_hostname",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "domains"
+    },
+    {
+      "from": "save_donation_fund",
+      "to": "upsert_donation_fund",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "donations"
+    },
+    {
+      "from": "add_employee_contract",
+      "to": "create_employee_contract",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "employees"
+    },
+    {
+      "from": "save_employee_private_details",
+      "to": "upsert_employee_private_details",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "employees"
+    },
+    {
+      "from": "save_enrollment_program",
+      "to": "upsert_enrollment_program",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "enrollments"
+    },
+    {
+      "from": "add_expense_line",
+      "to": "create_expense_line",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "expenses"
+    },
+    {
+      "from": "remove_expense_line",
+      "to": "delete_expense_line",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "expenses"
+    },
+    {
+      "from": "save_expense_category",
+      "to": "upsert_expense_category",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "expenses"
+    },
+    {
+      "from": "save_flag",
+      "to": "upsert_flag",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "flags"
+    },
+    {
+      "from": "save_flag_segment",
+      "to": "upsert_flag_segment",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "flags"
+    },
+    {
+      "from": "save_funding_award",
+      "to": "upsert_funding_award",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "funding"
+    },
+    {
+      "from": "save_funding_product",
+      "to": "upsert_funding_product",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "funding"
+    },
+    {
+      "from": "save_goal",
+      "to": "upsert_goal",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "goals"
+    },
+    {
+      "from": "save_job",
+      "to": "upsert_job",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "hiring"
+    },
+    {
+      "from": "save_inbox_draft",
+      "to": "upsert_inbox_draft",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inbox"
+    },
+    {
+      "from": "add_incident_postmortem_action",
+      "to": "create_incident_postmortem_action",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "incidents"
+    },
+    {
+      "from": "remove_incident_postmortem_action",
+      "to": "delete_incident_postmortem_action",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "incidents"
+    },
+    {
+      "from": "save_incident_postmortem",
+      "to": "upsert_incident_postmortem",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "incidents"
+    },
+    {
+      "from": "save_incident_regulatory_profile",
+      "to": "upsert_incident_regulatory_profile",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "incidents"
+    },
+    {
+      "from": "save_status_component",
+      "to": "upsert_status_component",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "incidents"
+    },
+    {
+      "from": "save_status_page",
+      "to": "upsert_status_page",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "incidents"
+    },
+    {
+      "from": "add_inspection_finding",
+      "to": "create_inspection_finding",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inspections"
+    },
+    {
+      "from": "save_inspection_checklist",
+      "to": "upsert_inspection_checklist",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inspections"
+    },
+    {
+      "from": "save_inspection_program",
+      "to": "upsert_inspection_program",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inspections"
+    },
+    {
+      "from": "save_bin",
+      "to": "upsert_bin",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inventory"
+    },
+    {
+      "from": "save_location",
+      "to": "upsert_location",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inventory"
+    },
+    {
+      "from": "save_lot",
+      "to": "upsert_lot",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inventory"
+    },
+    {
+      "from": "save_purchase_order",
+      "to": "upsert_purchase_order",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "inventory"
+    },
+    {
+      "from": "add_invoice_charge",
+      "to": "create_invoice_charge",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "invoices"
+    },
+    {
+      "from": "remove_invoice_charge",
+      "to": "delete_invoice_charge",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "invoices"
+    },
+    {
+      "from": "save_leave_type",
+      "to": "upsert_leave_type",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "leave"
+    },
+    {
+      "from": "save_lims_method",
+      "to": "upsert_lims_method",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "lims"
+    },
+    {
+      "from": "save_bom",
+      "to": "upsert_bom",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "manufacturing"
+    },
+    {
+      "from": "save_work_center",
+      "to": "upsert_work_center",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "manufacturing"
+    },
+    {
+      "from": "save_medication",
+      "to": "upsert_medication",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "medications"
+    },
+    {
+      "from": "add_meeting_action_item",
+      "to": "create_meeting_action_item",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "meetings"
+    },
+    {
+      "from": "remove_meeting_attendee",
+      "to": "delete_meeting_attendee",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "meetings"
+    },
+    {
+      "from": "save_meeting_agenda_item",
+      "to": "upsert_meeting_agenda_item",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "meetings"
+    },
+    {
+      "from": "add_member_role",
+      "to": "create_member_role",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "memberships-many-roles"
+    },
+    {
+      "from": "remove_member",
+      "to": "delete_member",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "organizations"
+    },
+    {
+      "from": "remove_member_role",
+      "to": "delete_member_role",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "memberships-many-roles"
+    },
+    {
+      "from": "add_conversation_members",
+      "to": "create_conversation_members",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "messaging"
+    },
+    {
+      "from": "remove_conversation_member",
+      "to": "delete_conversation_member",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "messaging"
+    },
+    {
+      "from": "save_thread_summary",
+      "to": "upsert_thread_summary",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "messaging"
+    },
+    {
+      "from": "save_observation_definition",
+      "to": "upsert_observation_definition",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "observations"
+    },
+    {
+      "from": "save_option_set",
+      "to": "upsert_option_set",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "option-sets"
+    },
+    {
+      "from": "save_option_set_item",
+      "to": "upsert_option_set_item",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "option-sets"
+    },
+    {
+      "from": "save_kitchen_station",
+      "to": "upsert_kitchen_station",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "orders"
+    },
+    {
+      "from": "save_shipping_rate",
+      "to": "upsert_shipping_rate",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "orders"
+    },
+    {
+      "from": "save_pipeline",
+      "to": "upsert_pipeline",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "pipelines"
+    },
+    {
+      "from": "save_pipeline_stage",
+      "to": "upsert_pipeline_stage",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "pipelines"
+    },
+    {
+      "from": "save_post_board",
+      "to": "upsert_post_board",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "posts"
+    },
+    {
+      "from": "save_promotion",
+      "to": "upsert_promotion",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "promotions"
+    },
+    {
+      "from": "add_qualification_requirement",
+      "to": "create_qualification_requirement",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "qualifications"
+    },
+    {
+      "from": "remove_qualification_requirement",
+      "to": "delete_qualification_requirement",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "qualifications"
+    },
+    {
+      "from": "save_qualification_type",
+      "to": "upsert_qualification_type",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "qualifications"
+    },
+    {
+      "from": "save_custom_emoji",
+      "to": "upsert_custom_emoji",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "reactions"
+    },
+    {
+      "from": "save_reminder",
+      "to": "upsert_reminder",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "reminders"
+    },
+    {
+      "from": "save_risk_matrix",
+      "to": "upsert_risk_matrix",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "risks"
+    },
+    {
+      "from": "save_view",
+      "to": "upsert_view",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "saved-views"
+    },
+    {
+      "from": "save_score_model",
+      "to": "upsert_score_model",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "scores"
+    },
+    {
+      "from": "remove_segment",
+      "to": "delete_segment",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "segments"
+    },
+    {
+      "from": "save_segment",
+      "to": "upsert_segment",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "segments"
+    },
+    {
+      "from": "save_sequence",
+      "to": "upsert_sequence",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "sequences"
+    },
+    {
+      "from": "save_shift",
+      "to": "upsert_shift",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "shifts"
+    },
+    {
+      "from": "save_shift_template",
+      "to": "upsert_shift_template",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "shifts"
+    },
+    {
+      "from": "save_intrastat_line",
+      "to": "upsert_intrastat_line",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "shipments"
+    },
+    {
+      "from": "add_signing_key",
+      "to": "create_signing_key",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "signing-keys"
+    },
+    {
+      "from": "save_sla_policy",
+      "to": "upsert_sla_policy",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "sla"
+    },
+    {
+      "from": "add_organization_domain",
+      "to": "create_organization_domain",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "sso"
+    },
+    {
+      "from": "remove_organization_domain",
+      "to": "delete_organization_domain",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "sso"
+    },
+    {
+      "from": "add_subject_member",
+      "to": "create_subject_member",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "subjects"
+    },
+    {
+      "from": "save_iteration",
+      "to": "upsert_iteration",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "tasks"
+    },
+    {
+      "from": "save_project",
+      "to": "upsert_project",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "tasks"
+    },
+    {
+      "from": "save_task_checklist_item",
+      "to": "upsert_task_checklist_item",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "tasks"
+    },
+    {
+      "from": "save_task_material_line",
+      "to": "upsert_task_material_line",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "tasks"
+    },
+    {
+      "from": "save_task_specification_line",
+      "to": "upsert_task_specification_line",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "tasks"
+    },
+    {
+      "from": "save_tax_code",
+      "to": "upsert_tax_code",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "tax"
+    },
+    {
+      "from": "save_tax_rate",
+      "to": "upsert_tax_rate",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "tax"
+    },
+    {
+      "from": "add_team_member",
+      "to": "create_team_member",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "teams"
+    },
+    {
+      "from": "remove_team_member",
+      "to": "delete_team_member",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "teams"
+    },
+    {
+      "from": "remove_template",
+      "to": "delete_template",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "templates"
+    },
+    {
+      "from": "remove_template_schedule",
+      "to": "delete_template_schedule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "templates"
+    },
+    {
+      "from": "save_template",
+      "to": "upsert_template",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "templates"
+    },
+    {
+      "from": "save_template_draft",
+      "to": "upsert_template_draft",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "templates"
+    },
+    {
+      "from": "save_template_schedule",
+      "to": "upsert_template_schedule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "templates"
+    },
+    {
+      "from": "remove_usage_quota",
+      "to": "delete_usage_quota",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "usage"
+    },
+    {
+      "from": "remove_marketplace_installation",
+      "to": "delete_marketplace_installation",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "vercel-marketplace"
+    },
+    {
+      "from": "save_bin_slot",
+      "to": "upsert_bin_slot",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "warehouse"
+    },
+    {
+      "from": "save_putaway_rule",
+      "to": "upsert_putaway_rule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "warehouse"
+    },
+    {
+      "from": "save_variant_size",
+      "to": "upsert_variant_size",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "warehouse"
+    },
+    {
+      "from": "remove_workflow_alert",
+      "to": "delete_workflow_alert",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "remove_workflow_credential",
+      "to": "delete_workflow_credential",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "remove_workflow_definition",
+      "to": "delete_workflow_definition",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "remove_workflow_trigger",
+      "to": "delete_workflow_trigger",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "save_workflow_alert",
+      "to": "upsert_workflow_alert",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "save_workflow_credential",
+      "to": "upsert_workflow_credential",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "save_workflow_definition",
+      "to": "upsert_workflow_definition",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "save_workflow_draft",
+      "to": "upsert_workflow_draft",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "save_workflow_trigger",
+      "to": "upsert_workflow_trigger",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflow-editor"
+    },
+    {
+      "from": "remove_workflow_schedule",
+      "to": "delete_workflow_schedule",
+      "kind": "sqlFunctionName",
+      "since": "0.88",
+      "module": "workflows"
     }
   ],
   "allowlist": {
@@ -2671,5 +4169,56 @@
       "lease.terminated",
       "medication_order.stopped"
     ]
+  },
+  "verbs": {
+    "apps/examples/nextjs/src/lib/highlighter.tsx:loadHighlighter": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/sql/policy.ts:readPolicy": "A SQL builder for the read policy of a table; the word is the access kind, not a source read.",
+    "packages/better-supabase/src/sql/value-maps.ts:readValue": "Parses one value out of a value map it is given; it computes from its argument.",
+    "packages/better-supabase/src/sql/shared.ts:readLine": "Parses one line of generated SQL it is given; it computes from its argument.",
+    "packages/better-supabase/src/fhir/smart.ts:fetchSmartConfiguration": "A factory around the HTTP fetch of the SMART discovery document, named for the protocol call.",
+    "apps/examples/expo-powersync/src/lib/billing.ts:loadPlanCatalog": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/components/ops-list/ops-list-params.ts:loadOpsList": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/components/reui/data-grid/data-grid-features-read-only.ts:readOnlyGridFeatures": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/expo-powersync/src/lib/organizations.native.ts:loadOrganizations": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/lib/supabase/blocks/slices.ts:readSetsConfig": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/cli/core/io.ts:readStdin": "Reads the process stdin stream, the one source that has no getter form.",
+    "packages/better-supabase/src/core/route-optimizer.ts:fetchRouteOptimizer": "A factory around the HTTP fetch of the optimizer, named for the protocol call.",
+    "packages/better-supabase/src/core/read-set.ts:readSetTables": "Names the read set concept (defineReadSet), not a read verb.",
+    "packages/better-supabase/src/core/read-type.ts:readTypeSource": "Named for the read type concept; computes the source text of a type from its argument.",
+    "packages/better-supabase/src/cli/supabase-config.ts:readSupabaseConfig": "getSupabaseConfig already names the cached lookup in the same file, so the rename would collide.",
+    "apps/examples/nextjs/src/features/crm/crm-queries.ts:readContacts": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/user/permission-snapshot.ts:readPermissions": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/lims/lims-queries.ts:loadSample": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/sales/revenue/revenue-queries.ts:loadStatement": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/sales/automation/automation-queries.ts:loadSegment": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/billing/billing-actions.ts:loadPlanCatalog": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/rfqs/rfqs-queries.ts:loadRfq": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadConversations": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadInboxes": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadMacros": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadDrafts": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadThread": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadMessage": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadTeams": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadScheduled": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/inbox/inbox-actions.ts:loadInboundEvents": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/audit/audit-search-params.ts:loadAuditFilters": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/notifications/notifications-actions.ts:loadNotifications": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/notifications/notifications-search-params.ts:loadNotificationFilters": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/tills/tills-queries.ts:loadSession": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/cli/doctor/round-trips.ts:readSetFor": "Names the read set concept, not a read verb.",
+    "apps/examples/nextjs/src/features/assistant/assistant-slot/assistant-slot-actions.ts:loadAssistantSlot": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/workflows/builder/builder-actions.ts:loadVersionGraph": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/assistant/assistant-search-params.ts:loadChatBranch": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/ai-usage/ai-usage-search-params.ts:loadUsageRange": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/organization/organization-actions.ts:loadMyOrganizations": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/organization/organization-actions.ts:loadMembers": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/organization/organization-queries.ts:readMembers": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/evals/evals-search-params.ts:loadEvalParams": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/warehouse/warehouse-queries.ts:loadPickList": "Example query or action kept until the generated queries replace it (PR 5).",
+    "apps/examples/nextjs/src/features/drive/drive-actions.ts:loadDriveSharing": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/blocks/read-sets/manifest.ts:readSetsBlock": "Names the read sets block, not a read verb.",
+    "apps/examples/nextjs/src/features/people/people-queries.ts:loadDirectory": "Example query or action kept until the generated queries replace it (PR 5).",
+    "packages/better-supabase/src/blocks/webhooks/http.ts:fetchTransport": "A factory for the HTTP transport, named after fetch."
   }
 }

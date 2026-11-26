@@ -5,10 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { SpecEntry } from "../../../src/cli/spec/entry.ts";
 
-import {
-  documentFormatId,
-  loadSpecEntry,
-} from "../../../src/cli/spec/entry.ts";
+import { documentFormatId, getSpecEntry } from "../../../src/cli/spec/entry.ts";
 import {
   formatRegistry,
   isDocumentFormat,
@@ -163,11 +160,11 @@ describe("loadSpecEntry", () => {
       ].join("\n"),
     );
     Reflect.set(globalThis, "__specFormat", openapiFormat);
-    const loaded = await loadSpecEntry(join(root, "entry.mjs"));
+    const loaded = await getSpecEntry(join(root, "entry.mjs"));
     expect(loaded.cacheKey).toBe("k");
     expect(loaded.formats).toEqual([openapiFormat]);
     expect([...loaded.documents.keys()]).toEqual(["asyncapi", "openapi"]);
-    await expect(loadSpecEntry(join(root, "absent.mjs"))).rejects.toThrow(
+    await expect(getSpecEntry(join(root, "absent.mjs"))).rejects.toThrow(
       "Module not found",
     );
   });

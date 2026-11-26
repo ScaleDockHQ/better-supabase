@@ -1,4 +1,6 @@
 import "server-only";
+import type { ResourceMapOf } from "better-supabase/next/resources";
+
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import { dbError, err } from "better-supabase";
 import { defineAction } from "better-supabase/next";
@@ -135,4 +137,4 @@ export const apiResources = {
       }),
     },
   },
-} satisfies Parameters<typeof bsbApi.resources>[0];
+} satisfies ResourceMapOf<typeof bsbApi>;

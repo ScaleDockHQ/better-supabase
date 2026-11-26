@@ -217,7 +217,7 @@ describe("ai-evals with access", () => {
   it("goes on for the caller's own dataset", async () => {
     const { transport, calls } = fake({
       get_eval_dataset: () => dataset(MINE),
-      add_eval_items: () => 1,
+      create_eval_items: () => 1,
     });
 
     const added = await createAiEvals({ transport, access: allowed }).items.add(
@@ -227,7 +227,7 @@ describe("ai-evals with access", () => {
     expect(added.ok).toBe(true);
     expect(calls.map((call) => call.fn)).toEqual([
       "get_eval_dataset",
-      "add_eval_items",
+      "create_eval_items",
     ]);
   });
 
@@ -296,7 +296,7 @@ describe("ai-evals with access granted", () => {
     const { transport, calls } = fake({
       get_eval_dataset: () => dataset(MINE),
       get_eval_run: () => run(MINE),
-      add_eval_items_from_feedback: () => 2,
+      create_eval_items_from_feedback: () => 2,
       list_eval_items: () => [],
       create_eval_run: () => run(MINE),
       record_eval_result: () => ({
@@ -364,7 +364,7 @@ describe("ai-evals with access granted", () => {
     expect(
       calls.map((call) => call.fn).filter((fn) => !fn.startsWith("get_")),
     ).toEqual([
-      "add_eval_items_from_feedback",
+      "create_eval_items_from_feedback",
       "list_eval_items",
       "create_eval_run",
       "record_eval_result",

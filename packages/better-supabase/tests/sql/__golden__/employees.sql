@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:fd2fd070f2a9b16fbbf43f698505c667bac8ff7b339a11cd1774fb5e88fa7800
+-- @bsb-hash sha256:f65ee4982da008e75f83623302688c24f454a1ed9cd235e926b5351758c84eea
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -895,7 +895,7 @@ grant execute on function "better_supabase"."employee_private_details"(uuid) to 
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
 -- one. The employee edits their own details too.
-create or replace function "better_supabase"."save_employee_private_details"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_employee_private_details"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -908,24 +908,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = upsert_employee_private_details.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
-  if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_employee_private_details.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'EMPLOYEE_PRIVATE_INVALID';
   end if;
   insert into "better_supabase"."employee_private_details" ("employee_id", "tenant_id", "user_id")
   values (v_employee."id", v_employee."tenant_id", v_employee."user_id")
   on conflict ("employee_id") do nothing;
   begin
-    update "better_supabase"."employee_private_details" x set "national_id" = case when save_employee_private_details.attrs ? 'nationalId' then nullif(trim(save_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
-      "iban" = case when save_employee_private_details.attrs ? 'iban' then nullif(upper(replace(save_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
-      "birth_date" = case when save_employee_private_details.attrs ? 'birthDate' then (save_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
-      "personal_email" = case when save_employee_private_details.attrs ? 'personalEmail' then nullif(trim(save_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
-      "phone" = case when save_employee_private_details.attrs ? 'phone' then nullif(trim(save_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
-      "address" = case when save_employee_private_details.attrs ? 'address' then case when jsonb_typeof(save_employee_private_details.attrs -> 'address') = 'null' then null else save_employee_private_details.attrs -> 'address' end else x."address" end,
-      "emergency_contacts" = case when save_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(save_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else save_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
+    update "better_supabase"."employee_private_details" x set "national_id" = case when upsert_employee_private_details.attrs ? 'nationalId' then nullif(trim(upsert_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
+      "iban" = case when upsert_employee_private_details.attrs ? 'iban' then nullif(upper(replace(upsert_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
+      "birth_date" = case when upsert_employee_private_details.attrs ? 'birthDate' then (upsert_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
+      "personal_email" = case when upsert_employee_private_details.attrs ? 'personalEmail' then nullif(trim(upsert_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
+      "phone" = case when upsert_employee_private_details.attrs ? 'phone' then nullif(trim(upsert_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
+      "address" = case when upsert_employee_private_details.attrs ? 'address' then case when jsonb_typeof(upsert_employee_private_details.attrs -> 'address') = 'null' then null else upsert_employee_private_details.attrs -> 'address' end else x."address" end,
+      "emergency_contacts" = case when upsert_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(upsert_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else upsert_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
       "updated_at" = now(),
       "updated_by" = auth.uid()
     where x."employee_id" = v_employee."id"
@@ -936,8 +936,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) to authenticated, service_role;
 
 -- An employee's contracts, the newest first. Salaries are minor units as
 -- text.
@@ -966,7 +966,7 @@ grant execute on function "better_supabase"."employee_contracts"(uuid) to authen
 -- (minor units) with currency, salaryPeriod (hour, week, month or year)
 -- and note. It starts after the latest contract, which ends the day
 -- before. Needs employees.write and employees.view_sensitive.
-create or replace function "better_supabase"."add_employee_contract"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."create_employee_contract"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -980,12 +980,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = create_employee_contract.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
-    v_starts := (add_employee_contract.attrs ->> 'startsOn')::date;
+    v_starts := (create_employee_contract.attrs ->> 'startsOn')::date;
     if v_starts is null then
       raise exception 'a contract needs a start date' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
     end if;
@@ -995,7 +995,7 @@ begin
     update "better_supabase"."employee_contracts" x set "ends_on" = v_starts - 1
     where x."employee_id" = v_employee."id" and (x."ends_on" is null or x."ends_on" >= v_starts);
     insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
-    values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+    values (v_employee."tenant_id", v_employee."id", v_starts, (create_employee_contract.attrs ->> 'endsOn')::date, (create_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (create_employee_contract.attrs ->> 'salary')::bigint, upper(create_employee_contract.attrs ->> 'currency'), create_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(create_employee_contract.attrs ->> 'note'), ''), auth.uid())
     returning * into v_row;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
@@ -1004,8 +1004,8 @@ begin
   return to_jsonb(v_row) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1077,7 +1077,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:1d56522645050939804385286b539759c239bb506dec3061c07b02f8a03b70fd
+-- @bsb-hash sha256:975eecf7aa7fb0eb35c136db3a3fda3f973c01803bd6b5709f315227f2e7057a
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2090,7 +2090,7 @@ grant execute on function "better_supabase"."employee_private_details"(uuid) to 
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
 -- one. The employee edits their own details too.
-create or replace function "better_supabase"."save_employee_private_details"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_employee_private_details"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2103,24 +2103,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = upsert_employee_private_details.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
-  if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_employee_private_details.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'EMPLOYEE_PRIVATE_INVALID';
   end if;
   insert into "better_supabase"."employee_private_details" ("employee_id", "tenant_id", "user_id")
   values (v_employee."id", v_employee."tenant_id", v_employee."user_id")
   on conflict ("employee_id") do nothing;
   begin
-    update "better_supabase"."employee_private_details" x set "national_id" = case when save_employee_private_details.attrs ? 'nationalId' then nullif(trim(save_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
-      "iban" = case when save_employee_private_details.attrs ? 'iban' then nullif(upper(replace(save_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
-      "birth_date" = case when save_employee_private_details.attrs ? 'birthDate' then (save_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
-      "personal_email" = case when save_employee_private_details.attrs ? 'personalEmail' then nullif(trim(save_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
-      "phone" = case when save_employee_private_details.attrs ? 'phone' then nullif(trim(save_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
-      "address" = case when save_employee_private_details.attrs ? 'address' then case when jsonb_typeof(save_employee_private_details.attrs -> 'address') = 'null' then null else save_employee_private_details.attrs -> 'address' end else x."address" end,
-      "emergency_contacts" = case when save_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(save_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else save_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
+    update "better_supabase"."employee_private_details" x set "national_id" = case when upsert_employee_private_details.attrs ? 'nationalId' then nullif(trim(upsert_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
+      "iban" = case when upsert_employee_private_details.attrs ? 'iban' then nullif(upper(replace(upsert_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
+      "birth_date" = case when upsert_employee_private_details.attrs ? 'birthDate' then (upsert_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
+      "personal_email" = case when upsert_employee_private_details.attrs ? 'personalEmail' then nullif(trim(upsert_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
+      "phone" = case when upsert_employee_private_details.attrs ? 'phone' then nullif(trim(upsert_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
+      "address" = case when upsert_employee_private_details.attrs ? 'address' then case when jsonb_typeof(upsert_employee_private_details.attrs -> 'address') = 'null' then null else upsert_employee_private_details.attrs -> 'address' end else x."address" end,
+      "emergency_contacts" = case when upsert_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(upsert_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else upsert_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
       "updated_at" = now(),
       "updated_by" = auth.uid()
     where x."employee_id" = v_employee."id"
@@ -2131,8 +2131,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) to authenticated, service_role;
 
 -- An employee's contracts, the newest first. Salaries are minor units as
 -- text.
@@ -2161,7 +2161,7 @@ grant execute on function "better_supabase"."employee_contracts"(uuid) to authen
 -- (minor units) with currency, salaryPeriod (hour, week, month or year)
 -- and note. It starts after the latest contract, which ends the day
 -- before. Needs employees.write and employees.view_sensitive.
-create or replace function "better_supabase"."add_employee_contract"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."create_employee_contract"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2175,12 +2175,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = create_employee_contract.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
-    v_starts := (add_employee_contract.attrs ->> 'startsOn')::date;
+    v_starts := (create_employee_contract.attrs ->> 'startsOn')::date;
     if v_starts is null then
       raise exception 'a contract needs a start date' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
     end if;
@@ -2190,7 +2190,7 @@ begin
     update "better_supabase"."employee_contracts" x set "ends_on" = v_starts - 1
     where x."employee_id" = v_employee."id" and (x."ends_on" is null or x."ends_on" >= v_starts);
     insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
-    values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+    values (v_employee."tenant_id", v_employee."id", v_starts, (create_employee_contract.attrs ->> 'endsOn')::date, (create_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (create_employee_contract.attrs ->> 'salary')::bigint, upper(create_employee_contract.attrs ->> 'currency'), create_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(create_employee_contract.attrs ->> 'note'), ''), auth.uid())
     returning * into v_row;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
@@ -2199,8 +2199,8 @@ begin
   return to_jsonb(v_row) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 -- time_entries.employee_id: the employee behind the row's user, kept in step with
 -- employees by the two triggers below.
@@ -2371,7 +2371,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:5f65a9d12b9c77288df5905502d7b1ef40c5b894b3641725b4839b6cb5d45fbb
+-- @bsb-hash sha256:ebc5981e5b1b2af94c869fcfb527626c725d1c76f08092d17e15a40ddfb964bf
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3270,7 +3270,7 @@ grant execute on function "app_private"."employee_private_details"(uuid) to auth
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
 -- one. The employee edits their own details too.
-create or replace function "app_private"."save_employee_private_details"(employee uuid, attrs jsonb)
+create or replace function "app_private"."upsert_employee_private_details"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3283,24 +3283,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "app_private"."employees" x where x."id" = save_employee_private_details.employee;
+  select * into v_employee from "app_private"."employees" x where x."id" = upsert_employee_private_details.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
-  if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_employee_private_details.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'EMPLOYEE_PRIVATE_INVALID';
   end if;
   insert into "app_private"."employee_private_details" ("employee_id", "tenant_id", "user_id")
   values (v_employee."id", v_employee."tenant_id", v_employee."user_id")
   on conflict ("employee_id") do nothing;
   begin
-    update "app_private"."employee_private_details" x set "national_id" = case when save_employee_private_details.attrs ? 'nationalId' then nullif(trim(save_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
-      "iban" = case when save_employee_private_details.attrs ? 'iban' then nullif(upper(replace(save_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
-      "birth_date" = case when save_employee_private_details.attrs ? 'birthDate' then (save_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
-      "personal_email" = case when save_employee_private_details.attrs ? 'personalEmail' then nullif(trim(save_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
-      "phone" = case when save_employee_private_details.attrs ? 'phone' then nullif(trim(save_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
-      "address" = case when save_employee_private_details.attrs ? 'address' then case when jsonb_typeof(save_employee_private_details.attrs -> 'address') = 'null' then null else save_employee_private_details.attrs -> 'address' end else x."address" end,
-      "emergency_contacts" = case when save_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(save_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else save_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
+    update "app_private"."employee_private_details" x set "national_id" = case when upsert_employee_private_details.attrs ? 'nationalId' then nullif(trim(upsert_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
+      "iban" = case when upsert_employee_private_details.attrs ? 'iban' then nullif(upper(replace(upsert_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
+      "birth_date" = case when upsert_employee_private_details.attrs ? 'birthDate' then (upsert_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
+      "personal_email" = case when upsert_employee_private_details.attrs ? 'personalEmail' then nullif(trim(upsert_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
+      "phone" = case when upsert_employee_private_details.attrs ? 'phone' then nullif(trim(upsert_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
+      "address" = case when upsert_employee_private_details.attrs ? 'address' then case when jsonb_typeof(upsert_employee_private_details.attrs -> 'address') = 'null' then null else upsert_employee_private_details.attrs -> 'address' end else x."address" end,
+      "emergency_contacts" = case when upsert_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(upsert_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else upsert_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
       "updated_at" = now(),
       "updated_by" = auth.uid()
     where x."employee_id" = v_employee."id"
@@ -3311,8 +3311,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "app_private"."save_employee_private_details"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_employee_private_details"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_employee_private_details"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_employee_private_details"(uuid, jsonb) to authenticated, service_role;
 
 -- An employee's contracts, the newest first. Salaries are minor units as
 -- text.
@@ -3341,7 +3341,7 @@ grant execute on function "app_private"."employee_contracts"(uuid) to authentica
 -- (minor units) with currency, salaryPeriod (hour, week, month or year)
 -- and note. It starts after the latest contract, which ends the day
 -- before. Needs employees.write and employees.view_sensitive.
-create or replace function "app_private"."add_employee_contract"(employee uuid, attrs jsonb)
+create or replace function "app_private"."create_employee_contract"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3355,12 +3355,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "app_private"."employees" x where x."id" = add_employee_contract.employee;
+  select * into v_employee from "app_private"."employees" x where x."id" = create_employee_contract.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
-    v_starts := (add_employee_contract.attrs ->> 'startsOn')::date;
+    v_starts := (create_employee_contract.attrs ->> 'startsOn')::date;
     if v_starts is null then
       raise exception 'a contract needs a start date' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
     end if;
@@ -3370,7 +3370,7 @@ begin
     update "app_private"."employee_contracts" x set "ends_on" = v_starts - 1
     where x."employee_id" = v_employee."id" and (x."ends_on" is null or x."ends_on" >= v_starts);
     insert into "app_private"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
-    values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+    values (v_employee."tenant_id", v_employee."id", v_starts, (create_employee_contract.attrs ->> 'endsOn')::date, (create_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (create_employee_contract.attrs ->> 'salary')::bigint, upper(create_employee_contract.attrs ->> 'currency'), create_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(create_employee_contract.attrs ->> 'note'), ''), auth.uid())
     returning * into v_row;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
@@ -3379,8 +3379,8 @@ begin
   return to_jsonb(v_row) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;
-revoke execute on function "app_private"."add_employee_contract"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."create_employee_contract"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."create_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3452,7 +3452,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:251bafa9d9637a743725e57c03a4d6d43fba3ae78475cfc056388aa1a7ceca9d
+-- @bsb-hash sha256:ac5c01b35a1add7f90410aa5036f2e9a8e84b0d782b5929a0d69446ad8a6c0ab
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4346,7 +4346,7 @@ grant execute on function "better_supabase"."employee_private_details"(uuid) to 
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
 -- one. The employee edits their own details too.
-create or replace function "better_supabase"."save_employee_private_details"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_employee_private_details"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4359,24 +4359,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = upsert_employee_private_details.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
-  if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_employee_private_details.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'EMPLOYEE_PRIVATE_INVALID';
   end if;
   insert into "better_supabase"."employee_private_details" ("employee_id", "tenant_id", "user_id")
   values (v_employee."id", v_employee."tenant_id", v_employee."user_id")
   on conflict ("employee_id") do nothing;
   begin
-    update "better_supabase"."employee_private_details" x set "national_id" = case when save_employee_private_details.attrs ? 'nationalId' then nullif(trim(save_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
-      "iban" = case when save_employee_private_details.attrs ? 'iban' then nullif(upper(replace(save_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
-      "birth_date" = case when save_employee_private_details.attrs ? 'birthDate' then (save_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
-      "personal_email" = case when save_employee_private_details.attrs ? 'personalEmail' then nullif(trim(save_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
-      "phone" = case when save_employee_private_details.attrs ? 'phone' then nullif(trim(save_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
-      "address" = case when save_employee_private_details.attrs ? 'address' then case when jsonb_typeof(save_employee_private_details.attrs -> 'address') = 'null' then null else save_employee_private_details.attrs -> 'address' end else x."address" end,
-      "emergency_contacts" = case when save_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(save_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else save_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
+    update "better_supabase"."employee_private_details" x set "national_id" = case when upsert_employee_private_details.attrs ? 'nationalId' then nullif(trim(upsert_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
+      "iban" = case when upsert_employee_private_details.attrs ? 'iban' then nullif(upper(replace(upsert_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
+      "birth_date" = case when upsert_employee_private_details.attrs ? 'birthDate' then (upsert_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
+      "personal_email" = case when upsert_employee_private_details.attrs ? 'personalEmail' then nullif(trim(upsert_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
+      "phone" = case when upsert_employee_private_details.attrs ? 'phone' then nullif(trim(upsert_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
+      "address" = case when upsert_employee_private_details.attrs ? 'address' then case when jsonb_typeof(upsert_employee_private_details.attrs -> 'address') = 'null' then null else upsert_employee_private_details.attrs -> 'address' end else x."address" end,
+      "emergency_contacts" = case when upsert_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(upsert_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else upsert_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
       "updated_at" = now(),
       "updated_by" = auth.uid()
     where x."employee_id" = v_employee."id"
@@ -4387,8 +4387,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) to authenticated, service_role;
 
 -- An employee's contracts, the newest first. Salaries are minor units as
 -- text.
@@ -4417,7 +4417,7 @@ grant execute on function "better_supabase"."employee_contracts"(uuid) to authen
 -- (minor units) with currency, salaryPeriod (hour, week, month or year)
 -- and note. It starts after the latest contract, which ends the day
 -- before. Needs employees.write and employees.view_sensitive.
-create or replace function "better_supabase"."add_employee_contract"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."create_employee_contract"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4431,12 +4431,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = create_employee_contract.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
-    v_starts := (add_employee_contract.attrs ->> 'startsOn')::date;
+    v_starts := (create_employee_contract.attrs ->> 'startsOn')::date;
     if v_starts is null then
       raise exception 'a contract needs a start date' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
     end if;
@@ -4446,7 +4446,7 @@ begin
     update "better_supabase"."employee_contracts" x set "ends_on" = v_starts - 1
     where x."employee_id" = v_employee."id" and (x."ends_on" is null or x."ends_on" >= v_starts);
     insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
-    values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+    values (v_employee."tenant_id", v_employee."id", v_starts, (create_employee_contract.attrs ->> 'endsOn')::date, (create_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (create_employee_contract.attrs ->> 'salary')::bigint, upper(create_employee_contract.attrs ->> 'currency'), create_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(create_employee_contract.attrs ->> 'note'), ''), auth.uid())
     returning * into v_row;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
@@ -4455,8 +4455,8 @@ begin
   return to_jsonb(v_row) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -4601,14 +4601,14 @@ as $$ select "better_supabase"."employee_private_details"($1) $$;
 revoke execute on function "api"."employee_private_details"(uuid) from public, anon;
 grant execute on function "api"."employee_private_details"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_employee_private_details"(employee uuid, attrs jsonb)
+create or replace function "api"."upsert_employee_private_details"(employee uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_employee_private_details"($1, $2) $$;
-revoke execute on function "api"."save_employee_private_details"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_employee_private_details"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_employee_private_details"($1, $2) $$;
+revoke execute on function "api"."upsert_employee_private_details"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_employee_private_details"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."employee_contracts"(employee uuid)
 returns jsonb
@@ -4620,14 +4620,14 @@ as $$ select "better_supabase"."employee_contracts"($1) $$;
 revoke execute on function "api"."employee_contracts"(uuid) from public, anon;
 grant execute on function "api"."employee_contracts"(uuid) to authenticated, service_role;
 
-create or replace function "api"."add_employee_contract"(employee uuid, attrs jsonb)
+create or replace function "api"."create_employee_contract"(employee uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_employee_contract"($1, $2) $$;
-revoke execute on function "api"."add_employee_contract"(uuid, jsonb) from public, anon;
-grant execute on function "api"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."create_employee_contract"($1, $2) $$;
+revoke execute on function "api"."create_employee_contract"(uuid, jsonb) from public, anon;
+grant execute on function "api"."create_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
@@ -4646,7 +4646,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:eecc454155f0ccff34c2880ab96fc763354d12122dda218d72fab14320fff640
+-- @bsb-hash sha256:31483565a2df9b96b0d657fa585c08908920d77efba3d2b6317dd406414266e5
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5529,7 +5529,7 @@ grant execute on function "better_supabase"."employee_private_details"(uuid) to 
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
 -- one. The employee edits their own details too.
-create or replace function "better_supabase"."save_employee_private_details"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_employee_private_details"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5542,24 +5542,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = upsert_employee_private_details.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
-  if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_employee_private_details.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'EMPLOYEE_PRIVATE_INVALID';
   end if;
   insert into "better_supabase"."employee_private_details" ("employee_id", "tenant_id", "user_id")
   values (v_employee."id", v_employee."tenant_id", v_employee."user_id")
   on conflict ("employee_id") do nothing;
   begin
-    update "better_supabase"."employee_private_details" x set "national_id" = case when save_employee_private_details.attrs ? 'nationalId' then nullif(trim(save_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
-      "iban" = case when save_employee_private_details.attrs ? 'iban' then nullif(upper(replace(save_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
-      "birth_date" = case when save_employee_private_details.attrs ? 'birthDate' then (save_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
-      "personal_email" = case when save_employee_private_details.attrs ? 'personalEmail' then nullif(trim(save_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
-      "phone" = case when save_employee_private_details.attrs ? 'phone' then nullif(trim(save_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
-      "address" = case when save_employee_private_details.attrs ? 'address' then case when jsonb_typeof(save_employee_private_details.attrs -> 'address') = 'null' then null else save_employee_private_details.attrs -> 'address' end else x."address" end,
-      "emergency_contacts" = case when save_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(save_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else save_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
+    update "better_supabase"."employee_private_details" x set "national_id" = case when upsert_employee_private_details.attrs ? 'nationalId' then nullif(trim(upsert_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
+      "iban" = case when upsert_employee_private_details.attrs ? 'iban' then nullif(upper(replace(upsert_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
+      "birth_date" = case when upsert_employee_private_details.attrs ? 'birthDate' then (upsert_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
+      "personal_email" = case when upsert_employee_private_details.attrs ? 'personalEmail' then nullif(trim(upsert_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
+      "phone" = case when upsert_employee_private_details.attrs ? 'phone' then nullif(trim(upsert_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
+      "address" = case when upsert_employee_private_details.attrs ? 'address' then case when jsonb_typeof(upsert_employee_private_details.attrs -> 'address') = 'null' then null else upsert_employee_private_details.attrs -> 'address' end else x."address" end,
+      "emergency_contacts" = case when upsert_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(upsert_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else upsert_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
       "updated_at" = now(),
       "updated_by" = auth.uid()
     where x."employee_id" = v_employee."id"
@@ -5570,8 +5570,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) to authenticated, service_role;
 
 -- An employee's contracts, the newest first. Salaries are minor units as
 -- text.
@@ -5600,7 +5600,7 @@ grant execute on function "better_supabase"."employee_contracts"(uuid) to authen
 -- (minor units) with currency, salaryPeriod (hour, week, month or year)
 -- and note. It starts after the latest contract, which ends the day
 -- before. Needs employees.write and employees.view_sensitive.
-create or replace function "better_supabase"."add_employee_contract"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."create_employee_contract"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5614,12 +5614,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = create_employee_contract.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
-    v_starts := (add_employee_contract.attrs ->> 'startsOn')::date;
+    v_starts := (create_employee_contract.attrs ->> 'startsOn')::date;
     if v_starts is null then
       raise exception 'a contract needs a start date' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
     end if;
@@ -5628,13 +5628,13 @@ begin
     end if;
     update "better_supabase"."employee_contracts" x set "ends_on" = v_starts - 1
     where x."employee_id" = v_employee."id" and (x."ends_on" is null or x."ends_on" >= v_starts);
-    if add_employee_contract.attrs ? 'currency' then
+    if create_employee_contract.attrs ? 'currency' then
       insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
-      values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+      values (v_employee."tenant_id", v_employee."id", v_starts, (create_employee_contract.attrs ->> 'endsOn')::date, (create_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (create_employee_contract.attrs ->> 'salary')::bigint, upper(create_employee_contract.attrs ->> 'currency'), create_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(create_employee_contract.attrs ->> 'note'), ''), auth.uid())
       returning * into v_row;
     else
       insert into "better_supabase"."employee_contracts" ("tenant_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "salary_period", "note", "created_by")
-      values (v_employee."tenant_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+      values (v_employee."tenant_id", v_employee."id", v_starts, (create_employee_contract.attrs ->> 'endsOn')::date, (create_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (create_employee_contract.attrs ->> 'salary')::bigint, create_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(create_employee_contract.attrs ->> 'note'), ''), auth.uid())
       returning * into v_row;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
@@ -5644,8 +5644,8 @@ begin
   return to_jsonb(v_row) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -5717,7 +5717,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:c2ef10b72d10680b2bc9e0b3db5b7c31dd8aa82aadcfb88c8adf1ae216bc104a
+-- @bsb-hash sha256:8cdad5ad49d778e4ef1bb706cfc9ceabf84204d417f2c844794e6198efeef9d9
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6611,7 +6611,7 @@ grant execute on function "better_supabase"."employee_private_details"(uuid) to 
 -- Saves the keys attrs sets: nationalId, iban, birthDate, personalEmail,
 -- phone, address (an object) and emergencyContacts (a list); null clears
 -- one. The employee edits their own details too.
-create or replace function "better_supabase"."save_employee_private_details"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_employee_private_details"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6624,24 +6624,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = upsert_employee_private_details.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
-  if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
+  if jsonb_typeof(coalesce(upsert_employee_private_details.attrs, '{}')) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'EMPLOYEE_PRIVATE_INVALID';
   end if;
   insert into "better_supabase"."employee_private_details" ("employee_id", "org_id", "user_id")
   values (v_employee."id", v_employee."org_id", v_employee."user_id")
   on conflict ("employee_id") do nothing;
   begin
-    update "better_supabase"."employee_private_details" x set "national_id" = case when save_employee_private_details.attrs ? 'nationalId' then nullif(trim(save_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
-      "iban" = case when save_employee_private_details.attrs ? 'iban' then nullif(upper(replace(save_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
-      "birth_date" = case when save_employee_private_details.attrs ? 'birthDate' then (save_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
-      "personal_email" = case when save_employee_private_details.attrs ? 'personalEmail' then nullif(trim(save_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
-      "phone" = case when save_employee_private_details.attrs ? 'phone' then nullif(trim(save_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
-      "address" = case when save_employee_private_details.attrs ? 'address' then case when jsonb_typeof(save_employee_private_details.attrs -> 'address') = 'null' then null else save_employee_private_details.attrs -> 'address' end else x."address" end,
-      "emergency_contacts" = case when save_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(save_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else save_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
+    update "better_supabase"."employee_private_details" x set "national_id" = case when upsert_employee_private_details.attrs ? 'nationalId' then nullif(trim(upsert_employee_private_details.attrs ->> 'nationalId'), '') else x."national_id" end,
+      "iban" = case when upsert_employee_private_details.attrs ? 'iban' then nullif(upper(replace(upsert_employee_private_details.attrs ->> 'iban', ' ', '')), '') else x."iban" end,
+      "birth_date" = case when upsert_employee_private_details.attrs ? 'birthDate' then (upsert_employee_private_details.attrs ->> 'birthDate')::date else x."birth_date" end,
+      "personal_email" = case when upsert_employee_private_details.attrs ? 'personalEmail' then nullif(trim(upsert_employee_private_details.attrs ->> 'personalEmail'), '') else x."personal_email" end,
+      "phone" = case when upsert_employee_private_details.attrs ? 'phone' then nullif(trim(upsert_employee_private_details.attrs ->> 'phone'), '') else x."phone" end,
+      "address" = case when upsert_employee_private_details.attrs ? 'address' then case when jsonb_typeof(upsert_employee_private_details.attrs -> 'address') = 'null' then null else upsert_employee_private_details.attrs -> 'address' end else x."address" end,
+      "emergency_contacts" = case when upsert_employee_private_details.attrs ? 'emergencyContacts' then coalesce(case when jsonb_typeof(upsert_employee_private_details.attrs -> 'emergencyContacts') = 'null' then null else upsert_employee_private_details.attrs -> 'emergencyContacts' end, '[]'::jsonb) else x."emergency_contacts" end,
       "updated_at" = now(),
       "updated_by" = auth.uid()
     where x."employee_id" = v_employee."id"
@@ -6652,8 +6652,8 @@ begin
   return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_employee_private_details"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_employee_private_details"(uuid, jsonb) to authenticated, service_role;
 
 -- An employee's contracts, the newest first. Salaries are minor units as
 -- text.
@@ -6682,7 +6682,7 @@ grant execute on function "better_supabase"."employee_contracts"(uuid) to authen
 -- (minor units) with currency, salaryPeriod (hour, week, month or year)
 -- and note. It starts after the latest contract, which ends the day
 -- before. Needs employees.write and employees.view_sensitive.
-create or replace function "better_supabase"."add_employee_contract"(employee uuid, attrs jsonb)
+create or replace function "better_supabase"."create_employee_contract"(employee uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6696,12 +6696,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
+  select * into v_employee from "better_supabase"."employees" x where x."id" = create_employee_contract.employee;
   if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
-    v_starts := (add_employee_contract.attrs ->> 'startsOn')::date;
+    v_starts := (create_employee_contract.attrs ->> 'startsOn')::date;
     if v_starts is null then
       raise exception 'a contract needs a start date' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
     end if;
@@ -6711,7 +6711,7 @@ begin
     update "better_supabase"."employee_contracts" x set "ends_on" = v_starts - 1
     where x."employee_id" = v_employee."id" and (x."ends_on" is null or x."ends_on" >= v_starts);
     insert into "better_supabase"."employee_contracts" ("org_id", "employee_id", "starts_on", "ends_on", "hours_per_week", "salary", "currency", "salary_period", "note", "created_by")
-    values (v_employee."org_id", v_employee."id", v_starts, (add_employee_contract.attrs ->> 'endsOn')::date, (add_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (add_employee_contract.attrs ->> 'salary')::bigint, upper(add_employee_contract.attrs ->> 'currency'), add_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(add_employee_contract.attrs ->> 'note'), ''), auth.uid())
+    values (v_employee."org_id", v_employee."id", v_starts, (create_employee_contract.attrs ->> 'endsOn')::date, (create_employee_contract.attrs ->> 'hoursPerWeek')::numeric, (create_employee_contract.attrs ->> 'salary')::bigint, upper(create_employee_contract.attrs ->> 'currency'), create_employee_contract.attrs ->> 'salaryPeriod', nullif(trim(create_employee_contract.attrs ->> 'note'), ''), auth.uid())
     returning * into v_row;
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
@@ -6720,8 +6720,8 @@ begin
   return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;
-revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."create_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

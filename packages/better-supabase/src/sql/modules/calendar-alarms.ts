@@ -172,9 +172,9 @@ function alarmValues(
 }
 
 /**
- * The statements of `save_calendar_event` that replace the event's alarms when
- * the item has an `alarms` array. They run after the event row exists, with
- * `v_id` and `v_tenant` set, and leave the alarms of single users alone.
+ * The statements of `upsert_calendar_event` that replace the event's alarms
+ * when the item has an `alarms` array. They run after the event row exists,
+ * with `v_id` and `v_tenant` set, and leave the alarms of single users alone.
  */
 export function alarmWrites(ctx: BlockSqlContext): string {
   if (!ctx.hasTable("alarms")) {

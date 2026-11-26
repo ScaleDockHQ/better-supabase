@@ -14,9 +14,9 @@ import {
 } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
 import { vaultCredentials } from "better-supabase/credentials";
-import { loadEnv } from "better-supabase/env";
+import { getEnv } from "better-supabase/env";
 
-export const env = loadEnv();
+export const env = getEnv();
 
 if (env.secretKey === undefined) {
   throw new Error("The agent needs SUPABASE_SECRET_KEY");

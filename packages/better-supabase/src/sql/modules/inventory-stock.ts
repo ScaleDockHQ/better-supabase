@@ -20,7 +20,7 @@ export interface InventoryNames {
   readonly purchase: string;
   /**
    * The columns your schema files add on the locations table, which
-   * `save_location` writes from `fields`.
+   * `upsert_location` writes from `fields`.
    */
   readonly extras: readonly ExtraColumn[];
 }
@@ -211,7 +211,7 @@ export function threshold(
 }
 
 /** Loads a location's tenant into `v_tenant`, raising when it doesn't exist. */
-function loadLocation(ctx: BlockSqlContext, location: string): string {
+function getLocation(ctx: BlockSqlContext, location: string): string {
   const loc = locationsOf(ctx);
   const l = loc.col;
 
@@ -252,33 +252,33 @@ export function locationFunctions(
   return `
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
-drop function if exists ${fn("save_location")}(${ctx.idType}, uuid, text, text, text);
-create or replace function ${fn("save_location")}(tenant ${ctx.idType}, location uuid, code text, name text, kind text, fields jsonb default null)
+drop function if exists ${fn("upsert_location")}(${ctx.idType}, uuid, text, text, text);
+create or replace function ${fn("upsert_location")}(tenant ${ctx.idType}, location uuid, code text, name text, kind text, fields jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_location.location;
+  v_id uuid := upsert_location.location;
   v_active boolean;
 begin
-  ${guard(names.scope, names.manage, "save_location.tenant")}
-  if save_location.code is null or save_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
+  ${guard(names.scope, names.manage, "upsert_location.tenant")}
+  if upsert_location.code is null or upsert_location.code !~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$' then
     ${fail("INVENTORY_LOCATION_CODE_INVALID", "the code must be 1 to 40 letters, digits, dots, dashes or underscores", "22023")}
   end if;
-  if coalesce(save_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
+  if coalesce(upsert_location.kind, 'warehouse') not in ('warehouse', 'store', 'virtual') then
     ${fail("INVENTORY_LOCATION_KIND_INVALID", "the kind must be warehouse, store or virtual", "22023")}
   end if;
   begin
     if v_id is null then
       insert into ${locations} (${l("tenant")}, ${l("code")}, ${l("name")}, ${l("kind")})
-      values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
+      values (upsert_location.tenant, upsert_location.code, upsert_location.name, coalesce(upsert_location.kind, 'warehouse'))
       returning ${l("id")}, ${loc.active()} into v_id, v_active;
     else
-      update ${locations} x set ${l("code")} = save_location.code, ${l("name")} = save_location.name,
-        ${l("kind")} = coalesce(save_location.kind, x.${l("kind")}), ${l("updatedAt")} = now()
-      where x.${l("id")} = save_location.location and x.${l("tenant")} = save_location.tenant
+      update ${locations} x set ${l("code")} = upsert_location.code, ${l("name")} = upsert_location.name,
+        ${l("kind")} = coalesce(upsert_location.kind, x.${l("kind")}), ${l("updatedAt")} = now()
+      where x.${l("id")} = upsert_location.location and x.${l("tenant")} = upsert_location.tenant
       returning ${loc.active("x")} into v_active;
       if not found then
         ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found", "P0002")}
@@ -286,15 +286,15 @@ begin
     end if;
   exception when unique_violation then
     ${fail("INVENTORY_LOCATION_CODE_TAKEN", "another location has this code", "23505")}
-  end;${writeExtraColumns(locations, names.extras, "save_location.fields", `x.${l("id")} = v_id`)}
+  end;${writeExtraColumns(locations, names.extras, "upsert_location.fields", `x.${l("id")} = v_id`)}
   return ${
     names.extras.length === 0
-      ? "jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active)"
-      : `(select ${withExtraFields("jsonb_build_object('id', v_id, 'code', save_location.code, 'active', v_active)", "x", names.extras)} from ${locations} x where x.${l("id")} = v_id)`
+      ? "jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active)"
+      : `(select ${withExtraFields("jsonb_build_object('id', v_id, 'code', upsert_location.code, 'active', v_active)", "x", names.extras)} from ${locations} x where x.${l("id")} = v_id)`
   };
 end;
 $$;
-${userGrant(`${fn("save_location")}(${ctx.idType}, uuid, text, text, text, jsonb)`)}
+${userGrant(`${fn("upsert_location")}(${ctx.idType}, uuid, text, text, text, jsonb)`)}
 
 -- Turns a location on or off. Reservations need an active location.
 create or replace function ${fn("set_location_active")}(location uuid, active boolean)
@@ -307,7 +307,7 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
 begin
-  ${loadLocation(ctx, "set_location_active.location")}
+  ${getLocation(ctx, "set_location_active.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   update ${locations} x set ${loc.setActive("coalesce(set_location_active.active, true)")}, ${l("updatedAt")} = now()
   where x.${l("id")} = set_location_active.location;
@@ -375,7 +375,7 @@ declare
   v_on_hand numeric;
   v_available numeric;
 begin
-  ${loadLocation(ctx, "adjust_stock.location")}
+  ${getLocation(ctx, "adjust_stock.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "adjust_stock.variant", "v_tenant")}
   if adjust_stock.quantity is null or adjust_stock.quantity = 0 then
@@ -425,7 +425,7 @@ declare
   v_bin uuid := nullif(count_stock.detail ->> 'binId', '')::uuid;
   v_lot uuid := nullif(count_stock.detail ->> 'lotId', '')::uuid;
 begin
-  ${loadLocation(ctx, "count_stock.location")}
+  ${getLocation(ctx, "count_stock.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "count_stock.variant", "v_tenant")}
   if count_stock.counted is null or count_stock.counted < 0 then
@@ -471,7 +471,7 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
 begin
-  ${loadLocation(ctx, "set_reorder_point.location")}
+  ${getLocation(ctx, "set_reorder_point.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "set_reorder_point.variant", "v_tenant")}
   if set_reorder_point.reorder_point < 0 then
@@ -496,7 +496,7 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
 begin
-  ${loadLocation(ctx, "set_reorder_quantity.location")}
+  ${getLocation(ctx, "set_reorder_quantity.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "set_reorder_quantity.variant", "v_tenant")}
   if set_reorder_quantity.reorder_quantity is not null and set_reorder_quantity.reorder_quantity <= 0 then
@@ -560,7 +560,7 @@ declare
   v_point numeric;
   v_expires timestamptz := coalesce(reserve_stock.expires_at, now() + interval '15 minutes');
 begin
-  ${loadLocation(ctx, "reserve_stock.location")}
+  ${getLocation(ctx, "reserve_stock.location")}
   ${guard(names.scope, names.reserve, "v_tenant")}
   if not v_active then
     ${fail("INVENTORY_LOCATION_INACTIVE", "the location is inactive", "55000")}

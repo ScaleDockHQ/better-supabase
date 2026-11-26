@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { readAdminRows } from "@/features/admin-lists/admin-detail-read";
+import { getAdminRows } from "@/features/admin-lists/admin-detail-read";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsbShell } from "@/lib/supabase/server-shell";
@@ -51,7 +51,7 @@ export async function getOAuthApp(
     return "forbidden";
   }
 
-  const [row] = await readAdminRows<AppRaw>(
+  const [row] = await getAdminRows<AppRaw>(
     request.session,
     `select c.id::text as id, c.client_name as name, c.client_type::text as type,
        c.registration_type::text as registration, c.client_uri as uri, c.redirect_uris,

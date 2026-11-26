@@ -19,7 +19,7 @@ import {
 
 /**
  * One problem of a template, in the order the template reads. `code` is the
- * hint code `save_document_template` raises with for the first one.
+ * hint code `upsert_document_template` raises with for the first one.
  */
 export interface DocumentTemplateIssue {
   readonly code: DocumentTemplateIssueCode;

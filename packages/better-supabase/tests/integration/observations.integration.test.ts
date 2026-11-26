@@ -114,13 +114,13 @@ describe.skipIf(!live)("observations", () => {
       const patient = row!.id;
 
       await s.value(
-        "better_supabase.add_subject_member('patient', $1, $2, role => 'lead')",
+        "better_supabase.create_subject_member('patient', $1, $2, role => 'lead')",
         [patient, lead.id],
       );
-      await s.value("better_supabase.add_subject_member('patient', $1, $2)", [
-        patient,
-        nurse.id,
-      ]);
+      await s.value(
+        "better_supabase.create_subject_member('patient', $1, $2)",
+        [patient, nurse.id],
+      );
 
       const observations = createObservations({
         transport: sqlTransport(s.sql),

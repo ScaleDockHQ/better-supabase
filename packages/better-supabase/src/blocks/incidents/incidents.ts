@@ -907,7 +907,7 @@ export function createIncidents<
   const client: Incidents<F> = {
     saveComponent: ({ organizationId, input }) =>
       call(
-        "save_status_component",
+        "upsert_status_component",
         {
           tenant: organizationId,
           name: input.name,
@@ -917,7 +917,7 @@ export function createIncidents<
           sort_position: input.position ?? 0,
           component_id: input.componentId ?? null,
         },
-        (value) => componentOf(value, "save_status_component"),
+        (value) => componentOf(value, "upsert_status_component"),
       ),
     deleteComponent: (componentId) =>
       call(
@@ -1015,7 +1015,7 @@ export function createIncidents<
     count: incidents.count,
     savePostmortem: ({ incidentId, input }) =>
       call(
-        "save_incident_postmortem",
+        "upsert_incident_postmortem",
         {
           incident_id: incidentId,
           attrs: {
@@ -1025,7 +1025,7 @@ export function createIncidents<
             ...optional("resolution", input.resolution),
           },
         },
-        postmortem("save_incident_postmortem"),
+        postmortem("upsert_incident_postmortem"),
       ),
     publishPostmortem: (incidentId) =>
       call(
@@ -1035,27 +1035,27 @@ export function createIncidents<
       ),
     addPostmortemAction: ({ postmortemId, input }) =>
       call(
-        "add_incident_postmortem_action",
+        "create_incident_postmortem_action",
         {
           postmortem_id: postmortemId,
           title: input.title,
           assignee_id: input.assigneeId ?? null,
           due_at: input.dueAt === undefined ? null : instantArg(input.dueAt),
         },
-        (value) => actionOf(value, "add_incident_postmortem_action"),
+        (value) => actionOf(value, "create_incident_postmortem_action"),
       ),
     removePostmortemAction: (actionId) =>
       call(
-        "remove_incident_postmortem_action",
+        "delete_incident_postmortem_action",
         { action_id: actionId },
-        postmortem("remove_incident_postmortem_action"),
+        postmortem("delete_incident_postmortem_action"),
       ),
     saveRegulatoryProfile: ({ incidentId, input }) =>
       call(
-        "save_incident_regulatory_profile",
+        "upsert_incident_regulatory_profile",
         { incident_id: incidentId, attrs: profileAttrs(input) },
         (value) =>
-          regulatoryProfileOf(value, "save_incident_regulatory_profile"),
+          regulatoryProfileOf(value, "upsert_incident_regulatory_profile"),
       ),
     regulatoryProfile: (incidentId) =>
       call(
@@ -1093,7 +1093,7 @@ export function createIncidents<
       ),
     saveStatusPage: ({ organizationId, input }) =>
       call(
-        "save_status_page",
+        "upsert_status_page",
         {
           tenant: organizationId,
           slug: input.slug,
@@ -1101,7 +1101,7 @@ export function createIncidents<
           description: input.description ?? null,
           published: input.published ?? false,
         },
-        (value) => pageOf(value, "save_status_page"),
+        (value) => pageOf(value, "upsert_status_page"),
       ),
     statusPage: (organizationId) =>
       call("get_status_page", { tenant: organizationId }, (value) =>

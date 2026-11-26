@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { DOCUMENT_TEMPLATES_TAG } from "./document-templates-cache";
 
 /** Creates an invoice template with a plain body, to start from. */
 export const addStarterTemplate = bsb.action(
@@ -14,8 +12,10 @@ export const addStarterTemplate = bsb.action(
     input: v.object({}),
     requireTenant: true,
     permission: "document_templates.manage",
+    tags: () => [tags.documentTemplates()],
+    refresh: true,
   },
-  async (_input, { db, auth }) => {
+  async (_input, { db }) => {
     const saved = await db.documentTemplates.saveTemplate({
       documentType: "invoice",
       name: "standard",
@@ -27,8 +27,6 @@ export const addStarterTemplate = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [DOCUMENT_TEMPLATES_TAG]);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -39,15 +37,15 @@ export const setTemplateActive = bsb.action(
     input: v.object({ id: v.pipe(v.string(), v.uuid()), active: v.boolean() }),
     requireTenant: true,
     permission: "document_templates.manage",
+    tags: () => [tags.documentTemplates()],
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const updated = await db.documentTemplates.setTemplateActive(input);
 
     if (!updated.ok) {
       return updated;
     }
-
-    await refreshCaller(auth, [DOCUMENT_TEMPLATES_TAG]);
 
     return ok({ active: updated.data.active });
   },

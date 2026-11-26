@@ -18,11 +18,11 @@ select set_config(
 set local role authenticated;
 
 insert into acme_plan
-select (better_supabase.save_field_definition(
+select (better_supabase.upsert_field_definition(
   '00000000-0000-4000-8000-000000000001', 'person', 'plan', 'Plan', 'text', false
 ) ->> 'id')::uuid;
 insert into acme_visits
-select (better_supabase.save_field_definition(
+select (better_supabase.upsert_field_definition(
   '00000000-0000-4000-8000-000000000001', 'person', 'bsn', 'BSN', 'bsn', false
 ) ->> 'id')::uuid;
 
@@ -39,7 +39,7 @@ select lives_ok(
 );
 select is(
   (select e ->> 'text' from jsonb_array_elements(
-    better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1')) e
+    better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1')) e
     where e ->> 'id' = (select id::text from acme_value)),
   'pro',
   'the replaced value reads back under the same row'
@@ -52,7 +52,7 @@ select is(
 );
 select is(
   (select e ->> 'text' from jsonb_array_elements(
-    better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1')) e
+    better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1')) e
     where e ->> 'id' = (select id::text from acme_value)),
   'team',
   'the updated value reads back'
@@ -87,7 +87,7 @@ select lives_ok(
 );
 select is(
   (select e ->> 'text' from jsonb_array_elements(
-    better_supabase.read_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1')) e
+    better_supabase.get_field_values('00000000-0000-4000-8000-000000000001', 'contact', 'c-1')) e
     where e ->> 'id' = (select id::text from acme_value)),
   'enterprise',
   'the encrypted value reads back as plaintext, so it was sealed once'

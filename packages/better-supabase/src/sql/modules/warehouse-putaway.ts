@@ -96,7 +96,7 @@ revoke execute on function ${fn("putaway_rule_json")}(uuid) from public, anon, a
 -- { id, locationId, binId, variantId, priority, maxQuantity, active }: stock of
 -- variantId (any variant when absent) goes to binId, lowest priority first,
 -- until the bin holds maxQuantity of it. Needs warehouse.manage.
-create or replace function ${fn("save_putaway_rule")}(tenant ${idType}, input jsonb)
+create or replace function ${fn("upsert_putaway_rule")}(tenant ${idType}, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -113,35 +113,35 @@ declare
   v_max numeric;
   v_active boolean;
 begin
-  if not ${q.allowed("save_putaway_rule.tenant", q.manage)} then
+  if not ${q.allowed("upsert_putaway_rule.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage putaway rules")}
   end if;
-  if jsonb_typeof(save_putaway_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_putaway_rule.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;
   begin
-    v_id := nullif(save_putaway_rule.input ->> 'id', '')::uuid;
-    v_location := nullif(save_putaway_rule.input ->> 'locationId', '')::uuid;
-    v_bin := nullif(save_putaway_rule.input ->> 'binId', '')::uuid;
-    v_variant := nullif(save_putaway_rule.input ->> 'variantId', '')::uuid;
-    v_priority := (save_putaway_rule.input ->> 'priority')::integer;
-    v_max := (save_putaway_rule.input ->> 'maxQuantity')::numeric;
-    v_active := (save_putaway_rule.input ->> 'active')::boolean;
+    v_id := nullif(upsert_putaway_rule.input ->> 'id', '')::uuid;
+    v_location := nullif(upsert_putaway_rule.input ->> 'locationId', '')::uuid;
+    v_bin := nullif(upsert_putaway_rule.input ->> 'binId', '')::uuid;
+    v_variant := nullif(upsert_putaway_rule.input ->> 'variantId', '')::uuid;
+    v_priority := (upsert_putaway_rule.input ->> 'priority')::integer;
+    v_max := (upsert_putaway_rule.input ->> 'maxQuantity')::numeric;
+    v_active := (upsert_putaway_rule.input ->> 'active')::boolean;
   exception when invalid_text_representation or numeric_value_out_of_range then
     ${q.invalid("ids are uuids, priority is an integer, maxQuantity a number and active a boolean")}
   end;
   if v_id is not null then
     select * into v_row from ${rules} x
-    where x.${r("id")} = v_id and x.${r("tenant")} = save_putaway_rule.tenant for update;
+    where x.${r("id")} = v_id and x.${r("tenant")} = upsert_putaway_rule.tenant for update;
     if not found then
       ${ruleMissing}
     end if;
     v_location := coalesce(v_location, v_row.${r("location")});
     v_bin := coalesce(v_bin, v_row.${r("bin")});
-    if not (save_putaway_rule.input ? 'variantId') then
+    if not (upsert_putaway_rule.input ? 'variantId') then
       v_variant := v_row.${r("variant")};
     end if;
-    if not (save_putaway_rule.input ? 'maxQuantity') then
+    if not (upsert_putaway_rule.input ? 'maxQuantity') then
       v_max := v_row.${r("maxQuantity")};
     end if;
     v_priority := coalesce(v_priority, v_row.${r("priority")});
@@ -152,12 +152,12 @@ begin
   end if;
   if not exists (
     select 1 from ${bins} x
-    where x.${b("id")} = v_bin and x.${b("tenant")} = save_putaway_rule.tenant and x.${b("location")} = v_location
+    where x.${b("id")} = v_bin and x.${b("tenant")} = upsert_putaway_rule.tenant and x.${b("location")} = v_location
   ) then
     ${q.invalid("the bin has to be in the rule's location in this organization")}
   end if;
   if v_variant is not null and not exists (
-    select 1 from ${variants} x where x.${v("id")} = v_variant and x.${v("tenant")} = save_putaway_rule.tenant
+    select 1 from ${variants} x where x.${v("id")} = v_variant and x.${v("tenant")} = upsert_putaway_rule.tenant
   ) then
     ${q.invalid("no such variant in this organization")}
   end if;
@@ -166,7 +166,7 @@ begin
   end if;
   if v_id is null then
     insert into ${rules} (${r("tenant")}, ${r("location")}, ${r("bin")}, ${r("variant")}, ${r("priority")}, ${r("maxQuantity")}, ${r("active")})
-    values (save_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
+    values (upsert_putaway_rule.tenant, v_location, v_bin, v_variant, coalesce(v_priority, 100), v_max, coalesce(v_active, true))
     returning * into v_row;
   else
     update ${rules} x set ${r("location")} = v_location, ${r("bin")} = v_bin, ${r("variant")} = v_variant,
@@ -177,7 +177,7 @@ begin
   return ${fn("putaway_rule_json")}(v_row.${r("id")});
 end;
 $$;
-${userGrant(`${fn("save_putaway_rule")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_putaway_rule")}(${idType}, jsonb)`)}
 
 -- Deletes a putaway rule. Returns false when it was already gone. Needs
 -- warehouse.manage.
@@ -248,7 +248,7 @@ ${getFunction({
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and
 -- capacity is in the unit of variant sizes (no limit when absent). Needs
 -- warehouse.manage.
-create or replace function ${fn("save_bin_slot")}(tenant ${idType}, input jsonb)
+create or replace function ${fn("upsert_bin_slot")}(tenant ${idType}, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -261,27 +261,27 @@ declare
   v_capacity numeric;
   v_row ${slots};
 begin
-  if not ${q.allowed("save_bin_slot.tenant", q.manage)} then
+  if not ${q.allowed("upsert_bin_slot.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage bin slots")}
   end if;
-  if jsonb_typeof(save_bin_slot.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bin_slot.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;
   begin
-    v_bin := (save_bin_slot.input ->> 'binId')::uuid;
-    v_rank := coalesce((save_bin_slot.input ->> 'walkRank')::integer, 0);
-    v_capacity := (save_bin_slot.input ->> 'capacity')::numeric;
+    v_bin := (upsert_bin_slot.input ->> 'binId')::uuid;
+    v_rank := coalesce((upsert_bin_slot.input ->> 'walkRank')::integer, 0);
+    v_capacity := (upsert_bin_slot.input ->> 'capacity')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     ${q.invalid("binId is a uuid, walkRank an integer and capacity a number")}
   end;
   if v_rank not between 0 and 100000 or coalesce(v_capacity, 1) <= 0 then
     ${q.invalid("walkRank is between 0 and 100000 and capacity is more than 0")}
   end if;
-  if not exists (select 1 from ${bins} x where x.${b("id")} = v_bin and x.${b("tenant")} = save_bin_slot.tenant) then
+  if not exists (select 1 from ${bins} x where x.${b("id")} = v_bin and x.${b("tenant")} = upsert_bin_slot.tenant) then
     ${q.invalid("no such bin in this organization")}
   end if;
   insert into ${slots} (${s("tenant")}, ${s("bin")}, ${s("walkRank")}, ${s("capacity")})
-  values (save_bin_slot.tenant, v_bin, v_rank, v_capacity)
+  values (upsert_bin_slot.tenant, v_bin, v_rank, v_capacity)
   on conflict (${s("bin")}) do update set ${s("walkRank")} = excluded.${s("walkRank")},
     ${s("capacity")} = excluded.${s("capacity")}, ${s("updatedAt")} = now()
   returning * into v_row;
@@ -289,11 +289,11 @@ begin
     'capacity', v_row.${s("capacity")}::text);
 end;
 $$;
-${userGrant(`${fn("save_bin_slot")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_bin_slot")}(${idType}, jsonb)`)}
 
 -- Sets the space one unit of a variant takes in a bin. input is
 -- { variantId, size }. Needs warehouse.manage.
-create or replace function ${fn("save_variant_size")}(tenant ${idType}, input jsonb)
+create or replace function ${fn("upsert_variant_size")}(tenant ${idType}, input jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -305,32 +305,32 @@ declare
   v_size numeric;
   v_row ${sizes};
 begin
-  if not ${q.allowed("save_variant_size.tenant", q.manage)} then
+  if not ${q.allowed("upsert_variant_size.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage variant sizes")}
   end if;
-  if jsonb_typeof(save_variant_size.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_variant_size.input) is distinct from 'object' then
     ${q.invalid("input must be an object")}
   end if;
   begin
-    v_variant := (save_variant_size.input ->> 'variantId')::uuid;
-    v_size := (save_variant_size.input ->> 'size')::numeric;
+    v_variant := (upsert_variant_size.input ->> 'variantId')::uuid;
+    v_size := (upsert_variant_size.input ->> 'size')::numeric;
   exception when invalid_text_representation or numeric_value_out_of_range then
     ${q.invalid("variantId is a uuid and size a number")}
   end;
   if v_size is null or v_size <= 0 then
     ${q.invalid("size is more than 0")}
   end if;
-  if not exists (select 1 from ${variants} x where x.${v("id")} = v_variant and x.${v("tenant")} = save_variant_size.tenant) then
+  if not exists (select 1 from ${variants} x where x.${v("id")} = v_variant and x.${v("tenant")} = upsert_variant_size.tenant) then
     ${q.invalid("no such variant in this organization")}
   end if;
   insert into ${sizes} (${z("tenant")}, ${z("variant")}, ${z("size")})
-  values (save_variant_size.tenant, v_variant, v_size)
+  values (upsert_variant_size.tenant, v_variant, v_size)
   on conflict (${z("variant")}) do update set ${z("size")} = excluded.${z("size")}, ${z("updatedAt")} = now()
   returning * into v_row;
   return jsonb_build_object('variantId', v_row.${z("variant")}, 'size', v_row.${z("size")}::text);
 end;
 $$;
-${userGrant(`${fn("save_variant_size")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_variant_size")}(${idType}, jsonb)`)}
 
 -- The bins of a location with their slot and how full they are. filters is
 -- { locationId }. used is the stock in the bin times the variant sizes.

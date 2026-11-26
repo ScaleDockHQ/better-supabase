@@ -5,8 +5,8 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
 
-import { loadSnapshot } from "../cli/commands/snapshot.ts";
-import { discoverConfig, loadConfig } from "../cli/config.ts";
+import { getSnapshot } from "../cli/commands/snapshot.ts";
+import { discoverConfig, getConfig } from "../cli/config.ts";
 import { schemaStampPath } from "../cli/content-mapper.ts";
 import { configEnvironment, parseEnv } from "../cli/env.ts";
 import { mapperFilePath, renderTypesModule } from "../cli/gen/render.ts";
@@ -142,7 +142,7 @@ async function ensureStamp(config: ResolvedConfig, key: string): Promise<void> {
  * a failure comes back as a diagnostic on the file, because tsc stops calling a
  * mapper that fails five times in a project.
  */
-export async function loadProject(
+export async function getProject(
   configFileName: string,
   options: Readonly<Record<string, unknown>>,
   processEnv: Readonly<Record<string, string | undefined>>,
@@ -179,7 +179,7 @@ export async function loadProject(
 
   try {
     env = parseEnv(processEnv);
-    config = await loadConfig(
+    config = await getConfig(
       projectDir,
       explicit,
       configEnvironment(undefined, env),
@@ -194,7 +194,7 @@ export async function loadProject(
   const configText = await readFile(configFile, "utf-8").catch(() => undefined);
 
   try {
-    const snapshot = await loadSnapshot(config, env, { cache: true });
+    const snapshot = await getSnapshot(config, env, { cache: true });
     const key = typesModuleKey(config, configText, snapshot);
     const text = await renderTypesModule(config, snapshot, configText);
     await ensureStamp(config, key);

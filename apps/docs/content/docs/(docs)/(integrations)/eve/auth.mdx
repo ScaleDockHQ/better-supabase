@@ -11,11 +11,11 @@ session falls through to the next entry, and an invalid token gets a 401.
 ```ts title="agent/channels/eve.ts"
 import { eveChannel } from "eve/channels/eve";
 import { localDev } from "eve/channels/auth";
-import { loadEnv } from "better-supabase/env";
+import { getEnv } from "better-supabase/env";
 import { supabaseAuth } from "better-supabase/eve";
 
 export default eveChannel({
-  auth: [supabaseAuth({ env: loadEnv() }), localDev()],
+  auth: [supabaseAuth({ env: getEnv() }), localDev()],
 });
 ```
 
@@ -42,10 +42,10 @@ entry such as `none()`. It declares the `Bearer` scheme, so eve's own 401 and
 ```ts title="agent/channels/mcp.ts"
 import { mcpChannel } from "eve/channels/mcp";
 import { oauthResource } from "eve/channels/auth";
-import { loadEnv } from "better-supabase/env";
+import { getEnv } from "better-supabase/env";
 import { supabaseJwtAuth } from "better-supabase/eve";
 
-const env = loadEnv();
+const env = getEnv();
 
 export default mcpChannel({
   auth: oauthResource(supabaseJwtAuth({ env }), {

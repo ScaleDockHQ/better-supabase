@@ -241,7 +241,7 @@ A cursor belongs to the sort it came from; start again from the first page when 
 
 | Function                                                                           | Granted to                      | Does                                             |
 | ---------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------ |
-| `save_enrollment_program(tenant, program)`                                         | `authenticated`, `service_role` | Creates or changes a program                     |
+| `upsert_enrollment_program(tenant, program)`                                       | `authenticated`, `service_role` | Creates or changes a program                     |
 | `enrollment_programs(tenant, include_archived)`                                    | `authenticated`, `service_role` | The organization's programs by key               |
 | `archive_enrollment_program(program_id)`, `restore_enrollment_program(program_id)` | `authenticated`, `service_role` | Archives or restores a program                   |
 | `purge_enrollment_program(program_id)`                                             | `authenticated`, `service_role` | Deletes an archived program with its enrollments |

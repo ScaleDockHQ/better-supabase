@@ -6,8 +6,8 @@ import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { settle } from "@/features/crm/crm-queries";
 import { Link, toAppHref } from "@/i18n/navigation";
 
-import { loadContactSales } from "../automation/automation-queries";
-import { loadMemberOptions } from "../member/member-queries";
+import { getContactSales } from "../automation/automation-queries";
+import { getMemberOptions } from "../member/member-queries";
 import { scoreRecord } from "../sales-actions";
 import { ActionButton } from "./action-button";
 import { DetailTable } from "./detail-table";
@@ -32,8 +32,8 @@ export async function ContactSalesPanel({
 }) {
   const [t, loaded, members, fmtDate, canCompute] = await Promise.all([
     getExtracted("sales"),
-    settle(() => loadContactSales(type, id)),
-    loadMemberOptions(),
+    settle(() => getContactSales(type, id)),
+    getMemberOptions(),
     dateFormatter(),
     holds("scores.compute"),
   ]);

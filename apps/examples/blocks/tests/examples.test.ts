@@ -112,8 +112,8 @@ describe("rpc examples", () => {
 
     await suggestWhere(t, { binId: "b", variantId: "v", locationId: "l" });
     expect(t.calls.map(([fn]) => fn)).toEqual([
-      "save_bin_slot",
-      "save_putaway_rule",
+      "upsert_bin_slot",
+      "upsert_putaway_rule",
       "suggest_putaway",
       "suggest_slotting",
     ]);

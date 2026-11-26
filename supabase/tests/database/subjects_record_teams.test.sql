@@ -14,13 +14,13 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (better_supabase.add_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
+  (better_supabase.create_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
     '00000000-0000-4000-8000-0000000000a2', ends_on => current_date - 1)) ->> 'active',
   'false',
   'a membership that ended yesterday is not active'
 );
 select throws_ok(
-  $$select better_supabase.add_subject_member('customer', '00000000-0000-4000-8000-00000000a003',
+  $$select better_supabase.create_subject_member('customer', '00000000-0000-4000-8000-00000000a003',
     '00000000-0000-4000-8000-0000000000a1')$$,
   '42501',
   'not allowed to manage this record''s team',
@@ -41,7 +41,7 @@ select ok(
   'an ended membership gives no access'
 );
 select throws_ok(
-  $$select better_supabase.add_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
+  $$select better_supabase.create_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
     '00000000-0000-4000-8000-0000000000a2', role => 'lead')$$,
   '42501',
   'not allowed to manage this record''s team',
@@ -58,7 +58,7 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (better_supabase.add_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
+  (better_supabase.create_subject_member('customer', '00000000-0000-4000-8000-00000000a001',
     '00000000-0000-4000-8000-0000000000a2', role => 'lead')) ->> 'active',
   'true',
   'the owner puts the member on the team as lead'

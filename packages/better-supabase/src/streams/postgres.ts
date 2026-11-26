@@ -116,7 +116,7 @@ export function postgresStreamStore(
   const status: StreamStore["status"] = (id) =>
     call("stream_status", { stream_id: id }, statusOf);
 
-  const readBytes = (
+  const getBytes = (
     id: string,
     fromIdx = 0,
     read: StreamReadOptions = {},
@@ -172,14 +172,14 @@ export function postgresStreamStore(
         },
       ),
     read: (id, fromIdx = 0, read = {}) =>
-      readBytes(id, fromIdx, read).pipeThrough(
+      getBytes(id, fromIdx, read).pipeThrough(
         new TransformStream<Uint8Array, string>({
           transform(chunk, controller) {
             controller.enqueue(new TextDecoder().decode(chunk));
           },
         }),
       ),
-    readBytes,
+    readBytes: getBytes,
     status,
     isCancelled: (id) => status(id).map((state) => state?.cancelled === true),
     close: (id) =>

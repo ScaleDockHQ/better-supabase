@@ -32,7 +32,7 @@ export function testRecordBinding(
 
   // SAFETY: a binding's functions take the client its block's creator made,
   // which the test passes.
-  const load = binding.load as (
+  const load = binding.get as (
     client: unknown,
     subject: RecordRef,
     options: unknown,
@@ -78,10 +78,10 @@ export function testRecordBinding(
     [
       "loads a record",
       async () => {
-        expect(callable(binding.load), "load must be a function");
+        expect(callable(binding.get), "get must be a function");
 
         const result = await load(options.client, options.subject, undefined);
-        expect(result.ok, "load must succeed for a record the client holds");
+        expect(result.ok, "get must succeed for a record the client holds");
       },
     ],
     count !== undefined && [

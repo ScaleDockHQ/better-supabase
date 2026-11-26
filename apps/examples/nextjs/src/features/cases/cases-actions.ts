@@ -3,11 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { INSPECTIONS_TAG } from "@/features/inspections/inspections-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { CASES_TAG } from "./cases-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -17,15 +14,15 @@ export const moveCase = bsb.action(
     input: v.object({ caseId: Id, stageId: Id }),
     requireTenant: true,
     permission: "cases.read",
+    tags: () => [tags.cases(), tags.inspections()],
+    refresh: true,
   },
-  async ({ caseId, stageId }, { db, auth }) => {
+  async ({ caseId, stageId }, { db }) => {
     const moved = await db.cases.move({ caseId, to: { stageId } });
 
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, [CASES_TAG, INSPECTIONS_TAG]);
 
     return ok({ id: moved.data.id });
   },
@@ -40,15 +37,15 @@ export const closeCase = bsb.action(
     }),
     requireTenant: true,
     permission: "cases.read",
+    tags: () => [tags.cases(), tags.inspections()],
+    refresh: true,
   },
-  async ({ caseId, note }, { db, auth }) => {
+  async ({ caseId, note }, { db }) => {
     const closed = await db.cases.close({ caseId, note });
 
     if (!closed.ok) {
       return closed;
     }
-
-    await refreshCaller(auth, [CASES_TAG, INSPECTIONS_TAG]);
 
     return ok({ id: closed.data.id, number: closed.data.number });
   },

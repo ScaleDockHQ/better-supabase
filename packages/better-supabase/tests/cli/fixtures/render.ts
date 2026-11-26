@@ -56,7 +56,7 @@ const fixtureConfig: BetterSupabaseConfig = {
 const here = (name: string): string =>
   fileURLToPath(new URL(name, libraryFixture("")));
 
-export async function loadFixtureSnapshot(): Promise<Snapshot> {
+export async function getFixtureSnapshot(): Promise<Snapshot> {
   return parseSnapshot(
     JSON.parse(await readFile(snapshotPath, "utf-8")),
     "supabase/snapshot.json",
@@ -70,7 +70,7 @@ export async function loadFixtureSnapshot(): Promise<Snapshot> {
 export async function renderFixtures(): Promise<
   { path: string; contents: string }[]
 > {
-  const snapshot = await loadFixtureSnapshot();
+  const snapshot = await getFixtureSnapshot();
   const root = here("../..");
 
   const variants: BetterSupabaseConfig[] = [

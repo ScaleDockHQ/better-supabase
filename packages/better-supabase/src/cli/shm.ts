@@ -167,7 +167,7 @@ async function segmentRows(
  * as an interlock, even with `shared_memory_type = mmap`, so the segment limit
  * caps how many stacks and shadow databases run at once.
  */
-export async function readSharedMemory(
+export async function getSharedMemory(
   root: string,
   env: CliEnv,
   run: RunProcess = runProcess,

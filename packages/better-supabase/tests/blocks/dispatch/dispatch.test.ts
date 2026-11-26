@@ -556,7 +556,7 @@ describe("createDispatch", () => {
     const fake = fakeTransport({
       record_work_order_part: PART,
       list_work_order_parts: [PART, BARE_PART],
-      remove_work_order_part: true,
+      delete_work_order_part: true,
     });
 
     const dispatch = createDispatch({ transport: fake.transport });
@@ -662,7 +662,7 @@ describe("dispatch block", () => {
     const subject = { type: "customer", id: "c1" };
 
     const rows = await dispatchBinding
-      .load(dispatch, subject, undefined)
+      .get(dispatch, subject, undefined)
       .orThrow();
 
     await dispatchBinding.writes.create

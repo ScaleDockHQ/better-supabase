@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:cae9f528b5ac1bcb8156ef4e47ec6a1e9dd46189b3b4a8a5e3cc04efca8e3acc
+-- @bsb-hash sha256:4376d0c2675b931242702ef94a767ae8f0a825224cc7c5ef5c0a47e6cd5f17b6
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -341,7 +341,7 @@ revoke execute on function better_supabase.bsb_team_member_employee_keep() from 
 create trigger bsb_team_member_employee_keep before delete on "better_supabase"."team_members"
 for each row execute function better_supabase.bsb_team_member_employee_keep();
 -- member: a user id; employee: an employee id. Pass one of them.
-create or replace function "better_supabase"."add_team_member"(team uuid, member uuid default null, employee uuid default null)
+create or replace function "better_supabase"."create_team_member"(team uuid, member uuid default null, employee uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -349,20 +349,20 @@ set search_path = ''
 as $$
 declare
   v_tenant uuid;
-  v_user uuid := add_team_member.member;
-  v_employee uuid := add_team_member.employee;
+  v_user uuid := create_team_member.member;
+  v_employee uuid := create_team_member.employee;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = add_team_member.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = create_team_member.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  if (add_team_member.member is null) = (add_team_member.employee is null) then
+  if (create_team_member.member is null) = (create_team_member.employee is null) then
     raise exception 'pass either a user or an employee' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';
   end if;
   if v_employee is null then
@@ -393,36 +393,36 @@ begin
   end if;
   if v_employee is not null and v_user is not null then
     delete from "better_supabase"."team_members" x
-    where x."team_id" = add_team_member.team and x."user_id" = v_user and x."employee_id" is null
+    where x."team_id" = create_team_member.team and x."user_id" = v_user and x."employee_id" is null
       and exists (
         select 1 from "better_supabase"."team_members" y
-        where y."team_id" = add_team_member.team and y."employee_id" = v_employee
+        where y."team_id" = create_team_member.team and y."employee_id" = v_employee
       );
     update "better_supabase"."team_members" set "user_id" = v_user
-    where "team_id" = add_team_member.team and "employee_id" = v_employee and "user_id" is null;
+    where "team_id" = create_team_member.team and "employee_id" = v_employee and "user_id" is null;
     update "better_supabase"."team_members" set "employee_id" = v_employee
-    where "team_id" = add_team_member.team and "user_id" = v_user and "employee_id" is null;
+    where "team_id" = create_team_member.team and "user_id" = v_user and "employee_id" is null;
   end if;
   insert into "better_supabase"."team_members" ("team_id", "user_id", "employee_id", "tenant_id")
-  values (add_team_member.team, v_user, v_employee, v_tenant)
+  values (create_team_member.team, v_user, v_employee, v_tenant)
   on conflict do nothing;
-  perform "better_supabase".emit_event('team_member.added', jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (add_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
+  perform "better_supabase".emit_event('team_member.added', jsonb_build_object('organizationId', v_tenant, 'id', create_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (create_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team_member.added',
     category => 'membership',
     target_type => 'team',
-    record_id => (add_team_member.team)::text,
+    record_id => (create_team_member.team)::text,
     tenant => (v_tenant)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'id', add_team_member.team, 'userId', v_user, 'employeeId', v_employee)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'id', create_team_member.team, 'userId', v_user, 'employeeId', v_employee)
   );
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."add_team_member"(uuid, uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."add_team_member"(uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_team_member"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."create_team_member"(uuid, uuid, uuid) to authenticated, service_role;
 -- member: a user id; employee: an employee id. Pass one of them. Removing a
 -- user whose row has an employee removes the employee too.
-create or replace function "better_supabase"."remove_team_member"(team uuid, member uuid default null, employee uuid default null)
+create or replace function "better_supabase"."delete_team_member"(team uuid, member uuid default null, employee uuid default null)
 returns boolean
 language plpgsql
 security definer
@@ -436,37 +436,37 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = remove_team_member.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = delete_team_member.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  if (remove_team_member.member is null) = (remove_team_member.employee is null) then
+  if (delete_team_member.member is null) = (delete_team_member.employee is null) then
     raise exception 'pass either a user or an employee' using errcode = '22023', hint = 'TEAM_MEMBER_INVALID';
   end if;
   delete from "better_supabase"."team_members" x
-  where x."team_id" = remove_team_member.team
-    and (x."employee_id" = remove_team_member.employee or x."user_id" = remove_team_member.member)
+  where x."team_id" = delete_team_member.team
+    and (x."employee_id" = delete_team_member.employee or x."user_id" = delete_team_member.member)
   returning x."user_id", x."employee_id" into v_user, v_employee;
   if not found then
     return false;
   end if;
-  perform "better_supabase".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (remove_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
+  perform "better_supabase".emit_event('team_member.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_team_member.team, 'userId', v_user, 'employeeId', v_employee), 'teams/' || (delete_team_member.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
     event_type => 'team_member.deleted',
     category => 'membership',
     target_type => 'team',
-    record_id => (remove_team_member.team)::text,
+    record_id => (delete_team_member.team)::text,
     tenant => (v_tenant)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'id', remove_team_member.team, 'userId', v_user, 'employeeId', v_employee)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'id', delete_team_member.team, 'userId', v_user, 'employeeId', v_employee)
   );
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_team_member"(uuid, uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_team_member"(uuid, uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_team_member"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_team_member"(uuid, uuid, uuid) to authenticated, service_role;
 -- Teams as a keyset page, by name unless sort says otherwise (ADR 1077).
 -- filters may hold status (a value or a list), search, sort (name,
 -- createdAt), direction, facet, count, limit and after. Without paged it
@@ -929,23 +929,23 @@ as $$ select "better_supabase"."purge_teams"($1) $$;
 revoke execute on function "api"."purge_teams"(uuid[]) from public, anon;
 grant execute on function "api"."purge_teams"(uuid[]) to authenticated, service_role;
 
-create or replace function "api"."add_team_member"(team uuid, member uuid default null, employee uuid default null)
+create or replace function "api"."create_team_member"(team uuid, member uuid default null, employee uuid default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_team_member"($1, $2, $3) $$;
-revoke execute on function "api"."add_team_member"(uuid, uuid, uuid) from public, anon;
-grant execute on function "api"."add_team_member"(uuid, uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."create_team_member"($1, $2, $3) $$;
+revoke execute on function "api"."create_team_member"(uuid, uuid, uuid) from public, anon;
+grant execute on function "api"."create_team_member"(uuid, uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."remove_team_member"(team uuid, member uuid default null, employee uuid default null)
+create or replace function "api"."delete_team_member"(team uuid, member uuid default null, employee uuid default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_team_member"($1, $2, $3) $$;
-revoke execute on function "api"."remove_team_member"(uuid, uuid, uuid) from public, anon;
-grant execute on function "api"."remove_team_member"(uuid, uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_team_member"($1, $2, $3) $$;
+revoke execute on function "api"."delete_team_member"(uuid, uuid, uuid) from public, anon;
+grant execute on function "api"."delete_team_member"(uuid, uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_teams"(tenant uuid, filters jsonb default '{}')
 returns jsonb

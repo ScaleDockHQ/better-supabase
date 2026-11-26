@@ -4,6 +4,7 @@ import type { SubmitEvent } from "react";
 
 import {
   useCallback,
+  useContext,
   useLayoutEffect,
   useOptimistic,
   useRef,
@@ -17,8 +18,14 @@ import type {
   UseActionOptions,
 } from "../bindings/client.ts";
 import type { DbError } from "../core/errors.ts";
+import type { ActionOutcome } from "./action-defaults.ts";
 
 import { fieldErrorsOf } from "../bindings/field-errors.ts";
+import { ActionDefaultsContext } from "./action-defaults.ts";
+
+export { ActionDefaultsProvider } from "./action-defaults.ts";
+
+export type { ActionDefaults, ActionOutcome } from "./action-defaults.ts";
 
 export type {
   ActionInputOf,
@@ -74,9 +81,10 @@ export function useAction<I, T>(
   >([]);
 
   const [settled, setSettled] = useState<Settled<T>>(IDLE);
-  const latest = useRef({ action, options });
+  const defaults = useContext(ActionDefaultsContext);
+  const latest = useRef({ action, options, defaults });
   useLayoutEffect(() => {
-    latest.current = { action, options };
+    latest.current = { action, options, defaults };
   });
 
   const run = useCallback(
@@ -113,12 +121,21 @@ export function useAction<I, T>(
               ? { data: result.data, error: undefined }
               : (current) => ({ data: current.data, error: result.error }),
           );
-          const { onSuccess, onError } = latest.current.options;
+          const { options: own, defaults: app } = latest.current;
+
+          // SAFETY: the result is the action's outcome, which is an object.
+          const outcome = result as ActionOutcome;
 
           if (result.ok) {
-            onSuccess?.(result.data, input);
+            if (own.onSuccess) {
+              own.onSuccess(result.data, input);
+            } else {
+              app?.onSuccess?.(outcome, input);
+            }
+          } else if (own.onError) {
+            own.onError(result.error, input);
           } else {
-            onError?.(result.error, input);
+            app?.onError?.(outcome, input);
           }
 
           resolve(result);

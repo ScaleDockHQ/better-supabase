@@ -3,11 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { PEOPLE_TAG } from "@/features/people/people-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ONBOARDING_TAG } from "./onboarding-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -17,8 +14,10 @@ export const setUpOnboardingProgram = bsb.action(
     input: v.object({}),
     requireTenant: true,
     permission: "enrollments.manage",
+    tags: () => [tags.onboarding()],
+    refresh: true,
   },
-  async (_input, { db, auth }) => {
+  async (_input, { db }) => {
     const saved = await db.enrollments.saveProgram({
       key: "new-hire",
       name: "New hire",
@@ -52,8 +51,6 @@ export const setUpOnboardingProgram = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [ONBOARDING_TAG]);
-
     return ok({ key: saved.data.key });
   },
 );
@@ -67,8 +64,10 @@ export const enrollEmployee = bsb.action(
     }),
     requireTenant: true,
     permission: "enrollments.enroll",
+    tags: () => [tags.onboarding()],
+    refresh: true,
   },
-  async ({ program, employeeId }, { db, auth }) => {
+  async ({ program, employeeId }, { db }) => {
     const enrolled = await db.enrollments.enroll({
       program,
       subject: { type: "employee", id: employeeId },
@@ -77,8 +76,6 @@ export const enrollEmployee = bsb.action(
     if (!enrolled.ok) {
       return enrolled;
     }
-
-    await refreshCaller(auth, [ONBOARDING_TAG]);
 
     return ok({ id: enrolled.data.id });
   },
@@ -93,15 +90,15 @@ export const completeOnboardingStep = bsb.action(
     }),
     requireTenant: true,
     permission: "enrollments.enroll",
+    tags: () => [tags.onboarding(), tags.people()],
+    refresh: true,
   },
-  async ({ enrollmentId, step }, { db, auth }) => {
+  async ({ enrollmentId, step }, { db }) => {
     const done = await db.enrollments.complete({ enrollmentId, step });
 
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, [ONBOARDING_TAG, PEOPLE_TAG]);
 
     return ok({ id: done.data.id });
   },

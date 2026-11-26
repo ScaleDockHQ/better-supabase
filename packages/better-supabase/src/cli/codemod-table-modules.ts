@@ -23,7 +23,7 @@ export interface TableModuleFile {
 const EXPORT = /export const (\w+)Table\b/;
 
 /** Reads the `tables/*.ts` modules `gen` wrote next to `generated.ts`. */
-async function readTableModules(
+async function getTableModules(
   folder: string,
 ): Promise<readonly TableModuleFile[]> {
   const names = await readdir(posix.join(folder, "tables")).catch(
@@ -257,7 +257,7 @@ export function tableModulesCodemod(): Codemod {
         project.config.output,
       );
 
-      const tables = await readTableModules(posix.dirname(output));
+      const tables = await getTableModules(posix.dirname(output));
 
       return (path, text) =>
         project.config.gen.tableModules === false ||

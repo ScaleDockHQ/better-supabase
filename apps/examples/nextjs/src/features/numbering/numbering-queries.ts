@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { loadAdminList } from "@/features/admin-lists/admin-list-load";
+import { getAdminList } from "@/features/admin-lists/admin-list-load";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { bsbShell } from "@/lib/supabase/server-shell";
@@ -25,7 +25,7 @@ export async function getNumbering() {
     return null;
   }
 
-  return loadAdminList({
+  return getAdminList({
     session: request.session,
     tenant,
     list: numberingList,

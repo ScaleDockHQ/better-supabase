@@ -27,7 +27,7 @@ const ARGS = {
 
 export type RowsFlags = CliOptions<typeof ARGS>;
 
-async function readSql(folder: string): Promise<ReadonlyMap<string, string>> {
+async function getSql(folder: string): Promise<ReadonlyMap<string, string>> {
   const names = (await readdir(folder).catch((): string[] => []))
     .filter((file) => file.endsWith(".sql"))
     .toSorted();
@@ -55,7 +55,7 @@ async function runRows(
   const migrations = migrationsDir(config);
 
   const files = new Map(
-    [...(await readSql(resolve(config.root, rows)))].map(([file, text]) => [
+    [...(await getSql(resolve(config.root, rows)))].map(([file, text]) => [
       file.replace(/\.sql$/, ""),
       text,
     ]),
@@ -71,7 +71,7 @@ async function runRows(
 
   const plan = await planRows(
     files,
-    await readSql(resolve(config.root, migrations)),
+    await getSql(resolve(config.root, migrations)),
     now(),
   ).catch((error: unknown) => {
     if (error instanceof DeclaredRowsError) {

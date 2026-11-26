@@ -48,7 +48,7 @@ export function serializeCart(lines: readonly CartLine[]): string {
   return lines.map((line) => `${line.variantId}:${line.quantity}`).join(",");
 }
 
-export async function readCart(slug: string): Promise<readonly CartLine[]> {
+export async function getCart(slug: string): Promise<readonly CartLine[]> {
   const store = await cookies();
 
   return parseCart(store.get(cartCookie(slug))?.value);

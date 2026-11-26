@@ -1,5 +1,5 @@
 import { optionSetList } from "@/features/option-sets/option-sets-list";
-import { loadOptionSetPage } from "@/features/option-sets/option-sets-queries";
+import { getOptionSetPage } from "@/features/option-sets/option-sets-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -11,7 +11,7 @@ export const GET = bsb.route(
   async (request, { db, tenant }) => {
     const query = optionSetList.parse(request.nextUrl.searchParams);
 
-    return Response.json(await loadOptionSetPage(db, tenant, query.value));
+    return Response.json(await getOptionSetPage(db, tenant, query.value));
   },
   { requireTenant: true, permission: "option_sets.read" },
 );

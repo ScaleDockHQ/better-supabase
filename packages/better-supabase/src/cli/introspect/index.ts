@@ -2,8 +2,8 @@ import type { HookTarget } from "./extras.ts";
 import type { Queryable } from "./typegen.ts";
 import type { Snapshot } from "./types.ts";
 
-import { readExtras } from "./extras.ts";
-import { readGeneratorMetadata, stabilizeMetadata } from "./typegen.ts";
+import { getExtras } from "./extras.ts";
+import { getGeneratorMetadata, stabilizeMetadata } from "./typegen.ts";
 
 export interface IntrospectOptions {
   /** Auth hook functions to read too, in any schema (`[auth.hook.*]`). */
@@ -26,8 +26,8 @@ export async function introspect(
   const unique = [...new Set(schemas)].toSorted();
 
   const [metadata, extras] = await Promise.all([
-    readGeneratorMetadata(db, unique),
-    readExtras(db, unique, options.hooks, options.functions, options.shareable),
+    getGeneratorMetadata(db, unique),
+    getExtras(db, unique, options.hooks, options.functions, options.shareable),
   ]);
 
   const { metadata: generator, ids } = stabilizeMetadata(metadata);

@@ -14,6 +14,6 @@ export const leaveBinding: RecordBinding<Leave, readonly LeaveRequest[]> =
   defineRecordBinding({
     permissions: { read: "read" },
     module: "leave",
-    load: (client: Leave, subject) => client.forOwner({ subject }),
+    get: (client: Leave, subject) => client.forOwner({ subject }),
     events: ["leave_request.*"],
   });

@@ -520,7 +520,7 @@ end
 $$;
 
 -- Removes the quota of one tenant or plan on a meter; true when there was one.
-create or replace function ${fn("remove_usage_quota")}(tenant ${id}, plan text, meter text)
+create or replace function ${fn("delete_usage_quota")}(tenant ${id}, plan text, meter text)
 returns boolean
 language plpgsql
 security definer
@@ -529,7 +529,7 @@ as $$
 #variable_conflict use_variable
 begin
   if (tenant is null) = (plan is null) then
-    ${raise("remove_usage_quota needs a tenant or a plan, not both", "22023", "USAGE_QUOTA_TARGET")}
+    ${raise("delete_usage_quota needs a tenant or a plan, not both", "22023", "USAGE_QUOTA_TARGET")}
   end if;
   delete from ${quotas} q
   where q.${qc("meter")} = meter
@@ -1158,9 +1158,9 @@ grant execute on function ${fn("usage_quota")}(${id}, text) to service_role;
 revoke execute on function ${fn("usage_quotas_for")}(${id}[], text[]) from public, anon, authenticated;
 grant execute on function ${fn("usage_quotas_for")}(${id}[], text[]) to service_role;
 revoke execute on function ${fn("set_usage_quota")}(${id}, text, text, numeric, text) from public, anon, authenticated;
-revoke execute on function ${fn("remove_usage_quota")}(${id}, text, text) from public, anon, authenticated;
+revoke execute on function ${fn("delete_usage_quota")}(${id}, text, text) from public, anon, authenticated;
 grant execute on function ${fn("set_usage_quota")}(${id}, text, text, numeric, text) to service_role;
-grant execute on function ${fn("remove_usage_quota")}(${id}, text, text) to service_role;
+grant execute on function ${fn("delete_usage_quota")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_used")}(${id}, text, text) to service_role;
 grant execute on function ${fn("usage_status")}(${id}, text) to authenticated, service_role;
 grant execute on function ${fn("usage_remaining")}(${id}, text) to authenticated, service_role;
@@ -1228,7 +1228,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "void",
     },
     {
-      name: "remove_usage_quota",
+      name: "delete_usage_quota",
       args: ["{id}", "text", "text"],
       returns: "boolean",
     },
@@ -1299,7 +1299,7 @@ export const USAGE: BlockSqlDefinition = {
     {
       from: 7,
       description:
-        "set_usage_quota and remove_usage_quota let the service role set and remove the quota of a tenant or a plan.",
+        "set_usage_quota and delete_usage_quota let the service role set and remove the quota of a tenant or a plan.",
       sql: () => "",
     },
   ],

@@ -141,7 +141,7 @@ const toFactor = (raw: RawMfaFactor): MfaFactor => ({
   verified: raw.status === "verified",
 });
 
-async function readAssurance(mfa: MfaApi): Promise<Result<MfaAssurance>> {
+async function getAssurance(mfa: MfaApi): Promise<Result<MfaAssurance>> {
   const result = await authResult(() => mfa.getAuthenticatorAssuranceLevel());
 
   return result.ok
@@ -152,7 +152,7 @@ async function readAssurance(mfa: MfaApi): Promise<Result<MfaAssurance>> {
     : result;
 }
 
-async function readFactors(mfa: MfaApi): Promise<Result<readonly MfaFactor[]>> {
+async function getFactors(mfa: MfaApi): Promise<Result<readonly MfaFactor[]>> {
   const result = await authResult(() => mfa.listFactors());
 
   return result.ok ? ok(result.data.all.map(toFactor)) : result;
@@ -236,8 +236,8 @@ export function createMfaController(
         const request = ticket;
 
         const [factors, assurance] = await Promise.all([
-          readFactors(mfa),
-          readAssurance(mfa),
+          getFactors(mfa),
+          getAssurance(mfa),
         ]);
 
         if (request !== ticket) {
@@ -332,7 +332,7 @@ export function createMfaController(
               return settle<MfaAssurance>(err(registered.error));
             }
 
-            return settle<MfaAssurance>(await readAssurance(mfa));
+            return settle<MfaAssurance>(await getAssurance(mfa));
           },
           verify: async (code) => {
             const enrollment = state.get().enrollment;
@@ -355,7 +355,7 @@ export function createMfaController(
 
             state.set({ enrollment: undefined });
 
-            return settle<MfaAssurance>(await readAssurance(mfa));
+            return settle<MfaAssurance>(await getAssurance(mfa));
           },
           cancel: async () => {
             const enrollment = state.get().enrollment;
@@ -461,8 +461,8 @@ export function createStepUpController(
         const request = ticket;
 
         const [factors, assurance] = await Promise.all([
-          readFactors(mfa),
-          readAssurance(mfa),
+          getFactors(mfa),
+          getAssurance(mfa),
         ]);
 
         if (request !== ticket) {
@@ -513,7 +513,7 @@ export function createStepUpController(
               mfa.challengeAndVerify({ factorId: id, code }),
             );
 
-            const result = verified.ok ? await readAssurance(mfa) : verified;
+            const result = verified.ok ? await getAssurance(mfa) : verified;
             state.set(
               result.ok
                 ? { verifying: false, ...assured(result.data) }
@@ -552,7 +552,7 @@ export function createStepUpController(
               webauthn.authenticate({ factorId: id, ...webauthnParams(input) }),
             );
 
-            const result = verified.ok ? await readAssurance(mfa) : verified;
+            const result = verified.ok ? await getAssurance(mfa) : verified;
             state.set(
               result.ok
                 ? { verifying: false, ...assured(result.data) }

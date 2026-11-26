@@ -91,7 +91,7 @@ ${userGrant(`${fn("resolve_tax_code")}(${idType}, text, uuid)`)}
 -- Adds a rate to a code from valid_from on. A rate that starts after the
 -- code's earlier open rate closes it the day before; without valid_to the rate
 -- runs until the next later rate. A rate with the same start is replaced.
--- Internal: save_tax_rate and the import check who may call it.
+-- Internal: upsert_tax_rate and the import check who may call it.
 create or replace function ${fn("tax_rate_write")}(tenant ${idType}, tax_code uuid, rate_bps integer, valid_from date default null, valid_to date default null)
 returns jsonb
 language plpgsql
@@ -146,7 +146,7 @@ revoke execute on function ${fn("tax_rate_write")}(${idType}, uuid, integer, dat
 -- Creates or changes a tax code. input: { code, name, type, legalEntityId?,
 -- salesAccountId?, purchaseAccountId?, returnBoxes?, archived?, rateBps?,
 -- validFrom? }. rateBps adds a rate from validFrom (the epoch for a new code,
--- today for an existing one). Internal: save_tax_code and the import check who
+-- today for an existing one). Internal: upsert_tax_code and the import check who
 -- may call it.
 create or replace function ${fn("tax_code_write")}(tenant ${idType}, input jsonb, code_id uuid default null)
 returns jsonb
@@ -240,35 +240,35 @@ end;
 $$;
 revoke execute on function ${fn("tax_code_write")}(${idType}, jsonb, uuid) from public, anon, authenticated;
 
-create or replace function ${fn("save_tax_code")}(tenant ${idType}, input jsonb, code_id uuid default null)
+create or replace function ${fn("upsert_tax_code")}(tenant ${idType}, input jsonb, code_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not ${q.allowed("save_tax_code.tenant", q.manage)} then
+  if not ${q.allowed("upsert_tax_code.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage tax codes")}
   end if;
-  return ${fn("tax_code_write")}(save_tax_code.tenant, save_tax_code.input, save_tax_code.code_id);
+  return ${fn("tax_code_write")}(upsert_tax_code.tenant, upsert_tax_code.input, upsert_tax_code.code_id);
 end;
 $$;
-${userGrant(`${fn("save_tax_code")}(${idType}, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_tax_code")}(${idType}, jsonb, uuid)`)}
 
-create or replace function ${fn("save_tax_rate")}(tenant ${idType}, tax_code uuid, rate_bps integer, valid_from date default null, valid_to date default null)
+create or replace function ${fn("upsert_tax_rate")}(tenant ${idType}, tax_code uuid, rate_bps integer, valid_from date default null, valid_to date default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  if not ${q.allowed("save_tax_rate.tenant", q.manage)} then
+  if not ${q.allowed("upsert_tax_rate.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage tax rates")}
   end if;
-  return ${fn("tax_rate_write")}(save_tax_rate.tenant, save_tax_rate.tax_code, save_tax_rate.rate_bps, save_tax_rate.valid_from, save_tax_rate.valid_to);
+  return ${fn("tax_rate_write")}(upsert_tax_rate.tenant, upsert_tax_rate.tax_code, upsert_tax_rate.rate_bps, upsert_tax_rate.valid_from, upsert_tax_rate.valid_to);
 end;
 $$;
-${userGrant(`${fn("save_tax_rate")}(${idType}, uuid, integer, date, date)`)}
+${userGrant(`${fn("upsert_tax_rate")}(${idType}, uuid, integer, date, date)`)}
 
 -- The organization's tax codes with their rate history. With a legal entity,
 -- the codes it can use: its own and the organization's.
@@ -304,7 +304,7 @@ function taxCodeImport(ctx: BlockSqlContext): string {
 
   return `
 -- The import target of the tax_code entity: item.data is the input of
--- save_tax_code, with rateBps and validFrom for the first rate.
+-- upsert_tax_code, with rateBps and validFrom for the first rate.
 create or replace function ${fn("import_tax_code")}(run uuid, item jsonb, subject_id text)
 returns jsonb
 language plpgsql

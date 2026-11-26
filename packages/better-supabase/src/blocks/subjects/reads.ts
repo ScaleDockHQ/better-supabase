@@ -85,7 +85,7 @@ function readOf(value: unknown): SubjectRead {
   };
 }
 
-const readList = (value: unknown): SubjectRead[] =>
+const getList = (value: unknown): SubjectRead[] =>
   (Array.isArray(value) ? value : []).map(readOf);
 
 /** `reads` of the subjects client, over `call`. */
@@ -110,7 +110,7 @@ export function subjectReads(call: BlockCall): SubjectReads {
           since: instantArg(options.since) ?? null,
           max_rows: options.limit ?? 100,
         },
-        readList,
+        getList,
       ),
   };
 }

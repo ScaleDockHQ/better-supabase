@@ -32,7 +32,7 @@ select set_config('test.journal', (
   select id::text from better_supabase.accounting_journals
   where tenant_id = '00000000-0000-4000-8000-000000000001' and code = 'SAL'
 ), true);
-select set_config('test.entry', better_supabase.save_accounting_entry(
+select set_config('test.entry', better_supabase.upsert_accounting_entry(
   current_setting('test.journal')::uuid, '2026-03-05',
   '[{"accountCode":"1200","debit":"12100"},{"accountCode":"4000","credit":"12100"}]'
 ) ->> 'id', true);
@@ -50,7 +50,7 @@ select throws_ok(
 );
 select throws_ok(
   format(
-    $$select better_supabase.post_accounting_entry((better_supabase.save_accounting_entry(%L::uuid, '2026-03-06', '[{"accountCode":"1200","debit":"500"},{"accountCode":"4000","credit":"400"}]') ->> 'id')::uuid)$$,
+    $$select better_supabase.post_accounting_entry((better_supabase.upsert_accounting_entry(%L::uuid, '2026-03-06', '[{"accountCode":"1200","debit":"500"},{"accountCode":"4000","credit":"400"}]') ->> 'id')::uuid)$$,
     current_setting('test.journal')
   ),
   '23514',
@@ -80,7 +80,7 @@ select is(
 );
 select throws_ok(
   format(
-    $$select better_supabase.post_accounting_entry((better_supabase.save_accounting_entry(%L::uuid, '2026-03-20', '[{"accountCode":"1200","debit":"100"},{"accountCode":"4000","credit":"100"}]') ->> 'id')::uuid)$$,
+    $$select better_supabase.post_accounting_entry((better_supabase.upsert_accounting_entry(%L::uuid, '2026-03-20', '[{"accountCode":"1200","debit":"100"},{"accountCode":"4000","credit":"100"}]') ->> 'id')::uuid)$$,
     current_setting('test.journal')
   ),
   '55000',
@@ -100,7 +100,7 @@ select is(
   'a source with nothing to book books nothing'
 );
 
-select set_config('test.budget', better_supabase.save_accounting_budget(
+select set_config('test.budget', better_supabase.upsert_accounting_budget(
   '00000000-0000-4000-8000-000000000001', 'Plan 2026', 2026, null,
   '[{"accountCode":"4000","periodNumber":3,"amount":"10000"}]'
 ) ->> 'id', true);
@@ -128,7 +128,7 @@ select set_config(
 );
 
 select throws_ok(
-  $$select better_supabase.save_accounting_budget('00000000-0000-4000-8000-000000000001', 'Member plan', 2026)$$,
+  $$select better_supabase.upsert_accounting_budget('00000000-0000-4000-8000-000000000001', 'Member plan', 2026)$$,
   '42501',
   null,
   'a member without accounting.write can''t save budgets'
@@ -140,7 +140,7 @@ select is(
 );
 select throws_ok(
   format(
-    $$select better_supabase.save_accounting_entry(%L::uuid, '2026-04-01', '[{"accountCode":"1200","debit":"1"},{"accountCode":"4000","credit":"1"}]')$$,
+    $$select better_supabase.upsert_accounting_entry(%L::uuid, '2026-04-01', '[{"accountCode":"1200","debit":"1"},{"accountCode":"4000","credit":"1"}]')$$,
     current_setting('test.journal')
   ),
   '42501',

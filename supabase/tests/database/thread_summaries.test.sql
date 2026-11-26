@@ -41,7 +41,7 @@ select is(
 
 select throws_ok(
   format(
-    $$select api.save_thread_summary(%L, null, 'Spoofed', '{"messageCount":1,"throughAt":"2026-01-01T00:00:00Z"}')$$,
+    $$select api.upsert_thread_summary(%L, null, 'Spoofed', '{"messageCount":1,"throughAt":"2026-01-01T00:00:00Z"}')$$,
     (select id from ids where name = 'channel')
   ),
   '42501',
@@ -55,7 +55,7 @@ select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
 
 select is(
-  api.save_thread_summary(
+  api.upsert_thread_summary(
     (select id from ids where name = 'channel'),
     null,
     '  The team plans to ship on Friday.  ',
@@ -72,7 +72,7 @@ select is(
 );
 
 select is(
-  (api.save_thread_summary(
+  (api.upsert_thread_summary(
     (select id from ids where name = 'channel'),
     null,
     'Shipping on Friday.',
@@ -83,7 +83,7 @@ select is(
 );
 
 select is(
-  (api.save_thread_summary(
+  (api.upsert_thread_summary(
     null,
     (select id from ids where name = 'root'),
     'Friday is agreed.',
@@ -95,7 +95,7 @@ select is(
 
 select throws_ok(
   format(
-    $$select api.save_thread_summary(%L, null, '   ', '{"messageCount":1,"throughAt":"2026-01-01T00:00:00Z"}')$$,
+    $$select api.upsert_thread_summary(%L, null, '   ', '{"messageCount":1,"throughAt":"2026-01-01T00:00:00Z"}')$$,
     (select id from ids where name = 'channel')
   ),
   '22023',
@@ -105,7 +105,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    $$select api.save_thread_summary(%L, null, 'No count', '{"messageCount":"many","throughAt":"2026-01-01T00:00:00Z"}')$$,
+    $$select api.upsert_thread_summary(%L, null, 'No count', '{"messageCount":"many","throughAt":"2026-01-01T00:00:00Z"}')$$,
     (select id from ids where name = 'channel')
   ),
   '22023',
@@ -115,7 +115,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    $$select api.save_thread_summary(null, %L, 'Not a root', '{"messageCount":1,"throughAt":"2026-01-01T00:00:00Z"}')$$,
+    $$select api.upsert_thread_summary(null, %L, 'Not a root', '{"messageCount":1,"throughAt":"2026-01-01T00:00:00Z"}')$$,
     (select id from ids where name = 'reply')
   ),
   'P0002',

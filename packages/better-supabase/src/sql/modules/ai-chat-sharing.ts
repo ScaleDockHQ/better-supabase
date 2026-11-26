@@ -24,8 +24,8 @@ const VISIBILITIES = ["private", "organization", "shared"]
   .join(", ");
 
 /**
- * The party kinds `add_ai_chat_party` writes, with the participant column that
- * holds each and the SQL type of the target.
+ * The party kinds `create_ai_chat_party` writes, with the participant column
+ * that holds each and the SQL type of the target.
  */
 const PARTIES = [
   { kind: "team", column: "team", cast: "uuid" },
@@ -54,7 +54,7 @@ export function aiChatSharing(
     ${raise("You may not share chats here", "42501", "AI_CHAT_FORBIDDEN")}
   end if;`;
 
-  const loadChat = (name: string, chat: string): string =>
+  const getChat = (name: string, chat: string): string =>
     `select x.${ch.id} as id, x.${ch.owner} as owner, x.${ch.tenant} as tenant into v_chat
   from ${t.chats} x where x.${ch.id} = ${name}.${chat} for update;
   if ${owns} then
@@ -81,8 +81,8 @@ export function aiChatSharing(
           [
             column,
             kind === "external"
-              ? "lower(btrim(add_ai_chat_party.party))"
-              : `add_ai_chat_party.party::${cast}`,
+              ? "lower(btrim(create_ai_chat_party.party))"
+              : `create_ai_chat_party.party::${cast}`,
           ],
           ["role", ctx.cast("participants", "role", "v_role")],
           ["addedBy", "auth.uid()"],
@@ -90,7 +90,7 @@ export function aiChatSharing(
 
         const target = kind === "external" ? `lower(${pa.email})` : pa[column];
 
-        return `${index === 0 ? "if" : "elsif"} add_ai_chat_party.party_kind = ${sqlString(kind)} then
+        return `${index === 0 ? "if" : "elsif"} create_ai_chat_party.party_kind = ${sqlString(kind)} then
     insert into ${t.participants} (${columns})
     values (${values})
     on conflict (${pa.chat}, ${target}) where ${pa.kind} = ${sqlString(kind)} do update set ${pa.role} = excluded.${pa.role}
@@ -105,7 +105,7 @@ export function aiChatSharing(
 -- link) to a chat, or changes its role. party_kind is team, customer or
 -- external; party is the team id, the customer's user id or the email. The
 -- chat becomes shared.
-create or replace function ${fn("add_ai_chat_party")}(chat uuid, party_kind text, party text, participant_role text default 'viewer')
+create or replace function ${fn("create_ai_chat_party")}(chat uuid, party_kind text, party text, participant_role text default 'viewer')
 returns jsonb
 language plpgsql
 security definer
@@ -114,49 +114,49 @@ as $$
 ${variableConflict(ctx, "participants", "chats")}
 declare
   v_chat record;
-  v_role text := coalesce(add_ai_chat_party.participant_role, 'viewer');
+  v_role text := coalesce(create_ai_chat_party.participant_role, 'viewer');
   v_team uuid;
   v_row ${t.participants};
 begin
-  ${loadChat("add_ai_chat_party", "chat")}
+  ${getChat("create_ai_chat_party", "chat")}
 ${mayShare}
   if v_role not in ('viewer', 'editor') then
     ${raise("A participant is a viewer or an editor, not %", "22023", "AI_CHAT_INVALID", "v_role")}
   end if;
-  if add_ai_chat_party.party_kind not in (${branches.map(({ kind }) => sqlString(kind)).join(", ")}) or add_ai_chat_party.party is null then
-    ${raise("A party is a team, a customer or an external email, not %", "22023", "AI_CHAT_INVALID", "add_ai_chat_party.party_kind")}
+  if create_ai_chat_party.party_kind not in (${branches.map(({ kind }) => sqlString(kind)).join(", ")}) or create_ai_chat_party.party is null then
+    ${raise("A party is a team, a customer or an external email, not %", "22023", "AI_CHAT_INVALID", "create_ai_chat_party.party_kind")}
   end if;
-  if add_ai_chat_party.party_kind = 'team' then
+  if create_ai_chat_party.party_kind = 'team' then
 ${
   team === undefined
     ? `    ${raise("Team participants need the teams module or options.teamMembership", "22023", "AI_CHAT_INVALID")}`
-    : `    v_team := add_ai_chat_party.party::uuid;
+    : `    v_team := create_ai_chat_party.party::uuid;
     if v_chat.tenant is null then
       ${raise("A chat outside an organization has no teams", "22023", "AI_CHAT_INVALID")}
     end if;`
 }
-  elsif add_ai_chat_party.party_kind = 'customer' then
+  elsif create_ai_chat_party.party_kind = 'customer' then
     if v_chat.tenant is null then
       ${raise("A customer needs a chat in an organization", "22023", "AI_CHAT_INVALID")}
     end if;
-    if add_ai_chat_party.party::uuid = v_chat.owner then
-      ${raise("The owner already takes part in chat %", "22023", "AI_CHAT_INVALID", "add_ai_chat_party.chat")}
+    if create_ai_chat_party.party::uuid = v_chat.owner then
+      ${raise("The owner already takes part in chat %", "22023", "AI_CHAT_INVALID", "create_ai_chat_party.chat")}
     end if;
-  elsif add_ai_chat_party.party !~* '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$' then
-    ${raise("% is not an email address", "22023", "AI_CHAT_INVALID", "add_ai_chat_party.party")}
+  elsif create_ai_chat_party.party !~* '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$' then
+    ${raise("% is not an email address", "22023", "AI_CHAT_INVALID", "create_ai_chat_party.party")}
   end if;
   ${inserts}
   end if;
   ${markShared(ctx, names, "v_chat.id")}
-  perform ${fn("ai_chat_notify")}(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
+  perform ${fn("ai_chat_notify")}(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', create_ai_chat_party.party_kind, 'role', v_role), true);
   return ${participantJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("add_ai_chat_party")}(uuid, text, text, text)`)}
+${userGrant(`${fn("create_ai_chat_party")}(uuid, text, text, text)`)}
 
 -- Removes a team, customer or external email from a chat: its owner or the
 -- service role. Returns whether the party took part.
-create or replace function ${fn("remove_ai_chat_party")}(chat uuid, party_kind text, party text)
+create or replace function ${fn("delete_ai_chat_party")}(chat uuid, party_kind text, party text)
 returns boolean
 language plpgsql
 security definer
@@ -167,18 +167,18 @@ declare
   v_chat record;
   v_count integer;
 begin
-  ${loadChat("remove_ai_chat_party", "chat")}
+  ${getChat("delete_ai_chat_party", "chat")}
   delete from ${t.participants} x
-  where x.${pa.chat} = v_chat.id and x.${pa.kind}::text = remove_ai_chat_party.party_kind
-    and (${branches.map(({ kind, column, cast }) => `(remove_ai_chat_party.party_kind = ${sqlString(kind)} and ${kind === "external" ? `lower(x.${pa[column]}) = lower(btrim(remove_ai_chat_party.party))` : `x.${pa[column]} = remove_ai_chat_party.party::${cast}`})`).join(" or ")});
+  where x.${pa.chat} = v_chat.id and x.${pa.kind}::text = delete_ai_chat_party.party_kind
+    and (${branches.map(({ kind, column, cast }) => `(delete_ai_chat_party.party_kind = ${sqlString(kind)} and ${kind === "external" ? `lower(x.${pa[column]}) = lower(btrim(delete_ai_chat_party.party))` : `x.${pa[column]} = delete_ai_chat_party.party::${cast}`})`).join(" or ")});
   get diagnostics v_count = row_count;
   if v_count > 0 then
-    perform ${fn("ai_chat_notify")}(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);
+    perform ${fn("ai_chat_notify")}(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', delete_ai_chat_party.party_kind), true);
   end if;
   return v_count > 0;
 end;
 $$;
-${userGrant(`${fn("remove_ai_chat_party")}(uuid, text, text)`)}
+${userGrant(`${fn("delete_ai_chat_party")}(uuid, text, text)`)}
 
 `;
   };
@@ -233,7 +233,7 @@ declare
   v_chat record;
   v_salt text;
 begin
-  ${loadChat("create_ai_chat_link", "chat")}
+  ${getChat("create_ai_chat_link", "chat")}
 ${mayShare}
   insert into ${t.links} (${lk.chat}, ${lk.salt}, ${lk.createdBy})
   values (v_chat.id, encode(extensions.gen_random_bytes(16), 'hex'), coalesce(auth.uid(), v_chat.owner))
@@ -258,7 +258,7 @@ declare
   v_chat record;
   v_salt text := encode(extensions.gen_random_bytes(16), 'hex');
 begin
-  ${loadChat("rotate_ai_chat_link", "chat")}
+  ${getChat("rotate_ai_chat_link", "chat")}
 ${mayShare}
   update ${t.links} l set ${lk.salt} = v_salt${ctx.has("links", "rotatedAt") ? `, ${lk.rotatedAt} = now()` : ""}
   where l.${lk.chat} = v_chat.id;
@@ -281,7 +281,7 @@ ${variableConflict(ctx, "links", "chats")}
 declare
   v_chat record;
 begin
-  ${loadChat("revoke_ai_chat_link", "chat")}
+  ${getChat("revoke_ai_chat_link", "chat")}
   delete from ${t.links} l where l.${lk.chat} = v_chat.id;
   return found;
 end;

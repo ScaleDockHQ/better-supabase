@@ -938,12 +938,12 @@ export function createInvoices<
     recomputeStatus: (invoiceId) =>
       invoice("recompute_invoice_status", { invoice: invoiceId }),
     removeCharge: ({ chargeId, ...actorOptions }) =>
-      invoice("remove_invoice_charge", {
+      invoice("delete_invoice_charge", {
         charge: chargeId,
         ...actorArg(actorOptions.actor),
       }),
     charge: ({ invoiceId, charge }) =>
-      invoice("add_invoice_charge", {
+      invoice("create_invoice_charge", {
         invoice: invoiceId,
         amount: amountText(charge.amount),
         currency: charge.amount.currency,

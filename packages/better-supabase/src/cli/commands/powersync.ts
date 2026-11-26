@@ -185,7 +185,7 @@ async function publicationMigration(
  * By attachments or care instance, the roles whose keys grant its `read`
  * permission, when access runs on the `roles` model.
  */
-function readRolesOf(
+function getRolesOf(
   config: ResolvedConfig,
   layout: BlockSqlLayout,
   instances: readonly PowerSyncInstance[],
@@ -345,7 +345,7 @@ export async function runPowerSync(
       ],
       instances,
       own,
-      readRoles: readRolesOf(config, layout, instances),
+      readRoles: getRolesOf(config, layout, instances),
       projections: await projectionsOf(app),
       subjects: subjectsOf(config, app),
       children,

@@ -167,7 +167,7 @@ const isModule = (value: unknown): value is StripeModule =>
  * the optional peer out of apps that pass their own client; a missing install
  * returns `undefined` and the caller explains how to add it.
  */
-const loadStripeModule = (): Promise<unknown> => importOptionalPeer("stripe");
+const getStripeModule = (): Promise<unknown> => importOptionalPeer("stripe");
 
 /**
  * The client `source` names: itself, or one created with Stripe's fetch HTTP
@@ -175,7 +175,7 @@ const loadStripeModule = (): Promise<unknown> => importOptionalPeer("stripe");
  */
 export async function stripeClient<C extends object = StripeClient>(
   source: StripeSource<NoInfer<C>>,
-  load: () => Promise<unknown> = loadStripeModule,
+  load: () => Promise<unknown> = getStripeModule,
 ): Promise<C> {
   if (typeof source === "function") {
     return source();

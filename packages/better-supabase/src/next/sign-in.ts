@@ -94,6 +94,11 @@ export function postAuthPath(
   );
 }
 
+/** The key `createNext` stores the pieces `createAuthFlows` needs under. */
+export const AUTH_FLOWS_HOST: unique symbol = Symbol.for(
+  "better-supabase.next.auth-flows-host",
+);
+
 export interface AuthFlowDeps<C, P> {
   /** Read on each call: the env may load after `createNext`. */
   readonly env: () => {
@@ -123,37 +128,96 @@ export interface AuthFlowDeps<C, P> {
 }
 
 export interface AuthFlows {
+  /**
+   * Signs in with an email and a password from a server action. It writes the
+   * session cookies, stores the verified session for the next render and
+   * returns `redirectTo`: `credentials.next` when it is a same-origin path,
+   * else `options.fallback` (`/`). Reads later in the same request
+   * (`getClaims()`, `claims()`, `context()`) see the new session.
+   */
   signInWithPassword(
     credentials: SignInCredentials,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Verifies an email link's `token_hash` (sign-up, invite, magic link,
+   * recovery, email change) or an emailed code, then commits the session like
+   * `signInWithPassword`. The new session replaces any session the request
+   * carried.
+   */
   verifyOtp(
     params: VerifyOtpParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
+  /**
+   * The Auth server's OAuth URL for `provider`, for a `redirect()`, from
+   * auth-js's `signInWithOAuth`. auth-js stores the PKCE verifier in a cookie
+   * through `@supabase/ssr`, where `exchangeCodeForSession` reads it. `next`
+   * rides on `redirectTo` as `?next=` when it is a same-origin path.
+   */
   signInWithOAuth(
     params: SignInWithOAuthParams,
   ): Promise<{ readonly url: string }>;
+  /**
+   * Exchanges the callback's `?code=` and the PKCE verifier cookie for a
+   * session with auth-js, and commits it like `signInWithPassword`.
+   */
   exchangeCodeForSession(
     params: ExchangeCodeParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Challenges and verifies an MFA factor for the signed-in user and commits
+   * the `aal2` session; `mfa` is then false.
+   */
   verifyMfa(
     params: MfaVerification,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Ends the session on the Auth server first (`scope`, `local` by default),
+   * then clears the session cookies (also at `cookieScopes`), forgets the
+   * verified sessions and expires its cache tags. `others` keeps this session
+   * and its cookies, and still forgets the verified sessions. Reads later in
+   * the same request are signed out.
+   */
   signOut(
     params?: SignOutParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn>>;
+  /**
+   * Emails a magic link and a code. It writes the PKCE verifier cookie like
+   * `signInWithOAuth`, so the link's `?code=` goes to `exchangeCodeForSession`,
+   * and the code to `verifyOtp` with `type: "email"`. Returns `null`: nothing
+   * is signed in yet.
+   */
   signInWithOtp(params: SignInWithOtpParams): Promise<ActionResult<null>>;
+  /**
+   * Emails a password reset link with the PKCE verifier cookie.
+   * `exchangeCodeForSession` on the callback signs the user in; the app then
+   * asks for the new password. Auth answers the same whether or not an account
+   * has the email.
+   */
   resetPasswordForEmail(
     params: ResetPasswordParams,
   ): Promise<ActionResult<null>>;
+  /**
+   * Signs up with an email and a password. With email confirmation on, it
+   * emails the confirmation link with the PKCE verifier cookie and returns
+   * `null`. With it off, Auth returns a session, committed like
+   * `signInWithPassword`. When the email already has a confirmed account, Auth
+   * sends nothing and this returns `{ existingAccount: true }`, so the app can
+   * email the owner itself. Show the user the same screen either way, so the
+   * page doesn't tell who has an account.
+   */
   signUp(
     params: SignUpParams,
     options?: SignInOptions,
   ): Promise<ActionResult<SignedIn | ExistingAccount | null>>;
+  /**
+   * Emails the sign-up confirmation or the email change link again, with a new
+   * PKCE verifier.
+   */
   resend(params: ResendParams): Promise<ActionResult<null>>;
 }
 
@@ -176,7 +240,7 @@ function refused(auth: AuthState): ActionResult<never> {
  * no token: it crosses the action boundary, and the session is on the request's
  * reads.
  */
-export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
+function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
   const { auth } = deps;
 
   const cookieName = (): string =>
@@ -567,4 +631,19 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
       return commit(null, cleared.writes, params.next, options);
     },
   };
+}
+
+/**
+ * The server-side sign-in and sign-out flows of a `createNext` instance. They
+ * live on their own subpath so an app that signs in with the browser client
+ * does not ship them (ADR 1258).
+ *
+ * ```ts
+ * export const flows = createAuthFlows(bsb);
+ * ```
+ */
+export function createAuthFlows<C, P>(bsb: {
+  readonly [AUTH_FLOWS_HOST]: AuthFlowDeps<C, P>;
+}): AuthFlows {
+  return authFlows(bsb[AUTH_FLOWS_HOST]);
 }

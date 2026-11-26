@@ -24,7 +24,7 @@ select 'chat', (api.create_ai_chat(
 ) ->> 'id')::uuid;
 
 select is(
-  api.add_ai_chat_participant(
+  api.create_ai_chat_participant(
     (select id from ids where name = 'chat'),
     '00000000-0000-4000-8000-0000000000a2'
   ) ->> 'role',
@@ -34,7 +34,7 @@ select is(
 
 select throws_ok(
   format(
-    $$select api.add_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a1')$$,
+    $$select api.create_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a1')$$,
     (select id from ids where name = 'chat')
   ),
   '22023',
@@ -44,7 +44,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    $$select api.add_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a2', 'admin')$$,
+    $$select api.create_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a2', 'admin')$$,
     (select id from ids where name = 'chat')
   ),
   '22023',
@@ -54,7 +54,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    $$select api.add_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a3')$$,
+    $$select api.create_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a3')$$,
     (select id from ids where name = 'chat')
   ),
   '22023',
@@ -106,7 +106,7 @@ select throws_ok(
 
 select throws_ok(
   format(
-    $$select api.add_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a2', 'editor')$$,
+    $$select api.create_ai_chat_participant(%L, '00000000-0000-4000-8000-0000000000a2', 'editor')$$,
     (select id from ids where name = 'chat')
   ),
   'P0002',
@@ -123,7 +123,7 @@ select set_config(
 );
 set local role authenticated;
 
-select api.add_ai_chat_participant(
+select api.create_ai_chat_participant(
   (select id from ids where name = 'chat'),
   '00000000-0000-4000-8000-0000000000a2',
   'editor'
@@ -147,7 +147,7 @@ select is(
 );
 
 select is(
-  api.remove_ai_chat_participant(
+  api.delete_ai_chat_participant(
     (select id from ids where name = 'chat'),
     '00000000-0000-4000-8000-0000000000a2'
   ),

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 
-import { loadStackEnvCheck, ENV_RULES } from "../../../src/cli/doctor/env.ts";
+import { getStackEnvCheck, ENV_RULES } from "../../../src/cli/doctor/env.ts";
 import { PROCESS_ENV, parseEnv } from "../../../src/cli/env.ts";
 
 const STATUS = {
@@ -46,7 +46,7 @@ describe("BS503", () => {
   it("names each stale variable with redacted values", async () => {
     const bin = await fakeSupabase(`echo '${JSON.stringify(STATUS)}'`);
 
-    const stackEnv = await loadStackEnvCheck(
+    const stackEnv = await getStackEnvCheck(
       root,
       parseEnv({
         SUPABASE_BIN: bin,
@@ -72,7 +72,7 @@ describe("BS503", () => {
     const bin = await fakeSupabase(`echo '${JSON.stringify(STATUS)}'`);
     const jwks = JSON.stringify({ keys: [{ kty: "EC", kid: "hosted" }] });
 
-    const stackEnv = await loadStackEnvCheck(
+    const stackEnv = await getStackEnvCheck(
       root,
       parseEnv({ SUPABASE_BIN: bin, SUPABASE_JWKS: jwks }),
     );
@@ -107,13 +107,13 @@ describe("BS503", () => {
           SUPABASE_JWKS: JSON.stringify(jwks),
         });
 
-      expect(await check(await loadStackEnvCheck(root, env(served)))).toEqual(
+      expect(await check(await getStackEnvCheck(root, env(served)))).toEqual(
         [],
       );
       expect(
         (
           await check(
-            await loadStackEnvCheck(
+            await getStackEnvCheck(
               root,
               env({ keys: [{ kty: "EC", kid: "hosted" }] }),
             ),
@@ -129,12 +129,12 @@ describe("BS503", () => {
     const bin = await fakeSupabase("exit 99");
 
     expect(
-      await loadStackEnvCheck(
+      await getStackEnvCheck(
         root,
         parseEnv({ SUPABASE_BIN: bin, PATH: "/bin" }),
       ),
     ).toEqual({ skipped: "No SUPABASE_* variable is exported." });
-    expect(await loadStackEnvCheck(root, {})).toMatchObject({
+    expect(await getStackEnvCheck(root, {})).toMatchObject({
       skipped: expect.any(String),
     });
   });
@@ -142,7 +142,7 @@ describe("BS503", () => {
   it("skips quietly when the stack is down or the CLI is missing", async () => {
     const down = await fakeSupabase("exit 1");
 
-    const stopped = await loadStackEnvCheck(
+    const stopped = await getStackEnvCheck(
       root,
       parseEnv({ SUPABASE_BIN: down, SUPABASE_URL: "http://127.0.0.1:54321" }),
     );
@@ -150,7 +150,7 @@ describe("BS503", () => {
     expect(stopped).toEqual({ skipped: "The local stack is not running." });
     expect(await check(stopped)).toEqual([]);
 
-    const missing = await loadStackEnvCheck(root, {
+    const missing = await getStackEnvCheck(root, {
       SUPABASE_BIN: join(root, "nope"),
       [PROCESS_ENV]: { SUPABASE_URL: "http://127.0.0.1:54321" },
     });
@@ -217,7 +217,7 @@ describe("BS509", () => {
     } as unknown as DoctorContext);
   };
 
-  it("reports a SUPABASE_JWKS that loadEnv would reject", async () => {
+  it("reports a SUPABASE_JWKS that getEnv would reject", async () => {
     const findings = await checkJwks(
       ["SUPABASE_URL=http://127.0.0.1:54321", "SUPABASE_JWKS={keys:"].join(
         "\n",

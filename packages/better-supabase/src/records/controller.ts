@@ -19,7 +19,7 @@ import type {
 
 import { defineController, whileSignedIn } from "../blocks/controller.ts";
 import { recordEventMatches } from "../blocks/record-bindings.ts";
-import { findBinding, loadBindings } from "./bindings.ts";
+import { findBinding, getBindings } from "./bindings.ts";
 
 export interface RecordControllerOptions<
   B extends BindingBlocks,
@@ -85,7 +85,7 @@ export type RecordController<
 
 /**
  * One record page's bindings for the signed-in user over one realtime
- * subscription (ADR 0030): it loads them with `loadBindings`, and loads a
+ * subscription (ADR 0030): it loads them with `getBindings`, and loads a
  * binding again when `topic` carries one of its events.
  */
 export function createRecordController<
@@ -109,7 +109,7 @@ export function createRecordController<
       const held = new Set<N>();
       let heldSummary = false;
 
-      const loadSummary = async (): Promise<void> => {
+      const getSummary = async (): Promise<void> => {
         if (subject === null || options.summary === undefined) {
           return;
         }
@@ -140,7 +140,7 @@ export function createRecordController<
         );
       };
 
-      const loadNamed = async (names: readonly N[]): Promise<void> => {
+      const getNamed = async (names: readonly N[]): Promise<void> => {
         if (subject === null || names.length === 0) {
           return;
         }
@@ -163,7 +163,7 @@ export function createRecordController<
         );
 
         const loaded: Readonly<Record<string, RecordBindingResult<unknown>>> =
-          await loadBindings(source, subject, names, options);
+          await getBindings(source, subject, names, options);
 
         const current = names.filter((name) => {
           if (tickets.get(name) !== mine.get(name)) {
@@ -199,8 +199,8 @@ export function createRecordController<
 
       const refresh = async (names?: readonly N[]): Promise<void> => {
         await (names === undefined
-          ? Promise.all([loadNamed(bindings), loadSummary()])
-          : loadNamed(names));
+          ? Promise.all([getNamed(bindings), getSummary()])
+          : getNamed(names));
       };
 
       const stale = (event: string): readonly N[] => {
@@ -230,10 +230,7 @@ export function createRecordController<
         held.clear();
         heldSummary = false;
 
-        void Promise.all([
-          loadNamed(names),
-          summary ? loadSummary() : undefined,
-        ]);
+        void Promise.all([getNamed(names), summary ? getSummary() : undefined]);
       };
 
       return {
@@ -250,7 +247,7 @@ export function createRecordController<
 
                 const { leave } = options.ports.topic(topic, {
                   onMessage: (event) => {
-                    void Promise.all([loadNamed(stale(event)), loadSummary()]);
+                    void Promise.all([getNamed(stale(event)), getSummary()]);
                   },
                   onRejoin: () => void refresh(),
                   onStatus: (status) => {

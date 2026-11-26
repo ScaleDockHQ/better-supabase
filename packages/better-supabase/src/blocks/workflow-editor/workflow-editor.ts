@@ -264,7 +264,7 @@ export function createWorkflowEditor<
           .args(input.fields)
           .andThen((checked) =>
             call(
-              "save_workflow_definition",
+              "upsert_workflow_definition",
               {
                 tenant: input.tenant,
                 slug: input.slug,
@@ -276,7 +276,7 @@ export function createWorkflowEditor<
                 fields: checked,
               },
               (value) =>
-                definitionOf(recordOf(value, "save_workflow_definition")),
+                definitionOf(recordOf(value, "upsert_workflow_definition")),
             ).andThen(fields.row),
           ),
       page: (options) =>
@@ -320,7 +320,7 @@ export function createWorkflowEditor<
         ),
       remove: (id) =>
         call(
-          "remove_workflow_definition",
+          "delete_workflow_definition",
           { definition: id },
           (value) => value === true,
         ),
@@ -385,7 +385,7 @@ export function createWorkflowEditor<
     versions: {
       upsert: ({ definition, graph, ...saveOptions }) =>
         call(
-          "save_workflow_draft",
+          "upsert_workflow_draft",
           {
             definition,
             graph,
@@ -393,7 +393,7 @@ export function createWorkflowEditor<
               ? {}
               : { input_schema: saveOptions.inputSchema }),
           },
-          (value) => versionOf(recordOf(value, "save_workflow_draft")),
+          (value) => versionOf(recordOf(value, "upsert_workflow_draft")),
         ),
       publish: ({ version, ...publishOptions }) =>
         getVersion(version).andThen(async (found) => {
@@ -554,7 +554,7 @@ export function createWorkflowEditor<
     triggers: {
       upsert: (input) =>
         call(
-          "save_workflow_trigger",
+          "upsert_workflow_trigger",
           {
             definition: input.definition,
             kind: input.kind,
@@ -562,7 +562,7 @@ export function createWorkflowEditor<
             enabled: input.enabled ?? true,
             trigger: input.id,
           },
-          (value) => triggerOf(recordOf(value, "save_workflow_trigger")),
+          (value) => triggerOf(recordOf(value, "upsert_workflow_trigger")),
         ),
       list: (definition, options?: { readonly limit?: number }) =>
         call("workflow_triggers_list", { definition }, (value) => {
@@ -576,7 +576,7 @@ export function createWorkflowEditor<
         }),
       remove: (id) =>
         call(
-          "remove_workflow_trigger",
+          "delete_workflow_trigger",
           { trigger: id },
           (value) => value === true,
         ),
@@ -760,7 +760,7 @@ export function createWorkflowEditor<
       create: (input) => {
         const save = () =>
           call(
-            "save_workflow_credential",
+            "upsert_workflow_credential",
             {
               tenant: input.tenant,
               kind: input.kind,
@@ -769,7 +769,7 @@ export function createWorkflowEditor<
               scopes: input.scopes ?? [],
             },
             (value) =>
-              credentialOf(recordOf(value, "save_workflow_credential")),
+              credentialOf(recordOf(value, "upsert_workflow_credential")),
           );
 
         if (input.secret === undefined) {
@@ -835,7 +835,7 @@ export function createWorkflowEditor<
             .map((started) => started.url);
         }),
       revoke: (id) =>
-        call("remove_workflow_credential", { credential: id }, (value) =>
+        call("delete_workflow_credential", { credential: id }, (value) =>
           isRecord(value) ? credentialOf(value) : undefined,
         ).andThen(async (row) => {
           if (row === undefined) {
@@ -949,7 +949,7 @@ export function createWorkflowEditor<
     alerts: {
       upsert: (input) =>
         call(
-          "save_workflow_alert",
+          "upsert_workflow_alert",
           {
             definition: input.definition,
             on_event: input.onEvent,
@@ -960,14 +960,14 @@ export function createWorkflowEditor<
                 : seconds(input.threshold),
             alert: input.id,
           },
-          (value) => alertOf(recordOf(value, "save_workflow_alert")),
+          (value) => alertOf(recordOf(value, "upsert_workflow_alert")),
         ),
       list: (definition) =>
         call("workflow_alerts_list", { definition }, (value) =>
           recordsOf(value, "workflow_alerts_list").map(alertOf),
         ),
       remove: (id) =>
-        call("remove_workflow_alert", { alert: id }, (value) => value === true),
+        call("delete_workflow_alert", { alert: id }, (value) => value === true),
       check: (check = {}) =>
         serviceCall("check_workflow_alerts", { batch: check.batch }, Number),
     },

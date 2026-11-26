@@ -27,7 +27,7 @@ import {
   PLAN_ARGS,
   planResult,
 } from "../core/files.ts";
-import { readIfExists } from "../core/io.ts";
+import { getIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import {
   CANCELLED,
@@ -139,7 +139,7 @@ async function addBlocks(
   if (clients.length > 0) {
     const wiring = blocksWiringPath(context);
     const path = resolve(config.root, wiring);
-    const current = await readIfExists(path);
+    const current = await getIfExists(path);
 
     const edit =
       current === undefined ? undefined : addBlocksToWiring(current, clients);
@@ -193,7 +193,7 @@ async function addBlocks(
   const wiring = wiringFor([...wanted].map((name) => ({ name, block: name })));
 
   const written = await wiringFiles(context, wiring, (path) =>
-    readIfExists(resolve(config.root, path)),
+    getIfExists(resolve(config.root, path)),
   );
 
   if (written.files.length > 0) {

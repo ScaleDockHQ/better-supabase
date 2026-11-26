@@ -205,7 +205,7 @@ declare
   v_detail jsonb;
 begin
   ${SERVICE}
-  v_job := (better_supabase.save_job('${TENANT}', null, '{"title": "Engineer", "status": "open"}'::jsonb) ->> 'id')::uuid;
+  v_job := (better_supabase.upsert_job('${TENANT}', null, '{"title": "Engineer", "status": "open"}'::jsonb) ->> 'id')::uuid;
   if (select state from public.openings where id = v_job) <> 'open'
     or (select opened_on from public.openings where id = v_job) is null then
     raise exception 'job %', (select to_jsonb(o) from public.openings o where id = v_job);
@@ -223,7 +223,7 @@ begin
     or v_detail -> 'scorecards' -> 0 ->> 'verdict' <> 'strong_yes' then
     raise exception 'detail %', v_detail;
   end if;
-  perform better_supabase.save_job('${TENANT}', v_job, '{"status": "closed"}'::jsonb);
+  perform better_supabase.upsert_job('${TENANT}', v_job, '{"status": "closed"}'::jsonb);
   if (select state from public.openings where id = v_job) <> 'closed' then
     raise exception 'job state is %', (select state from public.openings where id = v_job);
   end if;
@@ -239,7 +239,7 @@ declare
   v_job uuid;
 begin
   ${SERVICE}
-  v_job := (better_supabase.save_job('${TENANT}', null, '{"title": "Engineer", "status": "open"}'::jsonb) ->> 'id')::uuid;
+  v_job := (better_supabase.upsert_job('${TENANT}', null, '{"title": "Engineer", "status": "open"}'::jsonb) ->> 'id')::uuid;
   perform better_supabase.apply_to_job(v_job, '{"id": "${PERSON}"}'::jsonb, 'referral', null);
 end;
 $$;`),
@@ -274,7 +274,7 @@ declare
   v_employee jsonb;
 begin
   ${SERVICE}
-  v_job := (better_supabase.save_job('${TENANT}', null, '{"title": "Engineer", "status": "open", "employmentType": "contractor"}'::jsonb) ->> 'id')::uuid;
+  v_job := (better_supabase.upsert_job('${TENANT}', null, '{"title": "Engineer", "status": "open", "employmentType": "contractor"}'::jsonb) ->> 'id')::uuid;
   if (select employment_kind::text from public.openings where id = v_job) <> 'freelance' then
     raise exception 'job %', (select to_jsonb(o) from public.openings o where id = v_job);
   end if;

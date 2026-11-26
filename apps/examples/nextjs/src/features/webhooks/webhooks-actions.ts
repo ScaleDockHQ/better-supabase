@@ -7,10 +7,10 @@ import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { EVENT_PATTERN } from "./webhook-types";
-import { WEBHOOKS_TAG } from "./webhooks-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -87,7 +87,7 @@ export const createWebhookEndpoint = bsb.action(
     );
 
     if (created.ok) {
-      await refreshCaller(auth, [WEBHOOKS_TAG]);
+      await refreshCaller(auth, [tags.webhooks()]);
     }
 
     return created;
@@ -96,8 +96,13 @@ export const createWebhookEndpoint = bsb.action(
 
 /** Turns an endpoint on or off. Turning it on clears an automatic disable. */
 export const setWebhookEndpointEnabled = bsb.action(
-  { ...manage, input: v.object({ id: Id, enabled: v.boolean() }) },
-  async ({ id, enabled }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id, enabled: v.boolean() }),
+    tags: () => [tags.webhooks()],
+    refresh: true,
+  },
+  async ({ id, enabled }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -127,16 +132,19 @@ export const setWebhookEndpointEnabled = bsb.action(
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
 
-    await refreshCaller(auth, [WEBHOOKS_TAG]);
-
     return ok(enabled);
   },
 );
 
 /** Deletes an endpoint with its deliveries and secrets. */
 export const deleteWebhookEndpoint = bsb.action(
-  { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id }),
+    tags: () => [tags.webhooks()],
+    refresh: true,
+  },
+  async ({ id }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -162,8 +170,6 @@ export const deleteWebhookEndpoint = bsb.action(
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
 
-    await refreshCaller(auth, [WEBHOOKS_TAG]);
-
     return ok(true);
   },
 );
@@ -179,7 +185,7 @@ export const sendTestWebhook = bsb.action(
     });
 
     if (sent.ok) {
-      await refreshCaller(auth, [WEBHOOKS_TAG]);
+      await refreshCaller(auth, [tags.webhooks()]);
     }
 
     return sent;
@@ -193,7 +199,7 @@ export const redeliverWebhook = bsb.action(
     const queued = await db.webhooks.redeliver(id);
 
     if (queued.ok) {
-      await refreshCaller(auth, [WEBHOOKS_TAG]);
+      await refreshCaller(auth, [tags.webhooks()]);
     }
 
     return queued;

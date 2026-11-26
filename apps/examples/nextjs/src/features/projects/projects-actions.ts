@@ -16,8 +16,8 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { importRunHooks } from "@/features/imports/import-run";
-import { WORK_TAG } from "@/features/work/work-cache";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { TaskStatus } from "./project-types";
@@ -32,7 +32,6 @@ import {
   TaskStatusSchema,
   TASK_IMPORT_FIELDS,
 } from "./project-types";
-import { PROJECTS_TAG } from "./projects-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -58,8 +57,10 @@ export const createProject = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireTenant: true,
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async ({ name }, { tenant, db, auth }) => {
+  async ({ name }, { tenant, db }) => {
     const created = await db.projects.create(
       { name, organizationId: tenant },
       { select: ["id"] },
@@ -68,8 +69,6 @@ export const createProject = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(created.data.id);
   },
@@ -100,8 +99,10 @@ export const createTask = bsb.action(
       ),
     ),
     requireTenant: true,
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async (task, { tenant, db, auth }) => {
+  async (task, { tenant, db }) => {
     const created = await db.tasks.create(
       { ...task, organizationId: tenant },
       { select: ["id"] },
@@ -110,8 +111,6 @@ export const createTask = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(created.data.id);
   },
@@ -130,15 +129,15 @@ export const moveTask = bsb.action(
       nextId: v.nullable(Id),
     }),
     requireTenant: true,
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async ({ id, status, previousId, nextId }, { db, auth }) => {
+  async ({ id, status, previousId, nextId }, { db }) => {
     const moved = await db.rank.move({
       subjectType: TASK_SUBJECT,
       subjectId: id,
       target: { previous: previousId, next: nextId, group: status },
     });
-
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return moved;
   },
@@ -159,8 +158,10 @@ export const runTaskBulkAction = bsb.action(
       }),
     ]),
     requireTenant: true,
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const where = { id: { in: input.ids } };
 
     const changed =
@@ -171,8 +172,6 @@ export const runTaskBulkAction = bsb.action(
     if (!changed.ok) {
       return changed;
     }
-
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(changed.data);
   },
@@ -194,8 +193,10 @@ export const setTaskField = bsb.action(
     }),
     requireTenant: true,
     permission: "bulk_actions.run",
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async ({ ids, values }, { db, auth }) => {
+  async ({ ids, values }, { db }) => {
     const patch =
       "due_on" in values
         ? { dueOn: values.due_on }
@@ -207,8 +208,6 @@ export const setTaskField = bsb.action(
       patch,
       { maxAffected: ids.length },
     );
-
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(result.ok ? result.data.count : 0);
   },
@@ -232,8 +231,10 @@ export const saveTaskView = bsb.action(
     }),
     requireTenant: true,
     permission: "saved_views.read",
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
+  async ({ name, view, q, status, projectId }, { tenant, db }) => {
     const query: TaskViewQuery = {};
     const facets: Record<string, string[]> = {};
 
@@ -265,8 +266,6 @@ export const saveTaskView = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
-
     return ok(saved.data.id);
   },
 );
@@ -276,15 +275,15 @@ export const deleteTaskView = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "saved_views.read",
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
 
     if (!deleted.ok) {
       return deleted;
     }
-
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(deleted.data);
   },
@@ -307,8 +306,10 @@ export const restoreProjectFields = bsb.action(
     }),
     requireTenant: true,
     permission: "versions.restore",
+    tags: () => [tags.projects(), tags.work()],
+    refresh: true,
   },
-  async ({ projectId, versionId, fields }, { db, auth }) => {
+  async ({ projectId, versionId, fields }, { db }) => {
     const { versions } = db;
     const version = await versions.get(versionId);
 
@@ -330,8 +331,6 @@ export const restoreProjectFields = bsb.action(
     if (!restored.ok) {
       return restored;
     }
-
-    await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
 
     return ok(null);
   },
@@ -451,7 +450,7 @@ export const runTaskImport = bsb.action(
     try {
       const result = await runImport(definition, csv, mapping, hooks);
 
-      await refreshCaller(auth, [PROJECTS_TAG, WORK_TAG]);
+      await refreshCaller(auth, [tags.projects(), tags.work()]);
 
       return ok<TaskImportOutcome>({
         status: result.status,

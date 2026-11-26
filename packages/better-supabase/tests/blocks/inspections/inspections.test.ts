@@ -94,7 +94,7 @@ const date = (value: string) => temporal().PlainDate.from(value);
 describe("createInspections", () => {
   it("saves, approves, closes and lists programmes", async () => {
     const t = fieldsTransport({
-      save_inspection_program: () => PROGRAM,
+      upsert_inspection_program: () => PROGRAM,
       approve_inspection_program: () => ({ ...PROGRAM, status: "approved" }),
       close_inspection_program: () => ({ ...PROGRAM, status: "closed" }),
       list_inspection_programs: () => [PROGRAM],
@@ -122,7 +122,7 @@ describe("createInspections", () => {
     expect(listed).toHaveLength(1);
     expect(t.calls).toEqual([
       [
-        "save_inspection_program",
+        "upsert_inspection_program",
         {
           tenant: "org-1",
           name: "Audit programme 2027",
@@ -227,7 +227,7 @@ describe("createInspections", () => {
     const t = fieldsTransport({
       set_inspection_members: () => INSPECTION,
       start_inspection: () => INSPECTION,
-      save_inspection_checklist: () => ({ id: "s1" }),
+      upsert_inspection_checklist: () => ({ id: "s1" }),
       complete_inspection: () => ({ ...INSPECTION, status: "reporting" }),
       close_inspection: () => BARE,
       cancel_inspection: () => ({ ...BARE, status: "canceled" }),
@@ -295,11 +295,11 @@ describe("createInspections", () => {
       ],
       ["start_inspection", { inspection_id: "i1" }],
       [
-        "save_inspection_checklist",
+        "upsert_inspection_checklist",
         { inspection_id: "i1", answers: { q1: "yes" }, draft: false },
       ],
       [
-        "save_inspection_checklist",
+        "upsert_inspection_checklist",
         { inspection_id: "i1", answers: { q1: "no" }, draft: true },
       ],
       ["complete_inspection", { inspection_id: "i1", summary: "Two findings" }],
@@ -312,7 +312,7 @@ describe("createInspections", () => {
 
   it("adds, changes, deletes and raises cases for findings", async () => {
     const t = fieldsTransport({
-      add_inspection_finding: () => FINDING,
+      create_inspection_finding: () => FINDING,
       update_inspection_finding: () => ({ ...FINDING, clause: null }),
       delete_inspection_finding: () => FINDING,
       raise_inspection_finding_case: () => ({ ...FINDING, caseId: "case-1" }),
@@ -343,7 +343,7 @@ describe("createInspections", () => {
     expect(raised.caseId).toBe("case-1");
     expect(t.calls).toEqual([
       [
-        "add_inspection_finding",
+        "create_inspection_finding",
         {
           inspection_id: "i1",
           type: "major_nonconformity",

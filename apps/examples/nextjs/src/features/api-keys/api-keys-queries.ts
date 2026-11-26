@@ -4,9 +4,8 @@ import type { ApiKeyState } from "better-supabase/blocks/api-keys";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { API_KEYS_TAG } from "./api-keys-cache";
 
 export interface ApiKeyDetail {
   readonly id: string;
@@ -32,12 +31,12 @@ export interface ApiKeyDetail {
  * without an organization. The token shown is the prefix and public id: the
  * secret is only ever shown once, when the key is created or rotated.
  */
-export async function loadApiKey(
+export async function getApiKey(
   id: string,
 ): Promise<ApiKeyDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(API_KEYS_TAG);
+  cacheTag(tags.apiKeys());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -80,10 +79,10 @@ export interface ApiKeyCounts {
 }
 
 /** The counts of the keys overview; `null` without an organization. */
-export async function loadApiKeyCounts(): Promise<ApiKeyCounts | null> {
+export async function getApiKeyCounts(): Promise<ApiKeyCounts | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(API_KEYS_TAG);
+  cacheTag(tags.apiKeys());
   const tenant = tenantOf(session);
 
   if (!tenant) {

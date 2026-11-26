@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@3 managed
--- @bsb-hash sha256:04b292210d659fb937bbb6388452dd0925b1c49f3efc3c00f7a62e630206e013
+-- @bsb-hash sha256:5823fb0f81d4730ee4461032aeca3e046cd6425b78b65fd878c420af3b0c223a
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,14 +69,14 @@ create policy bsb_ai_task_runs_read on "better_supabase"."ai_task_runs"
 -- tick. Pausing clears it, so a resumed task waits for its next occurrence.
 -- chat_id must be a chat of the task's user in the tenant, and agent_id an
 -- agent of the tenant that user owns or that is published.
-create or replace function "better_supabase"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function "better_supabase"."upsert_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_ai_task.id;
+  v_id uuid := upsert_ai_task.id;
   v_row "better_supabase"."ai_scheduled_tasks"%rowtype;
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_chat uuid;
@@ -85,51 +85,51 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_ai_task.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AI_TASK_INVALID';
   end if;
-  if save_ai_task.fields ? 'timezone' then
+  if upsert_ai_task.fields ? 'timezone' then
     begin
-      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+      perform now() at time zone (upsert_ai_task.fields ->> 'timezone');
     exception when others then
-      raise exception '% is not a time zone', save_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
+      raise exception '% is not a time zone', upsert_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
     end;
   end if;
   if v_id is null then
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
       raise exception 'you may not schedule tasks here' using errcode = '42501', hint = 'AI_TASK_FORBIDDEN';
     end if;
     insert into "better_supabase"."ai_scheduled_tasks" ("tenant_id", "user_id", "title", "prompt", "cron")
-    values (save_ai_task.tenant, auth.uid(), save_ai_task.fields ->> 'title', save_ai_task.fields ->> 'prompt', save_ai_task.fields ->> 'cron')
+    values (upsert_ai_task.tenant, auth.uid(), upsert_ai_task.fields ->> 'title', upsert_ai_task.fields ->> 'prompt', upsert_ai_task.fields ->> 'cron')
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = save_ai_task.tenant for update;
+    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = upsert_ai_task.tenant for update;
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_schedules.manage'), false)) then
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
-  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  v_chat := (upsert_ai_task.fields ->> 'chat_id')::uuid;
   if v_chat is not null and not v_service and not false
   then
     raise exception 'chat % is not a chat of this task''s user', v_chat using errcode = '42501', hint = 'AI_TASK_CHAT_FORBIDDEN';
   end if;
-  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  v_agent := (upsert_ai_task.fields ->> 'agent_id')::uuid;
   if v_agent is not null and not v_service and not false
   then
     raise exception 'agent % is not an agent this task''s user may use', v_agent using errcode = '42501', hint = 'AI_TASK_AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_scheduled_tasks" x set
-    "title" = coalesce(save_ai_task.fields ->> 'title', x."title"),
-    "prompt" = coalesce(save_ai_task.fields ->> 'prompt', x."prompt"),
-    "cron" = coalesce(save_ai_task.fields ->> 'cron', x."cron"),
-    "timezone" = coalesce(save_ai_task.fields ->> 'timezone', x."timezone"),
-    "chat_id" = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
-    "agent_id" = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
-    "enabled" = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
+    "title" = coalesce(upsert_ai_task.fields ->> 'title', x."title"),
+    "prompt" = coalesce(upsert_ai_task.fields ->> 'prompt', x."prompt"),
+    "cron" = coalesce(upsert_ai_task.fields ->> 'cron', x."cron"),
+    "timezone" = coalesce(upsert_ai_task.fields ->> 'timezone', x."timezone"),
+    "chat_id" = case when upsert_ai_task.fields ? 'chat_id' then (upsert_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
+    "agent_id" = case when upsert_ai_task.fields ? 'agent_id' then (upsert_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
+    "enabled" = coalesce((upsert_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
     "next_run_at" = case
-      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
-      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
-      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      when (upsert_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (upsert_ai_task.next_run_at is not null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone') then upsert_ai_task.next_run_at
+      when upsert_ai_task.id is null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone' then null
       else x."next_run_at" end,
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -137,8 +137,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'prompt', v_row."prompt", 'cron', v_row."cron", 'timezone', v_row."timezone", 'enabled', v_row."enabled", 'next_run_at', v_row."next_run_at", 'last_run_at', v_row."last_run_at", 'source', v_row."source", 'external_id', v_row."external_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_ai_task"(id uuid)
 returns boolean
@@ -764,7 +764,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@3 managed
--- @bsb-hash sha256:cbe2d049feb12421ba6d28b0e76f7a72d32643af049bd8868b61d3c99534a68d
+-- @bsb-hash sha256:07ea43ee0fbfd1f8da43cf3fdbaa0e2d19d8ebe030ab021bb9dbbe55175c946b
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -832,14 +832,14 @@ create policy bsb_ai_task_runs_read on "better_supabase"."ai_task_runs"
 -- tick. Pausing clears it, so a resumed task waits for its next occurrence.
 -- chat_id must be a chat of the task's user in the tenant, and agent_id an
 -- agent of the tenant that user owns or that is published.
-create or replace function "better_supabase"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function "better_supabase"."upsert_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_ai_task.id;
+  v_id uuid := upsert_ai_task.id;
   v_row "better_supabase"."ai_scheduled_tasks"%rowtype;
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_chat uuid;
@@ -848,51 +848,51 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_ai_task.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AI_TASK_INVALID';
   end if;
-  if save_ai_task.fields ? 'timezone' then
+  if upsert_ai_task.fields ? 'timezone' then
     begin
-      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+      perform now() at time zone (upsert_ai_task.fields ->> 'timezone');
     exception when others then
-      raise exception '% is not a time zone', save_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
+      raise exception '% is not a time zone', upsert_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
     end;
   end if;
   if v_id is null then
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
       raise exception 'you may not schedule tasks here' using errcode = '42501', hint = 'AI_TASK_FORBIDDEN';
     end if;
     insert into "better_supabase"."ai_scheduled_tasks" ("tenant_id", "user_id", "title", "prompt", "cron")
-    values (save_ai_task.tenant, auth.uid(), save_ai_task.fields ->> 'title', save_ai_task.fields ->> 'prompt', save_ai_task.fields ->> 'cron')
+    values (upsert_ai_task.tenant, auth.uid(), upsert_ai_task.fields ->> 'title', upsert_ai_task.fields ->> 'prompt', upsert_ai_task.fields ->> 'cron')
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = save_ai_task.tenant for update;
+    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = upsert_ai_task.tenant for update;
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_schedules.manage'), false)) then
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
-  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  v_chat := (upsert_ai_task.fields ->> 'chat_id')::uuid;
   if v_chat is not null and not v_service and not exists (select 1 from "better_supabase"."ai_chats" c where c."id" = v_chat and c."owner_id" = v_row."user_id" and c."tenant_id" = v_row."tenant_id")
   then
     raise exception 'chat % is not a chat of this task''s user', v_chat using errcode = '42501', hint = 'AI_TASK_CHAT_FORBIDDEN';
   end if;
-  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  v_agent := (upsert_ai_task.fields ->> 'agent_id')::uuid;
   if v_agent is not null and not v_service and not exists (select 1 from "better_supabase"."agents" g where g."id" = v_agent and g."tenant_id" = v_row."tenant_id" and (g."owner_id" = v_row."user_id" or g."published_at" is not null))
   then
     raise exception 'agent % is not an agent this task''s user may use', v_agent using errcode = '42501', hint = 'AI_TASK_AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_scheduled_tasks" x set
-    "title" = coalesce(save_ai_task.fields ->> 'title', x."title"),
-    "prompt" = coalesce(save_ai_task.fields ->> 'prompt', x."prompt"),
-    "cron" = coalesce(save_ai_task.fields ->> 'cron', x."cron"),
-    "timezone" = coalesce(save_ai_task.fields ->> 'timezone', x."timezone"),
-    "chat_id" = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
-    "agent_id" = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
-    "enabled" = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
+    "title" = coalesce(upsert_ai_task.fields ->> 'title', x."title"),
+    "prompt" = coalesce(upsert_ai_task.fields ->> 'prompt', x."prompt"),
+    "cron" = coalesce(upsert_ai_task.fields ->> 'cron', x."cron"),
+    "timezone" = coalesce(upsert_ai_task.fields ->> 'timezone', x."timezone"),
+    "chat_id" = case when upsert_ai_task.fields ? 'chat_id' then (upsert_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
+    "agent_id" = case when upsert_ai_task.fields ? 'agent_id' then (upsert_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
+    "enabled" = coalesce((upsert_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
     "next_run_at" = case
-      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
-      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
-      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      when (upsert_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (upsert_ai_task.next_run_at is not null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone') then upsert_ai_task.next_run_at
+      when upsert_ai_task.id is null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone' then null
       else x."next_run_at" end,
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -900,8 +900,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'prompt', v_row."prompt", 'cron', v_row."cron", 'timezone', v_row."timezone", 'enabled', v_row."enabled", 'next_run_at', v_row."next_run_at", 'last_run_at', v_row."last_run_at", 'source', v_row."source", 'external_id', v_row."external_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_ai_task"(id uuid)
 returns boolean
@@ -1531,7 +1531,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@3 managed
--- @bsb-hash sha256:572e27c889406a95cc59b4823701ea9ccf5b3cf3a405df77204543a1443022c2
+-- @bsb-hash sha256:21815d1e5c7482e146c7658e701542d597027b5223cec81d89df2a3f33cc84b3
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1604,14 +1604,14 @@ create policy bsb_ai_task_runs_read on "app_private"."ai_task_runs"
 -- tick. Pausing clears it, so a resumed task waits for its next occurrence.
 -- chat_id must be a chat of the task's user in the tenant, and agent_id an
 -- agent of the tenant that user owns or that is published.
-create or replace function "app_private"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function "app_private"."upsert_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_ai_task.id;
+  v_id uuid := upsert_ai_task.id;
   v_row "app_private"."ai_scheduled_tasks"%rowtype;
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_chat uuid;
@@ -1620,51 +1620,51 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_ai_task.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AI_TASK_INVALID';
   end if;
-  if save_ai_task.fields ? 'timezone' then
+  if upsert_ai_task.fields ? 'timezone' then
     begin
-      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+      perform now() at time zone (upsert_ai_task.fields ->> 'timezone');
     exception when others then
-      raise exception '% is not a time zone', save_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
+      raise exception '% is not a time zone', upsert_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
     end;
   end if;
   if v_id is null then
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
       raise exception 'you may not schedule tasks here' using errcode = '42501', hint = 'AI_TASK_FORBIDDEN';
     end if;
     insert into "app_private"."ai_scheduled_tasks" ("tenant_id", "user_id", "title", "prompt", "cron")
-    values (save_ai_task.tenant, auth.uid(), save_ai_task.fields ->> 'title', save_ai_task.fields ->> 'prompt', save_ai_task.fields ->> 'cron')
+    values (upsert_ai_task.tenant, auth.uid(), upsert_ai_task.fields ->> 'title', upsert_ai_task.fields ->> 'prompt', upsert_ai_task.fields ->> 'cron')
     returning * into v_row;
   else
-    select * into v_row from "app_private"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = save_ai_task.tenant for update;
+    select * into v_row from "app_private"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = upsert_ai_task.tenant for update;
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_schedules.manage'), false)) then
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
-  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  v_chat := (upsert_ai_task.fields ->> 'chat_id')::uuid;
   if v_chat is not null and not v_service and not false
   then
     raise exception 'chat % is not a chat of this task''s user', v_chat using errcode = '42501', hint = 'AI_TASK_CHAT_FORBIDDEN';
   end if;
-  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  v_agent := (upsert_ai_task.fields ->> 'agent_id')::uuid;
   if v_agent is not null and not v_service and not false
   then
     raise exception 'agent % is not an agent this task''s user may use', v_agent using errcode = '42501', hint = 'AI_TASK_AGENT_FORBIDDEN';
   end if;
   update "app_private"."ai_scheduled_tasks" x set
-    "title" = coalesce(save_ai_task.fields ->> 'title', x."title"),
-    "prompt" = coalesce(save_ai_task.fields ->> 'prompt', x."prompt"),
-    "cron" = coalesce(save_ai_task.fields ->> 'cron', x."cron"),
-    "timezone" = coalesce(save_ai_task.fields ->> 'timezone', x."timezone"),
-    "chat_id" = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
-    "agent_id" = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
-    "enabled" = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
+    "title" = coalesce(upsert_ai_task.fields ->> 'title', x."title"),
+    "prompt" = coalesce(upsert_ai_task.fields ->> 'prompt', x."prompt"),
+    "cron" = coalesce(upsert_ai_task.fields ->> 'cron', x."cron"),
+    "timezone" = coalesce(upsert_ai_task.fields ->> 'timezone', x."timezone"),
+    "chat_id" = case when upsert_ai_task.fields ? 'chat_id' then (upsert_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
+    "agent_id" = case when upsert_ai_task.fields ? 'agent_id' then (upsert_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
+    "enabled" = coalesce((upsert_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
     "next_run_at" = case
-      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
-      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
-      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      when (upsert_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (upsert_ai_task.next_run_at is not null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone') then upsert_ai_task.next_run_at
+      when upsert_ai_task.id is null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone' then null
       else x."next_run_at" end,
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -1672,8 +1672,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'prompt', v_row."prompt", 'cron', v_row."cron", 'timezone', v_row."timezone", 'enabled', v_row."enabled", 'next_run_at', v_row."next_run_at", 'last_run_at', v_row."last_run_at", 'source', v_row."source", 'external_id', v_row."external_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
-grant execute on function "app_private"."save_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "app_private"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 
 create or replace function "app_private"."delete_ai_task"(id uuid)
 returns boolean
@@ -2299,7 +2299,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@3 managed
--- @bsb-hash sha256:18b3f84a9a6b5a83f7de0baa13cb3444d2eab430f3bc213e6df5586bd6d4c170
+-- @bsb-hash sha256:baa7aa726993227f331fc864ac16c688ec18ef673179fd99d120812cd2205051
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2367,14 +2367,14 @@ create policy bsb_ai_task_runs_read on "better_supabase"."ai_task_runs"
 -- tick. Pausing clears it, so a resumed task waits for its next occurrence.
 -- chat_id must be a chat of the task's user in the tenant, and agent_id an
 -- agent of the tenant that user owns or that is published.
-create or replace function "better_supabase"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function "better_supabase"."upsert_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_ai_task.id;
+  v_id uuid := upsert_ai_task.id;
   v_row "better_supabase"."ai_scheduled_tasks"%rowtype;
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_chat uuid;
@@ -2383,51 +2383,51 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_ai_task.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AI_TASK_INVALID';
   end if;
-  if save_ai_task.fields ? 'timezone' then
+  if upsert_ai_task.fields ? 'timezone' then
     begin
-      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+      perform now() at time zone (upsert_ai_task.fields ->> 'timezone');
     exception when others then
-      raise exception '% is not a time zone', save_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
+      raise exception '% is not a time zone', upsert_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
     end;
   end if;
   if v_id is null then
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
       raise exception 'you may not schedule tasks here' using errcode = '42501', hint = 'AI_TASK_FORBIDDEN';
     end if;
     insert into "better_supabase"."ai_scheduled_tasks" ("tenant_id", "user_id", "title", "prompt", "cron")
-    values (save_ai_task.tenant, auth.uid(), save_ai_task.fields ->> 'title', save_ai_task.fields ->> 'prompt', save_ai_task.fields ->> 'cron')
+    values (upsert_ai_task.tenant, auth.uid(), upsert_ai_task.fields ->> 'title', upsert_ai_task.fields ->> 'prompt', upsert_ai_task.fields ->> 'cron')
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = save_ai_task.tenant for update;
+    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = upsert_ai_task.tenant for update;
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_schedules.manage'), false)) then
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
-  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  v_chat := (upsert_ai_task.fields ->> 'chat_id')::uuid;
   if v_chat is not null and not v_service and not false
   then
     raise exception 'chat % is not a chat of this task''s user', v_chat using errcode = '42501', hint = 'AI_TASK_CHAT_FORBIDDEN';
   end if;
-  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  v_agent := (upsert_ai_task.fields ->> 'agent_id')::uuid;
   if v_agent is not null and not v_service and not false
   then
     raise exception 'agent % is not an agent this task''s user may use', v_agent using errcode = '42501', hint = 'AI_TASK_AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_scheduled_tasks" x set
-    "title" = coalesce(save_ai_task.fields ->> 'title', x."title"),
-    "prompt" = coalesce(save_ai_task.fields ->> 'prompt', x."prompt"),
-    "cron" = coalesce(save_ai_task.fields ->> 'cron', x."cron"),
-    "timezone" = coalesce(save_ai_task.fields ->> 'timezone', x."timezone"),
-    "chat_id" = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
-    "agent_id" = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
-    "enabled" = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
+    "title" = coalesce(upsert_ai_task.fields ->> 'title', x."title"),
+    "prompt" = coalesce(upsert_ai_task.fields ->> 'prompt', x."prompt"),
+    "cron" = coalesce(upsert_ai_task.fields ->> 'cron', x."cron"),
+    "timezone" = coalesce(upsert_ai_task.fields ->> 'timezone', x."timezone"),
+    "chat_id" = case when upsert_ai_task.fields ? 'chat_id' then (upsert_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
+    "agent_id" = case when upsert_ai_task.fields ? 'agent_id' then (upsert_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
+    "enabled" = coalesce((upsert_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
     "next_run_at" = case
-      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
-      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
-      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      when (upsert_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (upsert_ai_task.next_run_at is not null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone') then upsert_ai_task.next_run_at
+      when upsert_ai_task.id is null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone' then null
       else x."next_run_at" end,
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -2435,8 +2435,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'prompt', v_row."prompt", 'cron', v_row."cron", 'timezone', v_row."timezone", 'enabled', v_row."enabled", 'next_run_at', v_row."next_run_at", 'last_run_at', v_row."last_run_at", 'source', v_row."source", 'external_id', v_row."external_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_ai_task"(id uuid)
 returns boolean
@@ -3049,14 +3049,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_task_runs" as res
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function "api"."upsert_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_ai_task"($1, $2, $3, $4) $$;
-revoke execute on function "api"."save_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
-grant execute on function "api"."save_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_ai_task"($1, $2, $3, $4) $$;
+revoke execute on function "api"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "api"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."delete_ai_task"(id uuid)
 returns boolean
@@ -3187,7 +3187,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@3 managed
--- @bsb-hash sha256:4eeadbe35527cfd7d390d7043a039b654c2cdd6d19704bd6becd6e2207d24c8d
+-- @bsb-hash sha256:29eb932853519532e48199aaf2f0b6eefd62715ba5ae1cf653f7290f5d8a1324
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3251,14 +3251,14 @@ create policy bsb_ai_task_runs_select on "better_supabase"."ai_task_runs"
 -- tick. Pausing clears it, so a resumed task waits for its next occurrence.
 -- chat_id must be a chat of the task's user in the tenant, and agent_id an
 -- agent of the tenant that user owns or that is published.
-create or replace function "better_supabase"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function "better_supabase"."upsert_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_ai_task.id;
+  v_id uuid := upsert_ai_task.id;
   v_row "better_supabase"."ai_scheduled_tasks"%rowtype;
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_chat uuid;
@@ -3267,51 +3267,51 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_ai_task.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AI_TASK_INVALID';
   end if;
-  if save_ai_task.fields ? 'timezone' then
+  if upsert_ai_task.fields ? 'timezone' then
     begin
-      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+      perform now() at time zone (upsert_ai_task.fields ->> 'timezone');
     exception when others then
-      raise exception '% is not a time zone', save_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
+      raise exception '% is not a time zone', upsert_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
     end;
   end if;
   if v_id is null then
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
       raise exception 'you may not schedule tasks here' using errcode = '42501', hint = 'AI_TASK_FORBIDDEN';
     end if;
     insert into "better_supabase"."ai_scheduled_tasks" ("tenant_id", "user_id", "title", "prompt", "cron")
-    values (save_ai_task.tenant, auth.uid(), save_ai_task.fields ->> 'title', save_ai_task.fields ->> 'prompt', save_ai_task.fields ->> 'cron')
+    values (upsert_ai_task.tenant, auth.uid(), upsert_ai_task.fields ->> 'title', upsert_ai_task.fields ->> 'prompt', upsert_ai_task.fields ->> 'cron')
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = save_ai_task.tenant for update;
+    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."tenant_id" = upsert_ai_task.tenant for update;
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_schedules.manage'), false)) then
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
-  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  v_chat := (upsert_ai_task.fields ->> 'chat_id')::uuid;
   if v_chat is not null and not v_service and not false
   then
     raise exception 'chat % is not a chat of this task''s user', v_chat using errcode = '42501', hint = 'AI_TASK_CHAT_FORBIDDEN';
   end if;
-  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  v_agent := (upsert_ai_task.fields ->> 'agent_id')::uuid;
   if v_agent is not null and not v_service and not false
   then
     raise exception 'agent % is not an agent this task''s user may use', v_agent using errcode = '42501', hint = 'AI_TASK_AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_scheduled_tasks" x set
-    "title" = coalesce(save_ai_task.fields ->> 'title', x."title"),
-    "prompt" = coalesce(save_ai_task.fields ->> 'prompt', x."prompt"),
-    "cron" = coalesce(save_ai_task.fields ->> 'cron', x."cron"),
-    "timezone" = coalesce(save_ai_task.fields ->> 'timezone', x."timezone"),
-    "chat_id" = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
-    "agent_id" = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
-    "enabled" = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
+    "title" = coalesce(upsert_ai_task.fields ->> 'title', x."title"),
+    "prompt" = coalesce(upsert_ai_task.fields ->> 'prompt', x."prompt"),
+    "cron" = coalesce(upsert_ai_task.fields ->> 'cron', x."cron"),
+    "timezone" = coalesce(upsert_ai_task.fields ->> 'timezone', x."timezone"),
+    "chat_id" = case when upsert_ai_task.fields ? 'chat_id' then (upsert_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
+    "agent_id" = case when upsert_ai_task.fields ? 'agent_id' then (upsert_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
+    "enabled" = coalesce((upsert_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
     "next_run_at" = case
-      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
-      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
-      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      when (upsert_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (upsert_ai_task.next_run_at is not null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone') then upsert_ai_task.next_run_at
+      when upsert_ai_task.id is null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone' then null
       else x."next_run_at" end,
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -3319,8 +3319,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'prompt', v_row."prompt", 'cron', v_row."cron", 'timezone', v_row."timezone", 'enabled', v_row."enabled", 'next_run_at', v_row."next_run_at", 'last_run_at', v_row."last_run_at", 'source', v_row."source", 'external_id', v_row."external_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_ai_task"(id uuid)
 returns boolean
@@ -3946,7 +3946,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@3 managed
--- @bsb-hash sha256:fc08dd763fceb56fd27568ee452e5f2c114982223526bfc03572a14c6d4cbd8b
+-- @bsb-hash sha256:480914825ff465c2148c03f0a34bb420982fd54f43a1524219dbfce852af59ca
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4014,14 +4014,14 @@ create policy bsb_ai_task_runs_read on "better_supabase"."ai_task_runs"
 -- tick. Pausing clears it, so a resumed task waits for its next occurrence.
 -- chat_id must be a chat of the task's user in the tenant, and agent_id an
 -- agent of the tenant that user owns or that is published.
-create or replace function "better_supabase"."save_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
+create or replace function "better_supabase"."upsert_ai_task"(tenant uuid, id uuid default null, fields jsonb default '{}', next_run_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_ai_task.id;
+  v_id uuid := upsert_ai_task.id;
   v_row "better_supabase"."ai_scheduled_tasks"%rowtype;
   v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');
   v_chat uuid;
@@ -4030,51 +4030,51 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if jsonb_typeof(save_ai_task.fields) is distinct from 'object' then
+  if jsonb_typeof(upsert_ai_task.fields) is distinct from 'object' then
     raise exception 'fields must be an object' using errcode = '22023', hint = 'AI_TASK_INVALID';
   end if;
-  if save_ai_task.fields ? 'timezone' then
+  if upsert_ai_task.fields ? 'timezone' then
     begin
-      perform now() at time zone (save_ai_task.fields ->> 'timezone');
+      perform now() at time zone (upsert_ai_task.fields ->> 'timezone');
     exception when others then
-      raise exception '% is not a time zone', save_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
+      raise exception '% is not a time zone', upsert_ai_task.fields ->> 'timezone' using errcode = '22023', hint = 'AI_TASK_INVALID';
     end;
   end if;
   if v_id is null then
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
       raise exception 'you may not schedule tasks here' using errcode = '42501', hint = 'AI_TASK_FORBIDDEN';
     end if;
     insert into "better_supabase"."ai_scheduled_tasks" ("org_id", "user_id", "title", "prompt", "cron")
-    values (save_ai_task.tenant, auth.uid(), save_ai_task.fields ->> 'title', save_ai_task.fields ->> 'prompt', save_ai_task.fields ->> 'cron')
+    values (upsert_ai_task.tenant, auth.uid(), upsert_ai_task.fields ->> 'title', upsert_ai_task.fields ->> 'prompt', upsert_ai_task.fields ->> 'cron')
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."org_id" = save_ai_task.tenant for update;
+    select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."org_id" = upsert_ai_task.tenant for update;
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_schedules.manage'), false)) then
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
-  v_chat := (save_ai_task.fields ->> 'chat_id')::uuid;
+  v_chat := (upsert_ai_task.fields ->> 'chat_id')::uuid;
   if v_chat is not null and not v_service and not false
   then
     raise exception 'chat % is not a chat of this task''s user', v_chat using errcode = '42501', hint = 'AI_TASK_CHAT_FORBIDDEN';
   end if;
-  v_agent := (save_ai_task.fields ->> 'agent_id')::uuid;
+  v_agent := (upsert_ai_task.fields ->> 'agent_id')::uuid;
   if v_agent is not null and not v_service and not false
   then
     raise exception 'agent % is not an agent this task''s user may use', v_agent using errcode = '42501', hint = 'AI_TASK_AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."ai_scheduled_tasks" x set
-    "title" = coalesce(save_ai_task.fields ->> 'title', x."title"),
-    "prompt" = coalesce(save_ai_task.fields ->> 'prompt', x."prompt"),
-    "cron" = coalesce(save_ai_task.fields ->> 'cron', x."cron"),
-    "timezone" = coalesce(save_ai_task.fields ->> 'timezone', x."timezone"),
-    "chat_id" = case when save_ai_task.fields ? 'chat_id' then (save_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
-    "agent_id" = case when save_ai_task.fields ? 'agent_id' then (save_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
-    "enabled" = coalesce((save_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
+    "title" = coalesce(upsert_ai_task.fields ->> 'title', x."title"),
+    "prompt" = coalesce(upsert_ai_task.fields ->> 'prompt', x."prompt"),
+    "cron" = coalesce(upsert_ai_task.fields ->> 'cron', x."cron"),
+    "timezone" = coalesce(upsert_ai_task.fields ->> 'timezone', x."timezone"),
+    "chat_id" = case when upsert_ai_task.fields ? 'chat_id' then (upsert_ai_task.fields ->> 'chat_id')::uuid else x."chat_id" end,
+    "agent_id" = case when upsert_ai_task.fields ? 'agent_id' then (upsert_ai_task.fields ->> 'agent_id')::uuid else x."agent_id" end,
+    "enabled" = coalesce((upsert_ai_task.fields ->> 'enabled')::boolean, x."enabled"),
     "next_run_at" = case
-      when (save_ai_task.fields ->> 'enabled')::boolean is false then null
-      when v_service and (save_ai_task.next_run_at is not null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone') then save_ai_task.next_run_at
-      when save_ai_task.id is null or save_ai_task.fields ? 'cron' or save_ai_task.fields ? 'timezone' then null
+      when (upsert_ai_task.fields ->> 'enabled')::boolean is false then null
+      when v_service and (upsert_ai_task.next_run_at is not null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone') then upsert_ai_task.next_run_at
+      when upsert_ai_task.id is null or upsert_ai_task.fields ? 'cron' or upsert_ai_task.fields ? 'timezone' then null
       else x."next_run_at" end,
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -4082,8 +4082,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'user_id', v_row."user_id", 'chat_id', v_row."chat_id", 'agent_id', v_row."agent_id", 'title', v_row."title", 'prompt', v_row."prompt", 'cron', v_row."cron", 'timezone', v_row."timezone", 'enabled', v_row."enabled", 'next_run_at', v_row."next_run_at", 'last_run_at', v_row."last_run_at", 'source', v_row."source", 'external_id', v_row."external_id", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_ai_task"(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_ai_task"(id uuid)
 returns boolean

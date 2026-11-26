@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { APPRAISALS_TAG } from "./appraisals-cache";
 
 const AppraisalId = v.pipe(v.string(), v.uuid());
 
@@ -36,15 +34,15 @@ export const signOffAppraisal = bsb.action(
     input: v.object({ appraisalId: AppraisalId }),
     requireTenant: true,
     permission: "appraisals.manage",
+    tags: () => [tags.appraisals()],
+    refresh: true,
   },
-  async ({ appraisalId }, { db, auth }) => {
+  async ({ appraisalId }, { db }) => {
     const signed = await db.appraisals.signOff(appraisalId);
 
     if (!signed.ok) {
       return signed;
     }
-
-    await refreshCaller(auth, [APPRAISALS_TAG]);
 
     return ok({ status: signed.data.status });
   },
@@ -65,8 +63,10 @@ export const submitAppraisalReview = bsb.action(
     }),
     requireTenant: true,
     permission: "appraisals.review",
+    tags: () => [tags.appraisals()],
+    refresh: true,
   },
-  async ({ reviewId, competency, rating, comments }, { db, auth }) => {
+  async ({ reviewId, competency, rating, comments }, { db }) => {
     const scores =
       competency === undefined
         ? { rating: rating[0] ?? 0 }
@@ -89,8 +89,6 @@ export const submitAppraisalReview = bsb.action(
       return submitted;
     }
 
-    await refreshCaller(auth, [APPRAISALS_TAG]);
-
     return ok({ status: submitted.data.status });
   },
 );
@@ -108,8 +106,10 @@ export const calibrateAppraisal = bsb.action(
     }),
     requireTenant: true,
     permission: "appraisals.manage",
+    tags: () => [tags.appraisals()],
+    refresh: true,
   },
-  async ({ appraisalId, rating, reason }, { db, auth }) => {
+  async ({ appraisalId, rating, reason }, { db }) => {
     const calibrated = await db.appraisals.calibrate({
       appraisalId,
       rating,
@@ -119,8 +119,6 @@ export const calibrateAppraisal = bsb.action(
     if (!calibrated.ok) {
       return calibrated;
     }
-
-    await refreshCaller(auth, [APPRAISALS_TAG]);
 
     return ok({ status: calibrated.data.status });
   },

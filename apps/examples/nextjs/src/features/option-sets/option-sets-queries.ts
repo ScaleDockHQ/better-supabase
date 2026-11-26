@@ -9,12 +9,12 @@ import type {
 
 import { postgres, userClaims } from "@/features/developer/postgres";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
 import type { OptionItemRow, OptionSetRow } from "./option-sets-list";
 
-import { OPTION_SETS_TAG } from "./option-sets-cache";
 import { optionSetList, optionSetMap } from "./option-sets-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -24,7 +24,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
  * filtered and sorted by the block's `setPage` and counted by `setFacets`.
  * Archived sets are hidden, as the block hides them by default.
  */
-export function loadOptionSetPage(
+export function getOptionSetPage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -58,14 +58,14 @@ export function loadOptionSetPage(
 export async function getOptionSets() {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(OPTION_SETS_TAG);
+  cacheTag(tags.optionSets());
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  return loadOptionSetPage(db, tenant, optionSetList.defaults);
+  return getOptionSetPage(db, tenant, optionSetList.defaults);
 }
 
 interface SetRecord {
@@ -91,7 +91,7 @@ interface ItemRecord {
 export async function getOptionSet(id: string) {
   "use cache: private";
   const { session } = await bsbShell.cached({ id });
-  cacheTag(OPTION_SETS_TAG);
+  cacheTag(tags.optionSets());
   const tenant = tenantOf(session);
   const connection = postgres();
   const claims = userClaims(session);

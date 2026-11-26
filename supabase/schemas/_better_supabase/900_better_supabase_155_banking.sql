@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:eaa16acea594f27148184c5e867185db8de46a96a824f65492eea34116dd75af
+-- @bsb-hash sha256:3d036c54e09d0dbd4dffa6d297cf50d6795e12747e7ad20524ee0eaaaeec55fa
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."bank_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_bank_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
-  -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
+  -- Upper case without spaces; upsert_bank_account checks the ISO 13616 digits.
   "iban" text constraint bsb_bank_accounts_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   "bic" text constraint bsb_bank_accounts_bic_check check ("bic" is null or "bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
   "currency" char(3) not null constraint bsb_bank_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
@@ -315,7 +315,7 @@ revoke execute on function "better_supabase"."bank_reference"(text) from public,
 -- account primary clears the flag on the organization's other accounts in
 -- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
-create or replace function "better_supabase"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
+create or replace function "better_supabase"."upsert_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -336,34 +336,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bank_account.tenant is not null and coalesce(better_supabase.can('tenant', save_bank_account.tenant, 'banking.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bank_account.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bank_account.tenant, 'banking.manage'), false))) then
     raise exception 'not allowed to manage bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bank_account.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bank_account.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
-  if save_bank_account.account_id is not null then
+  if upsert_bank_account.account_id is not null then
     select * into v_account from "better_supabase"."bank_accounts" x
-    where x."id" = save_bank_account.account_id and x."tenant_id" = save_bank_account.tenant
+    where x."id" = upsert_bank_account.account_id and x."tenant_id" = upsert_bank_account.tenant
     for update;
     if not found then
       raise exception 'no such bank account' using errcode = 'P0002', hint = 'BANK_ACCOUNT_NOT_FOUND';
     end if;
   end if;
-  v_iban := case when save_bank_account.input ? 'iban'
-    then nullif(upper(regexp_replace(save_bank_account.input ->> 'iban', '\s', '', 'g')), '')
+  v_iban := case when upsert_bank_account.input ? 'iban'
+    then nullif(upper(regexp_replace(upsert_bank_account.input ->> 'iban', '\s', '', 'g')), '')
     else v_account."iban" end;
   if v_iban is not null and (v_iban !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'
     or "better_supabase"."bank_mod97"(substr(v_iban, 5) || substr(v_iban, 1, 4)) is distinct from 1) then
     raise exception 'the IBAN''s check digits don''t match' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
-  v_bic := case when save_bank_account.input ? 'bic'
-    then nullif(upper(regexp_replace(save_bank_account.input ->> 'bic', '\s', '', 'g')), '')
+  v_bic := case when upsert_bank_account.input ? 'bic'
+    then nullif(upper(regexp_replace(upsert_bank_account.input ->> 'bic', '\s', '', 'g')), '')
     else v_account."bic" end;
   if v_bic is not null and v_bic !~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$' then
     raise exception 'a BIC has 8 or 11 letters and digits' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
-  v_currency := upper(coalesce(save_bank_account.input ->> 'currency', v_account."currency"));
+  v_currency := upper(coalesce(upsert_bank_account.input ->> 'currency', v_account."currency"));
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     raise exception 'a bank account has an ISO 4217 currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
@@ -372,40 +372,40 @@ begin
   ) then
     raise exception 'a bank account with transactions keeps its currency' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
-  v_holder := case when save_bank_account.input ? 'holder'
-    then nullif(trim(save_bank_account.input ->> 'holder'), '')
+  v_holder := case when upsert_bank_account.input ? 'holder'
+    then nullif(trim(upsert_bank_account.input ->> 'holder'), '')
     else v_account."holder" end;
-  v_archived := case when save_bank_account.input ? 'archived'
-    then coalesce((save_bank_account.input ->> 'archived')::boolean, false)
+  v_archived := case when upsert_bank_account.input ? 'archived'
+    then coalesce((upsert_bank_account.input ->> 'archived')::boolean, false)
     else v_account."archived_at" is not null end;
   v_primary := case when v_archived then false
-    when save_bank_account.input ? 'primary' then coalesce((save_bank_account.input ->> 'primary')::boolean, false)
+    when upsert_bank_account.input ? 'primary' then coalesce((upsert_bank_account.input ->> 'primary')::boolean, false)
     else coalesce(v_account."is_primary", false) end;
   if v_primary then
     update "better_supabase"."bank_accounts" x set "is_primary" = false, "updated_at" = now()
-    where x."tenant_id" = save_bank_account.tenant and x."currency" = v_currency
+    where x."tenant_id" = upsert_bank_account.tenant and x."currency" = v_currency
       and x."is_primary" and x."id" is distinct from v_account."id";
   end if;
-  v_position := case when save_bank_account.input ? 'position'
-    then coalesce((save_bank_account.input ->> 'position')::integer, 0)
+  v_position := case when upsert_bank_account.input ? 'position'
+    then coalesce((upsert_bank_account.input ->> 'position')::integer, 0)
     else coalesce(v_account."position", 0) end;
-  v_journal := case when save_bank_account.input ? 'journalId'
-    then nullif(save_bank_account.input ->> 'journalId', '')::uuid
+  v_journal := case when upsert_bank_account.input ? 'journalId'
+    then nullif(upsert_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
   if v_journal is not null and not exists (
     select 1 from "better_supabase"."accounting_journals" y
-    where y."id" = v_journal and y."tenant_id" = save_bank_account.tenant
+    where y."id" = v_journal and y."tenant_id" = upsert_bank_account.tenant
       and y."type" in ('bank', 'cash')
   ) then
     raise exception 'the journal must be a bank or cash journal of the organization' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
   if v_account."id" is null then
     insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "position", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_position, v_iban, v_bic, v_currency, v_journal)
+    values (upsert_bank_account.tenant, trim(upsert_bank_account.input ->> 'name'), v_holder, v_primary, v_position, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "better_supabase"."bank_accounts" x set
-      "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
+      "name" = coalesce(trim(upsert_bank_account.input ->> 'name'), x."name"),
       "holder" = v_holder,
       "is_primary" = v_primary,
       "position" = v_position,
@@ -413,8 +413,8 @@ begin
       "bic" = v_bic,
       "currency" = v_currency,
       "journal_id" = v_journal,
-      "archived_at" = case when save_bank_account.input ? 'archived'
-        then case when (save_bank_account.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) end
+      "archived_at" = case when upsert_bank_account.input ? 'archived'
+        then case when (upsert_bank_account.input ->> 'archived')::boolean then coalesce(x."archived_at", now()) end
         else x."archived_at" end,
       "updated_at" = now()
     where x."id" = v_account."id"
@@ -430,8 +430,8 @@ exception
     raise exception 'journalId must be a uuid and position an integer' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_bank_account"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_bank_account"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bank_account"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_bank_account"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_bank_accounts"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -1942,7 +1942,7 @@ grant execute on function "better_supabase"."ignore_bank_transaction"(uuid, bool
 -- transaction), accountId, partyId, dimensions, priority, active }. A rule
 -- with an account books the transactions it matches there; one without sets
 -- them aside.
-create or replace function "better_supabase"."save_bank_rule"(tenant uuid, input jsonb, rule_id uuid default null)
+create or replace function "better_supabase"."upsert_bank_rule"(tenant uuid, input jsonb, rule_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1951,31 +1951,31 @@ as $$
 #variable_conflict use_column
 declare
   v_rule "better_supabase"."bank_rules"%rowtype;
-  v_tenant uuid := save_bank_rule.tenant;
+  v_tenant uuid := upsert_bank_rule.tenant;
   v_conditions jsonb;
   v_account uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_bank_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_bank_rule.tenant, 'banking.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_bank_rule.tenant is not null and coalesce(better_supabase.can('tenant', upsert_bank_rule.tenant, 'banking.manage'), false))) then
     raise exception 'not allowed to manage bank rules' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_bank_rule.input) is distinct from 'object' then
+  if jsonb_typeof(upsert_bank_rule.input) is distinct from 'object' then
     raise exception 'input must be an object' using errcode = '22023', hint = 'BANK_RULE_INVALID';
   end if;
-  if save_bank_rule.rule_id is not null then
+  if upsert_bank_rule.rule_id is not null then
     select * into v_rule from "better_supabase"."bank_rules" x
-    where x."id" = save_bank_rule.rule_id and x."tenant_id" = save_bank_rule.tenant
+    where x."id" = upsert_bank_rule.rule_id and x."tenant_id" = upsert_bank_rule.tenant
     for update;
     if not found then
       raise exception 'no such bank rule' using errcode = 'P0002', hint = 'BANK_RULE_NOT_FOUND';
     end if;
   end if;
-  v_conditions := coalesce(save_bank_rule.input -> 'conditions', v_rule."conditions", '{"type":"group","combinator":"and","rules":[]}'::jsonb);
+  v_conditions := coalesce(upsert_bank_rule.input -> 'conditions', v_rule."conditions", '{"type":"group","combinator":"and","rules":[]}'::jsonb);
   perform "better_supabase"."bank_rule_condition"(v_conditions, '{}'::jsonb);
-  v_account := case when save_bank_rule.input ? 'accountId'
-    then nullif(save_bank_rule.input ->> 'accountId', '')::uuid
+  v_account := case when upsert_bank_rule.input ? 'accountId'
+    then nullif(upsert_bank_rule.input ->> 'accountId', '')::uuid
     else v_rule."account_id" end;
   if v_account is not null and not exists (
     select 1 from "better_supabase"."accounting_accounts" y
@@ -1985,21 +1985,21 @@ begin
   end if;
   if v_rule."id" is null then
     insert into "better_supabase"."bank_rules" ("tenant_id", "name", "conditions", "account_id", "party_id", "dimensions", "priority", "active")
-    values (save_bank_rule.tenant, trim(save_bank_rule.input ->> 'name'), v_conditions, v_account,
-      nullif(save_bank_rule.input ->> 'partyId', '')::uuid,
-      coalesce(save_bank_rule.input -> 'dimensions', '{}'::jsonb),
-      coalesce((save_bank_rule.input ->> 'priority')::integer, 100),
-      coalesce((save_bank_rule.input ->> 'active')::boolean, true))
+    values (upsert_bank_rule.tenant, trim(upsert_bank_rule.input ->> 'name'), v_conditions, v_account,
+      nullif(upsert_bank_rule.input ->> 'partyId', '')::uuid,
+      coalesce(upsert_bank_rule.input -> 'dimensions', '{}'::jsonb),
+      coalesce((upsert_bank_rule.input ->> 'priority')::integer, 100),
+      coalesce((upsert_bank_rule.input ->> 'active')::boolean, true))
     returning * into v_rule;
   else
     update "better_supabase"."bank_rules" x set
-      "name" = coalesce(trim(save_bank_rule.input ->> 'name'), x."name"),
+      "name" = coalesce(trim(upsert_bank_rule.input ->> 'name'), x."name"),
       "conditions" = v_conditions,
       "account_id" = v_account,
-      "party_id" = case when save_bank_rule.input ? 'partyId' then nullif(save_bank_rule.input ->> 'partyId', '')::uuid else x."party_id" end,
-      "dimensions" = coalesce(save_bank_rule.input -> 'dimensions', x."dimensions"),
-      "priority" = coalesce((save_bank_rule.input ->> 'priority')::integer, x."priority"),
-      "active" = coalesce((save_bank_rule.input ->> 'active')::boolean, x."active"),
+      "party_id" = case when upsert_bank_rule.input ? 'partyId' then nullif(upsert_bank_rule.input ->> 'partyId', '')::uuid else x."party_id" end,
+      "dimensions" = coalesce(upsert_bank_rule.input -> 'dimensions', x."dimensions"),
+      "priority" = coalesce((upsert_bank_rule.input ->> 'priority')::integer, x."priority"),
+      "active" = coalesce((upsert_bank_rule.input ->> 'active')::boolean, x."active"),
       "updated_at" = now()
     where x."id" = v_rule."id"
     returning * into v_rule;
@@ -2012,8 +2012,8 @@ exception
     raise exception 'accountId and partyId are uuids, priority an integer and active a boolean' using errcode = '22023', hint = 'BANK_RULE_INVALID';
 end;
 $$;
-revoke execute on function "better_supabase"."save_bank_rule"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_bank_rule"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_bank_rule"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_bank_rule"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_bank_rules"(tenant uuid)
 returns jsonb
@@ -2392,14 +2392,14 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
+create or replace function "api"."upsert_bank_account"(tenant uuid, input jsonb, account_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_bank_account"($1, $2, $3) $$;
-revoke execute on function "api"."save_bank_account"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_bank_account"(uuid, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_bank_account"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_bank_account"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_bank_account"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_bank_accounts"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -2573,14 +2573,14 @@ as $$ select "better_supabase"."ignore_bank_transaction"($1, $2) $$;
 revoke execute on function "api"."ignore_bank_transaction"(uuid, boolean) from public, anon;
 grant execute on function "api"."ignore_bank_transaction"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."save_bank_rule"(tenant uuid, input jsonb, rule_id uuid default null)
+create or replace function "api"."upsert_bank_rule"(tenant uuid, input jsonb, rule_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_bank_rule"($1, $2, $3) $$;
-revoke execute on function "api"."save_bank_rule"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_bank_rule"(uuid, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_bank_rule"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_bank_rule"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_bank_rule"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_bank_rules"(tenant uuid)
 returns jsonb

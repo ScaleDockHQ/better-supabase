@@ -43,12 +43,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "add_conversation_members",
+      name: "create_conversation_members",
       args: ["uuid", "uuid[]"],
       returns: "integer",
     },
     {
-      name: "remove_conversation_member",
+      name: "delete_conversation_member",
       args: ["uuid", "uuid"],
       returns: "boolean",
     },
@@ -115,7 +115,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "thread_summary", args: ["uuid", "uuid"], returns: "jsonb" },
     {
-      name: "save_thread_summary",
+      name: "upsert_thread_summary",
       args: ["uuid", "uuid", "text", "jsonb"],
       returns: "jsonb",
     },

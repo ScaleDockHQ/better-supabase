@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:be5c0615f8bbdd1085436809f2faa99bd5f725bba1068279795bf13d9710bb10
+-- @bsb-hash sha256:19bde6116a7f366e61740101c1cbbc33c0223793c204e157ca5d76a230def3e7
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_red
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
 
-create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "better_supabase"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -121,8 +121,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant uuid := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant uuid := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -134,7 +134,7 @@ begin
   end if;
   if v_id is not null then
     select x."tenant_id" into v_tenant from "better_supabase"."promotions" x where x."id" = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       raise exception 'promotion not found' using errcode = 'P0002', hint = 'PROMOTIONS_NOT_FOUND';
     end if;
   end if;
@@ -242,8 +242,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.
@@ -853,7 +853,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:ee1461c773132a94a6f9fd21dd4cd103ffecbc77604270844e62349ea7046c77
+-- @bsb-hash sha256:bbe4d123cebddfd2c29437d689970649fe00340d77fb3d616905bacc5e1508ed
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -965,7 +965,7 @@ create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_red
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
 
-create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "better_supabase"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -973,8 +973,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant uuid := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant uuid := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -986,7 +986,7 @@ begin
   end if;
   if v_id is not null then
     select x."tenant_id" into v_tenant from "better_supabase"."promotions" x where x."id" = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       raise exception 'promotion not found' using errcode = 'P0002', hint = 'PROMOTIONS_NOT_FOUND';
     end if;
   end if;
@@ -1094,8 +1094,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.
@@ -1708,7 +1708,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:97943e0b7bb6f241282753cb9be9e3abcc1e52ca232d7f546eefb9350d6924e2
+-- @bsb-hash sha256:20c53637fe199eaaf934019d14e724c309026a0b638ad24cbd629d84e364ef1b
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1825,7 +1825,7 @@ create policy bsb_promotion_redemptions_read on "app_private"."promotion_redempt
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
 
-create or replace function "app_private"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "app_private"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1833,8 +1833,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant uuid := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant uuid := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -1846,7 +1846,7 @@ begin
   end if;
   if v_id is not null then
     select x."tenant_id" into v_tenant from "app_private"."promotions" x where x."id" = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       raise exception 'promotion not found' using errcode = 'P0002', hint = 'PROMOTIONS_NOT_FOUND';
     end if;
   end if;
@@ -1954,8 +1954,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.
@@ -2565,7 +2565,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:39665afb16506e4e1f9cacc30a804446701e8a34febff4bc4e1ee3720efa008b
+-- @bsb-hash sha256:07407766a1c7977eb0da0ca6749d336134b7c29141e306bd1a715e5943ad22ad
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2677,7 +2677,7 @@ create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_red
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
 
-create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "better_supabase"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2685,8 +2685,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant uuid := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant uuid := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -2698,7 +2698,7 @@ begin
   end if;
   if v_id is not null then
     select x."tenant_id" into v_tenant from "better_supabase"."promotions" x where x."id" = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       raise exception 'promotion not found' using errcode = 'P0002', hint = 'PROMOTIONS_NOT_FOUND';
     end if;
   end if;
@@ -2806,8 +2806,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.
@@ -3404,14 +3404,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemption
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "api"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_promotion"($1, $2, $3) $$;
-revoke execute on function "api"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_promotion"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_promotion_active"(promotion uuid, active boolean)
 returns boolean
@@ -3484,7 +3484,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:2afd3048003c21a4390cf52f5eb5a2c4fb1a1296a77bc411bc69df25a115823f
+-- @bsb-hash sha256:a651650b7bd10c7b0ea414c025e92055a8378b595b4f4c1d80df4c1935b8fd2e
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3584,7 +3584,7 @@ create policy bsb_promotion_redemptions_select on "better_supabase"."promotion_r
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
 
-create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "better_supabase"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3592,8 +3592,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant uuid := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant uuid := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -3605,7 +3605,7 @@ begin
   end if;
   if v_id is not null then
     select x."tenant_id" into v_tenant from "better_supabase"."promotions" x where x."id" = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       raise exception 'promotion not found' using errcode = 'P0002', hint = 'PROMOTIONS_NOT_FOUND';
     end if;
   end if;
@@ -3713,8 +3713,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.
@@ -4324,7 +4324,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:d3f8424c49de4281a480cd5523a9b6b56dc0d94046d95549c65ffee5ba68ad67
+-- @bsb-hash sha256:bd17cb3a5a501c81859056333b6bc3fa94594060a737e73bad08ee44ab688bfc
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4436,7 +4436,7 @@ create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_red
 -- collections) with targets, startsAt, endsAt, usageLimit,
 -- perCustomerLimit, stackable, priority, automatic and active.
 
-create or replace function "better_supabase"."save_promotion"(tenant uuid, promotion uuid, data jsonb)
+create or replace function "better_supabase"."upsert_promotion"(tenant uuid, promotion uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4444,8 +4444,8 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_tenant uuid := save_promotion.tenant;
-  v_id uuid := save_promotion.promotion;
+  v_tenant uuid := upsert_promotion.tenant;
+  v_id uuid := upsert_promotion.promotion;
   v_kind text := data ->> 'kind';
   v_scope text := coalesce(data ->> 'scope', 'order');
   v_currency text := data ->> 'currency';
@@ -4457,7 +4457,7 @@ begin
   end if;
   if v_id is not null then
     select x."org_id" into v_tenant from "better_supabase"."promotions" x where x."id" = v_id for update;
-    if not found or v_tenant is distinct from save_promotion.tenant then
+    if not found or v_tenant is distinct from upsert_promotion.tenant then
       raise exception 'promotion not found' using errcode = 'P0002', hint = 'PROMOTIONS_NOT_FOUND';
     end if;
   end if;
@@ -4565,8 +4565,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_promotion"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- before_promotion_activate(promotion) runs after the write, so it reads
 -- the promotion as it will be; raising refuses the activation.

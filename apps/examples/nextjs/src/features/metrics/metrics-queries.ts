@@ -3,9 +3,8 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { METRICS_TAG } from "./metrics-cache";
 
 const DAYS = 90;
 const DAY_MS = 86_400_000;
@@ -30,7 +29,7 @@ export interface MetricDetailData {
 export async function getCustomersMetric(): Promise<MetricDetailData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(METRICS_TAG);
+  cacheTag(tags.metrics());
   const organizationId = tenantOf(session);
 
   if (!organizationId) {

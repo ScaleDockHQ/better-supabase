@@ -3,10 +3,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
-import { readAllPages } from "@/lib/read-all-pages";
+import { getAllPages } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { LIMS_TAG } from "./lims-cache";
 
 export type SampleStatus =
   | "registered"
@@ -35,16 +34,16 @@ export interface MethodRow {
   readonly upperLimit: number | null;
 }
 
-export async function loadMethods(): Promise<readonly MethodRow[] | null> {
+export async function getMethods(): Promise<readonly MethodRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LIMS_TAG);
+  cacheTag(tags.lims());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const methods = await readAllPages((page) => db.lims.methodPage(page));
+  const methods = await getAllPages((page) => db.lims.methodPage(page));
 
   return methods.map((row) => ({
     id: row.id,
@@ -80,7 +79,7 @@ export async function loadSample(
 ): Promise<SampleFull | null | undefined> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LIMS_TAG);
+  cacheTag(tags.lims());
 
   if (!tenantOf(session)) {
     return null;
@@ -133,12 +132,12 @@ export interface InstrumentOption {
  * has no list call here, so the names come from the caller's connection
  * (EX-1106).
  */
-export async function loadInstruments(): Promise<
+export async function getInstruments(): Promise<
   readonly InstrumentOption[] | null
 > {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LIMS_TAG);
+  cacheTag(tags.lims());
   const tenant = tenantOf(session);
   const connection = postgres();
   const claims = userClaims(session);

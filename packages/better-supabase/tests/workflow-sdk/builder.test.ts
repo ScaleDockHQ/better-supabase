@@ -762,7 +762,7 @@ describe("the app's own node kinds", () => {
       ? (call.input as { score: number }).score >= 5
       : `sent ${String(call.config["channel"])}`;
 
-  function loadCustom(
+  function getCustom(
     source: string,
     aliases: Readonly<Record<string, string>>,
   ): Compiled {
@@ -802,7 +802,7 @@ describe("the app's own node kinds", () => {
     ).toBeUndefined();
     expect(compiledGraphOf({ ...compiled, nodeAliases: [] })).toBeUndefined();
 
-    const run = loadCustom(compiled.source, compiled.nodeAliases ?? {});
+    const run = getCustom(compiled.source, compiled.nodeAliases ?? {});
 
     for (const value of [9, 0]) {
       const expected = await executeGraph(

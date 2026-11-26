@@ -124,7 +124,7 @@ describe("medications module", () => {
     expect(sql).toContain(
       `alter table "better_supabase"."medication_administrations" add column "site" text;`,
     );
-    expect(sql).toContain("save_medication.fields");
+    expect(sql).toContain("upsert_medication.fields");
     expect(sql).toContain("record_medication_administration.fields");
     expect(sql).toContain("record_as_needed_administration.fields");
     expect(sql).toContain("fields jsonb default null");

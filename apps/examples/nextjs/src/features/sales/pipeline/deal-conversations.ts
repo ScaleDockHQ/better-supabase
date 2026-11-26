@@ -4,13 +4,10 @@ import { cacheTag } from "next/cache";
 
 import type { ConversationRow } from "@/features/inbox/inbox-types";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { INBOX_TAG } from "@/features/inbox/inbox-cache";
 import { toConversationRow } from "@/features/inbox/inbox-types";
 import { recordPages } from "@/features/records/record-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { SALES_TAG } from "../sales-cache";
 
 /** The newest conversations the lookup reads, across every status. */
 const CONVERSATION_WINDOW = 50;
@@ -21,12 +18,12 @@ const CONVERSATION_WINDOW = 50;
  * buyers are the people on the deal's relations binding (the Related tab links
  * them), read once, and the newest conversations are filtered to those people.
  */
-export async function loadDealConversations(
+export async function getDealConversations(
   dealId: string,
 ): Promise<readonly ConversationRow[]> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG, INBOX_TAG);
+  cacheTag(tags.sales(), tags.crm(), tags.inbox());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -41,7 +38,7 @@ export async function loadDealConversations(
         limit: CONVERSATION_WINDOW,
       })
       .orThrow(),
-    recordPages.deal.load(dealId, { bindings: ["relations"] }),
+    recordPages.deal.get(dealId, { bindings: ["relations"] }),
   ]);
 
   if (bindings.relations.kind !== "ok") {

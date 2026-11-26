@@ -405,7 +405,7 @@ ${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctio
 
 const budgetContract: readonly BlockSqlContractFunction[] = [
   {
-    name: "save_accounting_budget",
+    name: "upsert_accounting_budget",
     args: ["{id}", "text", "integer", "text", "jsonb", "uuid"],
     returns: "jsonb",
   },
@@ -441,7 +441,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_accounting_account",
+      name: "upsert_accounting_account",
       args: [
         "{id}",
         "text",
@@ -479,7 +479,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_accounting_journal",
+      name: "upsert_accounting_journal",
       args: [
         "{id}",
         "text",
@@ -501,7 +501,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_accounting_opening_balances",
+      name: "upsert_accounting_opening_balances",
       args: ["{id}", "integer", "jsonb"],
       returns: "jsonb",
     },
@@ -537,12 +537,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_accounting_dimension",
+      name: "upsert_accounting_dimension",
       args: ["{id}", "text", "text"],
       returns: "jsonb",
     },
     {
-      name: "save_accounting_dimension_value",
+      name: "upsert_accounting_dimension_value",
       args: ["uuid", "text", "text", "boolean"],
       returns: "jsonb",
     },
@@ -558,7 +558,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "numeric",
     },
     {
-      name: "save_accounting_entry",
+      name: "upsert_accounting_entry",
       args: [
         "uuid",
         "date",

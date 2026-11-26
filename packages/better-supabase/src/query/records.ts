@@ -29,7 +29,7 @@ import type {
 
 import { recordEventMatches } from "../blocks/record-bindings.ts";
 import { DbException } from "../core/errors.ts";
-import { findBinding, loadBindings } from "../records/bindings.ts";
+import { findBinding, getBindings } from "../records/bindings.ts";
 import {
   bindingWrites,
   recordCan,
@@ -172,7 +172,7 @@ export function recordQueries<
           : async () => {
               const loaded: Readonly<
                 Record<string, RecordBindingResult<unknown>>
-              > = await loadBindings(
+              > = await getBindings(
                 source,
                 recordSubject(feature, id),
                 [name],

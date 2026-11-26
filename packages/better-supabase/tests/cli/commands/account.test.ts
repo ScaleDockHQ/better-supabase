@@ -12,7 +12,7 @@ import {
 } from "../../../src/cli/commands/account.ts";
 import {
   CloudError,
-  readLogin,
+  getLogin,
   saveLogin,
   tokenPath,
 } from "../../../src/cli/seeds/cloud.ts";
@@ -102,7 +102,7 @@ describe("runLogin", () => {
       "https://c.test/api/cli/auth/poll",
       "https://c.test/api/cli/auth/poll",
     ]);
-    expect((await readLogin(tokenPath(env)))?.email).toBe("a@b.test");
+    expect((await getLogin(tokenPath(env)))?.email).toBe("a@b.test");
   });
 
   it("fails when the login is not approved before it expires", async () => {

@@ -544,7 +544,7 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
     saveMatrix: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_risk_matrix",
+          "upsert_risk_matrix",
           {
             tenant: organizationId,
             key: input.key,
@@ -556,7 +556,7 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
             is_default: input.isDefault ?? false,
             matrix_id: input.matrixId ?? null,
           },
-          (value) => matrixOf(value, "save_risk_matrix"),
+          (value) => matrixOf(value, "upsert_risk_matrix"),
         ),
       ),
     matrices: () =>

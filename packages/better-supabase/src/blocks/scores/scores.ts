@@ -423,9 +423,9 @@ export function createScores(options: ScoresOptions): Scores {
     saveModel: (input) =>
       tenant().andThen((organizationId) =>
         call(
-          "save_score_model",
+          "upsert_score_model",
           { tenant: organizationId, model: modelArg(input) },
-          (value) => modelOf(value, "save_score_model"),
+          (value) => modelOf(value, "upsert_score_model"),
         ),
       ),
     models: (filter = {}) =>

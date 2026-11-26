@@ -58,7 +58,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     amount: string,
   ): Promise<{ product: string; variant: string }> => {
     const product = await call<{ id: string }>(
-      "better_supabase.save_product($1, null, $2, null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, $2, null, null, 'physical')",
       [tenant, sku],
     );
 
@@ -67,7 +67,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     ]);
 
     const variant = await call<{ id: string }>(
-      "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, 500, false, false)",
+      "better_supabase.upsert_variant($1, null, $2, '{}'::uuid[], null, null, 500, false, false)",
       [product.id, sku],
     );
 
@@ -84,7 +84,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
 
     return (
       await call<{ id: string }>(
-        "better_supabase.save_promotion($1, null, $2)",
+        "better_supabase.upsert_promotion($1, null, $2)",
         [tenant, JSON.stringify(data)],
       )
     ).id;
@@ -178,7 +178,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     mug = await item("PMUG", "1000");
     rate = (
       await call<{ id: string }>(
-        "better_supabase.save_shipping_rate($1, null, $2)",
+        "better_supabase.upsert_shipping_rate($1, null, $2)",
         [
           tenant,
           JSON.stringify({
@@ -303,12 +303,12 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     await session.as(owner);
 
     const apparel = await call<{ id: string }>(
-      "better_supabase.save_category($1, null, null, 'Apparel', null, null)",
+      "better_supabase.upsert_category($1, null, null, 'Apparel', null, null)",
       [tenant],
     );
 
     const tees = await call<{ id: string }>(
-      "better_supabase.save_category($1, null, $2, 'Tees', null, null)",
+      "better_supabase.upsert_category($1, null, $2, 'Tees', null, null)",
       [tenant, apparel.id],
     );
 
@@ -318,7 +318,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     ]);
 
     const kitchen = await call<{ id: string }>(
-      "better_supabase.save_collection($1, null, 'Kitchen', null, 'manual', null)",
+      "better_supabase.upsert_collection($1, null, 'Kitchen', null, 'manual', null)",
       [tenant],
     );
 
@@ -354,7 +354,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       ["PTEE", "2000", "2000"],
     ]);
     await session.as(owner);
-    await call("better_supabase.save_promotion($1, $2, $3)", [
+    await call("better_supabase.upsert_promotion($1, $2, $3)", [
       tenant,
       byCategory,
       JSON.stringify({
@@ -519,7 +519,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     await reset();
     await session.as(member);
     expect(
-      await session.hint("better_supabase.save_promotion($1, null, $2)", [
+      await session.hint("better_supabase.upsert_promotion($1, null, $2)", [
         tenant,
         JSON.stringify({ name: "x", kind: "percentage", percent: "5" }),
       ]),
@@ -527,7 +527,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     await session.as(owner);
 
     const invalid = async (data: Record<string, unknown>): Promise<string> =>
-      session.hint("better_supabase.save_promotion($1, null, $2)", [
+      session.hint("better_supabase.upsert_promotion($1, null, $2)", [
         tenant,
         JSON.stringify(data),
       ]);

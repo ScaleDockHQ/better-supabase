@@ -87,12 +87,12 @@ describe.skipIf(!live)("inspections", () => {
       ]);
 
       const framework = await s.value<{ id: string }>(
-        "better_supabase.save_control_framework($1, 'iso9001', 'ISO 9001')",
+        "better_supabase.upsert_control_framework($1, 'iso9001', 'ISO 9001')",
         [org],
       );
 
       const control = await s.value<{ id: string }>(
-        "better_supabase.save_control($1, '8.5.2', 'Identification and traceability')",
+        "better_supabase.upsert_control($1, '8.5.2', 'Identification and traceability')",
         [framework.id],
       );
 

@@ -227,7 +227,7 @@ function journalTypeOf(raw: string | undefined): AuditJournalType {
 const rateBpsOf = (text: string, where: string): number =>
   Number(parseAmount(text, 2, where));
 
-function readHeader(node: XmlNode): AuditRecord {
+function getHeader(node: XmlNode): AuditRecord {
   const selection = childNode(node, "SelectionCriteria");
 
   const start =
@@ -408,7 +408,7 @@ async function* parse(
       const { node } = event;
 
       if (event.path === `${ROOT}/Header`) {
-        const record = readHeader(node);
+        const record = getHeader(node);
 
         if (record.kind === "header") {
           fiscalYear = record.header.fiscalYear;

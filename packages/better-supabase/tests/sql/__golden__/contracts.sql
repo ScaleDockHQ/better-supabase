@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:0f792bea28aa3c1c204b8517bd42639a0e929b5373a7fd347482ce581deec0c0
+-- @bsb-hash sha256:a6dd240403ad72029aa8dad897cab15c4f239228d83beead75fcffb01507d41b
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -852,7 +852,7 @@ revoke execute on function "better_supabase"."run_contract_renewals"(date) from 
 grant execute on function "better_supabase"."run_contract_renewals"(date) to service_role;
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function "better_supabase"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "better_supabase"."upsert_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -866,33 +866,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contract from "better_supabase"."contracts" x where x."id" = save_contract_obligation.contract_id;
+  select * into v_contract from "better_supabase"."contracts" x where x."id" = upsert_contract_obligation.contract_id;
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if nullif(trim(save_contract_obligation.title), '') is null then
+  if nullif(trim(upsert_contract_obligation.title), '') is null then
     raise exception 'an obligation needs a title' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = save_contract_obligation.owner_id) then
+  if upsert_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = upsert_contract_obligation.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     insert into "better_supabase"."contract_obligations" ("tenant_id", "contract_id", "title", "description", "due_on", "owner_id")
-    values (v_contract."tenant_id", v_contract."id", trim(save_contract_obligation.title), nullif(trim(save_contract_obligation.description), ''), save_contract_obligation.due_on, save_contract_obligation.owner_id)
+    values (v_contract."tenant_id", v_contract."id", trim(upsert_contract_obligation.title), nullif(trim(upsert_contract_obligation.description), ''), upsert_contract_obligation.due_on, upsert_contract_obligation.owner_id)
     returning * into v_row;
   else
-    update "better_supabase"."contract_obligations" x set "title" = trim(save_contract_obligation.title), "description" = nullif(trim(save_contract_obligation.description), ''),
-      "due_on" = save_contract_obligation.due_on, "owner_id" = save_contract_obligation.owner_id, "updated_at" = now()
-      where x."id" = save_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
+    update "better_supabase"."contract_obligations" x set "title" = trim(upsert_contract_obligation.title), "description" = nullif(trim(upsert_contract_obligation.description), ''),
+      "due_on" = upsert_contract_obligation.due_on, "owner_id" = upsert_contract_obligation.owner_id, "updated_at" = now()
+      where x."id" = upsert_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
       returning * into v_row;
     if not found then
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     null;
   else
     null;
@@ -900,8 +900,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
 create or replace function "better_supabase"."set_contract_obligation_status"(obligation_id uuid, status text)
@@ -1281,7 +1281,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:e191bec9eaef7d849ef4093c8fa6cb6ff45a4f06397afa0a787f0a875320666c
+-- @bsb-hash sha256:7932c0b588031d75450affdc8834f0cf4a4a48bb9b1be9f1af44056b8a4c481d
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2168,7 +2168,7 @@ revoke execute on function "better_supabase"."run_contract_renewals"(date) from 
 grant execute on function "better_supabase"."run_contract_renewals"(date) to service_role;
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function "better_supabase"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "better_supabase"."upsert_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2182,33 +2182,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contract from "better_supabase"."contracts" x where x."id" = save_contract_obligation.contract_id;
+  select * into v_contract from "better_supabase"."contracts" x where x."id" = upsert_contract_obligation.contract_id;
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if nullif(trim(save_contract_obligation.title), '') is null then
+  if nullif(trim(upsert_contract_obligation.title), '') is null then
     raise exception 'an obligation needs a title' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = save_contract_obligation.owner_id) then
+  if upsert_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = upsert_contract_obligation.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     insert into "better_supabase"."contract_obligations" ("tenant_id", "contract_id", "title", "description", "due_on", "owner_id")
-    values (v_contract."tenant_id", v_contract."id", trim(save_contract_obligation.title), nullif(trim(save_contract_obligation.description), ''), save_contract_obligation.due_on, save_contract_obligation.owner_id)
+    values (v_contract."tenant_id", v_contract."id", trim(upsert_contract_obligation.title), nullif(trim(upsert_contract_obligation.description), ''), upsert_contract_obligation.due_on, upsert_contract_obligation.owner_id)
     returning * into v_row;
   else
-    update "better_supabase"."contract_obligations" x set "title" = trim(save_contract_obligation.title), "description" = nullif(trim(save_contract_obligation.description), ''),
-      "due_on" = save_contract_obligation.due_on, "owner_id" = save_contract_obligation.owner_id, "updated_at" = now()
-      where x."id" = save_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
+    update "better_supabase"."contract_obligations" x set "title" = trim(upsert_contract_obligation.title), "description" = nullif(trim(upsert_contract_obligation.description), ''),
+      "due_on" = upsert_contract_obligation.due_on, "owner_id" = upsert_contract_obligation.owner_id, "updated_at" = now()
+      where x."id" = upsert_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
       returning * into v_row;
     if not found then
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     perform "better_supabase".emit_event('contract_obligation.created', jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status"), 'obligations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/contracts');
   perform better_supabase.audit_event(
     event_type => 'contract_obligation.created',
@@ -2234,8 +2234,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
 create or replace function "better_supabase"."set_contract_obligation_status"(obligation_id uuid, status text)
@@ -2628,7 +2628,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:8cb2001ace51707174c2c76eb4d787fffc3ddd36439a93e2cc3c78c5444cb74f
+-- @bsb-hash sha256:12e5831b96c6b61f40abcf2613265742f526f35e3bee3b84b5d152b83b72966c
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3484,7 +3484,7 @@ revoke execute on function "app_private"."run_contract_renewals"(date) from publ
 grant execute on function "app_private"."run_contract_renewals"(date) to service_role;
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function "app_private"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "app_private"."upsert_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3498,33 +3498,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contract from "app_private"."contracts" x where x."id" = save_contract_obligation.contract_id;
+  select * into v_contract from "app_private"."contracts" x where x."id" = upsert_contract_obligation.contract_id;
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if nullif(trim(save_contract_obligation.title), '') is null then
+  if nullif(trim(upsert_contract_obligation.title), '') is null then
     raise exception 'an obligation needs a title' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = save_contract_obligation.owner_id) then
+  if upsert_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = upsert_contract_obligation.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     insert into "app_private"."contract_obligations" ("tenant_id", "contract_id", "title", "description", "due_on", "owner_id")
-    values (v_contract."tenant_id", v_contract."id", trim(save_contract_obligation.title), nullif(trim(save_contract_obligation.description), ''), save_contract_obligation.due_on, save_contract_obligation.owner_id)
+    values (v_contract."tenant_id", v_contract."id", trim(upsert_contract_obligation.title), nullif(trim(upsert_contract_obligation.description), ''), upsert_contract_obligation.due_on, upsert_contract_obligation.owner_id)
     returning * into v_row;
   else
-    update "app_private"."contract_obligations" x set "title" = trim(save_contract_obligation.title), "description" = nullif(trim(save_contract_obligation.description), ''),
-      "due_on" = save_contract_obligation.due_on, "owner_id" = save_contract_obligation.owner_id, "updated_at" = now()
-      where x."id" = save_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
+    update "app_private"."contract_obligations" x set "title" = trim(upsert_contract_obligation.title), "description" = nullif(trim(upsert_contract_obligation.description), ''),
+      "due_on" = upsert_contract_obligation.due_on, "owner_id" = upsert_contract_obligation.owner_id, "updated_at" = now()
+      where x."id" = upsert_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
       returning * into v_row;
     if not found then
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     null;
   else
     null;
@@ -3532,8 +3532,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "app_private"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "app_private"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
 create or replace function "app_private"."set_contract_obligation_status"(obligation_id uuid, status text)
@@ -3913,7 +3913,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:fa08a6bb714f44937b752dd6800b50cbd0d6b8ee79412f396b4af8ac956da414
+-- @bsb-hash sha256:8602219f98a3ea0c97a1ff744427302002da1923399d2475c27ff2b9366c600b
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4764,7 +4764,7 @@ revoke execute on function "better_supabase"."run_contract_renewals"(date) from 
 grant execute on function "better_supabase"."run_contract_renewals"(date) to service_role;
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function "better_supabase"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "better_supabase"."upsert_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4778,33 +4778,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contract from "better_supabase"."contracts" x where x."id" = save_contract_obligation.contract_id;
+  select * into v_contract from "better_supabase"."contracts" x where x."id" = upsert_contract_obligation.contract_id;
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if nullif(trim(save_contract_obligation.title), '') is null then
+  if nullif(trim(upsert_contract_obligation.title), '') is null then
     raise exception 'an obligation needs a title' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = save_contract_obligation.owner_id) then
+  if upsert_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = upsert_contract_obligation.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     insert into "better_supabase"."contract_obligations" ("tenant_id", "contract_id", "title", "description", "due_on", "owner_id")
-    values (v_contract."tenant_id", v_contract."id", trim(save_contract_obligation.title), nullif(trim(save_contract_obligation.description), ''), save_contract_obligation.due_on, save_contract_obligation.owner_id)
+    values (v_contract."tenant_id", v_contract."id", trim(upsert_contract_obligation.title), nullif(trim(upsert_contract_obligation.description), ''), upsert_contract_obligation.due_on, upsert_contract_obligation.owner_id)
     returning * into v_row;
   else
-    update "better_supabase"."contract_obligations" x set "title" = trim(save_contract_obligation.title), "description" = nullif(trim(save_contract_obligation.description), ''),
-      "due_on" = save_contract_obligation.due_on, "owner_id" = save_contract_obligation.owner_id, "updated_at" = now()
-      where x."id" = save_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
+    update "better_supabase"."contract_obligations" x set "title" = trim(upsert_contract_obligation.title), "description" = nullif(trim(upsert_contract_obligation.description), ''),
+      "due_on" = upsert_contract_obligation.due_on, "owner_id" = upsert_contract_obligation.owner_id, "updated_at" = now()
+      where x."id" = upsert_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
       returning * into v_row;
     if not found then
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     null;
   else
     null;
@@ -4812,8 +4812,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
 create or replace function "better_supabase"."set_contract_obligation_status"(obligation_id uuid, status text)
@@ -5258,14 +5258,14 @@ as $$ select "better_supabase"."run_contract_renewals"($1) $$;
 revoke execute on function "api"."run_contract_renewals"(date) from public, anon, authenticated;
 grant execute on function "api"."run_contract_renewals"(date) to service_role;
 
-create or replace function "api"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "api"."upsert_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_contract_obligation"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "api"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_contract_obligation"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "api"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."set_contract_obligation_status"(obligation_id uuid, status text)
 returns jsonb
@@ -5322,7 +5322,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:8ae8ba046d7409adb7c80c2fb32fbf93f2093f8da4d34311dc1752138cc35f34
+-- @bsb-hash sha256:93e6a05da28b98548156846352f46275f242222b67014d29d13c2b37f52789a7
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6161,7 +6161,7 @@ revoke execute on function "better_supabase"."run_contract_renewals"(date) from 
 grant execute on function "better_supabase"."run_contract_renewals"(date) to service_role;
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function "better_supabase"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "better_supabase"."upsert_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6175,33 +6175,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contract from "better_supabase"."contracts" x where x."id" = save_contract_obligation.contract_id;
+  select * into v_contract from "better_supabase"."contracts" x where x."id" = upsert_contract_obligation.contract_id;
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."tenant_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if nullif(trim(save_contract_obligation.title), '') is null then
+  if nullif(trim(upsert_contract_obligation.title), '') is null then
     raise exception 'an obligation needs a title' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = save_contract_obligation.owner_id) then
+  if upsert_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_contract."tenant_id" and m."user_id" = upsert_contract_obligation.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     insert into "better_supabase"."contract_obligations" ("tenant_id", "contract_id", "title", "description", "due_on", "owner_id")
-    values (v_contract."tenant_id", v_contract."id", trim(save_contract_obligation.title), nullif(trim(save_contract_obligation.description), ''), save_contract_obligation.due_on, save_contract_obligation.owner_id)
+    values (v_contract."tenant_id", v_contract."id", trim(upsert_contract_obligation.title), nullif(trim(upsert_contract_obligation.description), ''), upsert_contract_obligation.due_on, upsert_contract_obligation.owner_id)
     returning * into v_row;
   else
-    update "better_supabase"."contract_obligations" x set "title" = trim(save_contract_obligation.title), "description" = nullif(trim(save_contract_obligation.description), ''),
-      "due_on" = save_contract_obligation.due_on, "owner_id" = save_contract_obligation.owner_id, "updated_at" = now()
-      where x."id" = save_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
+    update "better_supabase"."contract_obligations" x set "title" = trim(upsert_contract_obligation.title), "description" = nullif(trim(upsert_contract_obligation.description), ''),
+      "due_on" = upsert_contract_obligation.due_on, "owner_id" = upsert_contract_obligation.owner_id, "updated_at" = now()
+      where x."id" = upsert_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
       returning * into v_row;
     if not found then
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     null;
   else
     null;
@@ -6209,8 +6209,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
 create or replace function "better_supabase"."set_contract_obligation_status"(obligation_id uuid, status text)
@@ -6590,7 +6590,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:a206ee60e5b8bc62f8f9e87a53fba630933867c945a86ce12ec57edf02c44512
+-- @bsb-hash sha256:9d842aad693a2f3a02df076fb8c7072bbeef90f15046c8dc3a059cc3490a304a
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7441,7 +7441,7 @@ revoke execute on function "better_supabase"."run_contract_renewals"(date) from 
 grant execute on function "better_supabase"."run_contract_renewals"(date) to service_role;
 
 -- Adds an obligation to a contract, or changes one (obligation_id).
-create or replace function "better_supabase"."save_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
+create or replace function "better_supabase"."upsert_contract_obligation"(contract_id uuid, title text, due_on date default null, owner_id uuid default null, description text default null, obligation_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7455,33 +7455,33 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contract from "better_supabase"."contracts" x where x."id" = save_contract_obligation.contract_id;
+  select * into v_contract from "better_supabase"."contracts" x where x."id" = upsert_contract_obligation.contract_id;
   if not found then
     raise exception 'contract not found' using errcode = 'P0002', hint = 'CONTRACT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_contract."org_id", 'contracts.write'), false)) then
     raise exception 'not allowed to change contract obligations' using errcode = '42501', hint = 'CONTRACT_FORBIDDEN';
   end if;
-  if nullif(trim(save_contract_obligation.title), '') is null then
+  if nullif(trim(upsert_contract_obligation.title), '') is null then
     raise exception 'an obligation needs a title' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = v_contract."org_id" and m."user_id" = save_contract_obligation.owner_id) then
+  if upsert_contract_obligation.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."org_id" = v_contract."org_id" and m."user_id" = upsert_contract_obligation.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTRACT_INVALID';
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     insert into "better_supabase"."contract_obligations" ("org_id", "contract_id", "title", "description", "due_on", "owner_id")
-    values (v_contract."org_id", v_contract."id", trim(save_contract_obligation.title), nullif(trim(save_contract_obligation.description), ''), save_contract_obligation.due_on, save_contract_obligation.owner_id)
+    values (v_contract."org_id", v_contract."id", trim(upsert_contract_obligation.title), nullif(trim(upsert_contract_obligation.description), ''), upsert_contract_obligation.due_on, upsert_contract_obligation.owner_id)
     returning * into v_row;
   else
-    update "better_supabase"."contract_obligations" x set "title" = trim(save_contract_obligation.title), "description" = nullif(trim(save_contract_obligation.description), ''),
-      "due_on" = save_contract_obligation.due_on, "owner_id" = save_contract_obligation.owner_id, "updated_at" = now()
-      where x."id" = save_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
+    update "better_supabase"."contract_obligations" x set "title" = trim(upsert_contract_obligation.title), "description" = nullif(trim(upsert_contract_obligation.description), ''),
+      "due_on" = upsert_contract_obligation.due_on, "owner_id" = upsert_contract_obligation.owner_id, "updated_at" = now()
+      where x."id" = upsert_contract_obligation.obligation_id and x."contract_id" = v_contract."id"
       returning * into v_row;
     if not found then
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  if save_contract_obligation.obligation_id is null then
+  if upsert_contract_obligation.obligation_id is null then
     null;
   else
     null;
@@ -7489,8 +7489,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."save_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_contract_obligation"(uuid, text, date, uuid, text, uuid) to authenticated, service_role;
 
 -- Marks an obligation open, done or waived. Its owner may mark it too.
 create or replace function "better_supabase"."set_contract_obligation_status"(obligation_id uuid, status text)

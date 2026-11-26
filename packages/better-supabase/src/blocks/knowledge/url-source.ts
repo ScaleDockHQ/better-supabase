@@ -256,7 +256,7 @@ export function htmlToText(html: string): {
   };
 }
 
-async function readCapped(
+async function getCapped(
   response: Response,
   maxBytes: number,
 ): Promise<Uint8Array> {
@@ -392,7 +392,7 @@ export function createUrlSource(options: UrlSourceOptions): UrlSource {
             .toLowerCase() ?? "text/plain";
 
         try {
-          const data = await readCapped(response, maxBytes);
+          const data = await getCapped(response, maxBytes);
 
           if (HTML_TYPE.test(mediaType)) {
             const { title, text } = htmlToText(new TextDecoder().decode(data));

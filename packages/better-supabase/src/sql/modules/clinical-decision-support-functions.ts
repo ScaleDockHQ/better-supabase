@@ -33,7 +33,7 @@ export function decisionSupportFunctions(ctx: BlockSqlContext): string {
 -- names one medication and at least one bound, an interaction rule names two,
 -- and a duplicate_therapy rule names the medications of one therapy group.
 -- Without an id it adds a rule. Needs clinical_decision_support.manage.
-create or replace function ${fn("save_care_rule")}(tenant ${idType}, attrs jsonb)
+create or replace function ${fn("upsert_care_rule")}(tenant ${idType}, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -41,7 +41,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_attrs jsonb := coalesce(save_care_rule.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_care_rule.attrs, '{}'::jsonb);
   v_row ${rules};
   v_id uuid;
   v_kind text;
@@ -54,7 +54,7 @@ declare
   v_active boolean;
   v_created boolean := false;
 begin
-  if not ${sql.allowed("save_care_rule.tenant", sql.manage)} then
+  if not ${sql.allowed("upsert_care_rule.tenant", sql.manage)} then
     ${sql.forbidden("not allowed to change care rules")}
   end if;
   begin
@@ -79,7 +79,7 @@ begin
   if v_message is not null and length(v_message) > 1000 then
     ${sql.invalid("a message is up to 1000 characters")}
   end if;
-  if (select count(*) from ${catalog} mx where mx.${m("tenant")} = save_care_rule.tenant and mx.${m("id")} = any(v_ids)) <> cardinality(v_ids) then
+  if (select count(*) from ${catalog} mx where mx.${m("tenant")} = upsert_care_rule.tenant and mx.${m("id")} = any(v_ids)) <> cardinality(v_ids) then
     ${sql.invalid("medicationIds names medications that are not in the organization's catalog")}
   end if;
   if v_kind = 'dose_range' and (cardinality(v_ids) <> 1 or (v_min is null and v_max is null and v_day is null)) then
@@ -100,13 +100,13 @@ begin
   begin
     if v_id is null then
       insert into ${rules} (${r("tenant")}, ${r("kind")}, ${r("medicationIds")}, ${r("minDose")}, ${r("maxDose")}, ${r("maxPerDay")}, ${r("severity")}, ${r("message")}, ${r("active")})
-      values (save_care_rule.tenant, v_kind, v_ids, v_min, v_max, v_day, v_severity, v_message, v_active)
+      values (upsert_care_rule.tenant, v_kind, v_ids, v_min, v_max, v_day, v_severity, v_message, v_active)
       returning * into v_row;
       v_created := true;
     else
 ${
   archivable
-    ? `      perform 1 from ${rules} x where x.${r("id")} = v_id and x.${r("tenant")} = save_care_rule.tenant and x.${r("archivedAt")} is not null;
+    ? `      perform 1 from ${rules} x where x.${r("id")} = v_id and x.${r("tenant")} = upsert_care_rule.tenant and x.${r("archivedAt")} is not null;
       if found then
         ${fail("DECISION_SUPPORT_RULE_ARCHIVED", "the rule is archived; restore it first", "55000")}
       end if;
@@ -114,7 +114,7 @@ ${
     : ""
 }      update ${rules} x set ${r("kind")} = v_kind, ${r("medicationIds")} = v_ids, ${r("minDose")} = v_min, ${r("maxDose")} = v_max,
         ${r("maxPerDay")} = v_day, ${r("severity")} = v_severity, ${r("message")} = v_message, ${r("active")} = v_active, ${r("updatedAt")} = now()
-      where x.${r("id")} = v_id and x.${r("tenant")} = save_care_rule.tenant
+      where x.${r("id")} = v_id and x.${r("tenant")} = upsert_care_rule.tenant
       returning * into v_row;
       if not found then
         ${sql.ruleMissing}
@@ -131,7 +131,7 @@ ${
   return ${sql.ruleJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_care_rule")}(${idType}, jsonb)`)}
+${userGrant(`${fn("upsert_care_rule")}(${idType}, jsonb)`)}
 
 ${
   archivable

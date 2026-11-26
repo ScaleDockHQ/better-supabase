@@ -615,7 +615,7 @@ describe("createLedger", () => {
     const ledger = createLedger({ transport: fake.transport });
 
     const accounts = await ledgerBinding
-      .load(ledger, { type: "party", id: "p1" }, undefined)
+      .get(ledger, { type: "party", id: "p1" }, undefined)
       .orThrow();
 
     expect(accounts.map((account) => account.id)).toEqual(["a1"]);

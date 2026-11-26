@@ -101,7 +101,7 @@ export function rememberConfigImports(root: string, hash: string): void {
   keys.set(root, hash);
 }
 
-/** The hash `loadConfig` recorded for `root`, or `""` for a config with no file. */
+/** The hash `getConfig` recorded for `root`, or `""` for a config with no file. */
 export function configImportsKey(root: string): string {
   return keys.get(root) ?? "";
 }

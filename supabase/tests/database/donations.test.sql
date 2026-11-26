@@ -13,7 +13,7 @@ select set_config(
 );
 set local role authenticated;
 
-select set_config('test.fund', better_supabase.save_donation_fund(
+select set_config('test.fund', better_supabase.upsert_donation_fund(
   '00000000-0000-4000-8000-000000000001', 'roof', 'New roof', kind => 'campaign', goal => 1000000, currency => 'EUR'
 ) ->> 'id', true);
 

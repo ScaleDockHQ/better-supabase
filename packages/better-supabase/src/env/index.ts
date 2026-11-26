@@ -448,7 +448,7 @@ function processEnv(): EnvSource {
  * Like `parseEnv`, but throws `EnvValidationError`. Reads `process.env` by
  * default.
  */
-export function loadEnv(
+export function getEnv(
   source: EnvSource = processEnv(),
   options: EnvOptions = {},
 ): BetterSupabaseEnv {

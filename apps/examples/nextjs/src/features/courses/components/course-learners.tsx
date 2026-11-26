@@ -28,7 +28,7 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { loadCourseLearners } from "../course-learners/course-learners-queries";
+import { getCourseLearners } from "../course-learners/course-learners-queries";
 
 export function CourseLearnersSkeleton() {
   return <Skeleton className="h-64 rounded-xl" aria-busy="true" />;
@@ -40,7 +40,7 @@ export async function CourseLearners({ courseId }: { courseId: string }) {
 
   const [t, loaded, fmtDate, canAssign] = await Promise.all([
     getExtracted("courses"),
-    settle(() => loadCourseLearners(courseId)),
+    settle(() => getCourseLearners(courseId)),
     dateFormatter(),
     holds("courses.enroll"),
   ]);

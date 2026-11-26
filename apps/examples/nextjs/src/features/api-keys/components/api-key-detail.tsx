@@ -16,13 +16,13 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { loadApiKey } from "../api-keys-queries";
+import { getApiKey } from "../api-keys-queries";
 import { RotateKeyButton } from "./rotate-key-button";
 
 /** Render inside `<Suspense>`: reads the `id` param and the key. */
 export async function ApiKeyDetail({ id }: { id: string }) {
   const [key, permissions, t, format] = await Promise.all([
-    loadApiKey(id),
+    getApiKey(id),
     getPermissions(),
     getExtracted("apiKeys"),
     getFormatter(),

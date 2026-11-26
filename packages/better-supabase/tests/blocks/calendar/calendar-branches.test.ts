@@ -112,7 +112,7 @@ describe("calendarEventOf", () => {
 describe("calendar writes", () => {
   it("sends the actor and the instants, dates and alarms of an event", async () => {
     const { calls, calendar } = recorder({
-      save_calendar_event: { id: "e1", uid: "u", created: false },
+      upsert_calendar_event: { id: "e1", uid: "u", created: false },
     });
 
     await calendar
@@ -274,7 +274,7 @@ describe("calendar writes", () => {
   it("copies every series column into an override and clears its rdates", async () => {
     const { calls, calendar } = recorder({
       list_calendar_events: [FULL],
-      save_calendar_event: { id: "o1", uid: "s1", created: true },
+      upsert_calendar_event: { id: "o1", uid: "s1", created: true },
     });
 
     const found = await calendar

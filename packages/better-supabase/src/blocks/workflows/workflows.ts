@@ -704,7 +704,7 @@ export function createWorkflows<
         ),
       remove: (id) =>
         call(
-          "remove_workflow_schedule",
+          "delete_workflow_schedule",
           { schedule: id },
           (value) => value === true,
         ),

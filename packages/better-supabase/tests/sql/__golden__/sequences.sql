@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:ab1f4b48c91924d876bcac0011e28876a87174b04fa2aded68ef7b4e86e4e9a8
+-- @bsb-hash sha256:4e363770cb6effe89a2d2661f9800e8c883aadd45a4578102628f57285096da0
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -275,7 +275,7 @@ revoke execute on function "better_supabase"."sequence_resync"(uuid) from public
 -- description, status, exitOnReply, accountId, steps }; keys left out keep
 -- their value. Changing the steps raises the version and moves running
 -- recipients onto the new steps. Archiving ends every run.
-create or replace function "better_supabase"."save_sequence"(tenant uuid, sequence jsonb)
+create or replace function "better_supabase"."upsert_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -298,32 +298,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_sequence.tenant is not null and coalesce(better_supabase.can('tenant', upsert_sequence.tenant, 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
+  if upsert_sequence.sequence is null or jsonb_typeof(upsert_sequence.sequence) <> 'object' then
     raise exception 'sequence must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  v_id := nullif(save_sequence.sequence ->> 'id', '')::uuid;
+  v_id := nullif(upsert_sequence.sequence ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."sequences" x
-    where x."id" = v_id and x."tenant_id" = save_sequence.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_sequence.tenant
     for update;
     if v_old."id" is null then
       raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_sequence.sequence ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old."name"));
-  v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old."description" end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
-  v_exit := case when save_sequence.sequence ? 'exitOnReply'
-    then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
-  v_account := case when save_sequence.sequence ? 'accountId'
-    then nullif(save_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
-  v_steps := case when save_sequence.sequence ? 'steps'
-    then save_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_key := coalesce(upsert_sequence.sequence ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_sequence.sequence ->> 'name', v_old."name"));
+  v_description := case when upsert_sequence.sequence ? 'description'
+    then nullif(trim(upsert_sequence.sequence ->> 'description'), '') else v_old."description" end;
+  v_status := coalesce(upsert_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
+  v_exit := case when upsert_sequence.sequence ? 'exitOnReply'
+    then (upsert_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
+  v_account := case when upsert_sequence.sequence ? 'accountId'
+    then nullif(upsert_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
+  v_steps := case when upsert_sequence.sequence ? 'steps'
+    then upsert_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
@@ -354,12 +354,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_sequence.tenant, save_sequence.sequence;
+        using upsert_sequence.tenant, upsert_sequence.sequence;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
-    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
+    values (upsert_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."sequences" x
@@ -400,8 +400,8 @@ begin
     from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sequence"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's sequences with their recipient counts, by name. status
 -- filters; without it archived sequences stay out.
@@ -1314,7 +1314,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:da8653c1a3342bb43e4f965d7963e131eb5a2178cf23a38d08a0c521dab4b7d9
+-- @bsb-hash sha256:ca3dd12a00aba2f651decff42b9bdc50ad5425d9b21c9d8a76a056a2b0c53eb5
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1588,7 +1588,7 @@ revoke execute on function "better_supabase"."sequence_resync"(uuid) from public
 -- description, status, exitOnReply, accountId, steps }; keys left out keep
 -- their value. Changing the steps raises the version and moves running
 -- recipients onto the new steps. Archiving ends every run.
-create or replace function "better_supabase"."save_sequence"(tenant uuid, sequence jsonb)
+create or replace function "better_supabase"."upsert_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1611,32 +1611,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_sequence.tenant is not null and coalesce(better_supabase.can('tenant', upsert_sequence.tenant, 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
+  if upsert_sequence.sequence is null or jsonb_typeof(upsert_sequence.sequence) <> 'object' then
     raise exception 'sequence must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  v_id := nullif(save_sequence.sequence ->> 'id', '')::uuid;
+  v_id := nullif(upsert_sequence.sequence ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."sequences" x
-    where x."id" = v_id and x."tenant_id" = save_sequence.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_sequence.tenant
     for update;
     if v_old."id" is null then
       raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_sequence.sequence ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old."name"));
-  v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old."description" end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
-  v_exit := case when save_sequence.sequence ? 'exitOnReply'
-    then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
-  v_account := case when save_sequence.sequence ? 'accountId'
-    then nullif(save_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
-  v_steps := case when save_sequence.sequence ? 'steps'
-    then save_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_key := coalesce(upsert_sequence.sequence ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_sequence.sequence ->> 'name', v_old."name"));
+  v_description := case when upsert_sequence.sequence ? 'description'
+    then nullif(trim(upsert_sequence.sequence ->> 'description'), '') else v_old."description" end;
+  v_status := coalesce(upsert_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
+  v_exit := case when upsert_sequence.sequence ? 'exitOnReply'
+    then (upsert_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
+  v_account := case when upsert_sequence.sequence ? 'accountId'
+    then nullif(upsert_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
+  v_steps := case when upsert_sequence.sequence ? 'steps'
+    then upsert_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
@@ -1661,7 +1661,7 @@ begin
   end if;
   if v_account is not null and not exists (
     select 1 from "better_supabase"."mail_accounts" k
-    where k."id" = v_account and k."tenant_id" = save_sequence.tenant
+    where k."id" = v_account and k."tenant_id" = upsert_sequence.tenant
       and k."status" <> 'disconnected'
   ) then
     raise exception 'accountId must be a connected mailbox of this organization' using errcode = '22023', hint = 'SEQUENCE_INVALID';
@@ -1671,12 +1671,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_sequence.tenant, save_sequence.sequence;
+        using upsert_sequence.tenant, upsert_sequence.sequence;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
-    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
+    values (upsert_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."sequences" x
@@ -1737,8 +1737,8 @@ begin
     from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sequence"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's sequences with their recipient counts, by name. status
 -- filters; without it archived sequences stay out.
@@ -2737,7 +2737,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:493eae4692d65e7643dcf6e7cccb537d77ac8630c7d4b7badf7bdf92dd85f412
+-- @bsb-hash sha256:1175327b53a284ff8d091a5d9ed0e918c1b8fd2c00703e647604aac1a127a08e
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3016,7 +3016,7 @@ revoke execute on function "app_private"."sequence_resync"(uuid) from public, an
 -- description, status, exitOnReply, accountId, steps }; keys left out keep
 -- their value. Changing the steps raises the version and moves running
 -- recipients onto the new steps. Archiving ends every run.
-create or replace function "app_private"."save_sequence"(tenant uuid, sequence jsonb)
+create or replace function "app_private"."upsert_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3039,32 +3039,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_sequence.tenant is not null and coalesce(better_supabase.can('tenant', upsert_sequence.tenant, 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
+  if upsert_sequence.sequence is null or jsonb_typeof(upsert_sequence.sequence) <> 'object' then
     raise exception 'sequence must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  v_id := nullif(save_sequence.sequence ->> 'id', '')::uuid;
+  v_id := nullif(upsert_sequence.sequence ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "app_private"."sequences" x
-    where x."id" = v_id and x."tenant_id" = save_sequence.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_sequence.tenant
     for update;
     if v_old."id" is null then
       raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_sequence.sequence ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old."name"));
-  v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old."description" end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
-  v_exit := case when save_sequence.sequence ? 'exitOnReply'
-    then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
-  v_account := case when save_sequence.sequence ? 'accountId'
-    then nullif(save_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
-  v_steps := case when save_sequence.sequence ? 'steps'
-    then save_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_key := coalesce(upsert_sequence.sequence ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_sequence.sequence ->> 'name', v_old."name"));
+  v_description := case when upsert_sequence.sequence ? 'description'
+    then nullif(trim(upsert_sequence.sequence ->> 'description'), '') else v_old."description" end;
+  v_status := coalesce(upsert_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
+  v_exit := case when upsert_sequence.sequence ? 'exitOnReply'
+    then (upsert_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
+  v_account := case when upsert_sequence.sequence ? 'accountId'
+    then nullif(upsert_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
+  v_steps := case when upsert_sequence.sequence ? 'steps'
+    then upsert_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
@@ -3095,12 +3095,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_sequence.tenant, save_sequence.sequence;
+        using upsert_sequence.tenant, upsert_sequence.sequence;
     end if;
   end;
   if v_old."id" is null then
     insert into "app_private"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
-    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
+    values (upsert_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update "app_private"."sequences" x
@@ -3141,8 +3141,8 @@ begin
     from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "app_private"."save_sequence"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_sequence"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_sequence"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_sequence"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's sequences with their recipient counts, by name. status
 -- filters; without it archived sequences stay out.
@@ -4055,7 +4055,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:09c6facad64024e160a99d2c2342568b68aa90e6a3a1431153d99e8fa09d367f
+-- @bsb-hash sha256:f1df264a36e7b6863bd14a7cfdcf9f9a820d4927a1b97c9cd06604c66f9f389b
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4329,7 +4329,7 @@ revoke execute on function "better_supabase"."sequence_resync"(uuid) from public
 -- description, status, exitOnReply, accountId, steps }; keys left out keep
 -- their value. Changing the steps raises the version and moves running
 -- recipients onto the new steps. Archiving ends every run.
-create or replace function "better_supabase"."save_sequence"(tenant uuid, sequence jsonb)
+create or replace function "better_supabase"."upsert_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4352,32 +4352,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_sequence.tenant is not null and coalesce(better_supabase.can('tenant', upsert_sequence.tenant, 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
+  if upsert_sequence.sequence is null or jsonb_typeof(upsert_sequence.sequence) <> 'object' then
     raise exception 'sequence must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  v_id := nullif(save_sequence.sequence ->> 'id', '')::uuid;
+  v_id := nullif(upsert_sequence.sequence ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."sequences" x
-    where x."id" = v_id and x."tenant_id" = save_sequence.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_sequence.tenant
     for update;
     if v_old."id" is null then
       raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_sequence.sequence ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old."name"));
-  v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old."description" end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
-  v_exit := case when save_sequence.sequence ? 'exitOnReply'
-    then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
-  v_account := case when save_sequence.sequence ? 'accountId'
-    then nullif(save_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
-  v_steps := case when save_sequence.sequence ? 'steps'
-    then save_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_key := coalesce(upsert_sequence.sequence ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_sequence.sequence ->> 'name', v_old."name"));
+  v_description := case when upsert_sequence.sequence ? 'description'
+    then nullif(trim(upsert_sequence.sequence ->> 'description'), '') else v_old."description" end;
+  v_status := coalesce(upsert_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
+  v_exit := case when upsert_sequence.sequence ? 'exitOnReply'
+    then (upsert_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
+  v_account := case when upsert_sequence.sequence ? 'accountId'
+    then nullif(upsert_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
+  v_steps := case when upsert_sequence.sequence ? 'steps'
+    then upsert_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
@@ -4408,12 +4408,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_sequence.tenant, save_sequence.sequence;
+        using upsert_sequence.tenant, upsert_sequence.sequence;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
-    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
+    values (upsert_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."sequences" x
@@ -4454,8 +4454,8 @@ begin
     from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sequence"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's sequences with their recipient counts, by name. status
 -- filters; without it archived sequences stay out.
@@ -5355,14 +5355,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."sequences" as restri
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_sequence"(tenant uuid, sequence jsonb)
+create or replace function "api"."upsert_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_sequence"($1, $2) $$;
-revoke execute on function "api"."save_sequence"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_sequence"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_sequence"($1, $2) $$;
+revoke execute on function "api"."upsert_sequence"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_sequence"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."list_sequences"(tenant uuid, status text default null)
 returns jsonb
@@ -5495,7 +5495,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:efef3dff959225fd573715a75e0d5d63f58850a0b779f61e6f6ec5198fab2767
+-- @bsb-hash sha256:abf092f1c095abe30ca8d37213a122ecef7d15b52110043c8e92c1305951bb3a
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5761,7 +5761,7 @@ revoke execute on function "better_supabase"."sequence_resync"(uuid) from public
 -- description, status, exitOnReply, accountId, steps }; keys left out keep
 -- their value. Changing the steps raises the version and moves running
 -- recipients onto the new steps. Archiving ends every run.
-create or replace function "better_supabase"."save_sequence"(tenant uuid, sequence jsonb)
+create or replace function "better_supabase"."upsert_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5784,32 +5784,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_sequence.tenant is not null and coalesce(better_supabase.can('tenant', upsert_sequence.tenant, 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
+  if upsert_sequence.sequence is null or jsonb_typeof(upsert_sequence.sequence) <> 'object' then
     raise exception 'sequence must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  v_id := nullif(save_sequence.sequence ->> 'id', '')::uuid;
+  v_id := nullif(upsert_sequence.sequence ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."sequences" x
-    where x."id" = v_id and x."tenant_id" = save_sequence.tenant
+    where x."id" = v_id and x."tenant_id" = upsert_sequence.tenant
     for update;
     if v_old."id" is null then
       raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_sequence.sequence ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old."name"));
-  v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old."description" end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
-  v_exit := case when save_sequence.sequence ? 'exitOnReply'
-    then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
-  v_account := case when save_sequence.sequence ? 'accountId'
-    then nullif(save_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
-  v_steps := case when save_sequence.sequence ? 'steps'
-    then save_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_key := coalesce(upsert_sequence.sequence ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_sequence.sequence ->> 'name', v_old."name"));
+  v_description := case when upsert_sequence.sequence ? 'description'
+    then nullif(trim(upsert_sequence.sequence ->> 'description'), '') else v_old."description" end;
+  v_status := coalesce(upsert_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
+  v_exit := case when upsert_sequence.sequence ? 'exitOnReply'
+    then (upsert_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
+  v_account := case when upsert_sequence.sequence ? 'accountId'
+    then nullif(upsert_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
+  v_steps := case when upsert_sequence.sequence ? 'steps'
+    then upsert_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
@@ -5840,12 +5840,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_sequence.tenant, save_sequence.sequence;
+        using upsert_sequence.tenant, upsert_sequence.sequence;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("tenant_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
-    values (save_sequence.tenant, v_key, v_name, v_description, better_supabase.as_column_type(v_status, (null::"better_supabase"."sequences")."status"), v_exit, v_account, v_steps, 1, auth.uid())
+    values (upsert_sequence.tenant, v_key, v_name, v_description, better_supabase.as_column_type(v_status, (null::"better_supabase"."sequences")."status"), v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."sequences" x
@@ -5886,8 +5886,8 @@ begin
     from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sequence"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's sequences with their recipient counts, by name. status
 -- filters; without it archived sequences stay out.
@@ -6800,7 +6800,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:ca712ee31daa74c25a18e3a42a3a819958932fc094eae13b84684b428c1d5074
+-- @bsb-hash sha256:3c8d13998c8fe50383cb7f05ba3122a3e262c59d746142e9ebd3c565c72b446f
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7074,7 +7074,7 @@ revoke execute on function "better_supabase"."sequence_resync"(uuid) from public
 -- description, status, exitOnReply, accountId, steps }; keys left out keep
 -- their value. Changing the steps raises the version and moves running
 -- recipients onto the new steps. Archiving ends every run.
-create or replace function "better_supabase"."save_sequence"(tenant uuid, sequence jsonb)
+create or replace function "better_supabase"."upsert_sequence"(tenant uuid, sequence jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7097,32 +7097,32 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_sequence.tenant is not null and coalesce(better_supabase.can('tenant', save_sequence.tenant, 'sequences.manage'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (upsert_sequence.tenant is not null and coalesce(better_supabase.can('tenant', upsert_sequence.tenant, 'sequences.manage'), false))) then
     raise exception 'not allowed to manage sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
   end if;
-  if save_sequence.sequence is null or jsonb_typeof(save_sequence.sequence) <> 'object' then
+  if upsert_sequence.sequence is null or jsonb_typeof(upsert_sequence.sequence) <> 'object' then
     raise exception 'sequence must be an object' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
-  v_id := nullif(save_sequence.sequence ->> 'id', '')::uuid;
+  v_id := nullif(upsert_sequence.sequence ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."sequences" x
-    where x."id" = v_id and x."org_id" = save_sequence.tenant
+    where x."id" = v_id and x."org_id" = upsert_sequence.tenant
     for update;
     if v_old."id" is null then
       raise exception 'sequence not found' using errcode = 'P0002', hint = 'SEQUENCE_NOT_FOUND';
     end if;
   end if;
-  v_key := coalesce(save_sequence.sequence ->> 'key', v_old."key");
-  v_name := trim(coalesce(save_sequence.sequence ->> 'name', v_old."name"));
-  v_description := case when save_sequence.sequence ? 'description'
-    then nullif(trim(save_sequence.sequence ->> 'description'), '') else v_old."description" end;
-  v_status := coalesce(save_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
-  v_exit := case when save_sequence.sequence ? 'exitOnReply'
-    then (save_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
-  v_account := case when save_sequence.sequence ? 'accountId'
-    then nullif(save_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
-  v_steps := case when save_sequence.sequence ? 'steps'
-    then save_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
+  v_key := coalesce(upsert_sequence.sequence ->> 'key', v_old."key");
+  v_name := trim(coalesce(upsert_sequence.sequence ->> 'name', v_old."name"));
+  v_description := case when upsert_sequence.sequence ? 'description'
+    then nullif(trim(upsert_sequence.sequence ->> 'description'), '') else v_old."description" end;
+  v_status := coalesce(upsert_sequence.sequence ->> 'status', v_old."status"::text, 'draft');
+  v_exit := case when upsert_sequence.sequence ? 'exitOnReply'
+    then (upsert_sequence.sequence ->> 'exitOnReply')::boolean else coalesce(v_old."exit_on_reply", true) end;
+  v_account := case when upsert_sequence.sequence ? 'accountId'
+    then nullif(upsert_sequence.sequence ->> 'accountId', '')::uuid else v_old."mail_account_id" end;
+  v_steps := case when upsert_sequence.sequence ? 'steps'
+    then upsert_sequence.sequence -> 'steps' else coalesce(v_old."steps", '[]'::jsonb) end;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'SEQUENCE_INVALID';
   end if;
@@ -7153,12 +7153,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::jsonb)', v_hook::oid::regproc)
-        using save_sequence.tenant, save_sequence.sequence;
+        using upsert_sequence.tenant, upsert_sequence.sequence;
     end if;
   end;
   if v_old."id" is null then
     insert into "better_supabase"."sequences" ("org_id", "key", "name", "description", "status", "exit_on_reply", "mail_account_id", "steps", "version", "created_by")
-    values (save_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
+    values (upsert_sequence.tenant, v_key, v_name, v_description, v_status, v_exit, v_account, v_steps, 1, auth.uid())
     returning * into v_row;
   else
     update "better_supabase"."sequences" x
@@ -7199,8 +7199,8 @@ begin
     from "better_supabase"."enrollments" m where m."sequence_id" = v_row."id"));
 end;
 $$;
-revoke execute on function "better_supabase"."save_sequence"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_sequence"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_sequence"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's sequences with their recipient counts, by name. status
 -- filters; without it archived sequences stay out.

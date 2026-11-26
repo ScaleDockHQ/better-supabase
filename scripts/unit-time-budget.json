@@ -2181,6 +2181,7 @@
       "packages/better-supabase/tests/sql/modules/audit-retention.test.ts > audit retention > deletes entries past keep from maintenance()": 9598,
       "packages/better-supabase/tests/sql/modules/audit-retention.test.ts > audit retention > detaches a month past keep and leaves its table": 8324,
       "packages/better-supabase/tests/sql/modules/banking-options.test.ts > banking options > keeps one primary account per organization and accounts without a currency": 8520,
+      "packages/better-supabase/tests/sql/modules/billable-time-over-app.test.ts > billable time over per-record columns and duration entries > rates finished entries by their record and leaves a running timer out": 10674,
       "packages/better-supabase/tests/sql/modules/billing-subscriptions-run.test.ts > native subscriptions on PGlite > prorates an upgrade halfway through the period and posts it once": 9329,
       "packages/better-supabase/tests/sql/modules/calendar-adopt.test.ts > calendar over an app's tables with per-calendar access > adds the app's event alarms, the link's creator, the colour and the organization to a calendar feed": 8825,
       "packages/better-supabase/tests/sql/modules/calendar-adopt.test.ts > calendar over an app's tables with per-calendar access > checks the create and purge keys, refuses changes to read-only events and shares only allowed types": 8745,

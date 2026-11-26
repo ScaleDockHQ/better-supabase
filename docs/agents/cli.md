@@ -81,7 +81,7 @@ needs its own header.
 
 `src/mapper` is the TypeScript 7.1 content mapper (ADR 0097). It reuses gen's
 config loading, snapshot and `cachedTypesModule`, and imports no command
-module beyond `loadSnapshot`, so keep it free of citty; the bundle test
+module beyond `getSnapshot`, so keep it free of citty; the bundle test
 tracks its startup as `content mapper (startup)`. It must never throw: a
 failure becomes a BS603 to BS606 diagnostic in the transform result. Every
 path in `watchedFiles` is absolute and real (`realPath`); a relative or

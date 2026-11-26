@@ -27,8 +27,8 @@ import type { OrganizationOverview } from "./overview.ts";
 import { blockEmitter } from "../../core/block-events.ts";
 import {
   blockFields,
-  readAllFields,
-  readFields,
+  getAllFields,
+  getFields,
   rowFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -744,7 +744,7 @@ function organizationsClient<
   ): Promise<InvitationSent<I>> => {
     const row = recordOf(value, fn);
 
-    const invitation = await readFields(
+    const invitation = await getFields(
       invitationFields,
       invitationFrom(row),
     ).orThrow();
@@ -929,7 +929,7 @@ function organizationsClient<
     addMemberRole({ organizationId, userId, role }) {
       return run(
         "organizations",
-        "add_member_role",
+        "create_member_role",
         { organization: organizationId, member: userId, role },
         (value) => {
           if (value === true) {
@@ -947,7 +947,7 @@ function organizationsClient<
     removeMemberRole({ organizationId, userId, role }) {
       return run(
         "organizations",
-        "remove_member_role",
+        "delete_member_role",
         { organization: organizationId, member: userId, role },
         (value) => {
           if (value === true) {
@@ -965,7 +965,7 @@ function organizationsClient<
     removeMember({ organizationId, userId }) {
       return run(
         "organizations",
-        "remove_member",
+        "delete_member",
         { organization: organizationId, member: userId },
         () => {
           organizationEvent("organization.member_removed", {
@@ -1255,7 +1255,7 @@ function organizationsClient<
 
           return invitation;
         },
-      ).andThen((invitation) => readFields(invitationFields, invitation));
+      ).andThen((invitation) => getFields(invitationFields, invitation));
     },
     revokeInvitation(invitationId) {
       return run(
@@ -1313,7 +1313,7 @@ function organizationsClient<
         (Array.isArray(value) ? value.filter(isRecord) : []).map(
           invitationFrom,
         ),
-      ).andThen((invitations) => readAllFields(invitationFields, invitations));
+      ).andThen((invitations) => getAllFields(invitationFields, invitations));
     },
     declineInvitationById(invitationId) {
       return run(

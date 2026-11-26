@@ -123,7 +123,7 @@ declare
   v_approval uuid;
 begin
   ${as(BOB)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   v_request := better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03', employee_id => '${ALICE_EMPLOYEE}');
   v_approval := (v_request ->> 'approvalId')::uuid;
   if (select requested_by from better_supabase.approval_requests where id = v_approval) <> '${ALICE}' then
@@ -160,7 +160,7 @@ declare
   v_approval uuid;
 begin
   ${as(BOB)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   update better_supabase.employees set start_date = '2020-01-01', end_date = current_date - 1 where id = '${BOB_EMPLOYEE}';
   ${as(ALICE)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'approvalId')::uuid;
@@ -193,7 +193,7 @@ declare
   u uuid;
 begin
   ${as(ALICE)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   v_approval := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'approvalId')::uuid;
   perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
   update better_supabase.memberships set role = 'admin' where user_id = '${BOB}';
@@ -313,7 +313,7 @@ declare
   v_approval uuid;
 begin
   ${as(BOB)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   v_approvals := array[(better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03', employee_id => '${DANA_EMPLOYEE}') ->> 'approvalId')::uuid];
   perform better_supabase.log_time('${TENANT}', '2099-03-02T09:00:00Z', '2099-03-02T10:00:00Z', employee_id => '${DANA_EMPLOYEE}');
   v_sheet := (better_supabase.submit_timesheet('${TENANT}', '2099-03-02', employee_id => '${DANA_EMPLOYEE}') ->> 'id')::uuid;
@@ -349,7 +349,7 @@ declare
   v_id uuid;
 begin
   ${as(BOB)}
-  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_type := (better_supabase.upsert_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
   v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03', employee_id => '${ALICE_EMPLOYEE}') ->> 'id')::uuid;
   update better_supabase.approval_requests set status = 'cancelled' where subject_id = v_id::text;
   update better_supabase.leave_requests set approval_id = null, rejected_at = now() where id = v_id;

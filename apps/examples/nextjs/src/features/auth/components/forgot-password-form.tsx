@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
 import { localizedPath } from "@/i18n/routing";
-import { loadBrowserClient } from "@/lib/supabase/load-client";
+import { getBrowserClient } from "@/lib/supabase/load-client";
 
 type State =
   | { readonly error: string; readonly email: string }
@@ -37,7 +37,7 @@ export function ForgotPasswordForm() {
     async (_previous: State, form: FormData): Promise<State> => {
       const email = String(form.get("email"));
 
-      const { supabase } = await loadBrowserClient();
+      const { supabase } = await getBrowserClient();
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}${localizedPath(locale, "/reset-password")}`,

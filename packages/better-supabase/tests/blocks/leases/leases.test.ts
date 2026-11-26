@@ -413,7 +413,7 @@ describe("leases block", () => {
     const fake = fakeTransport({ list_leases: [LEASE] });
     const leases = createLeases({ transport: fake.transport, tenant: "org-1" });
 
-    const loaded = await leasesBinding.load(leases, CONTACT, undefined);
+    const loaded = await leasesBinding.get(leases, CONTACT, undefined);
 
     expect(loaded.ok).toBe(true);
     expect(fake.calls[0]?.[1]).toMatchObject({

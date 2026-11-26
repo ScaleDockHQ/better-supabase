@@ -251,6 +251,6 @@ export function dispatchContract(
       returns: "jsonb",
     },
     { name: "list_work_order_parts", args: ["uuid"], returns: "jsonb" },
-    { name: "remove_work_order_part", args: ["uuid"], returns: "boolean" },
+    { name: "delete_work_order_part", args: ["uuid"], returns: "boolean" },
   ];
 }

@@ -67,7 +67,7 @@ const validate = (
 describe("createClinicalDecisionSupport", () => {
   it("saves, lists, archives, restores and purges rules", async () => {
     const t = fieldsTransport({
-      save_care_rule: () => RULE,
+      upsert_care_rule: () => RULE,
       list_care_rules: () => [RULE],
       archive_care_rule: () => ({
         ...RULE,

@@ -19,7 +19,7 @@ import {
   isPresetName,
   resolvePreset,
 } from "../../preset/index.ts";
-import { findConfig, loadConfig } from "../config.ts";
+import { findConfig, getConfig } from "../config.ts";
 import {
   conventionFlags,
   hasConventionFlags,
@@ -30,7 +30,7 @@ import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { adoptionContext } from "../doctor/app-tables.ts";
-import { readPresetInput } from "../preset-input.ts";
+import { getPresetInput } from "../preset-input.ts";
 import {
   adoptableBlocks,
   describeProposal,
@@ -91,7 +91,7 @@ export interface ApplyDeps {
   readonly configFile?: string;
   readonly now: Now;
   readonly paint?: Paint;
-  /** Loads the config file again after the edit; `loadConfig` by default. */
+  /** Loads the config file again after the edit; `getConfig` by default. */
   readonly reload?: (root: string, file: string) => Promise<ResolvedConfig>;
   /** The tables in the database, read for `--adopt`. */
   readonly tables?: () => Promise<readonly ExistingTable[]>;
@@ -283,7 +283,7 @@ export async function runApply(
   }
 
   const reload =
-    rootDeps.reload ?? ((root: string, path: string) => loadConfig(root, path));
+    rootDeps.reload ?? ((root: string, path: string) => getConfig(root, path));
 
   const { config, deps } = await packageTarget(
     rootConfig,
@@ -301,7 +301,7 @@ export async function runApply(
     );
   }
 
-  const read = await readPresetInput(input, rootConfig.root);
+  const read = await getPresetInput(input, rootConfig.root);
   const preset = withConventions(read.preset, flags);
 
   const name =

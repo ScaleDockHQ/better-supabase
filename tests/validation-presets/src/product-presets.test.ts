@@ -205,7 +205,7 @@ describe.skipIf(!live)("product presets on the local stack", () => {
       expect(await functionBody(client, "record_subject_read")).toContain(
         "'person'",
       );
-      expect(await functionBody(client, "add_subject_member")).toContain(
+      expect(await functionBody(client, "create_subject_member")).toContain(
         "'person'",
       );
       expect(

@@ -105,7 +105,7 @@ select is(
   'a deposit waits for the bank'
 );
 
-select set_config('t.bank', better_supabase.save_bank_account('00000000-0000-4000-8000-000000000001', '{"name": "Till bank", "iban": "NL91ABNA0417164300", "currency": "EUR"}') ->> 'id', true);
+select set_config('t.bank', better_supabase.upsert_bank_account('00000000-0000-4000-8000-000000000001', '{"name": "Till bank", "iban": "NL91ABNA0417164300", "currency": "EUR"}') ->> 'id', true);
 select better_supabase.import_bank_statement(current_setting('t.bank')::uuid,
   '{"transactions": [{"bookedOn": "2026-10-31", "amount": "32000", "currency": "EUR", "description": "Cash deposit"}]}'::jsonb);
 select set_config('t.tx', (select id::text from better_supabase.bank_transactions limit 1), true);

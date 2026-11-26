@@ -9,7 +9,7 @@ import { runGen } from "../gen/run.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
 import { plain } from "../style.ts";
 import { combineResults, runSteps } from "./gen-pipeline.ts";
-import { loadSnapshot } from "./snapshot.ts";
+import { getSnapshot } from "./snapshot.ts";
 
 /**
  * Reads the schema when it may have changed. Returns the new change marker (the
@@ -29,7 +29,7 @@ export async function poll(
     return { marker: last };
   }
 
-  const snapshot = await loadSnapshot(
+  const snapshot = await getSnapshot(
     options.config,
     options.env,
     options,

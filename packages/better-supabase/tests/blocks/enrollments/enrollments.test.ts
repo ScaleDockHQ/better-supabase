@@ -66,7 +66,7 @@ function fakeTransport(results: Record<string, unknown>) {
 describe("createEnrollments", () => {
   it("saves, lists and deletes programs", async () => {
     const fake = fakeTransport({
-      save_enrollment_program: PROGRAM,
+      upsert_enrollment_program: PROGRAM,
       enrollment_programs: [
         PROGRAM,
         {
@@ -146,7 +146,7 @@ describe("createEnrollments", () => {
 
     expect(fake.calls).toEqual([
       [
-        "save_enrollment_program",
+        "upsert_enrollment_program",
         {
           tenant: "org-1",
           program: {
@@ -330,7 +330,7 @@ describe("createEnrollments", () => {
 
   it("reads step assignees, due dates and the schedule", async () => {
     const fake = fakeTransport({
-      save_enrollment_program: {
+      upsert_enrollment_program: {
         ...PROGRAM,
         steps: [
           {
@@ -570,7 +570,7 @@ describe("enrollmentsBinding", () => {
     });
 
     const list = await enrollmentsBinding
-      .load(enrollments, { type: "party", id: "pa1" }, undefined)
+      .get(enrollments, { type: "party", id: "pa1" }, undefined)
       .orThrow();
 
     expect(list).toHaveLength(1);

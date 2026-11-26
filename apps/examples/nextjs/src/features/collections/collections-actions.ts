@@ -7,10 +7,8 @@ import * as v from "valibot";
 
 import type { Mutable } from "@/lib/block-status-list";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { COLLECTIONS_TAG } from "./collections-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -24,11 +22,10 @@ export const createCollection = bsb.action(
     }),
     requireTenant: true,
     permission: "collections.write",
+    tags: () => [tags.collections()],
+    refresh: true,
   },
-  async (
-    { name, scope, description },
-    { tenant: organizationId, db, auth },
-  ) => {
+  async ({ name, scope, description }, { tenant: organizationId, db }) => {
     const input: Mutable<CreateCollectionInput> = {
       name,
       scope,
@@ -45,8 +42,6 @@ export const createCollection = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
-
     return ok(created.data.id);
   },
 );
@@ -57,15 +52,15 @@ export const archiveCollection = bsb.action(
     input: v.object({ collectionId: Id, archived: v.boolean() }),
     requireTenant: true,
     permission: "collections.write",
+    tags: () => [tags.collections()],
+    refresh: true,
   },
-  async ({ collectionId, archived }, { db, auth }) => {
+  async ({ collectionId, archived }, { db }) => {
     const done = await db.collections.archive({ id: collectionId, archived });
 
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
 
     return ok(done.data);
   },
@@ -77,8 +72,10 @@ export const addToCollection = bsb.action(
     input: v.object({ collectionId: Id, subjectId: Id }),
     requireTenant: true,
     permission: "collections.write",
+    tags: () => [tags.collections()],
+    refresh: true,
   },
-  async ({ collectionId, subjectId }, { db, auth }) => {
+  async ({ collectionId, subjectId }, { db }) => {
     const done = await db.collections.add({
       id: collectionId,
       subjectIds: [subjectId],
@@ -87,8 +84,6 @@ export const addToCollection = bsb.action(
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
 
     return ok(done.data.added.length);
   },
@@ -100,8 +95,10 @@ export const removeFromCollection = bsb.action(
     input: v.object({ collectionId: Id, subjectId: Id }),
     requireTenant: true,
     permission: "collections.write",
+    tags: () => [tags.collections()],
+    refresh: true,
   },
-  async ({ collectionId, subjectId }, { db, auth }) => {
+  async ({ collectionId, subjectId }, { db }) => {
     const done = await db.collections.remove({
       id: collectionId,
       subjectIds: [subjectId],
@@ -110,8 +107,6 @@ export const removeFromCollection = bsb.action(
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, [COLLECTIONS_TAG]);
 
     return ok(done.data);
   },

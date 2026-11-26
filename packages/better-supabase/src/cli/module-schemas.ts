@@ -58,7 +58,7 @@ async function load(
 
 type Schemas = Readonly<Record<string, unknown>>;
 
-async function loadMap(
+async function getMap(
   root: string,
   map: Schemas,
   where: string,
@@ -92,7 +92,7 @@ async function loadMap(
   return Object.fromEntries(entries);
 }
 
-async function loadSettings(
+async function getSettings(
   root: string,
   options: Readonly<Record<string, unknown>> | undefined,
   where: string,
@@ -109,7 +109,7 @@ async function loadSettings(
     const map = schemas[scope];
 
     if (isRecord(map)) {
-      next[scope] = await loadMap(root, map, `${where}.schemas.${scope}`);
+      next[scope] = await getMap(root, map, `${where}.schemas.${scope}`);
     }
   }
 
@@ -150,7 +150,7 @@ export async function withModuleSchemas(
 
   const settings = config.blocks["settings"];
 
-  const options = await loadSettings(
+  const options = await getSettings(
     config.root,
     settings?.options,
     "blocks.settings.options",
@@ -163,7 +163,7 @@ export async function withModuleSchemas(
           return [key, instance] as const;
         }
 
-        const own = await loadSettings(
+        const own = await getSettings(
           config.root,
           instance.config.options,
           `blocks.${key}.options`,

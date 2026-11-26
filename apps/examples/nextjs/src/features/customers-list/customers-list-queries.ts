@@ -1,10 +1,10 @@
 import "server-only";
 import { cacheTag } from "next/cache";
 
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
-import { readCustomerRows } from "./customers-reads";
+import { getCustomerRows } from "./customers-reads";
 
 /**
  * The first page of the caller's customers plus the count per status.
@@ -21,9 +21,9 @@ export async function getCustomers() {
     keep: { name: "customers-list" },
   });
 
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
-  return readCustomerRows(db, {});
+  return getCustomerRows(db, {});
 }
 
 /** One customer with its notes; `null` when RLS hides it or it is gone. */
@@ -36,7 +36,7 @@ export async function getCustomer(id: string) {
     keep: { name: "customer" },
   });
 
-  cacheTag(CUSTOMERS_TAG);
+  cacheTag(tags.customers());
 
   const customer = await db.customers
     .get(

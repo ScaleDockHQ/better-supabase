@@ -9,11 +9,11 @@ import { settle } from "@/features/crm/crm-queries";
 import { Link, toAppHref } from "@/i18n/navigation";
 
 import {
-  loadQueue,
-  loadScoreModel,
+  getQueue,
+  getScoreModel,
   loadSegment,
 } from "../automation/automation-queries";
-import { loadMemberOptions } from "../member/member-queries";
+import { getMemberOptions } from "../member/member-queries";
 import {
   deleteSegment,
   refreshSegment,
@@ -131,8 +131,8 @@ export async function QueueDetail({ id }: { id: string }) {
 
   const [t, loaded, options, canManage] = await Promise.all([
     getExtracted("sales"),
-    settle(() => loadQueue(id)),
-    loadMemberOptions(),
+    settle(() => getQueue(id)),
+    getMemberOptions(),
     holds("assignment.manage"),
   ]);
 
@@ -204,7 +204,7 @@ export async function ScoreModelDetail({ id }: { id: string }) {
 
   const [t, loaded, fmtDate, canManage, canCompute] = await Promise.all([
     getExtracted("sales"),
-    settle(() => loadScoreModel(id)),
+    settle(() => getScoreModel(id)),
     dateFormatter(),
     holds("scores.manage"),
     holds("scores.compute"),

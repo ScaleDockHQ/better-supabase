@@ -4,9 +4,8 @@ import type { AnnouncementSeverity } from "better-supabase/blocks/announcements"
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { ANNOUNCEMENTS_TAG } from "./announcements-cache";
 
 export interface AnnouncementRow {
   readonly id: string;
@@ -23,7 +22,7 @@ export interface AnnouncementRow {
 export async function getAnnouncements(): Promise<readonly AnnouncementRow[]> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(ANNOUNCEMENTS_TAG);
+  cacheTag(tags.announcements());
 
   const active = await db.announcements
     .listActive(tenantOf(session) ?? null)

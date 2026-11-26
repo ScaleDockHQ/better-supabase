@@ -52,12 +52,12 @@ describe.skipIf(!live)("purchasing", () => {
       await s.as(owner);
 
       const product = await s.value<{ id: string }>(
-        "better_supabase.save_product($1, null, 'Bolts', null, null, 'physical')",
+        "better_supabase.upsert_product($1, null, 'Bolts', null, null, 'physical')",
         [org],
       );
 
       const variant = await s.value<{ id: string }>(
-        "better_supabase.save_variant($1, null, 'BOLT', '{}'::uuid[], null, null, null, true, false)",
+        "better_supabase.upsert_variant($1, null, 'BOLT', '{}'::uuid[], null, null, null, true, false)",
         [product.id],
       );
 

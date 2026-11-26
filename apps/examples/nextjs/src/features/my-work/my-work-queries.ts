@@ -2,16 +2,11 @@ import "server-only";
 import type { MyWorkKind } from "better-supabase/blocks/subjects";
 
 import { tenantOf } from "better-supabase/next";
-import { loadMyWork } from "better-supabase/records";
+import { getMyWork as getRecordsMyWork } from "better-supabase/records";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
-import { APPROVALS_TAG } from "@/features/approvals/approvals-cache";
-import { CALENDAR_TAG } from "@/features/calendar/calendar-cache";
-import { CRM_TAG } from "@/features/crm/crm-cache";
-import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { PROJECTS_TAG } from "@/features/projects/projects-cache";
-import { WORK_TAG } from "@/features/work/work-cache";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 export interface MyWorkRow {
@@ -38,16 +33,16 @@ export type Loaded<T> =
  * reminders, mentions and SLA warnings. Throws on a failed read, so the private
  * cache never keeps an error.
  */
-async function loadView(): Promise<MyWorkView | null> {
+async function getView(): Promise<MyWorkView | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(
-    WORK_TAG,
-    PROJECTS_TAG,
-    APPROVALS_TAG,
-    CALENDAR_TAG,
-    CUSTOMERS_TAG,
-    CRM_TAG,
+    tags.work(),
+    tags.projects(),
+    tags.approvals(),
+    tags.calendar(),
+    tags.customers(),
+    tags.crm(),
   );
   const tenant = tenantOf(session);
 
@@ -55,7 +50,7 @@ async function loadView(): Promise<MyWorkView | null> {
     return null;
   }
 
-  const work = await loadMyWork(db.subjects, { tenant }).orThrow();
+  const work = await getRecordsMyWork(db.subjects, { tenant }).orThrow();
 
   return {
     rows: work.items.map((item) => ({
@@ -71,7 +66,7 @@ async function loadView(): Promise<MyWorkView | null> {
 
 export async function getMyWork(): Promise<Loaded<MyWorkView>> {
   try {
-    const data = await loadView();
+    const data = await getView();
 
     return data === null ? { kind: "no-organization" } : { kind: "ok", data };
   } catch (error) {
@@ -94,10 +89,10 @@ export interface MyReminder {
  * Every reminder the caller set, on any subject. Throws on a failed read, so
  * the private cache never keeps an error.
  */
-async function loadReminders(): Promise<readonly MyReminder[] | null> {
+async function getReminders(): Promise<readonly MyReminder[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CALENDAR_TAG);
+  cacheTag(tags.calendar());
 
   if (!tenantOf(session)) {
     return null;
@@ -119,7 +114,7 @@ async function loadReminders(): Promise<readonly MyReminder[] | null> {
 
 export async function getMyReminders(): Promise<Loaded<readonly MyReminder[]>> {
   try {
-    const data = await loadReminders();
+    const data = await getReminders();
 
     return data === null ? { kind: "no-organization" } : { kind: "ok", data };
   } catch (error) {

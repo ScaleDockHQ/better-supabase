@@ -307,7 +307,7 @@ begin
   if auth.uid() is null or not exists (select 1 from ${t("channels")} x where x.${ch("id")} = join_channel.channel) then
     ${fail("CHANNELS_NOT_FOUND", "no such channel you can read", "P0002")}
   end if;
-  perform ${mfn("add_conversation_members")}(join_channel.channel, array[auth.uid()]);
+  perform ${mfn("create_conversation_members")}(join_channel.channel, array[auth.uid()]);
   return true;
 end;
 $$;
@@ -324,7 +324,7 @@ begin
   if auth.uid() is null or not exists (select 1 from ${t("channels")} x where x.${ch("id")} = leave_channel.channel) then
     ${fail("CHANNELS_NOT_FOUND", "no such channel you can read", "P0002")}
   end if;
-  return ${mfn("remove_conversation_member")}(leave_channel.channel, auth.uid());
+  return ${mfn("delete_conversation_member")}(leave_channel.channel, auth.uid());
 end;
 $$;
 ${userGrant(`${fn("leave_channel")}(uuid)`)}
@@ -341,7 +341,7 @@ begin
   if not exists (select 1 from ${t("channels")} x where x.${ch("id")} = invite_to_channel.channel) then
     ${fail("CHANNELS_NOT_FOUND", "no such channel you can read", "P0002")}
   end if;
-  return ${mfn("add_conversation_members")}(invite_to_channel.channel, invite_to_channel.users);
+  return ${mfn("create_conversation_members")}(invite_to_channel.channel, invite_to_channel.users);
 end;
 $$;
 ${userGrant(`${fn("invite_to_channel")}(uuid, uuid[])`)}

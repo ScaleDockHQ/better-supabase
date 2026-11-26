@@ -42,7 +42,7 @@ describe("reactions client", () => {
       react: () => [COUNT],
       reaction_summary: () => ({ c1: [COUNT], c2: [] }),
       list_custom_emoji: () => [EMOJI],
-      save_custom_emoji: () => EMOJI,
+      upsert_custom_emoji: () => EMOJI,
       delete_custom_emoji: () => true,
     });
 
@@ -100,7 +100,7 @@ describe("reactions client", () => {
       ],
       ["list_custom_emoji", { tenant: "o" }],
       [
-        "save_custom_emoji",
+        "upsert_custom_emoji",
         {
           tenant: "o",
           shortcode: "ship-it",
@@ -195,7 +195,7 @@ describe("reactions client", () => {
       createdAt: EMOJI.createdAt,
     };
 
-    const fake = transport({ save_custom_emoji: () => stored });
+    const fake = transport({ upsert_custom_emoji: () => stored });
 
     const reactions = createReactions({
       transport: fake,
@@ -211,7 +211,7 @@ describe("reactions client", () => {
     expect(saved).not.toHaveProperty("url");
     expect(fake.calls).toEqual([
       [
-        "save_custom_emoji",
+        "upsert_custom_emoji",
         { tenant: "o", shortcode: "logo", attachment_id: "a1", url: null },
       ],
     ]);

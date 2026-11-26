@@ -9,9 +9,8 @@ import { cacheTag } from "next/cache";
 
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { PRIVACY_TAG } from "./privacy-cache";
 
 export interface ExportRow {
   readonly id: string;
@@ -47,11 +46,11 @@ function toRow(item: DataExport): ExportRow {
  * `data_lifecycle.export`, and the pending deletion. A failed read throws, so
  * it is never cached and Retry reads again.
  */
-export async function loadPrivacy(): Promise<PrivacyData> {
+export async function getPrivacy(): Promise<PrivacyData> {
   "use cache: private";
 
   const request = await bsb.cached();
-  cacheTag(PRIVACY_TAG);
+  cacheTag(tags.privacy());
   const { session, db } = request;
   const permissions = await readPermissions(request);
 

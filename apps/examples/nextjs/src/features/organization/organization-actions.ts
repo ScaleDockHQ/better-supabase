@@ -8,7 +8,6 @@ import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import { toMembers, toOrganizationSummaries } from "./organization-queries";
@@ -81,8 +80,9 @@ export const updateOrganization = bsb.action(
     input: v.object({ name: Name, slug: Slug }),
     requireTenant: true,
     permission: "organization.update",
+    evictSession: true,
   },
-  async ({ name, slug }, { tenant: organizationId, db, auth }) => {
+  async ({ name, slug }, { tenant: organizationId, db }) => {
     const updated = await db.$blocks.organizations.update({
       organizationId,
       attributes: { name, slug },
@@ -102,7 +102,6 @@ export const updateOrganization = bsb.action(
         targetLabel: name,
       }),
     );
-    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -114,14 +113,13 @@ export const updateOrganization = bsb.action(
  * onboarding step and renders the pending invitations again.
  */
 export const invitationSent = bsb.action(
-  { requireTenant: true, permission: "members.invite" },
-  async (_input, { tenant: organizationId, db, auth }) => {
+  { requireTenant: true, permission: "members.invite", evictSession: true },
+  async (_input, { tenant: organizationId, db }) => {
     await db.onboarding.complete({
       checklist: gettingStarted,
       step: "invite",
       organizationId,
     });
-    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -144,8 +142,9 @@ export const revokeInvitation = bsb.action(
     input: v.object({ invitationId: Id }),
     requireTenant: true,
     permission: "members.invite",
+    evictSession: true,
   },
-  async ({ invitationId }, { tenant: organizationId, db, auth }) => {
+  async ({ invitationId }, { tenant: organizationId, db }) => {
     const revoked =
       await db.$blocks.organizations.revokeInvitation(invitationId);
 
@@ -162,7 +161,6 @@ export const revokeInvitation = bsb.action(
         record: invitationId,
       }),
     );
-    await refreshCaller(auth);
 
     return ok(revoked.data);
   },
@@ -177,8 +175,9 @@ export const resendInvitation = bsb.action(
     input: v.object({ invitationId: Id }),
     requireTenant: true,
     permission: "members.invite",
+    evictSession: true,
   },
-  async ({ invitationId }, { tenant: organizationId, db, auth }) => {
+  async ({ invitationId }, { tenant: organizationId, db }) => {
     const sent = await db.$blocks.organizations.resendInvitation({
       invitationId,
     });
@@ -196,7 +195,6 @@ export const resendInvitation = bsb.action(
         record: invitationId,
       }),
     );
-    await refreshCaller(auth);
 
     return ok(true);
   },

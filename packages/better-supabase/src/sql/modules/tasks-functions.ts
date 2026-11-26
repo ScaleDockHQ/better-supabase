@@ -291,10 +291,10 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
     .map(([key, type]) => {
       const value =
         type === "upper"
-          ? `upper(save_project.attrs ->> '${key}')`
-          : `(save_project.attrs ->> '${key}')::${type}`;
+          ? `upper(upsert_project.attrs ->> '${key}')`
+          : `(upsert_project.attrs ->> '${key}')::${type}`;
 
-      return `        ${p(key)} = case when save_project.attrs ? '${key}' then ${value} else x.${p(key)} end,\n`;
+      return `        ${p(key)} = case when upsert_project.attrs ? '${key}' then ${value} else x.${p(key)} end,\n`;
     })
     .join("");
 
@@ -332,18 +332,18 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
 -- name, ownerId, status, startOn, targetOn, archived, and the budget:
 -- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
 -- With accounting, the project is a value of the project dimension.
-create or replace function ${fn("save_project")}(tenant ${ctx.idType}, project uuid, attrs jsonb)
+create or replace function ${fn("upsert_project")}(tenant ${ctx.idType}, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_project.project;
+  v_id uuid := upsert_project.project;
 begin
-  ${manageGuard("save_project.tenant")}${unsupported(
+  ${manageGuard("upsert_project.tenant")}${unsupported(
     "projects",
-    "save_project.attrs",
+    "upsert_project.attrs",
     [
       ["ownerId", "owner"],
       ["startOn", "startOn"],
@@ -359,59 +359,59 @@ begin
       values (${lines(
         "        ",
         [
-          "save_project.tenant",
-          "upper(save_project.attrs ->> 'key')",
-          "save_project.attrs ->> 'name'",
+          "upsert_project.tenant",
+          "upper(upsert_project.attrs ->> 'key')",
+          "upsert_project.attrs ->> 'name'",
           present(
             "projects",
             "owner",
-            "(save_project.attrs ->> 'ownerId')::uuid",
+            "(upsert_project.attrs ->> 'ownerId')::uuid",
           ),
         ],
         [
           ctx.cast(
             "projects",
             "status",
-            "coalesce(save_project.attrs ->> 'status', 'planned')",
+            "coalesce(upsert_project.attrs ->> 'status', 'planned')",
           ),
           present(
             "projects",
             "startOn",
-            "(save_project.attrs ->> 'startOn')::date",
+            "(upsert_project.attrs ->> 'startOn')::date",
           ),
           present(
             "projects",
             "targetOn",
-            "(save_project.attrs ->> 'targetOn')::date",
+            "(upsert_project.attrs ->> 'targetOn')::date",
           ),
         ],
         [
           present(
             "projects",
             "budgetAmount",
-            "(save_project.attrs ->> 'budgetAmount')::bigint",
+            "(upsert_project.attrs ->> 'budgetAmount')::bigint",
           ),
           present(
             "projects",
             "budgetCurrency",
-            "upper(save_project.attrs ->> 'budgetCurrency')",
+            "upper(upsert_project.attrs ->> 'budgetCurrency')",
           ),
           present(
             "projects",
             "budgetHours",
-            "(save_project.attrs ->> 'budgetHours')::numeric",
+            "(upsert_project.attrs ->> 'budgetHours')::numeric",
           ),
         ],
       )})
       returning ${p("id")} into v_id;
     else
       update ${t("projects")} x set
-        ${p("key")} = coalesce(upper(save_project.attrs ->> 'key'), x.${p("key")}),
-        ${p("name")} = coalesce(save_project.attrs ->> 'name', x.${p("name")}),
-${ctx.has("projects", "owner") ? `        ${p("owner")} = case when save_project.attrs ? 'ownerId' then (save_project.attrs ->> 'ownerId')::uuid else x.${p("owner")} end,\n` : ""}        ${p("status")} = coalesce(${ctx.cast("projects", "status", "save_project.attrs ->> 'status'")}, x.${p("status")}),
-${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) ? [`        ${p(key)} = case when save_project.attrs ? '${key}' then (save_project.attrs ->> '${key}')::date else x.${p(key)} end,\n`] : [])).join("")}${budgetSets}        ${p("archivedAt")} = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x.${p("archivedAt")}, now()) end) else x.${p("archivedAt")} end,
+        ${p("key")} = coalesce(upper(upsert_project.attrs ->> 'key'), x.${p("key")}),
+        ${p("name")} = coalesce(upsert_project.attrs ->> 'name', x.${p("name")}),
+${ctx.has("projects", "owner") ? `        ${p("owner")} = case when upsert_project.attrs ? 'ownerId' then (upsert_project.attrs ->> 'ownerId')::uuid else x.${p("owner")} end,\n` : ""}        ${p("status")} = coalesce(${ctx.cast("projects", "status", "upsert_project.attrs ->> 'status'")}, x.${p("status")}),
+${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) ? [`        ${p(key)} = case when upsert_project.attrs ? '${key}' then (upsert_project.attrs ->> '${key}')::date else x.${p(key)} end,\n`] : [])).join("")}${budgetSets}        ${p("archivedAt")} = case when upsert_project.attrs ? 'archived' then (case when (upsert_project.attrs ->> 'archived')::boolean then coalesce(x.${p("archivedAt")}, now()) end) else x.${p("archivedAt")} end,
         ${p("updatedAt")} = now()
-      where x.${p("id")} = v_id and x.${p("tenant")} = save_project.tenant;
+      where x.${p("id")} = v_id and x.${p("tenant")} = upsert_project.tenant;
       if not found then
         ${fail("TASK_PROJECT_NOT_FOUND", "project not found", "P0002")}
       end if;
@@ -432,7 +432,7 @@ ${dimensionSync}
   }) from ${t("projects")} x where x.${p("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_project")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_project")}(${ctx.idType}, uuid, jsonb)`)}
 
 ${pages.projects}
 `
@@ -442,28 +442,28 @@ ${pages.projects}
     ? `
 -- Creates an iteration (a cycle or a sprint) or changes it: name, teamId,
 -- startsOn, endsOn.
-create or replace function ${fn("save_iteration")}(tenant ${ctx.idType}, iteration uuid, attrs jsonb)
+create or replace function ${fn("upsert_iteration")}(tenant ${ctx.idType}, iteration uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_iteration.iteration;
+  v_id uuid := upsert_iteration.iteration;
 begin
-  ${manageGuard("save_iteration.tenant")}${unsupported("iterations", "save_iteration.attrs", [["teamId", "team"]])}
+  ${manageGuard("upsert_iteration.tenant")}${unsupported("iterations", "upsert_iteration.attrs", [["teamId", "team"]])}
   begin
     if v_id is null then
       insert into ${t("iterations")} (${i("tenant")}${also("iterations", "team")}, ${i("name")}, ${i("startsOn")}, ${i("endsOn")})
-      values (save_iteration.tenant, ${ctx.has("iterations", "team") ? "(save_iteration.attrs ->> 'teamId')::uuid, " : ""}save_iteration.attrs ->> 'name',
-        (save_iteration.attrs ->> 'startsOn')::date, (save_iteration.attrs ->> 'endsOn')::date)
+      values (upsert_iteration.tenant, ${ctx.has("iterations", "team") ? "(upsert_iteration.attrs ->> 'teamId')::uuid, " : ""}upsert_iteration.attrs ->> 'name',
+        (upsert_iteration.attrs ->> 'startsOn')::date, (upsert_iteration.attrs ->> 'endsOn')::date)
       returning ${i("id")} into v_id;
     else
       update ${t("iterations")} x set
-        ${i("name")} = coalesce(save_iteration.attrs ->> 'name', x.${i("name")}),
-        ${i("startsOn")} = coalesce((save_iteration.attrs ->> 'startsOn')::date, x.${i("startsOn")}),
-        ${i("endsOn")} = coalesce((save_iteration.attrs ->> 'endsOn')::date, x.${i("endsOn")})
-      where x.${i("id")} = v_id and x.${i("tenant")} = save_iteration.tenant;
+        ${i("name")} = coalesce(upsert_iteration.attrs ->> 'name', x.${i("name")}),
+        ${i("startsOn")} = coalesce((upsert_iteration.attrs ->> 'startsOn')::date, x.${i("startsOn")}),
+        ${i("endsOn")} = coalesce((upsert_iteration.attrs ->> 'endsOn')::date, x.${i("endsOn")})
+      where x.${i("id")} = v_id and x.${i("tenant")} = upsert_iteration.tenant;
       if not found then
         ${fail("TASK_ITERATION_NOT_FOUND", "iteration not found", "P0002")}
       end if;
@@ -474,7 +474,7 @@ begin
   return (select ${ctx.rowJson("iterations", "x")} from ${t("iterations")} x where x.${i("id")} = v_id);
 end;
 $$;
-${userGrant(`${fn("save_iteration")}(${ctx.idType}, uuid, jsonb)`)}
+${userGrant(`${fn("upsert_iteration")}(${ctx.idType}, uuid, jsonb)`)}
 `
     : "";
 

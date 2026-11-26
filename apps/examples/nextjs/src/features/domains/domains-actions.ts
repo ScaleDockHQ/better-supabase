@@ -12,25 +12,26 @@ import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { serviceSupabase } from "@/lib/service-supabase";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { DOMAINS_TAG } from "./domains-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
 const manage = { requireTenant: true, permission: "domains.manage" } as const;
 
-/** Adds a hostname as the caller (`add_hostname` checks `domains.manage`). */
+/** Adds a hostname as the caller (`create_hostname` checks `domains.manage`). */
 export const addDomain = bsb.action(
   {
     ...manage,
     input: v.object({
       hostname: v.pipe(v.string(), v.trim(), v.minLength(3), v.maxLength(253)),
     }),
+    tags: () => [tags.domains()],
+    refresh: true,
   },
   async (
     { hostname },
-    { tenant, session, auth },
+    { tenant, session },
   ): Promise<Result<{ id: string }>> => {
     const caller = requireCaller(session);
 
@@ -44,7 +45,7 @@ export const addDomain = bsb.action(
       connection
         .asUser(claims)
         .queryRaw<{ row: { id: string } }>(
-          "select better_supabase.add_hostname($1, $2) as row",
+          "select better_supabase.create_hostname($1, $2) as row",
           [tenant, hostname],
         ),
     );
@@ -59,16 +60,19 @@ export const addDomain = bsb.action(
       return err(dbError("not_found", "The hostname was not added"));
     }
 
-    await refreshCaller(auth, [DOMAINS_TAG]);
-
     return ok({ id: first.row.id });
   },
 );
 
 /** Makes a verified hostname the organization's primary one. */
 export const setPrimaryDomain = bsb.action(
-  { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id }),
+    tags: () => [tags.domains()],
+    refresh: true,
+  },
+  async ({ id }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -87,16 +91,19 @@ export const setPrimaryDomain = bsb.action(
       return set;
     }
 
-    await refreshCaller(auth, [DOMAINS_TAG]);
-
     return ok(true);
   },
 );
 
 /** Removes a hostname the caller manages. */
 export const removeDomain = bsb.action(
-  { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id }),
+    tags: () => [tags.domains()],
+    refresh: true,
+  },
+  async ({ id }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -109,7 +116,7 @@ export const removeDomain = bsb.action(
       connection
         .asUser(claims)
         .queryRaw<{ removed: boolean }>(
-          "select better_supabase.remove_hostname($1) as removed",
+          "select better_supabase.delete_hostname($1) as removed",
           [id],
         ),
     );
@@ -121,8 +128,6 @@ export const removeDomain = bsb.action(
     if (removed.data[0]?.removed !== true) {
       return err(dbError("not_found", "Hostname not found"));
     }
-
-    await refreshCaller(auth, [DOMAINS_TAG]);
 
     return ok(true);
   },
@@ -152,7 +157,7 @@ export const verifyDomain = bsb.action(
     });
 
     if (verified.ok) {
-      await refreshCaller(auth, [DOMAINS_TAG]);
+      await refreshCaller(auth, [tags.domains()]);
     }
 
     return verified;

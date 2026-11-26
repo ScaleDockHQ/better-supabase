@@ -320,7 +320,7 @@ describe("employees block", () => {
               offboarded_at: "2026-10-15T09:00:00Z",
               anonymized_at: null,
             },
-      save_employee_private_details: () => ({
+      upsert_employee_private_details: () => ({
         employee_id: "e1",
         address: null,
         emergency_contacts: "oops",
@@ -349,7 +349,7 @@ describe("employees block", () => {
           note: "Part time",
         },
       ],
-      add_employee_contract: () => ({
+      create_employee_contract: () => ({
         id: "c3",
         employee_id: "e1",
         starts_on: "2026-01-01",

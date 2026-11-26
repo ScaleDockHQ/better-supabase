@@ -143,7 +143,7 @@ function records(value: unknown): readonly Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter((item) => isRecord(item)) : [];
 }
 
-function readColumn(row: Record<string, unknown>): RawColumn {
+function getColumn(row: Record<string, unknown>): RawColumn {
   return {
     name: str(row["name"]) ?? "",
     type: str(row["type"]) ?? "",
@@ -158,7 +158,7 @@ function readColumn(row: Record<string, unknown>): RawColumn {
   };
 }
 
-function readConstraint(row: Record<string, unknown>): RawConstraint {
+function getConstraint(row: Record<string, unknown>): RawConstraint {
   const type = str(row["type"]);
 
   return {
@@ -174,17 +174,15 @@ function readConstraint(row: Record<string, unknown>): RawConstraint {
   };
 }
 
-function readTable(row: Record<string, unknown>): RawTable {
+function getTable(row: Record<string, unknown>): RawTable {
   return {
     schema: str(row["schema"]) ?? "public",
     name: str(row["name"]) ?? "",
     kind: str(row["kind"]) ?? "r",
     rls: row["rls"] === true,
     comment: str(row["comment"]),
-    columns: records(row["columns"]).map((each) => readColumn(each)),
-    constraints: records(row["constraints"]).map((each) =>
-      readConstraint(each),
-    ),
+    columns: records(row["columns"]).map((each) => getColumn(each)),
+    constraints: records(row["constraints"]).map((each) => getConstraint(each)),
     indexes: records(row["indexes"]).map((each) => ({
       columns: strings(each["columns"]),
       plain: each["plain"] === true,
@@ -195,7 +193,7 @@ function readTable(row: Record<string, unknown>): RawTable {
 }
 
 /** Reads the one row `catalogQuery` returns; the JSON may arrive as text. */
-export function readCatalog(rows: readonly unknown[]): RawCatalog {
+export function getCatalog(rows: readonly unknown[]): RawCatalog {
   const [row] = rows;
   const cell = isRecord(row) ? row["catalog"] : undefined;
 
@@ -206,7 +204,7 @@ export function readCatalog(rows: readonly unknown[]): RawCatalog {
   }
 
   return {
-    tables: records(catalog["tables"]).map((each) => readTable(each)),
+    tables: records(catalog["tables"]).map((each) => getTable(each)),
     functions: strings(catalog["functions"]),
   };
 }

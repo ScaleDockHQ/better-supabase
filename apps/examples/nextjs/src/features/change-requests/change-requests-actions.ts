@@ -6,8 +6,8 @@ import { createStateMachine } from "better-supabase/blocks/state-machine";
 import * as v from "valibot";
 
 import { builderFor } from "@/features/workflows/builder/builder-server";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -15,7 +15,6 @@ import {
   CHANGE_WORKFLOW,
   DEFAULT_CHANGE_GRAPH,
 } from "./change-request-lifecycle";
-import { CHANGE_REQUESTS_TAG } from "./change-requests-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -30,8 +29,13 @@ const MACHINE_API = blockConfig["state-machine"].api;
  * requests. The workflow builder edits it from then on.
  */
 export const setUpChangeWorkflow = bsb.action(
-  { requireTenant: true, permission: "workflow_editor.manage" },
-  async (_input, { tenant, supabase, auth }) => {
+  {
+    requireTenant: true,
+    permission: "workflow_editor.manage",
+    tags: () => [tags.changeRequests()],
+    refresh: true,
+  },
+  async (_input, { tenant, supabase }) => {
     const builder = builderFor(supabase);
 
     const definition = await builder.definitions.upsert({
@@ -72,8 +76,6 @@ export const setUpChangeWorkflow = bsb.action(
       return purpose;
     }
 
-    await refreshCaller(auth, [CHANGE_REQUESTS_TAG]);
-
     return ok(published.data.version);
   },
 );
@@ -85,8 +87,10 @@ export const createChangeRequest = bsb.action(
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireTenant: true,
+    tags: () => [tags.changeRequests()],
+    refresh: true,
   },
-  async ({ title }, { tenant, db, auth }) => {
+  async ({ title }, { tenant, db }) => {
     const created = await db.changeRequests.create(
       { title, organizationId: tenant },
       { select: ["id"] },
@@ -95,8 +99,6 @@ export const createChangeRequest = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [CHANGE_REQUESTS_TAG]);
 
     return ok(created.data.id);
   },
@@ -108,8 +110,13 @@ export const createChangeRequest = bsb.action(
  * keeps who moved it.
  */
 export const moveChangeRequest = bsb.action(
-  { input: v.object({ id: Id, to: Stage }), requireTenant: true },
-  async ({ id, to }, { supabase, auth }) => {
+  {
+    input: v.object({ id: Id, to: Stage }),
+    requireTenant: true,
+    tags: () => [tags.changeRequests()],
+    refresh: true,
+  },
+  async ({ id, to }, { supabase }) => {
     const machine = createStateMachine({
       transport: rpcTransport(supabase, { schema: MACHINE_API }),
       schema: MACHINE_API,
@@ -123,8 +130,6 @@ export const moveChangeRequest = bsb.action(
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, [CHANGE_REQUESTS_TAG]);
 
     return ok(moved.data);
   },

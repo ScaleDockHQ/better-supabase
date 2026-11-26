@@ -120,7 +120,7 @@ fetches it again.
 
 `createServer` reads its settings from `env`, the first one given wins:
 
-1. The `env` option: a loaded env from [`loadEnv`](/docs/auth/env), or the
+1. The `env` option: a loaded env from [`getEnv`](/docs/auth/env), or the
    variables themselves (`{ SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY }`).
    Variables passed this way are the only ones read; a missing one is an
    error, never filled in from `process.env`.

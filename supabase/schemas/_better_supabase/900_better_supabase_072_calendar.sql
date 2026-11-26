@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:2bbcee3abae4224d2d2744599f1e35bfedb80dd2d69e0ca815dd4b9619ba6339
+-- @bsb-hash sha256:cb105664e6541e347f44091c42b435be488677bf0d5b0ad2f06ec4b07b9aeede
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -201,7 +201,7 @@ grant execute on function "better_supabase"."delete_calendar"(uuid) to authentic
 -- may pass an actor other than the caller; a new event's creator and owner are
 -- the actor, else the caller.
 
-create or replace function "better_supabase"."save_calendar_event"(calendar_id uuid, item jsonb, actor uuid default null)
+create or replace function "better_supabase"."upsert_calendar_event"(calendar_id uuid, item jsonb, actor uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -209,27 +209,27 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_item jsonb := coalesce(save_calendar_event.item, '{}'::jsonb);
+  v_item jsonb := coalesce(upsert_calendar_event.item, '{}'::jsonb);
   v_tenant uuid;
   v_tz text;
   v_id uuid := nullif(v_item ->> 'id', '')::uuid;
   v_master uuid := nullif(v_item ->> 'recurrenceId', '')::uuid;
   v_uid text := nullif(v_item ->> 'uid', '');
   v_created boolean := false;
-  v_actor uuid := coalesce(save_calendar_event.actor, auth.uid());
+  v_actor uuid := coalesce(upsert_calendar_event.actor, auth.uid());
   v_exdates timestamptz[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id", "tz" into v_tenant, v_tz from "better_supabase"."calendars" where "id" = save_calendar_event.calendar_id;
+  select "tenant_id", "tz" into v_tenant, v_tz from "better_supabase"."calendars" where "id" = upsert_calendar_event.calendar_id;
   if not found then
     raise exception 'calendar not found' using errcode = 'P0002', hint = 'CALENDAR_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
-  if save_calendar_event.actor is not null and save_calendar_event.actor is distinct from auth.uid() and auth.role() <> 'service_role' then
+  if upsert_calendar_event.actor is not null and upsert_calendar_event.actor is distinct from auth.uid() and auth.role() <> 'service_role' then
     raise exception 'only the service role saves an event as another user' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
 
@@ -252,13 +252,13 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::uuid, $3::jsonb)', v_hook::oid::regproc)
-        using v_tenant, save_calendar_event.calendar_id, v_item;
+        using v_tenant, upsert_calendar_event.calendar_id, v_item;
     end if;
   end;
   if v_id is null then
     if v_master is not null then
       select "uid" into v_uid from "better_supabase"."calendar_events"
-        where "id" = v_master and "calendar_id" = save_calendar_event.calendar_id and "recurrence_id" is null and "rrule" is not null;
+        where "id" = v_master and "calendar_id" = upsert_calendar_event.calendar_id and "recurrence_id" is null and "rrule" is not null;
       if not found or v_item ->> 'originalStart' is null then
         raise exception 'an override needs a recurring event and an originalStart' using errcode = '22023', hint = 'CALENDAR_EVENT_INVALID';
       end if;
@@ -269,7 +269,7 @@ begin
     v_id := gen_random_uuid();
     v_uid := coalesce(v_uid, v_id::text);
     insert into "better_supabase"."calendar_events" ("id", "tenant_id", "calendar_id", "uid", "recurrence_id", "original_starts_at", "title", "starts_at", "ends_at", "all_day", "tz", "status", "rrule", "exdates", "description", "location", "color", "kind", "transparency", "auto_decline", "subject_type", "subject_id", "created_by")
-    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, coalesce(v_item ->> 'title', ''), (v_item ->> 'startsAt')::timestamptz, (v_item ->> 'endsAt')::timestamptz, coalesce((v_item ->> 'allDay')::boolean, false), coalesce(v_item ->> 'tz', v_tz), coalesce(v_item ->> 'status', 'confirmed'), nullif(v_item ->> 'rrule', ''), v_exdates, v_item ->> 'description', v_item ->> 'location', v_item ->> 'color', coalesce(v_item ->> 'kind', 'event'), coalesce(v_item ->> 'transparency', 'opaque'), coalesce((v_item ->> 'autoDecline')::boolean, false), v_item ->> 'subjectType', v_item ->> 'subjectId', v_actor);
+    values (v_id, v_tenant, upsert_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, coalesce(v_item ->> 'title', ''), (v_item ->> 'startsAt')::timestamptz, (v_item ->> 'endsAt')::timestamptz, coalesce((v_item ->> 'allDay')::boolean, false), coalesce(v_item ->> 'tz', v_tz), coalesce(v_item ->> 'status', 'confirmed'), nullif(v_item ->> 'rrule', ''), v_exdates, v_item ->> 'description', v_item ->> 'location', v_item ->> 'color', coalesce(v_item ->> 'kind', 'event'), coalesce(v_item ->> 'transparency', 'opaque'), coalesce((v_item ->> 'autoDecline')::boolean, false), v_item ->> 'subjectType', v_item ->> 'subjectId', v_actor);
     v_created := true;
   else
     update "better_supabase"."calendar_events" set
@@ -290,7 +290,7 @@ begin
     "subject_id" = case when v_item ? 'subjectId' then v_item ->> 'subjectId' else "subject_id" end,
     "exdates" = case when v_item ? 'exdates' then v_exdates else "exdates" end,
     "updated_at" = now()
-    where "id" = v_id and "calendar_id" = save_calendar_event.calendar_id
+    where "id" = v_id and "calendar_id" = upsert_calendar_event.calendar_id
     returning "uid" into v_uid;
     if not found then
       raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
@@ -327,9 +327,9 @@ begin
   on conflict ("tenant_id", "subject_type", "subject_id")
   do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
   if v_created then
-    perform "better_supabase".emit_event('calendar_event.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', save_calendar_event.calendar_id), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
+    perform "better_supabase".emit_event('calendar_event.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', upsert_calendar_event.calendar_id), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   else
-    perform "better_supabase".emit_event('calendar_event.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', save_calendar_event.calendar_id), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
+    perform "better_supabase".emit_event('calendar_event.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', upsert_calendar_event.calendar_id), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_calendar_event_save"(uuid)');
@@ -342,8 +342,8 @@ begin
   return jsonb_build_object('id', v_id, 'uid', v_uid, 'created', v_created);
 end;
 $$;
-revoke execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_calendar_event"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."purge_calendar_event"(event_id uuid)
 returns boolean
@@ -458,7 +458,7 @@ begin
   from "better_supabase"."calendar_events" e where e."id" = v_id
   on conflict ("tenant_id", "subject_type", "subject_id")
   do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
-  v_new := "better_supabase"."save_calendar_event"(v_calendar, (coalesce(split_calendar_event.item, '{}'::jsonb) - 'id' - 'recurrenceId' - 'originalStart') || jsonb_build_object(
+  v_new := "better_supabase"."upsert_calendar_event"(v_calendar, (coalesce(split_calendar_event.item, '{}'::jsonb) - 'id' - 'recurrenceId' - 'originalStart') || jsonb_build_object(
     'uid', v_new_uid,
     'exdates', coalesce((select jsonb_agg(d order by d) from unnest(v_exdates) d where d >= split_calendar_event.split_at), '[]'::jsonb)
   ));
@@ -510,10 +510,10 @@ begin
       v_item := v_item || jsonb_build_object('recurrenceId', v_master);
     end if;
     if v_id is null then
-      perform "better_supabase"."save_calendar_event"(import_calendar_events.calendar_id, v_item - 'id');
+      perform "better_supabase"."upsert_calendar_event"(import_calendar_events.calendar_id, v_item - 'id');
       v_created := v_created + 1;
     else
-      perform "better_supabase"."save_calendar_event"(import_calendar_events.calendar_id, (v_item - 'recurrenceId' - 'originalStart') || jsonb_build_object('id', v_id));
+      perform "better_supabase"."upsert_calendar_event"(import_calendar_events.calendar_id, (v_item - 'recurrenceId' - 'originalStart') || jsonb_build_object('id', v_id));
       v_updated := v_updated + 1;
     end if;
   end loop;
@@ -1124,7 +1124,7 @@ $$;
 revoke execute on function "better_supabase"."set_calendar_attendee"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_calendar_attendee"(uuid, text, text, uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_calendar_attendee"(event_id uuid, email text)
+create or replace function "better_supabase"."delete_calendar_attendee"(event_id uuid, email text)
 returns boolean
 language plpgsql
 security definer
@@ -1137,19 +1137,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."calendar_events" where "id" = remove_calendar_attendee.event_id;
+  select "tenant_id" into v_tenant from "better_supabase"."calendar_events" where "id" = delete_calendar_attendee.event_id;
   if not found then
     raise exception 'event not found' using errcode = 'P0002', hint = 'CALENDAR_EVENT_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'calendar.write'), false)) then
     raise exception 'not allowed to change this calendar' using errcode = '42501', hint = 'CALENDAR_FORBIDDEN';
   end if;
-  delete from "better_supabase"."calendar_attendees" where "event_id" = remove_calendar_attendee.event_id and "email" = lower(remove_calendar_attendee.email);
+  delete from "better_supabase"."calendar_attendees" where "event_id" = delete_calendar_attendee.event_id and "email" = lower(delete_calendar_attendee.email);
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_calendar_attendee"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."remove_calendar_attendee"(uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_calendar_attendee"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."delete_calendar_attendee"(uuid, text) to authenticated, service_role;
 
 -- The caller answers an invitation: the attendee row with their user id,
 -- or their email when the row has none.
@@ -2446,14 +2446,14 @@ as $$ select "better_supabase"."delete_calendar"($1) $$;
 revoke execute on function "api"."delete_calendar"(uuid) from public, anon;
 grant execute on function "api"."delete_calendar"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_calendar_event"(calendar_id uuid, item jsonb, actor uuid default null)
+create or replace function "api"."upsert_calendar_event"(calendar_id uuid, item jsonb, actor uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_calendar_event"($1, $2, $3) $$;
-revoke execute on function "api"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
-grant execute on function "api"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_calendar_event"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_calendar_event"(uuid, jsonb, uuid) from public, anon;
+grant execute on function "api"."upsert_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."purge_calendar_event"(event_id uuid)
 returns boolean
@@ -2570,14 +2570,14 @@ as $$ select "better_supabase"."set_calendar_attendee"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."set_calendar_attendee"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "api"."set_calendar_attendee"(uuid, text, text, uuid, text) to authenticated, service_role;
 
-create or replace function "api"."remove_calendar_attendee"(event_id uuid, email text)
+create or replace function "api"."delete_calendar_attendee"(event_id uuid, email text)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_calendar_attendee"($1, $2) $$;
-revoke execute on function "api"."remove_calendar_attendee"(uuid, text) from public, anon;
-grant execute on function "api"."remove_calendar_attendee"(uuid, text) to authenticated, service_role;
+as $$ select "better_supabase"."delete_calendar_attendee"($1, $2) $$;
+revoke execute on function "api"."delete_calendar_attendee"(uuid, text) from public, anon;
+grant execute on function "api"."delete_calendar_attendee"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."respond_calendar_event"(event_id uuid, response text)
 returns boolean

@@ -1,6 +1,6 @@
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:3d6ea71d4178e9aaffd7e3d0c021c0e63146d906c8142042de8e4d5f742ef0ee
+-- @bsb-hash sha256:9fca0b814dfaa664e489893a4e3720fd5f3b67ccce04a3177ed45293cfd9f851
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -655,7 +655,7 @@ grant execute on function "better_supabase"."get_collection"(uuid) to authentica
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.
 -- subject_type, when given, must be the collection's.
-create or replace function "better_supabase"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "better_supabase"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language plpgsql
 security definer
@@ -673,11 +673,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(add_collection_entries.subject_ids) > 1000 then
+  if cardinality(create_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = add_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = create_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
@@ -694,7 +694,7 @@ begin
   if v_row."archived_at" is not null then
     raise exception 'the collection is archived' using errcode = '55000', hint = 'COLLECTION_ARCHIVED';
   end if;
-  if add_collection_entries.subject_type is not null and add_collection_entries.subject_type <> v_row."subject_type" then
+  if create_collection_entries.subject_type is not null and create_collection_entries.subject_type <> v_row."subject_type" then
     raise exception 'the collection holds another subject type' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_MISMATCH';
   end if;
   declare
@@ -702,12 +702,12 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid, $2::text[])', v_hook::oid::regproc)
-        using v_row."id", add_collection_entries.subject_ids;
+        using v_row."id", create_collection_entries.subject_ids;
     end if;
   end;
   select max(e."rank") into v_last from "better_supabase"."subject_collection_entries" e where e."collection_id" = v_row."id";
   for v_id in
-    select u.id from unnest(coalesce(add_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
+    select u.id from unnest(coalesce(create_collection_entries.subject_ids, '{}')) with ordinality u (id, n)
     where u.id is not null
     group by u.id order by min(u.n)
   loop
@@ -804,11 +804,11 @@ begin
   return jsonb_build_object('added', to_jsonb(v_added));
 end;
 $$;
-revoke execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "better_supabase"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "better_supabase"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
 -- Removes the records the caller can read from a collection; returns how many.
-create or replace function "better_supabase"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "better_supabase"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language plpgsql
 security definer
@@ -823,11 +823,11 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   
-  if cardinality(remove_collection_entries.subject_ids) > 1000 then
+  if cardinality(delete_collection_entries.subject_ids) > 1000 then
     raise exception 'at most 1000 ids per call' using errcode = '22023', hint = 'COLLECTION_TOO_MANY';
   end if;
   
-  select * into v_row from "better_supabase"."subject_collections" where "id" = remove_collection_entries.collection for update;
+  select * into v_row from "better_supabase"."subject_collections" where "id" = delete_collection_entries.collection for update;
   if not found or not (auth.role() = 'service_role' or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'collections.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and v_row."team_id" in (select t::text from "better_supabase"."team_ids_of"((select auth.uid())) t))
@@ -847,7 +847,7 @@ begin
   for v_id in
     delete from "better_supabase"."subject_collection_entries" e
     where e."collection_id" = v_row."id"
-      and e."subject_id" = any (coalesce(remove_collection_entries.subject_ids, '{}'))
+      and e."subject_id" = any (coalesce(delete_collection_entries.subject_ids, '{}'))
       and (auth.role() = 'service_role' or "better_supabase"."can_subject"(e."subject_type", e."subject_id", 'read'))
     returning e."subject_id"
   loop
@@ -857,8 +857,8 @@ begin
   return v_count;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "better_supabase"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "better_supabase"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -1170,7 +1170,7 @@ grant execute on function "better_supabase"."starred_subjects"(uuid, text) to au
 
 -- Saves a record the caller can read for later. Saving it again replaces the
 -- note and reminder and reopens a completed item.
-create or replace function "better_supabase"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "better_supabase"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1179,7 +1179,7 @@ as $$
 #variable_conflict use_column
 declare
   v_user uuid := auth.uid();
-  v_note text := nullif(btrim(save_for_later.note), '');
+  v_note text := nullif(btrim(upsert_for_later.note), '');
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1187,85 +1187,85 @@ begin
   if v_user is null then
     raise exception 'saving for later needs a signed-in user' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_for_later.tenant, 'collections.read'), false) then
+  if not coalesce(better_supabase.can('tenant', upsert_for_later.tenant, 'collections.read'), false) then
     raise exception 'not allowed to save records' using errcode = '42501', hint = 'SAVED_ITEM_FORBIDDEN';
   end if;
-  if not (case save_for_later.subject_type
-      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'till' then exists (select 1 from "better_supabase"."tills" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'lease' then exists (select 1 from "better_supabase"."leases" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'compliance_policy' then exists (select 1 from "better_supabase"."compliance_policies" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'inspection' then exists (select 1 from "better_supabase"."inspections" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'inspection_program' then exists (select 1 from "better_supabase"."inspection_programs" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'inspection_finding' then exists (select 1 from "better_supabase"."inspection_findings" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'dam_usage_right' then exists (select 1 from "better_supabase"."dam_usage_rights" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'lims_sample' then exists (select 1 from "better_supabase"."lims_samples" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'tax_code' then exists (select 1 from "better_supabase"."tax_codes" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (save_for_later.subject_id)::uuid and s."organization_id"::text = save_for_later.tenant::text)
-      when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (save_for_later.subject_id)::uuid and s."id"::text = save_for_later.tenant::text)
-      when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (save_for_later.subject_id)::uuid and s."tenant_id"::text = save_for_later.tenant::text)
-      when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (save_for_later.subject_id)::uuid and s."organization_id"::text = save_for_later.tenant::text)
-      when 'project' then exists (select 1 from "public"."projects" s where s."id" = (save_for_later.subject_id)::uuid and s."organization_id"::text = save_for_later.tenant::text)
-      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (save_for_later.subject_id)::uuid and s."organization_id"::text = save_for_later.tenant::text)
+  if not (case upsert_for_later.subject_type
+      when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'rfq' then exists (select 1 from "better_supabase"."rfqs" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'till' then exists (select 1 from "better_supabase"."tills" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'order' then exists (select 1 from "better_supabase"."orders" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'lease' then exists (select 1 from "better_supabase"."leases" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'warranty_claim' then exists (select 1 from "better_supabase"."warranty_claims" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."compliance_policies" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'inspection' then exists (select 1 from "better_supabase"."inspections" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'inspection_program' then exists (select 1 from "better_supabase"."inspection_programs" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'inspection_finding' then exists (select 1 from "better_supabase"."inspection_findings" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'meeting' then exists (select 1 from "better_supabase"."meetings" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'meeting_decision' then exists (select 1 from "better_supabase"."meeting_decisions" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'maintenance_plan' then exists (select 1 from "better_supabase"."maintenance_plans" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'dam_usage_right' then exists (select 1 from "better_supabase"."dam_usage_rights" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'lims_sample' then exists (select 1 from "better_supabase"."lims_samples" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'tax_code' then exists (select 1 from "better_supabase"."tax_codes" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'production_order' then exists (select 1 from "better_supabase"."production_orders" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'work_center' then exists (select 1 from "better_supabase"."work_centers" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'bank_account' then exists (select 1 from "better_supabase"."bank_accounts" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'advisory' then exists (select 1 from "better_supabase"."advisories" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'advisory_product' then exists (select 1 from "better_supabase"."advisory_products" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'vulnerability' then exists (select 1 from "better_supabase"."vulnerabilities" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (upsert_for_later.subject_id)::uuid and s."organization_id"::text = upsert_for_later.tenant::text)
+      when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (upsert_for_later.subject_id)::uuid and s."id"::text = upsert_for_later.tenant::text)
+      when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (upsert_for_later.subject_id)::uuid and s."organization_id"::text = upsert_for_later.tenant::text)
+      when 'project' then exists (select 1 from "public"."projects" s where s."id" = (upsert_for_later.subject_id)::uuid and s."organization_id"::text = upsert_for_later.tenant::text)
+      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (upsert_for_later.subject_id)::uuid and s."organization_id"::text = upsert_for_later.tenant::text)
       else false
-    end and "better_supabase"."can_subject"(save_for_later.subject_type, save_for_later.subject_id, 'read')) then
+    end and "better_supabase"."can_subject"(upsert_for_later.subject_type, upsert_for_later.subject_id, 'read')) then
     raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'SAVED_ITEM_SUBJECT_FORBIDDEN';
   end if;
   if length(v_note) > 1000 then
     raise exception 'a note holds at most 1000 characters' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
-  if save_for_later.remind_at is not null and save_for_later.remind_at <= now() then
+  if upsert_for_later.remind_at is not null and upsert_for_later.remind_at <= now() then
     raise exception 'the reminder time must be in the future' using errcode = '22023', hint = 'SAVED_ITEM_INVALID';
   end if;
   insert into "better_supabase"."saved_items" ("user_id", "tenant_id", "subject_type", "subject_id", "note", "remind_at")
-  values (v_user, save_for_later.tenant, save_for_later.subject_type, save_for_later.subject_id, v_note, save_for_later.remind_at)
+  values (v_user, upsert_for_later.tenant, upsert_for_later.subject_type, upsert_for_later.subject_id, v_note, upsert_for_later.remind_at)
   on conflict ("user_id", "subject_type", "subject_id") do update
     set "note" = excluded."note",
       "remind_at" = excluded."remind_at",
@@ -1282,11 +1282,11 @@ begin
       'remindedAt', s."reminded_at",
       'completedAt', s."completed_at",
       'createdAt', s."created_at") from "better_supabase"."saved_items" s
-    where s."user_id" = v_user and s."subject_type" = save_for_later.subject_type and s."subject_id" = save_for_later.subject_id);
+    where s."user_id" = v_user and s."subject_type" = upsert_for_later.subject_type and s."subject_id" = upsert_for_later.subject_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "better_supabase"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "better_supabase"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 -- Marks one of the caller's saved items completed, or open again with
 -- completed false.
@@ -1309,7 +1309,7 @@ $$;
 revoke execute on function "better_supabase"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "better_supabase"."remove_saved_item"(item uuid)
+create or replace function "better_supabase"."delete_saved_item"(item uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1320,12 +1320,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."saved_items" s
-    where s."id" = remove_saved_item.item and s."user_id" = auth.uid();
+    where s."id" = delete_saved_item.item and s."user_id" = auth.uid();
   return found;
 end;
 $$;
-revoke execute on function "better_supabase"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_saved_item"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_saved_item"(uuid) to authenticated, service_role;
 
 -- The caller's saved items in a tenant, the newest first, with each record's
 -- title and URL: the open ones, or the completed ones with completed true.
@@ -1595,23 +1595,23 @@ as $$ select "better_supabase"."get_collection"($1) $$;
 revoke execute on function "api"."get_collection"(uuid) from public, anon;
 grant execute on function "api"."get_collection"(uuid) to authenticated, service_role;
 
-create or replace function "api"."add_collection_entries"(collection uuid, subject_ids text[], subject_type text)
+create or replace function "api"."create_collection_entries"(collection uuid, subject_ids text[], subject_type text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."add_collection_entries"($1, $2, $3) $$;
-revoke execute on function "api"."add_collection_entries"(uuid, text[], text) from public, anon;
-grant execute on function "api"."add_collection_entries"(uuid, text[], text) to authenticated, service_role;
+as $$ select "better_supabase"."create_collection_entries"($1, $2, $3) $$;
+revoke execute on function "api"."create_collection_entries"(uuid, text[], text) from public, anon;
+grant execute on function "api"."create_collection_entries"(uuid, text[], text) to authenticated, service_role;
 
-create or replace function "api"."remove_collection_entries"(collection uuid, subject_ids text[])
+create or replace function "api"."delete_collection_entries"(collection uuid, subject_ids text[])
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_collection_entries"($1, $2) $$;
-revoke execute on function "api"."remove_collection_entries"(uuid, text[]) from public, anon;
-grant execute on function "api"."remove_collection_entries"(uuid, text[]) to authenticated, service_role;
+as $$ select "better_supabase"."delete_collection_entries"($1, $2) $$;
+revoke execute on function "api"."delete_collection_entries"(uuid, text[]) from public, anon;
+grant execute on function "api"."delete_collection_entries"(uuid, text[]) to authenticated, service_role;
 
 create or replace function "api"."rank_collection_entry"(collection uuid, subject_id text, rank text)
 returns boolean
@@ -1689,14 +1689,14 @@ as $$ select "better_supabase"."starred_subjects"($1, $2) $$;
 revoke execute on function "api"."starred_subjects"(uuid, text) from public, anon;
 grant execute on function "api"."starred_subjects"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."save_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
+create or replace function "api"."upsert_for_later"(tenant uuid, subject_type text, subject_id text, note text default null, remind_at timestamptz default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_for_later"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_for_later"(uuid, text, text, text, timestamptz) from public, anon;
-grant execute on function "api"."save_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_for_later"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_for_later"(uuid, text, text, text, timestamptz) from public, anon;
+grant execute on function "api"."upsert_for_later"(uuid, text, text, text, timestamptz) to authenticated, service_role;
 
 create or replace function "api"."complete_saved_item"(item uuid, completed boolean default true)
 returns boolean
@@ -1707,14 +1707,14 @@ as $$ select "better_supabase"."complete_saved_item"($1, $2) $$;
 revoke execute on function "api"."complete_saved_item"(uuid, boolean) from public, anon;
 grant execute on function "api"."complete_saved_item"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."remove_saved_item"(item uuid)
+create or replace function "api"."delete_saved_item"(item uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_saved_item"($1) $$;
-revoke execute on function "api"."remove_saved_item"(uuid) from public, anon;
-grant execute on function "api"."remove_saved_item"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_saved_item"($1) $$;
+revoke execute on function "api"."delete_saved_item"(uuid) from public, anon;
+grant execute on function "api"."delete_saved_item"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_saved_items"(tenant uuid, completed boolean default false, before timestamptz default null, before_id uuid default null, max_rows integer default null)
 returns jsonb

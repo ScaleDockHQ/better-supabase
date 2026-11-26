@@ -68,10 +68,10 @@ describe.skipIf(!live)("ai-chat sharing and modes", () => {
       // The link follows the chat: a new message shows without a new token.
       await s.as(owner);
       await s.service();
-      await s.value("better_supabase.save_ai_assistant_message($1, $2, 'u1')", [
-        chat.id,
-        { id: "a1", role: "assistant", parts: text("Hello") },
-      ]);
+      await s.value(
+        "better_supabase.upsert_ai_assistant_message($1, $2, 'u1')",
+        [chat.id, { id: "a1", role: "assistant", parts: text("Hello") }],
+      );
       await s.as(outsider);
       expect(
         (
@@ -123,12 +123,12 @@ describe.skipIf(!live)("ai-chat sharing and modes", () => {
         [tenant, { title: "Team plan" }],
       );
 
-      await s.value("better_supabase.add_ai_chat_participant($1, $2, $3)", [
+      await s.value("better_supabase.create_ai_chat_participant($1, $2, $3)", [
         chat.id,
         viewer.id,
         "viewer",
       ]);
-      await s.value("better_supabase.add_ai_chat_participant($1, $2, $3)", [
+      await s.value("better_supabase.create_ai_chat_participant($1, $2, $3)", [
         chat.id,
         editor.id,
         "editor",
@@ -147,7 +147,7 @@ describe.skipIf(!live)("ai-chat sharing and modes", () => {
 
       // The owner may not be added as a participant of their own chat.
       expect(
-        await s.hint("better_supabase.add_ai_chat_participant($1, $2)", [
+        await s.hint("better_supabase.create_ai_chat_participant($1, $2)", [
           chat.id,
           owner.id,
         ]),
@@ -183,14 +183,14 @@ describe.skipIf(!live)("ai-chat sharing and modes", () => {
 
       // Only the owner shares, and a participant may leave.
       expect(
-        await s.hint("better_supabase.add_ai_chat_participant($1, $2)", [
+        await s.hint("better_supabase.create_ai_chat_participant($1, $2)", [
           chat.id,
           outsider.id,
         ]),
       ).toBe("AI_CHAT_NOT_FOUND");
       await s.as(viewer);
       expect(
-        await s.value("better_supabase.remove_ai_chat_participant($1, $2)", [
+        await s.value("better_supabase.delete_ai_chat_participant($1, $2)", [
           chat.id,
           viewer.id,
         ]),

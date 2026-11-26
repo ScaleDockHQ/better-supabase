@@ -203,6 +203,16 @@
       "types": "./dist/next/image/index.d.ts",
       "default": "./dist/next/image/index.js"
     },
+    "./next/resources": {
+      "@better-supabase/source": "./src/next/resources/index.ts",
+      "types": "./dist/next/resources/index.d.ts",
+      "default": "./dist/next/resources/index.js"
+    },
+    "./next/sign-in": {
+      "@better-supabase/source": "./src/next/sign-in/index.ts",
+      "types": "./dist/next/sign-in/index.d.ts",
+      "default": "./dist/next/sign-in/index.js"
+    },
     "./next/client": {
       "@better-supabase/source": "./src/next/client/index.ts",
       "types": "./dist/next/client/index.d.ts",
@@ -442,6 +452,11 @@
       "@better-supabase/source": "./src/generators/nuqs/index.ts",
       "types": "./dist/generators/nuqs/index.d.ts",
       "default": "./dist/generators/nuqs/index.js"
+    },
+    "./generators/tags": {
+      "@better-supabase/source": "./src/generators/tags/index.ts",
+      "types": "./dist/generators/tags/index.d.ts",
+      "default": "./dist/generators/tags/index.js"
     },
     "./generators": {
       "@better-supabase/source": "./src/generators/index.ts",
@@ -1710,6 +1725,14 @@
         "types": "./dist/next/image/index.d.ts",
         "default": "./dist/next/image/index.js"
       },
+      "./next/resources": {
+        "types": "./dist/next/resources/index.d.ts",
+        "default": "./dist/next/resources/index.js"
+      },
+      "./next/sign-in": {
+        "types": "./dist/next/sign-in/index.d.ts",
+        "default": "./dist/next/sign-in/index.js"
+      },
       "./next/client": {
         "types": "./dist/next/client/index.d.ts",
         "default": "./dist/next/client/index.js"
@@ -1901,6 +1924,10 @@
       "./generators/nuqs": {
         "types": "./dist/generators/nuqs/index.d.ts",
         "default": "./dist/generators/nuqs/index.js"
+      },
+      "./generators/tags": {
+        "types": "./dist/generators/tags/index.d.ts",
+        "default": "./dist/generators/tags/index.js"
       },
       "./generators": {
         "types": "./dist/generators/index.d.ts",

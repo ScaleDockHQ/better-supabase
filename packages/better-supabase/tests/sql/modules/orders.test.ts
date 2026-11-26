@@ -164,7 +164,7 @@ describe("orders module, kitchen", () => {
     expect(names({})).not.toContain("send_order_to_kitchen");
     expect(names({ kitchen: true })).toEqual(
       expect.arrayContaining([
-        "save_kitchen_station",
+        "upsert_kitchen_station",
         "send_order_to_kitchen",
         "set_line_preparation",
         "bump_kitchen_ticket",

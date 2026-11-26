@@ -37,7 +37,7 @@ export async function Timesheet({
 
   const monday = mondayOf(query["week"]);
   const week = monday.toString();
-  const sheet = await settle(() => loadTimesheet(week));
+  const sheet = await settle(() => getTimesheet(week));
 
   if (sheet.kind === "no-organization") {
     return null;

@@ -45,7 +45,7 @@ export const versionsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "create" },
   module: "versions",
-  load: (client: Versions, subject, options?: VersionListOptions) =>
+  get: (client: Versions, subject, options?: VersionListOptions) =>
     // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     client.list({ subject, ...options }),
   timeline: (versions) =>

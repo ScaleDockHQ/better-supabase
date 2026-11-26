@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:a7f73ad25c622964d34f62b081c91a6b2ccdbefdd5bcea2b64be51e756032ac2
+-- @bsb-hash sha256:dacfd68a8cc6ef58ab76ebfe9be96317612e5483a169d9ddcc6856f1d5a8aaa2
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -322,7 +322,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member"(organization uuid, member uuid)
+create or replace function "better_supabase"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -982,8 +982,8 @@ revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, te
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."sole_owned_organizations"(uuid, uuid) from public, anon;
@@ -1156,7 +1156,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:cd82962e5db7e9a53ca39270689203fbb423db5d5bedab8e7180b2bf1de1b3aa
+-- @bsb-hash sha256:5462c7f46d256e3582a16e96df066f9d2f77b025aa266a8d7411d495a3478548
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1511,7 +1511,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member"(organization uuid, member uuid)
+create or replace function "better_supabase"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2473,8 +2473,8 @@ revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, te
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."sole_owned_organizations"(uuid, uuid) from public, anon;
@@ -2651,7 +2651,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:37739f50253851f1217b044e1a1aaa3b0fd54dfbc006e5236454b5e47d0e9dbf
+-- @bsb-hash sha256:34c4babf5c5918078a3233b9b18cb8bba896f344c712cb39ce13e3ca7b978319
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2978,7 +2978,7 @@ begin
 end;
 $$;
 
-create or replace function "app_private"."remove_member"(organization uuid, member uuid)
+create or replace function "app_private"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3638,8 +3638,8 @@ revoke execute on function "app_private"."update_member_role"(uuid, uuid, text) 
 grant execute on function "app_private"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "app_private"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "app_private"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "app_private"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "app_private"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "app_private"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "app_private"."leave_organization"(uuid) from public, anon;
 grant execute on function "app_private"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "app_private"."sole_owned_organizations"(uuid, uuid) from public, anon;
@@ -3812,7 +3812,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:232d222ecfde0e082b6218669befb38213663440dd8321392ca40622ba116b43
+-- @bsb-hash sha256:3d951d88e3f218aa11dd0fa999b27777509dc3733efaa84d70f07438b2a28637
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4133,7 +4133,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member"(organization uuid, member uuid)
+create or replace function "better_supabase"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4793,8 +4793,8 @@ revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, te
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."sole_owned_organizations"(uuid, uuid) from public, anon;
@@ -5012,14 +5012,14 @@ as $$ select "better_supabase"."update_member_roles"($1, $2, $3) $$;
 revoke execute on function "api"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "api"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
 
-create or replace function "api"."remove_member"(organization uuid, member uuid)
+create or replace function "api"."delete_member"(organization uuid, member uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."remove_member"($1, $2) $$;
-revoke execute on function "api"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "api"."remove_member"(uuid, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."delete_member"($1, $2) $$;
+revoke execute on function "api"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "api"."delete_member"(uuid, uuid) to authenticated, service_role;
 
 create or replace function "api"."leave_organization"(organization uuid)
 returns boolean
@@ -5167,7 +5167,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:a9d6c1b242f9716b94c8cf6acf1c3486ec74b5ceb876a62c9e70726694755502
+-- @bsb-hash sha256:01107247d002b08c3cafb23f950cb536beed32cd5602997e3a6e33dad2b0645b
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5483,7 +5483,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member"(organization uuid, member uuid)
+create or replace function "better_supabase"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6143,8 +6143,8 @@ revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, te
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."sole_owned_organizations"(uuid, uuid) from public, anon;
@@ -6312,7 +6312,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:b8f9ebd926b46cd5ae6098872f8945ed22329b65cc41497088204420e9ebb294
+-- @bsb-hash sha256:9fd0f591f2151b09edd98262235006a9936ddd7926b76344b0ad7a548c71fa8f
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6633,7 +6633,7 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."remove_member"(organization uuid, member uuid)
+create or replace function "better_supabase"."delete_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7293,8 +7293,8 @@ revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, te
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
 grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
-revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_member"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."delete_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."sole_owned_organizations"(uuid, uuid) from public, anon;

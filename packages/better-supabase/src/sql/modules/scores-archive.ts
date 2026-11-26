@@ -18,7 +18,7 @@ export interface ScoreArchiveParts {
  * `archive_score_model` and `restore_score_model`, when the models table has
  * the `archivedAt` column. Archiving hides the model from the lists, the
  * subject's current scores and `top_scores`, and refuses `compute_score` and
- * `save_score_model`; the versions and every score stay.
+ * `upsert_score_model`; the versions and every score stay.
  */
 export function archiveFunctions(
   ctx: BlockSqlContext,

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:984fbbd85c00dc8e80569a22097afeb7de96ff8d8958b7887e0ff23fca9b5240
+-- @bsb-hash sha256:e0cae89c0ead8141b83a99df8b7ed3e599f4c3c583db028d97f6168997e0fea1
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -305,7 +305,7 @@ revoke execute on function "better_supabase"."incident_apply_impacts"(uuid, json
 grant execute on function "better_supabase"."incident_apply_impacts"(uuid, jsonb) to service_role;
 
 -- Creates a component by name, or changes one (component_id).
-create or replace function "better_supabase"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function "better_supabase"."upsert_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -317,24 +317,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_component.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if nullif(trim(save_status_component.name), '') is null then
+  if nullif(trim(upsert_status_component.name), '') is null then
     raise exception 'a component needs a name' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_status_component.component_id is null then
+  if upsert_status_component.component_id is null then
     insert into "better_supabase"."incident_status_components" ("tenant_id", "name", "description", "group_name", "public", "position")
-    values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
-      nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
+    values (upsert_status_component.tenant, trim(upsert_status_component.name), upsert_status_component.description,
+      nullif(trim(upsert_status_component.group_name), ''), coalesce(upsert_status_component.is_public, true), coalesce(upsert_status_component.sort_position, 0))
     returning * into v_row;
     insert into "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "status")
     values (v_row."tenant_id", v_row."id", v_row."status");
   else
-    update "better_supabase"."incident_status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
-      "group_name" = nullif(trim(save_status_component.group_name), ''), "public" = coalesce(save_status_component.is_public, true),
-      "position" = coalesce(save_status_component.sort_position, 0), "updated_at" = now()
-      where x."id" = save_status_component.component_id and x."tenant_id" = save_status_component.tenant
+    update "better_supabase"."incident_status_components" x set "name" = trim(upsert_status_component.name), "description" = upsert_status_component.description,
+      "group_name" = nullif(trim(upsert_status_component.group_name), ''), "public" = coalesce(upsert_status_component.is_public, true),
+      "position" = coalesce(upsert_status_component.sort_position, 0), "updated_at" = now()
+      where x."id" = upsert_status_component.component_id and x."tenant_id" = upsert_status_component.tenant
       returning * into v_row;
     if not found then
       raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
@@ -343,8 +343,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'group', v_row."group_name", 'public', v_row."public", 'status', v_row."status", 'position', v_row."position", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_status_component"(component_id uuid)
 returns jsonb
@@ -855,8 +855,8 @@ grant execute on function "better_supabase"."page_incidents"(uuid, jsonb) to aut
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:
--- add_incident_postmortem_action writes them.
-create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
+-- create_incident_postmortem_action writes them.
+create or replace function "better_supabase"."upsert_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -870,35 +870,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."incidents" x where x."id" = save_incident_postmortem.incident_id;
+  select * into v_row from "better_supabase"."incidents" x where x."id" = upsert_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' then
-    raise exception 'actionItems was removed: add_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  if upsert_incident_postmortem.attrs ? 'actionItems' then
+    raise exception 'actionItems was removed: create_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_postmortems" ("tenant_id", "incident_id", "author_id")
   values (v_row."tenant_id", v_row."id", auth.uid())
   on conflict ("incident_id") do nothing;
   update "better_supabase"."incident_postmortems" x set
-    "summary" = case when save_incident_postmortem.attrs ? 'summary' then save_incident_postmortem.attrs ->> 'summary' else x."summary" end,
-    "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
-    "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
-    "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
+    "summary" = case when upsert_incident_postmortem.attrs ? 'summary' then upsert_incident_postmortem.attrs ->> 'summary' else x."summary" end,
+    "impact" = case when upsert_incident_postmortem.attrs ? 'impact' then upsert_incident_postmortem.attrs ->> 'impact' else x."impact" end,
+    "root_cause" = case when upsert_incident_postmortem.attrs ? 'rootCause' then upsert_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
+    "resolution" = case when upsert_incident_postmortem.attrs ? 'resolution' then upsert_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
@@ -1027,7 +1027,7 @@ grant execute on function "better_supabase"."plan_incident_filings"(uuid) to ser
 -- non_major), classifiedAt, significant, activelyExploited and
 -- measureAvailableAt; a key left out keeps its value. The first save needs
 -- regimes and awareAt.
-create or replace function "better_supabase"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1045,40 +1045,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_inc from "better_supabase"."incidents" x where x."id" = save_incident_regulatory_profile.incident_id;
+  select * into v_inc from "better_supabase"."incidents" x where x."id" = upsert_incident_regulatory_profile.incident_id;
   if v_inc."id" is null then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inc."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change the regulatory profile' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+  if upsert_incident_regulatory_profile.attrs is null or jsonb_typeof(upsert_incident_regulatory_profile.attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   select * into v_old from "better_supabase"."incident_regulatory_profiles" x where x."incident_id" = v_inc."id";
-  if save_incident_regulatory_profile.attrs ? 'regimes' then
+  if upsert_incident_regulatory_profile.attrs ? 'regimes' then
     select coalesce(array_agg(distinct e), '{}') into v_regimes
-    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+    from jsonb_array_elements_text(upsert_incident_regulatory_profile.attrs -> 'regimes') e;
   else
     v_regimes := v_old."regimes";
   end if;
   if v_regimes is null or not (v_regimes <@ array['nis2', 'dora', 'cra']) then
     raise exception 'regimes must list nis2, dora or cra' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
+  v_aware := coalesce((upsert_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
   if v_aware is null then
     raise exception 'awareAt is required: when the organization became aware of the incident' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
+  v_class := case when upsert_incident_regulatory_profile.attrs ? 'classification' then upsert_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
   if v_class is not null and v_class not in ('major', 'non_major') then
     raise exception 'classification must be major or non_major' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_regulatory_profiles" ("incident_id", "tenant_id", "regimes", "aware_at", "classification", "classified_at", "significant", "actively_exploited", "measure_available_at")
   values (v_inc."id", v_inc."tenant_id", v_regimes, v_aware, v_class,
-    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
-    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
-    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
-    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
+    case when upsert_incident_regulatory_profile.attrs ? 'classifiedAt' then (upsert_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
+    case when upsert_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (upsert_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
   on conflict ("incident_id") do update set
     "regimes" = excluded."regimes", "aware_at" = excluded."aware_at", "classification" = excluded."classification",
     "classified_at" = excluded."classified_at", "significant" = excluded."significant",
@@ -1090,8 +1090,8 @@ begin
   return jsonb_build_object('incidentId', v_row."incident_id", 'organizationId', v_row."tenant_id", 'regimes', to_jsonb(v_row."regimes"), 'awareAt', v_row."aware_at", 'classification', v_row."classification", 'classifiedAt', v_row."classified_at", 'significant', v_row."significant", 'activelyExploited', v_row."actively_exploited", 'measureAvailableAt', v_row."measure_available_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "better_supabase"."incident_regulatory_filings" y where y."incident_id" = v_row."incident_id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
 
 -- The regulatory profile of an incident with its filings, or null.
 create or replace function "better_supabase"."get_incident_regulatory_profile"(incident_id uuid)
@@ -1180,7 +1180,7 @@ grant execute on function "better_supabase"."submit_incident_filing"(uuid, text,
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
-create or replace function "better_supabase"."save_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
+create or replace function "better_supabase"."upsert_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1192,19 +1192,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_page.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage the status page' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
+  if upsert_status_page.slug is null or upsert_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
     raise exception 'the slug takes 2 to 63 lowercase letters, digits and dashes' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if exists (
-    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = save_status_page.slug and x."tenant_id" <> save_status_page.tenant
+    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = upsert_status_page.slug and x."tenant_id" <> upsert_status_page.tenant
   ) then
     raise exception 'another organization uses this slug' using errcode = '23505', hint = 'STATUS_PAGE_SLUG_TAKEN';
   end if;
   insert into "better_supabase"."incident_status_pages" ("tenant_id", "slug", "title", "description", "published")
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
+  values (upsert_status_page.tenant, upsert_status_page.slug, trim(upsert_status_page.title), upsert_status_page.description, coalesce(upsert_status_page.published, false))
   on conflict ("tenant_id") do update
     set "slug" = excluded."slug", "title" = excluded."title", "description" = excluded."description",
       "published" = excluded."published", "updated_at" = now()
@@ -1212,8 +1212,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'slug', v_row."slug", 'title', v_row."title", 'description', v_row."description", 'published', v_row."published", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_status_page"(tenant uuid)
 returns jsonb
@@ -1493,7 +1493,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:56c3441546f2e38d73916fc1a80240ea9e0926581b319f70d7e3576d248e7dc4
+-- @bsb-hash sha256:162dd5116b13b16ab6d078bab56562d1ea21e0b5e8c2b7487188d86d502c0178
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1844,7 +1844,7 @@ revoke execute on function "better_supabase"."incident_apply_impacts"(uuid, json
 grant execute on function "better_supabase"."incident_apply_impacts"(uuid, jsonb) to service_role;
 
 -- Creates a component by name, or changes one (component_id).
-create or replace function "better_supabase"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function "better_supabase"."upsert_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1856,24 +1856,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_component.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if nullif(trim(save_status_component.name), '') is null then
+  if nullif(trim(upsert_status_component.name), '') is null then
     raise exception 'a component needs a name' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_status_component.component_id is null then
+  if upsert_status_component.component_id is null then
     insert into "better_supabase"."incident_status_components" ("tenant_id", "name", "description", "group_name", "public", "position")
-    values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
-      nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
+    values (upsert_status_component.tenant, trim(upsert_status_component.name), upsert_status_component.description,
+      nullif(trim(upsert_status_component.group_name), ''), coalesce(upsert_status_component.is_public, true), coalesce(upsert_status_component.sort_position, 0))
     returning * into v_row;
     insert into "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "status")
     values (v_row."tenant_id", v_row."id", v_row."status");
   else
-    update "better_supabase"."incident_status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
-      "group_name" = nullif(trim(save_status_component.group_name), ''), "public" = coalesce(save_status_component.is_public, true),
-      "position" = coalesce(save_status_component.sort_position, 0), "updated_at" = now()
-      where x."id" = save_status_component.component_id and x."tenant_id" = save_status_component.tenant
+    update "better_supabase"."incident_status_components" x set "name" = trim(upsert_status_component.name), "description" = upsert_status_component.description,
+      "group_name" = nullif(trim(upsert_status_component.group_name), ''), "public" = coalesce(upsert_status_component.is_public, true),
+      "position" = coalesce(upsert_status_component.sort_position, 0), "updated_at" = now()
+      where x."id" = upsert_status_component.component_id and x."tenant_id" = upsert_status_component.tenant
       returning * into v_row;
     if not found then
       raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
@@ -1882,8 +1882,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'group', v_row."group_name", 'public', v_row."public", 'status', v_row."status", 'position', v_row."position", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_status_component"(component_id uuid)
 returns jsonb
@@ -2436,8 +2436,8 @@ grant execute on function "better_supabase"."page_incidents"(uuid, jsonb) to aut
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:
--- add_incident_postmortem_action writes them.
-create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
+-- create_incident_postmortem_action writes them.
+create or replace function "better_supabase"."upsert_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2451,35 +2451,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."incidents" x where x."id" = save_incident_postmortem.incident_id;
+  select * into v_row from "better_supabase"."incidents" x where x."id" = upsert_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' then
-    raise exception 'actionItems was removed: add_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  if upsert_incident_postmortem.attrs ? 'actionItems' then
+    raise exception 'actionItems was removed: create_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_postmortems" ("tenant_id", "incident_id", "author_id")
   values (v_row."tenant_id", v_row."id", auth.uid())
   on conflict ("incident_id") do nothing;
   update "better_supabase"."incident_postmortems" x set
-    "summary" = case when save_incident_postmortem.attrs ? 'summary' then save_incident_postmortem.attrs ->> 'summary' else x."summary" end,
-    "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
-    "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
-    "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
+    "summary" = case when upsert_incident_postmortem.attrs ? 'summary' then upsert_incident_postmortem.attrs ->> 'summary' else x."summary" end,
+    "impact" = case when upsert_incident_postmortem.attrs ? 'impact' then upsert_incident_postmortem.attrs ->> 'impact' else x."impact" end,
+    "root_cause" = case when upsert_incident_postmortem.attrs ? 'rootCause' then upsert_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
+    "resolution" = case when upsert_incident_postmortem.attrs ? 'resolution' then upsert_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actions', "better_supabase"."incident_postmortem_action_list"(v_post."id"), 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
@@ -2531,7 +2531,7 @@ grant execute on function "better_supabase"."publish_incident_postmortem"(uuid) 
 -- Adds an action item to a postmortem: creates the task through the tasks
 -- block, as the caller, and links it. The caller needs to write the incident
 -- and to create tasks.
-create or replace function "better_supabase"."add_incident_postmortem_action"(postmortem_id uuid, title text, assignee_id uuid default null, due_at timestamptz default null)
+create or replace function "better_supabase"."create_incident_postmortem_action"(postmortem_id uuid, title text, assignee_id uuid default null, due_at timestamptz default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2545,7 +2545,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_post from "better_supabase"."incident_postmortems" x where x."id" = add_incident_postmortem_action.postmortem_id;
+  select * into v_post from "better_supabase"."incident_postmortems" x where x."id" = create_incident_postmortem_action.postmortem_id;
   if not found then
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
@@ -2554,8 +2554,8 @@ begin
   end if;
   v_task := ("better_supabase"."create_task"(
     v_post."tenant_id",
-    jsonb_strip_nulls(jsonb_build_object('title', add_incident_postmortem_action.title, 'dueAt', add_incident_postmortem_action.due_at)),
-    case when add_incident_postmortem_action.assignee_id is null then '{}'::uuid[] else array[add_incident_postmortem_action.assignee_id] end
+    jsonb_strip_nulls(jsonb_build_object('title', create_incident_postmortem_action.title, 'dueAt', create_incident_postmortem_action.due_at)),
+    case when create_incident_postmortem_action.assignee_id is null then '{}'::uuid[] else array[create_incident_postmortem_action.assignee_id] end
   ) ->> 'id')::uuid;
   insert into "better_supabase"."incident_postmortem_actions" ("tenant_id", "postmortem_id", "task_id")
   values (v_post."tenant_id", v_post."id", v_task)
@@ -2563,12 +2563,12 @@ begin
   return (select jsonb_build_object('id', x."id", 'postmortemId', x."postmortem_id", 'taskId', x."task_id", 'title', k."title", 'state', k."state", 'dueAt', k."due_at", 'closedAt', k."closed_at", 'createdAt', x."created_at") from "better_supabase"."incident_postmortem_actions" x join "better_supabase"."tasks" k on k."id" = x."task_id" where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."add_incident_postmortem_action"(uuid, text, uuid, timestamptz) from public, anon;
-grant execute on function "better_supabase"."add_incident_postmortem_action"(uuid, text, uuid, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_incident_postmortem_action"(uuid, text, uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."create_incident_postmortem_action"(uuid, text, uuid, timestamptz) to authenticated, service_role;
 
 -- Unlinks an action item from its postmortem and returns the postmortem.
 -- The task stays in the tasks block.
-create or replace function "better_supabase"."remove_incident_postmortem_action"(action_id uuid)
+create or replace function "better_supabase"."delete_incident_postmortem_action"(action_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -2581,7 +2581,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_action from "better_supabase"."incident_postmortem_actions" x where x."id" = remove_incident_postmortem_action.action_id;
+  select * into v_action from "better_supabase"."incident_postmortem_actions" x where x."id" = delete_incident_postmortem_action.action_id;
   if not found then
     raise exception 'postmortem action not found' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_ACTION_NOT_FOUND';
   end if;
@@ -2593,8 +2593,8 @@ begin
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actions', "better_supabase"."incident_postmortem_action_list"(v_post."id"), 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."remove_incident_postmortem_action"(uuid) from public, anon;
-grant execute on function "better_supabase"."remove_incident_postmortem_action"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."delete_incident_postmortem_action"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_incident_postmortem_action"(uuid) to authenticated, service_role;
 -- Plans the filings of an incident from its profile: the NIS2 early warning
 -- (24 hours), notification (72 hours) and final report (one month after the
 -- notification); the DORA initial notification (24 hours from awareness, or
@@ -2713,7 +2713,7 @@ grant execute on function "better_supabase"."plan_incident_filings"(uuid) to ser
 -- non_major), classifiedAt, significant, activelyExploited and
 -- measureAvailableAt; a key left out keeps its value. The first save needs
 -- regimes and awareAt.
-create or replace function "better_supabase"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2731,40 +2731,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_inc from "better_supabase"."incidents" x where x."id" = save_incident_regulatory_profile.incident_id;
+  select * into v_inc from "better_supabase"."incidents" x where x."id" = upsert_incident_regulatory_profile.incident_id;
   if v_inc."id" is null then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inc."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change the regulatory profile' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+  if upsert_incident_regulatory_profile.attrs is null or jsonb_typeof(upsert_incident_regulatory_profile.attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   select * into v_old from "better_supabase"."incident_regulatory_profiles" x where x."incident_id" = v_inc."id";
-  if save_incident_regulatory_profile.attrs ? 'regimes' then
+  if upsert_incident_regulatory_profile.attrs ? 'regimes' then
     select coalesce(array_agg(distinct e), '{}') into v_regimes
-    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+    from jsonb_array_elements_text(upsert_incident_regulatory_profile.attrs -> 'regimes') e;
   else
     v_regimes := v_old."regimes";
   end if;
   if v_regimes is null or not (v_regimes <@ array['nis2', 'dora', 'cra']) then
     raise exception 'regimes must list nis2, dora or cra' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
+  v_aware := coalesce((upsert_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
   if v_aware is null then
     raise exception 'awareAt is required: when the organization became aware of the incident' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
+  v_class := case when upsert_incident_regulatory_profile.attrs ? 'classification' then upsert_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
   if v_class is not null and v_class not in ('major', 'non_major') then
     raise exception 'classification must be major or non_major' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_regulatory_profiles" ("incident_id", "tenant_id", "regimes", "aware_at", "classification", "classified_at", "significant", "actively_exploited", "measure_available_at")
   values (v_inc."id", v_inc."tenant_id", v_regimes, v_aware, v_class,
-    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
-    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
-    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
-    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
+    case when upsert_incident_regulatory_profile.attrs ? 'classifiedAt' then (upsert_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
+    case when upsert_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (upsert_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
   on conflict ("incident_id") do update set
     "regimes" = excluded."regimes", "aware_at" = excluded."aware_at", "classification" = excluded."classification",
     "classified_at" = excluded."classified_at", "significant" = excluded."significant",
@@ -2785,8 +2785,8 @@ begin
   return jsonb_build_object('incidentId', v_row."incident_id", 'organizationId', v_row."tenant_id", 'regimes', to_jsonb(v_row."regimes"), 'awareAt', v_row."aware_at", 'classification', v_row."classification", 'classifiedAt', v_row."classified_at", 'significant', v_row."significant", 'activelyExploited', v_row."actively_exploited", 'measureAvailableAt', v_row."measure_available_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "better_supabase"."incident_regulatory_filings" y where y."incident_id" = v_row."incident_id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
 
 -- The regulatory profile of an incident with its filings, or null.
 create or replace function "better_supabase"."get_incident_regulatory_profile"(incident_id uuid)
@@ -2888,7 +2888,7 @@ grant execute on function "better_supabase"."submit_incident_filing"(uuid, text,
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
-create or replace function "better_supabase"."save_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
+create or replace function "better_supabase"."upsert_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -2900,19 +2900,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_page.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage the status page' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
+  if upsert_status_page.slug is null or upsert_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
     raise exception 'the slug takes 2 to 63 lowercase letters, digits and dashes' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if exists (
-    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = save_status_page.slug and x."tenant_id" <> save_status_page.tenant
+    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = upsert_status_page.slug and x."tenant_id" <> upsert_status_page.tenant
   ) then
     raise exception 'another organization uses this slug' using errcode = '23505', hint = 'STATUS_PAGE_SLUG_TAKEN';
   end if;
   insert into "better_supabase"."incident_status_pages" ("tenant_id", "slug", "title", "description", "published")
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
+  values (upsert_status_page.tenant, upsert_status_page.slug, trim(upsert_status_page.title), upsert_status_page.description, coalesce(upsert_status_page.published, false))
   on conflict ("tenant_id") do update
     set "slug" = excluded."slug", "title" = excluded."title", "description" = excluded."description",
       "published" = excluded."published", "updated_at" = now()
@@ -2920,8 +2920,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'slug', v_row."slug", 'title', v_row."title", 'description', v_row."description", 'published', v_row."published", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_status_page"(tenant uuid)
 returns jsonb
@@ -3223,7 +3223,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:9a0c28aae11ed638891b7f81e07f15579736e6ce119ea257f110ba60a765b33b
+-- @bsb-hash sha256:a1fd9881f8a99dab5410b9847e8394719828fd3e8118b34b32532378bebd0e6e
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3532,7 +3532,7 @@ revoke execute on function "app_private"."incident_apply_impacts"(uuid, jsonb) f
 grant execute on function "app_private"."incident_apply_impacts"(uuid, jsonb) to service_role;
 
 -- Creates a component by name, or changes one (component_id).
-create or replace function "app_private"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function "app_private"."upsert_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3544,24 +3544,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_component.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if nullif(trim(save_status_component.name), '') is null then
+  if nullif(trim(upsert_status_component.name), '') is null then
     raise exception 'a component needs a name' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_status_component.component_id is null then
+  if upsert_status_component.component_id is null then
     insert into "app_private"."incident_status_components" ("tenant_id", "name", "description", "group_name", "public", "position")
-    values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
-      nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
+    values (upsert_status_component.tenant, trim(upsert_status_component.name), upsert_status_component.description,
+      nullif(trim(upsert_status_component.group_name), ''), coalesce(upsert_status_component.is_public, true), coalesce(upsert_status_component.sort_position, 0))
     returning * into v_row;
     insert into "app_private"."incident_status_component_history" ("tenant_id", "component_id", "status")
     values (v_row."tenant_id", v_row."id", v_row."status");
   else
-    update "app_private"."incident_status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
-      "group_name" = nullif(trim(save_status_component.group_name), ''), "public" = coalesce(save_status_component.is_public, true),
-      "position" = coalesce(save_status_component.sort_position, 0), "updated_at" = now()
-      where x."id" = save_status_component.component_id and x."tenant_id" = save_status_component.tenant
+    update "app_private"."incident_status_components" x set "name" = trim(upsert_status_component.name), "description" = upsert_status_component.description,
+      "group_name" = nullif(trim(upsert_status_component.group_name), ''), "public" = coalesce(upsert_status_component.is_public, true),
+      "position" = coalesce(upsert_status_component.sort_position, 0), "updated_at" = now()
+      where x."id" = upsert_status_component.component_id and x."tenant_id" = upsert_status_component.tenant
       returning * into v_row;
     if not found then
       raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
@@ -3570,8 +3570,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'group', v_row."group_name", 'public', v_row."public", 'status', v_row."status", 'position', v_row."position", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
-grant execute on function "app_private"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
+grant execute on function "app_private"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
 
 create or replace function "app_private"."delete_status_component"(component_id uuid)
 returns jsonb
@@ -4082,8 +4082,8 @@ grant execute on function "app_private"."page_incidents"(uuid, jsonb) to authent
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:
--- add_incident_postmortem_action writes them.
-create or replace function "app_private"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
+-- create_incident_postmortem_action writes them.
+create or replace function "app_private"."upsert_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4097,35 +4097,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."incidents" x where x."id" = save_incident_postmortem.incident_id;
+  select * into v_row from "app_private"."incidents" x where x."id" = upsert_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' then
-    raise exception 'actionItems was removed: add_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  if upsert_incident_postmortem.attrs ? 'actionItems' then
+    raise exception 'actionItems was removed: create_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "app_private"."incident_postmortems" ("tenant_id", "incident_id", "author_id")
   values (v_row."tenant_id", v_row."id", auth.uid())
   on conflict ("incident_id") do nothing;
   update "app_private"."incident_postmortems" x set
-    "summary" = case when save_incident_postmortem.attrs ? 'summary' then save_incident_postmortem.attrs ->> 'summary' else x."summary" end,
-    "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
-    "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
-    "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
+    "summary" = case when upsert_incident_postmortem.attrs ? 'summary' then upsert_incident_postmortem.attrs ->> 'summary' else x."summary" end,
+    "impact" = case when upsert_incident_postmortem.attrs ? 'impact' then upsert_incident_postmortem.attrs ->> 'impact' else x."impact" end,
+    "root_cause" = case when upsert_incident_postmortem.attrs ? 'rootCause' then upsert_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
+    "resolution" = case when upsert_incident_postmortem.attrs ? 'resolution' then upsert_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_incident_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
@@ -4254,7 +4254,7 @@ grant execute on function "app_private"."plan_incident_filings"(uuid) to service
 -- non_major), classifiedAt, significant, activelyExploited and
 -- measureAvailableAt; a key left out keeps its value. The first save needs
 -- regimes and awareAt.
-create or replace function "app_private"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+create or replace function "app_private"."upsert_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -4272,40 +4272,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_inc from "app_private"."incidents" x where x."id" = save_incident_regulatory_profile.incident_id;
+  select * into v_inc from "app_private"."incidents" x where x."id" = upsert_incident_regulatory_profile.incident_id;
   if v_inc."id" is null then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inc."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change the regulatory profile' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+  if upsert_incident_regulatory_profile.attrs is null or jsonb_typeof(upsert_incident_regulatory_profile.attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   select * into v_old from "app_private"."incident_regulatory_profiles" x where x."incident_id" = v_inc."id";
-  if save_incident_regulatory_profile.attrs ? 'regimes' then
+  if upsert_incident_regulatory_profile.attrs ? 'regimes' then
     select coalesce(array_agg(distinct e), '{}') into v_regimes
-    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+    from jsonb_array_elements_text(upsert_incident_regulatory_profile.attrs -> 'regimes') e;
   else
     v_regimes := v_old."regimes";
   end if;
   if v_regimes is null or not (v_regimes <@ array['nis2', 'dora', 'cra']) then
     raise exception 'regimes must list nis2, dora or cra' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
+  v_aware := coalesce((upsert_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
   if v_aware is null then
     raise exception 'awareAt is required: when the organization became aware of the incident' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
+  v_class := case when upsert_incident_regulatory_profile.attrs ? 'classification' then upsert_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
   if v_class is not null and v_class not in ('major', 'non_major') then
     raise exception 'classification must be major or non_major' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "app_private"."incident_regulatory_profiles" ("incident_id", "tenant_id", "regimes", "aware_at", "classification", "classified_at", "significant", "actively_exploited", "measure_available_at")
   values (v_inc."id", v_inc."tenant_id", v_regimes, v_aware, v_class,
-    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
-    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
-    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
-    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
+    case when upsert_incident_regulatory_profile.attrs ? 'classifiedAt' then (upsert_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
+    case when upsert_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (upsert_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
   on conflict ("incident_id") do update set
     "regimes" = excluded."regimes", "aware_at" = excluded."aware_at", "classification" = excluded."classification",
     "classified_at" = excluded."classified_at", "significant" = excluded."significant",
@@ -4317,8 +4317,8 @@ begin
   return jsonb_build_object('incidentId', v_row."incident_id", 'organizationId', v_row."tenant_id", 'regimes', to_jsonb(v_row."regimes"), 'awareAt', v_row."aware_at", 'classification', v_row."classification", 'classifiedAt', v_row."classified_at", 'significant', v_row."significant", 'activelyExploited', v_row."actively_exploited", 'measureAvailableAt', v_row."measure_available_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "app_private"."incident_regulatory_filings" y where y."incident_id" = v_row."incident_id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
 
 -- The regulatory profile of an incident with its filings, or null.
 create or replace function "app_private"."get_incident_regulatory_profile"(incident_id uuid)
@@ -4407,7 +4407,7 @@ grant execute on function "app_private"."submit_incident_filing"(uuid, text, tex
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
-create or replace function "app_private"."save_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
+create or replace function "app_private"."upsert_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -4419,19 +4419,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_page.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage the status page' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
+  if upsert_status_page.slug is null or upsert_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
     raise exception 'the slug takes 2 to 63 lowercase letters, digits and dashes' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if exists (
-    select 1 from "app_private"."incident_status_pages" x where x."slug" = save_status_page.slug and x."tenant_id" <> save_status_page.tenant
+    select 1 from "app_private"."incident_status_pages" x where x."slug" = upsert_status_page.slug and x."tenant_id" <> upsert_status_page.tenant
   ) then
     raise exception 'another organization uses this slug' using errcode = '23505', hint = 'STATUS_PAGE_SLUG_TAKEN';
   end if;
   insert into "app_private"."incident_status_pages" ("tenant_id", "slug", "title", "description", "published")
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
+  values (upsert_status_page.tenant, upsert_status_page.slug, trim(upsert_status_page.title), upsert_status_page.description, coalesce(upsert_status_page.published, false))
   on conflict ("tenant_id") do update
     set "slug" = excluded."slug", "title" = excluded."title", "description" = excluded."description",
       "published" = excluded."published", "updated_at" = now()
@@ -4439,8 +4439,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'slug', v_row."slug", 'title', v_row."title", 'description', v_row."description", 'published', v_row."published", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_status_page"(uuid, text, text, text, boolean) from public, anon;
-grant execute on function "app_private"."save_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_status_page"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "app_private"."upsert_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "app_private"."get_status_page"(tenant uuid)
 returns jsonb
@@ -4720,7 +4720,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:4951f96a0424d2f6e92288372d434425e1fb62a111e2b40fc881f86f056127cf
+-- @bsb-hash sha256:2a2e0522d693ead8ea89e1b133ac69638f48607629a84eeb165352fcefa027ce
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5024,7 +5024,7 @@ revoke execute on function "better_supabase"."incident_apply_impacts"(uuid, json
 grant execute on function "better_supabase"."incident_apply_impacts"(uuid, jsonb) to service_role;
 
 -- Creates a component by name, or changes one (component_id).
-create or replace function "better_supabase"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function "better_supabase"."upsert_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5036,24 +5036,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_component.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if nullif(trim(save_status_component.name), '') is null then
+  if nullif(trim(upsert_status_component.name), '') is null then
     raise exception 'a component needs a name' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_status_component.component_id is null then
+  if upsert_status_component.component_id is null then
     insert into "better_supabase"."incident_status_components" ("tenant_id", "name", "description", "group_name", "public", "position")
-    values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
-      nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
+    values (upsert_status_component.tenant, trim(upsert_status_component.name), upsert_status_component.description,
+      nullif(trim(upsert_status_component.group_name), ''), coalesce(upsert_status_component.is_public, true), coalesce(upsert_status_component.sort_position, 0))
     returning * into v_row;
     insert into "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "status")
     values (v_row."tenant_id", v_row."id", v_row."status");
   else
-    update "better_supabase"."incident_status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
-      "group_name" = nullif(trim(save_status_component.group_name), ''), "public" = coalesce(save_status_component.is_public, true),
-      "position" = coalesce(save_status_component.sort_position, 0), "updated_at" = now()
-      where x."id" = save_status_component.component_id and x."tenant_id" = save_status_component.tenant
+    update "better_supabase"."incident_status_components" x set "name" = trim(upsert_status_component.name), "description" = upsert_status_component.description,
+      "group_name" = nullif(trim(upsert_status_component.group_name), ''), "public" = coalesce(upsert_status_component.is_public, true),
+      "position" = coalesce(upsert_status_component.sort_position, 0), "updated_at" = now()
+      where x."id" = upsert_status_component.component_id and x."tenant_id" = upsert_status_component.tenant
       returning * into v_row;
     if not found then
       raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
@@ -5062,8 +5062,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'group', v_row."group_name", 'public', v_row."public", 'status', v_row."status", 'position', v_row."position", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_status_component"(component_id uuid)
 returns jsonb
@@ -5574,8 +5574,8 @@ grant execute on function "better_supabase"."page_incidents"(uuid, jsonb) to aut
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:
--- add_incident_postmortem_action writes them.
-create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
+-- create_incident_postmortem_action writes them.
+create or replace function "better_supabase"."upsert_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5589,35 +5589,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."incidents" x where x."id" = save_incident_postmortem.incident_id;
+  select * into v_row from "better_supabase"."incidents" x where x."id" = upsert_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' then
-    raise exception 'actionItems was removed: add_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  if upsert_incident_postmortem.attrs ? 'actionItems' then
+    raise exception 'actionItems was removed: create_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_postmortems" ("tenant_id", "incident_id", "author_id")
   values (v_row."tenant_id", v_row."id", auth.uid())
   on conflict ("incident_id") do nothing;
   update "better_supabase"."incident_postmortems" x set
-    "summary" = case when save_incident_postmortem.attrs ? 'summary' then save_incident_postmortem.attrs ->> 'summary' else x."summary" end,
-    "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
-    "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
-    "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
+    "summary" = case when upsert_incident_postmortem.attrs ? 'summary' then upsert_incident_postmortem.attrs ->> 'summary' else x."summary" end,
+    "impact" = case when upsert_incident_postmortem.attrs ? 'impact' then upsert_incident_postmortem.attrs ->> 'impact' else x."impact" end,
+    "root_cause" = case when upsert_incident_postmortem.attrs ? 'rootCause' then upsert_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
+    "resolution" = case when upsert_incident_postmortem.attrs ? 'resolution' then upsert_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
@@ -5746,7 +5746,7 @@ grant execute on function "better_supabase"."plan_incident_filings"(uuid) to ser
 -- non_major), classifiedAt, significant, activelyExploited and
 -- measureAvailableAt; a key left out keeps its value. The first save needs
 -- regimes and awareAt.
-create or replace function "better_supabase"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5764,40 +5764,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_inc from "better_supabase"."incidents" x where x."id" = save_incident_regulatory_profile.incident_id;
+  select * into v_inc from "better_supabase"."incidents" x where x."id" = upsert_incident_regulatory_profile.incident_id;
   if v_inc."id" is null then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inc."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change the regulatory profile' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+  if upsert_incident_regulatory_profile.attrs is null or jsonb_typeof(upsert_incident_regulatory_profile.attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   select * into v_old from "better_supabase"."incident_regulatory_profiles" x where x."incident_id" = v_inc."id";
-  if save_incident_regulatory_profile.attrs ? 'regimes' then
+  if upsert_incident_regulatory_profile.attrs ? 'regimes' then
     select coalesce(array_agg(distinct e), '{}') into v_regimes
-    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+    from jsonb_array_elements_text(upsert_incident_regulatory_profile.attrs -> 'regimes') e;
   else
     v_regimes := v_old."regimes";
   end if;
   if v_regimes is null or not (v_regimes <@ array['nis2', 'dora', 'cra']) then
     raise exception 'regimes must list nis2, dora or cra' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
+  v_aware := coalesce((upsert_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
   if v_aware is null then
     raise exception 'awareAt is required: when the organization became aware of the incident' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
+  v_class := case when upsert_incident_regulatory_profile.attrs ? 'classification' then upsert_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
   if v_class is not null and v_class not in ('major', 'non_major') then
     raise exception 'classification must be major or non_major' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_regulatory_profiles" ("incident_id", "tenant_id", "regimes", "aware_at", "classification", "classified_at", "significant", "actively_exploited", "measure_available_at")
   values (v_inc."id", v_inc."tenant_id", v_regimes, v_aware, v_class,
-    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
-    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
-    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
-    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
+    case when upsert_incident_regulatory_profile.attrs ? 'classifiedAt' then (upsert_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
+    case when upsert_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (upsert_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
   on conflict ("incident_id") do update set
     "regimes" = excluded."regimes", "aware_at" = excluded."aware_at", "classification" = excluded."classification",
     "classified_at" = excluded."classified_at", "significant" = excluded."significant",
@@ -5809,8 +5809,8 @@ begin
   return jsonb_build_object('incidentId', v_row."incident_id", 'organizationId', v_row."tenant_id", 'regimes', to_jsonb(v_row."regimes"), 'awareAt', v_row."aware_at", 'classification', v_row."classification", 'classifiedAt', v_row."classified_at", 'significant', v_row."significant", 'activelyExploited', v_row."actively_exploited", 'measureAvailableAt', v_row."measure_available_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "better_supabase"."incident_regulatory_filings" y where y."incident_id" = v_row."incident_id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
 
 -- The regulatory profile of an incident with its filings, or null.
 create or replace function "better_supabase"."get_incident_regulatory_profile"(incident_id uuid)
@@ -5899,7 +5899,7 @@ grant execute on function "better_supabase"."submit_incident_filing"(uuid, text,
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
-create or replace function "better_supabase"."save_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
+create or replace function "better_supabase"."upsert_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -5911,19 +5911,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_page.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage the status page' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
+  if upsert_status_page.slug is null or upsert_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
     raise exception 'the slug takes 2 to 63 lowercase letters, digits and dashes' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if exists (
-    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = save_status_page.slug and x."tenant_id" <> save_status_page.tenant
+    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = upsert_status_page.slug and x."tenant_id" <> upsert_status_page.tenant
   ) then
     raise exception 'another organization uses this slug' using errcode = '23505', hint = 'STATUS_PAGE_SLUG_TAKEN';
   end if;
   insert into "better_supabase"."incident_status_pages" ("tenant_id", "slug", "title", "description", "published")
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
+  values (upsert_status_page.tenant, upsert_status_page.slug, trim(upsert_status_page.title), upsert_status_page.description, coalesce(upsert_status_page.published, false))
   on conflict ("tenant_id") do update
     set "slug" = excluded."slug", "title" = excluded."title", "description" = excluded."description",
       "published" = excluded."published", "updated_at" = now()
@@ -5931,8 +5931,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'slug', v_row."slug", 'title', v_row."title", 'description', v_row."description", 'published', v_row."published", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_status_page"(tenant uuid)
 returns jsonb
@@ -6202,14 +6202,14 @@ grant usage on schema "api" to anon, authenticated, service_role;
 -- Helpers for the module's policies and triggers have no entry point.
 
 
-create or replace function "api"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function "api"."upsert_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_status_component"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
-grant execute on function "api"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_status_component"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
+grant execute on function "api"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
 
 create or replace function "api"."delete_status_component"(component_id uuid)
 returns jsonb
@@ -6296,14 +6296,14 @@ as $$ select "better_supabase"."page_incidents"($1, $2) $$;
 revoke execute on function "api"."page_incidents"(uuid, jsonb) from public, anon;
 grant execute on function "api"."page_incidents"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
+create or replace function "api"."upsert_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_incident_postmortem"($1, $2) $$;
-revoke execute on function "api"."save_incident_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_incident_postmortem"($1, $2) $$;
+revoke execute on function "api"."upsert_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."publish_incident_postmortem"(incident_id uuid)
 returns jsonb
@@ -6314,14 +6314,14 @@ as $$ select "better_supabase"."publish_incident_postmortem"($1) $$;
 revoke execute on function "api"."publish_incident_postmortem"(uuid) from public, anon;
 grant execute on function "api"."publish_incident_postmortem"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+create or replace function "api"."upsert_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_incident_regulatory_profile"($1, $2) $$;
-revoke execute on function "api"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
-grant execute on function "api"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_incident_regulatory_profile"($1, $2) $$;
+revoke execute on function "api"."upsert_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."get_incident_regulatory_profile"(incident_id uuid)
 returns jsonb
@@ -6352,14 +6352,14 @@ as $$ select "better_supabase"."submit_incident_filing"($1, $2, $3, $4, $5, $6) 
 revoke execute on function "api"."submit_incident_filing"(uuid, text, text, text, text, timestamptz) from public, anon;
 grant execute on function "api"."submit_incident_filing"(uuid, text, text, text, text, timestamptz) to authenticated, service_role;
 
-create or replace function "api"."save_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
+create or replace function "api"."upsert_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_status_page"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_status_page"(uuid, text, text, text, boolean) from public, anon;
-grant execute on function "api"."save_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_status_page"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."upsert_status_page"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "api"."upsert_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "api"."get_status_page"(tenant uuid)
 returns jsonb
@@ -6398,7 +6398,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:0ef19d2394822d2bf36df1ab01fbe94abb97f413f408d4614a4cabec35ad1b1d
+-- @bsb-hash sha256:714a5e3425c28c70672089befb05d04b955537209ce5a4ec6027ff6db39eeafe
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6674,7 +6674,7 @@ revoke execute on function "better_supabase"."incident_apply_impacts"(uuid, json
 grant execute on function "better_supabase"."incident_apply_impacts"(uuid, jsonb) to service_role;
 
 -- Creates a component by name, or changes one (component_id).
-create or replace function "better_supabase"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function "better_supabase"."upsert_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6686,24 +6686,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_component.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if nullif(trim(save_status_component.name), '') is null then
+  if nullif(trim(upsert_status_component.name), '') is null then
     raise exception 'a component needs a name' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_status_component.component_id is null then
+  if upsert_status_component.component_id is null then
     insert into "better_supabase"."incident_status_components" ("tenant_id", "name", "description", "group_name", "public", "position")
-    values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
-      nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
+    values (upsert_status_component.tenant, trim(upsert_status_component.name), upsert_status_component.description,
+      nullif(trim(upsert_status_component.group_name), ''), coalesce(upsert_status_component.is_public, true), coalesce(upsert_status_component.sort_position, 0))
     returning * into v_row;
     insert into "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "status")
     values (v_row."tenant_id", v_row."id", better_supabase.as_column_type(v_row."status"::text, (null::"better_supabase"."incident_status_component_history")."status"));
   else
-    update "better_supabase"."incident_status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
-      "group_name" = nullif(trim(save_status_component.group_name), ''), "public" = coalesce(save_status_component.is_public, true),
-      "position" = coalesce(save_status_component.sort_position, 0), "updated_at" = now()
-      where x."id" = save_status_component.component_id and x."tenant_id" = save_status_component.tenant
+    update "better_supabase"."incident_status_components" x set "name" = trim(upsert_status_component.name), "description" = upsert_status_component.description,
+      "group_name" = nullif(trim(upsert_status_component.group_name), ''), "public" = coalesce(upsert_status_component.is_public, true),
+      "position" = coalesce(upsert_status_component.sort_position, 0), "updated_at" = now()
+      where x."id" = upsert_status_component.component_id and x."tenant_id" = upsert_status_component.tenant
       returning * into v_row;
     if not found then
       raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
@@ -6712,8 +6712,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'group', v_row."group_name", 'public', v_row."public", 'status', v_row."status", 'position', v_row."position", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_status_component"(component_id uuid)
 returns jsonb
@@ -7224,8 +7224,8 @@ grant execute on function "better_supabase"."page_incidents"(uuid, jsonb) to aut
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:
--- add_incident_postmortem_action writes them.
-create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
+-- create_incident_postmortem_action writes them.
+create or replace function "better_supabase"."upsert_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7239,35 +7239,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."incidents" x where x."id" = save_incident_postmortem.incident_id;
+  select * into v_row from "better_supabase"."incidents" x where x."id" = upsert_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' then
-    raise exception 'actionItems was removed: add_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  if upsert_incident_postmortem.attrs ? 'actionItems' then
+    raise exception 'actionItems was removed: create_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_postmortems" ("tenant_id", "incident_id", "author_id")
   values (v_row."tenant_id", v_row."id", auth.uid())
   on conflict ("incident_id") do nothing;
   update "better_supabase"."incident_postmortems" x set
-    "summary" = case when save_incident_postmortem.attrs ? 'summary' then save_incident_postmortem.attrs ->> 'summary' else x."summary" end,
-    "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
-    "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
-    "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
+    "summary" = case when upsert_incident_postmortem.attrs ? 'summary' then upsert_incident_postmortem.attrs ->> 'summary' else x."summary" end,
+    "impact" = case when upsert_incident_postmortem.attrs ? 'impact' then upsert_incident_postmortem.attrs ->> 'impact' else x."impact" end,
+    "root_cause" = case when upsert_incident_postmortem.attrs ? 'rootCause' then upsert_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
+    "resolution" = case when upsert_incident_postmortem.attrs ? 'resolution' then upsert_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
@@ -7396,7 +7396,7 @@ grant execute on function "better_supabase"."plan_incident_filings"(uuid) to ser
 -- non_major), classifiedAt, significant, activelyExploited and
 -- measureAvailableAt; a key left out keeps its value. The first save needs
 -- regimes and awareAt.
-create or replace function "better_supabase"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -7414,40 +7414,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_inc from "better_supabase"."incidents" x where x."id" = save_incident_regulatory_profile.incident_id;
+  select * into v_inc from "better_supabase"."incidents" x where x."id" = upsert_incident_regulatory_profile.incident_id;
   if v_inc."id" is null then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inc."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change the regulatory profile' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+  if upsert_incident_regulatory_profile.attrs is null or jsonb_typeof(upsert_incident_regulatory_profile.attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   select * into v_old from "better_supabase"."incident_regulatory_profiles" x where x."incident_id" = v_inc."id";
-  if save_incident_regulatory_profile.attrs ? 'regimes' then
+  if upsert_incident_regulatory_profile.attrs ? 'regimes' then
     select coalesce(array_agg(distinct e), '{}') into v_regimes
-    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+    from jsonb_array_elements_text(upsert_incident_regulatory_profile.attrs -> 'regimes') e;
   else
     v_regimes := v_old."regimes";
   end if;
   if v_regimes is null or not (v_regimes <@ array['nis2', 'dora', 'cra']) then
     raise exception 'regimes must list nis2, dora or cra' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
+  v_aware := coalesce((upsert_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
   if v_aware is null then
     raise exception 'awareAt is required: when the organization became aware of the incident' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
+  v_class := case when upsert_incident_regulatory_profile.attrs ? 'classification' then upsert_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
   if v_class is not null and v_class not in ('major', 'non_major') then
     raise exception 'classification must be major or non_major' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_regulatory_profiles" ("incident_id", "tenant_id", "regimes", "aware_at", "classification", "classified_at", "significant", "actively_exploited", "measure_available_at")
   values (v_inc."id", v_inc."tenant_id", v_regimes, v_aware, v_class,
-    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
-    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
-    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
-    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
+    case when upsert_incident_regulatory_profile.attrs ? 'classifiedAt' then (upsert_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
+    case when upsert_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (upsert_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
   on conflict ("incident_id") do update set
     "regimes" = excluded."regimes", "aware_at" = excluded."aware_at", "classification" = excluded."classification",
     "classified_at" = excluded."classified_at", "significant" = excluded."significant",
@@ -7459,8 +7459,8 @@ begin
   return jsonb_build_object('incidentId', v_row."incident_id", 'organizationId', v_row."tenant_id", 'regimes', to_jsonb(v_row."regimes"), 'awareAt', v_row."aware_at", 'classification', v_row."classification", 'classifiedAt', v_row."classified_at", 'significant', v_row."significant", 'activelyExploited', v_row."actively_exploited", 'measureAvailableAt', v_row."measure_available_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "better_supabase"."incident_regulatory_filings" y where y."incident_id" = v_row."incident_id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
 
 -- The regulatory profile of an incident with its filings, or null.
 create or replace function "better_supabase"."get_incident_regulatory_profile"(incident_id uuid)
@@ -7549,7 +7549,7 @@ grant execute on function "better_supabase"."submit_incident_filing"(uuid, text,
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
-create or replace function "better_supabase"."save_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
+create or replace function "better_supabase"."upsert_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -7561,19 +7561,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_page.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage the status page' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
+  if upsert_status_page.slug is null or upsert_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
     raise exception 'the slug takes 2 to 63 lowercase letters, digits and dashes' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if exists (
-    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = save_status_page.slug and x."tenant_id" <> save_status_page.tenant
+    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = upsert_status_page.slug and x."tenant_id" <> upsert_status_page.tenant
   ) then
     raise exception 'another organization uses this slug' using errcode = '23505', hint = 'STATUS_PAGE_SLUG_TAKEN';
   end if;
   insert into "better_supabase"."incident_status_pages" ("tenant_id", "slug", "title", "description", "published")
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
+  values (upsert_status_page.tenant, upsert_status_page.slug, trim(upsert_status_page.title), upsert_status_page.description, coalesce(upsert_status_page.published, false))
   on conflict ("tenant_id") do update
     set "slug" = excluded."slug", "title" = excluded."title", "description" = excluded."description",
       "published" = excluded."published", "updated_at" = now()
@@ -7581,8 +7581,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'slug', v_row."slug", 'title', v_row."title", 'description', v_row."description", 'published', v_row."published", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_status_page"(tenant uuid)
 returns jsonb
@@ -7862,7 +7862,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:f8a4b0d828a0f2b4bd38100a21acfb4f35ec3e6ae78853ce5ea3f388a0020877
+-- @bsb-hash sha256:ca934936220c3c6497367e82c5db1a58ae6b9a3e6ab93185822bad6603a14e8d
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8166,7 +8166,7 @@ revoke execute on function "better_supabase"."incident_apply_impacts"(uuid, json
 grant execute on function "better_supabase"."incident_apply_impacts"(uuid, jsonb) to service_role;
 
 -- Creates a component by name, or changes one (component_id).
-create or replace function "better_supabase"."save_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
+create or replace function "better_supabase"."upsert_status_component"(tenant uuid, name text, description text default null, group_name text default null, is_public boolean default true, sort_position integer default 0, component_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8178,24 +8178,24 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_component.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_component.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if nullif(trim(save_status_component.name), '') is null then
+  if nullif(trim(upsert_status_component.name), '') is null then
     raise exception 'a component needs a name' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_status_component.component_id is null then
+  if upsert_status_component.component_id is null then
     insert into "better_supabase"."incident_status_components" ("org_id", "name", "description", "group_name", "public", "position")
-    values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
-      nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
+    values (upsert_status_component.tenant, trim(upsert_status_component.name), upsert_status_component.description,
+      nullif(trim(upsert_status_component.group_name), ''), coalesce(upsert_status_component.is_public, true), coalesce(upsert_status_component.sort_position, 0))
     returning * into v_row;
     insert into "better_supabase"."incident_status_component_history" ("org_id", "component_id", "status")
     values (v_row."org_id", v_row."id", v_row."status");
   else
-    update "better_supabase"."incident_status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
-      "group_name" = nullif(trim(save_status_component.group_name), ''), "public" = coalesce(save_status_component.is_public, true),
-      "position" = coalesce(save_status_component.sort_position, 0), "updated_at" = now()
-      where x."id" = save_status_component.component_id and x."org_id" = save_status_component.tenant
+    update "better_supabase"."incident_status_components" x set "name" = trim(upsert_status_component.name), "description" = upsert_status_component.description,
+      "group_name" = nullif(trim(upsert_status_component.group_name), ''), "public" = coalesce(upsert_status_component.is_public, true),
+      "position" = coalesce(upsert_status_component.sort_position, 0), "updated_at" = now()
+      where x."id" = upsert_status_component.component_id and x."org_id" = upsert_status_component.tenant
       returning * into v_row;
     if not found then
       raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
@@ -8204,8 +8204,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'name', v_row."name", 'description', v_row."description", 'group', v_row."group_name", 'public', v_row."public", 'status', v_row."status", 'position', v_row."position", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
-grant execute on function "better_supabase"."save_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."upsert_status_component"(uuid, text, text, text, boolean, integer, uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_status_component"(component_id uuid)
 returns jsonb
@@ -8716,8 +8716,8 @@ grant execute on function "better_supabase"."page_incidents"(uuid, jsonb) to aut
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:
--- add_incident_postmortem_action writes them.
-create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
+-- create_incident_postmortem_action writes them.
+create or replace function "better_supabase"."upsert_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -8731,35 +8731,35 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."incidents" x where x."id" = save_incident_postmortem.incident_id;
+  select * into v_row from "better_supabase"."incidents" x where x."id" = upsert_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(upsert_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' then
-    raise exception 'actionItems was removed: add_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  if upsert_incident_postmortem.attrs ? 'actionItems' then
+    raise exception 'actionItems was removed: create_incident_postmortem_action writes action items as tasks' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_postmortems" ("org_id", "incident_id", "author_id")
   values (v_row."org_id", v_row."id", auth.uid())
   on conflict ("incident_id") do nothing;
   update "better_supabase"."incident_postmortems" x set
-    "summary" = case when save_incident_postmortem.attrs ? 'summary' then save_incident_postmortem.attrs ->> 'summary' else x."summary" end,
-    "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
-    "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
-    "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
+    "summary" = case when upsert_incident_postmortem.attrs ? 'summary' then upsert_incident_postmortem.attrs ->> 'summary' else x."summary" end,
+    "impact" = case when upsert_incident_postmortem.attrs ? 'impact' then upsert_incident_postmortem.attrs ->> 'impact' else x."impact" end,
+    "root_cause" = case when upsert_incident_postmortem.attrs ? 'rootCause' then upsert_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
+    "resolution" = case when upsert_incident_postmortem.attrs ? 'resolution' then upsert_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
@@ -8888,7 +8888,7 @@ grant execute on function "better_supabase"."plan_incident_filings"(uuid) to ser
 -- non_major), classifiedAt, significant, activelyExploited and
 -- measureAvailableAt; a key left out keeps its value. The first save needs
 -- regimes and awareAt.
-create or replace function "better_supabase"."save_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_incident_regulatory_profile"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -8906,40 +8906,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_inc from "better_supabase"."incidents" x where x."id" = save_incident_regulatory_profile.incident_id;
+  select * into v_inc from "better_supabase"."incidents" x where x."id" = upsert_incident_regulatory_profile.incident_id;
   if v_inc."id" is null then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_inc."org_id", 'incidents.write'), false)) then
     raise exception 'not allowed to change the regulatory profile' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_incident_regulatory_profile.attrs is null or jsonb_typeof(save_incident_regulatory_profile.attrs) <> 'object' then
+  if upsert_incident_regulatory_profile.attrs is null or jsonb_typeof(upsert_incident_regulatory_profile.attrs) <> 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   select * into v_old from "better_supabase"."incident_regulatory_profiles" x where x."incident_id" = v_inc."id";
-  if save_incident_regulatory_profile.attrs ? 'regimes' then
+  if upsert_incident_regulatory_profile.attrs ? 'regimes' then
     select coalesce(array_agg(distinct e), '{}') into v_regimes
-    from jsonb_array_elements_text(save_incident_regulatory_profile.attrs -> 'regimes') e;
+    from jsonb_array_elements_text(upsert_incident_regulatory_profile.attrs -> 'regimes') e;
   else
     v_regimes := v_old."regimes";
   end if;
   if v_regimes is null or not (v_regimes <@ array['nis2', 'dora', 'cra']) then
     raise exception 'regimes must list nis2, dora or cra' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_aware := coalesce((save_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
+  v_aware := coalesce((upsert_incident_regulatory_profile.attrs ->> 'awareAt')::timestamptz, v_old."aware_at");
   if v_aware is null then
     raise exception 'awareAt is required: when the organization became aware of the incident' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  v_class := case when save_incident_regulatory_profile.attrs ? 'classification' then save_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
+  v_class := case when upsert_incident_regulatory_profile.attrs ? 'classification' then upsert_incident_regulatory_profile.attrs ->> 'classification' else v_old."classification" end;
   if v_class is not null and v_class not in ('major', 'non_major') then
     raise exception 'classification must be major or non_major' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_regulatory_profiles" ("incident_id", "org_id", "regimes", "aware_at", "classification", "classified_at", "significant", "actively_exploited", "measure_available_at")
   values (v_inc."id", v_inc."org_id", v_regimes, v_aware, v_class,
-    case when save_incident_regulatory_profile.attrs ? 'classifiedAt' then (save_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
-    coalesce((save_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
-    coalesce((save_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
-    case when save_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (save_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
+    case when upsert_incident_regulatory_profile.attrs ? 'classifiedAt' then (upsert_incident_regulatory_profile.attrs ->> 'classifiedAt')::timestamptz else v_old."classified_at" end,
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'significant')::boolean, v_old."significant", false),
+    coalesce((upsert_incident_regulatory_profile.attrs ->> 'activelyExploited')::boolean, v_old."actively_exploited", false),
+    case when upsert_incident_regulatory_profile.attrs ? 'measureAvailableAt' then (upsert_incident_regulatory_profile.attrs ->> 'measureAvailableAt')::timestamptz else v_old."measure_available_at" end)
   on conflict ("incident_id") do update set
     "regimes" = excluded."regimes", "aware_at" = excluded."aware_at", "classification" = excluded."classification",
     "classified_at" = excluded."classified_at", "significant" = excluded."significant",
@@ -8951,8 +8951,8 @@ begin
   return jsonb_build_object('incidentId', v_row."incident_id", 'organizationId', v_row."org_id", 'regimes', to_jsonb(v_row."regimes"), 'awareAt', v_row."aware_at", 'classification', v_row."classification", 'classifiedAt', v_row."classified_at", 'significant', v_row."significant", 'activelyExploited', v_row."actively_exploited", 'measureAvailableAt', v_row."measure_available_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('filings', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'incidentId', y."incident_id", 'regime', y."regime", 'stage', y."stage", 'dueAt', y."due_at", 'submittedAt', y."submitted_at", 'submittedBy', y."submitted_by", 'reference', y."reference", 'notes', y."notes", 'createdAt', y."created_at") order by y."due_at" nulls last, y."regime", y."stage") from "better_supabase"."incident_regulatory_filings" y where y."incident_id" = v_row."incident_id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_incident_regulatory_profile"(uuid, jsonb) to authenticated, service_role;
 
 -- The regulatory profile of an incident with its filings, or null.
 create or replace function "better_supabase"."get_incident_regulatory_profile"(incident_id uuid)
@@ -9041,7 +9041,7 @@ grant execute on function "better_supabase"."submit_incident_filing"(uuid, text,
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
-create or replace function "better_supabase"."save_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
+create or replace function "better_supabase"."upsert_status_page"(tenant uuid, slug text, title text, description text default null, published boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -9053,19 +9053,19 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_status_page.tenant, 'incidents.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_status_page.tenant, 'incidents.manage'), false)) then
     raise exception 'not allowed to manage the status page' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if save_status_page.slug is null or save_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
+  if upsert_status_page.slug is null or upsert_status_page.slug !~ '^[a-z0-9][a-z0-9-]{1,62}$' then
     raise exception 'the slug takes 2 to 63 lowercase letters, digits and dashes' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if exists (
-    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = save_status_page.slug and x."org_id" <> save_status_page.tenant
+    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = upsert_status_page.slug and x."org_id" <> upsert_status_page.tenant
   ) then
     raise exception 'another organization uses this slug' using errcode = '23505', hint = 'STATUS_PAGE_SLUG_TAKEN';
   end if;
   insert into "better_supabase"."incident_status_pages" ("org_id", "slug", "title", "description", "published")
-  values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
+  values (upsert_status_page.tenant, upsert_status_page.slug, trim(upsert_status_page.title), upsert_status_page.description, coalesce(upsert_status_page.published, false))
   on conflict ("org_id") do update
     set "slug" = excluded."slug", "title" = excluded."title", "description" = excluded."description",
       "published" = excluded."published", "updated_at" = now()
@@ -9073,8 +9073,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'slug', v_row."slug", 'title', v_row."title", 'description', v_row."description", 'published', v_row."published", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_status_page"(uuid, text, text, text, boolean) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_status_page"(tenant uuid)
 returns jsonb

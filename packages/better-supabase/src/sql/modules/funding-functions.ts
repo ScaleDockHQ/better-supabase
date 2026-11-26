@@ -201,13 +201,13 @@ export function fundingFunctions(ctx: BlockSqlContext): string {
   if v_unit is null or v_unit not in ${sqlList(UNITS)} then
     ${invalid("unit is minute, hour, day_part, day, visit or piece")}
   end if;
-  if save_funding_product.rate is null or save_funding_product.rate < 0 then
+  if upsert_funding_product.rate is null or upsert_funding_product.rate < 0 then
     ${invalid("a rate is zero or more minor units")}
   end if;
   if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
     ${invalid("currency is a three-letter ISO 4217 code")}
   end if;
-  if save_funding_product.valid_until < save_funding_product.valid_from then
+  if upsert_funding_product.valid_until < upsert_funding_product.valid_from then
     ${invalid("a product is valid until on or after it is valid from")}
   end if;`;
 
@@ -260,7 +260,7 @@ export function fundingFunctions(ctx: BlockSqlContext): string {
   return `
 -- Adds a product a funder pays for, or changes one (product_id): its code,
 -- unit and rate in minor units. The code is unique in the organization.
-create or replace function ${fn("save_funding_product")}(tenant ${idType}, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
+create or replace function ${fn("upsert_funding_product")}(tenant ${idType}, code text, title text, unit text, rate bigint, currency text, valid_from date default null, valid_until date default null, product_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -269,36 +269,36 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${products}%rowtype;
-  v_code text := nullif(trim(save_funding_product.code), '');
-  v_title text := nullif(trim(save_funding_product.title), '');
-  v_unit text := nullif(trim(save_funding_product.unit), '');
-  v_currency text := upper(nullif(trim(save_funding_product.currency), ''));
+  v_code text := nullif(trim(upsert_funding_product.code), '');
+  v_title text := nullif(trim(upsert_funding_product.title), '');
+  v_unit text := nullif(trim(upsert_funding_product.unit), '');
+  v_currency text := upper(nullif(trim(upsert_funding_product.currency), ''));
 begin
-  if not ${allowed("save_funding_product.tenant", manage)} then
+  if not ${allowed("upsert_funding_product.tenant", manage)} then
     ${forbidden("not allowed to manage funding products")}
   end if;
   ${productChecks}
   if exists (
     select 1 from ${products} x
-    where x.${p("tenant")} = save_funding_product.tenant and x.${p("code")} = v_code
-      and x.${p("id")} is distinct from save_funding_product.product_id
+    where x.${p("tenant")} = upsert_funding_product.tenant and x.${p("code")} = v_code
+      and x.${p("id")} is distinct from upsert_funding_product.product_id
   ) then
     ${invalid("the organization already has a funding product with this code")}
   end if;
-  if save_funding_product.product_id is null then
+  if upsert_funding_product.product_id is null then
     insert into ${products} (${p("tenant")}, ${p("code")}, ${p("title")}, ${p("unit")}, ${p("rate")}, ${p("currency")}, ${p("validFrom")}, ${p("validUntil")})
-    values (save_funding_product.tenant, v_code, v_title, v_unit, save_funding_product.rate, v_currency, save_funding_product.valid_from, save_funding_product.valid_until)
+    values (upsert_funding_product.tenant, v_code, v_title, v_unit, upsert_funding_product.rate, v_currency, upsert_funding_product.valid_from, upsert_funding_product.valid_until)
     returning * into v_row;
   else
     update ${products} x set
       ${p("code")} = v_code,
       ${p("title")} = v_title,
       ${p("unit")} = v_unit,
-      ${p("rate")} = save_funding_product.rate,
+      ${p("rate")} = upsert_funding_product.rate,
       ${p("currency")} = v_currency,
-      ${p("validFrom")} = save_funding_product.valid_from,
-      ${p("validUntil")} = save_funding_product.valid_until${touch("products")}
-    where x.${p("id")} = save_funding_product.product_id and x.${p("tenant")} = save_funding_product.tenant
+      ${p("validFrom")} = upsert_funding_product.valid_from,
+      ${p("validUntil")} = upsert_funding_product.valid_until${touch("products")}
+    where x.${p("id")} = upsert_funding_product.product_id and x.${p("tenant")} = upsert_funding_product.tenant
     returning x.* into v_row;
     if not found then
       ${productNotFound}
@@ -307,7 +307,7 @@ begin
   return ${productJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_funding_product")}(${idType}, text, text, text, bigint, text, date, date, uuid)`)}
+${userGrant(`${fn("upsert_funding_product")}(${idType}, text, text, text, bigint, text, date, date, uuid)`)}
 
 create or replace function ${fn("list_funding_products")}(tenant ${idType}, include_expired boolean default false)
 returns jsonb
@@ -328,7 +328,7 @@ ${userGrant(`${fn("list_funding_products")}(${idType}, boolean)`)}
 -- value. attrs holds funderId, productId, units, period (week, month or
 -- total), startsOn, endsOn, reference, status (requested or active) and
 -- fields, the extra columns by name.
-create or replace function ${fn("save_funding_award")}(tenant ${idType}, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
+create or replace function ${fn("upsert_funding_award")}(tenant ${idType}, subject_type text, subject_id text, attrs jsonb, award_id uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -337,7 +337,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${awards}%rowtype;
-  v_attrs jsonb := coalesce(save_funding_award.attrs, '{}'::jsonb);
+  v_attrs jsonb := coalesce(upsert_funding_award.attrs, '{}'::jsonb);
   v_funder uuid;
   v_product uuid;
   v_units numeric;
@@ -347,26 +347,26 @@ declare
   v_reference text;
   v_status text;
 begin
-  if not ${allowed("save_funding_award.tenant", write)} then
+  if not ${allowed("upsert_funding_award.tenant", write)} then
     ${forbidden("not allowed to change funding awards")}
   end if;
   if jsonb_typeof(v_attrs) <> 'object' then
     ${invalid("attrs is an object")}
   end if;
   ${fieldsCheck("v_attrs")}
-  if save_funding_award.award_id is null then
-    if not ${subjectInTenant(ctx, "save_funding_award.subject_type", "save_funding_award.subject_id", "save_funding_award.tenant")} then
+  if upsert_funding_award.award_id is null then
+    if not ${subjectInTenant(ctx, "upsert_funding_award.subject_type", "upsert_funding_award.subject_id", "upsert_funding_award.tenant")} then
       ${invalid("the record isn't in this organization")}
     end if;
     ${awardFields("v_attrs", undefined)}
   else
     select * into v_row from ${awards} x
-    where x.${w("id")} = save_funding_award.award_id and x.${w("tenant")} = save_funding_award.tenant
+    where x.${w("id")} = upsert_funding_award.award_id and x.${w("tenant")} = upsert_funding_award.tenant
     for update;
     if not found then
       ${awardNotFound}
     end if;
-    if v_row.${w("subjectType")} <> save_funding_award.subject_type or v_row.${w("subjectId")} <> save_funding_award.subject_id then
+    if v_row.${w("subjectType")} <> upsert_funding_award.subject_type or v_row.${w("subjectId")} <> upsert_funding_award.subject_id then
       ${invalid("an award stays with its record")}
     end if;
     if v_row.${w("status")} in ('ended', 'canceled') then
@@ -374,16 +374,16 @@ begin
     end if;
     ${awardFields("v_attrs", "v_row")}
   end if;
-  ${awardChecks("save_funding_award.tenant")}
+  ${awardChecks("upsert_funding_award.tenant")}
   ${ctx.hook("before_funding_award_save", [
-    [idType, "save_funding_award.tenant"],
-    ["text", "save_funding_award.subject_type"],
-    ["text", "save_funding_award.subject_id"],
+    [idType, "upsert_funding_award.tenant"],
+    ["text", "upsert_funding_award.subject_type"],
+    ["text", "upsert_funding_award.subject_id"],
     ["jsonb", "v_attrs"],
   ])}
-  if save_funding_award.award_id is null then
+  if upsert_funding_award.award_id is null then
     insert into ${awards} (${w("tenant")}, ${w("subjectType")}, ${w("subjectId")}, ${w("funder")}, ${w("product")}, ${w("units")}, ${w("period")}, ${w("startsOn")}, ${w("endsOn")}, ${w("reference")}, ${w("status")}${insertCol("awards", "createdBy")})
-    values (save_funding_award.tenant, save_funding_award.subject_type, save_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status${insertVal("awards", "createdBy", "(select auth.uid())")})
+    values (upsert_funding_award.tenant, upsert_funding_award.subject_type, upsert_funding_award.subject_id, v_funder, v_product, v_units, v_period, v_starts, v_ends, v_reference, v_status${insertVal("awards", "createdBy", "(select auth.uid())")})
     returning * into v_row;${writeFields("v_attrs")}
     ${awardRecord(ctx, "funding_award.created", "v_row", "", "Funding awarded")}
   else
@@ -397,7 +397,7 @@ begin
   return ${awardJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("save_funding_award")}(${idType}, text, text, jsonb, uuid)`)}
+${userGrant(`${fn("upsert_funding_award")}(${idType}, text, text, jsonb, uuid)`)}
 
 -- Ends an award on ends_on (today by default), or cancels it (canceled).
 -- Deliveries already registered stay.

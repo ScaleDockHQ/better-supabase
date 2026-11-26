@@ -26,7 +26,7 @@ export async function SsoSettings() {
     getPermissions(),
     getExtracted("sso"),
     getFormatter(),
-    loadSettings(),
+    getSettings(),
   ]);
 
   if (!can(permissions, "sso.manage")) {

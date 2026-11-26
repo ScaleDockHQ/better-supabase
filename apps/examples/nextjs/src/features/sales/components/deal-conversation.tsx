@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConversationPanel } from "@/features/inbox/components/conversation-panel";
 import { Link } from "@/i18n/navigation";
 
-import { loadDealConversations } from "../pipeline/deal-conversations";
+import { getDealConversations } from "../pipeline/deal-conversations";
 
 export function DealConversationSkeleton() {
   return <Skeleton className="h-128 rounded-xl" aria-busy="true" />;
@@ -33,7 +33,7 @@ export async function DealConversation({
 }) {
   const [t, conversations] = await Promise.all([
     getExtracted("sales"),
-    loadDealConversations(dealId),
+    getDealConversations(dealId),
   ]);
 
   const open =

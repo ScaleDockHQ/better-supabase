@@ -29,7 +29,7 @@ describe.skipIf(!live)(
         const place = async (code: string, kind: string): Promise<string> =>
           (
             await s.value<{ id: string }>(
-              "better_supabase.save_location($1, null, $2, $3, $4)",
+              "better_supabase.upsert_location($1, null, $2, $3, $4)",
               [org, code, `${code} depot`, kind],
             )
           ).id;
@@ -65,7 +65,7 @@ describe.skipIf(!live)(
 
         for (const [index, code] of ["A-1", "A-2", "B-1", "B-2"].entries()) {
           await s.value(
-            "better_supabase.save_bin($1, null, $2, $3, false, true)",
+            "better_supabase.upsert_bin($1, null, $2, $3, false, true)",
             [warehouseA, code, `Bin ${String(index)}`],
           );
         }
@@ -88,12 +88,12 @@ describe.skipIf(!live)(
 
         for (const sku of ["BEAN-1", "BEAN-2", "CORN-1", "CORN-2"]) {
           const product = await s.value<{ id: string }>(
-            "better_supabase.save_product($1, null, $2, null, null, 'physical')",
+            "better_supabase.upsert_product($1, null, $2, null, null, 'physical')",
             [org, sku],
           );
 
           await s.value(
-            "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, null, true, false)",
+            "better_supabase.upsert_variant($1, null, $2, '{}'::uuid[], null, null, null, true, false)",
             [product.id, sku],
           );
         }

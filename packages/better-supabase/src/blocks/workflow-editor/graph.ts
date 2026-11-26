@@ -344,7 +344,7 @@ export interface GraphScope {
 }
 
 /** Reads `path` (`input...`, `results...` or `subject...`) from the run's data. */
-export function readPath(scope: GraphScope, path: string): unknown {
+export function getPath(scope: GraphScope, path: string): unknown {
   const [root, ...rest] = path.split(".");
 
   let value: unknown =
@@ -376,7 +376,7 @@ export function evaluateCondition(
     return matchesFilter(condition, scope);
   }
 
-  const actual = readPath(scope, condition.path);
+  const actual = getPath(scope, condition.path);
   const expected = condition.value;
 
   switch (condition.op) {

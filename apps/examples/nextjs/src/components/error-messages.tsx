@@ -8,7 +8,7 @@ import { ErrorMessagesProvider } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useEffect, useState } from "react";
 
-import { loadBlockErrorMessage } from "@/lib/block-error-messages";
+import { getBlockErrorMessage } from "@/lib/block-error-messages";
 
 type BlockMessage = (error: DbError) => string | undefined;
 
@@ -27,7 +27,7 @@ export function ErrorMessages({ children }: { children: ReactNode }) {
   const [blockMessage, setBlockMessage] = useState<BlockMessage>();
 
   useEffect(() => {
-    void loadBlockErrorMessage().then((load) => {
+    void getBlockErrorMessage().then((load) => {
       setBlockMessage(() => load);
     });
   }, []);

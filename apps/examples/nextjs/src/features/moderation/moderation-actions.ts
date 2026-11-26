@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { MODERATION_TAG } from "./moderation-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -20,8 +18,10 @@ export const decideItem = bsb.action(
     }),
     requireTenant: true,
     permission: "moderation.manage",
+    tags: () => [tags.moderation()],
+    refresh: true,
   },
-  async ({ itemId, decision, reason }, { db, auth }) => {
+  async ({ itemId, decision, reason }, { db }) => {
     const decided = reason
       ? await db.moderation.decide({ itemId, decision, reason })
       : await db.moderation.decide({ itemId, decision });
@@ -29,8 +29,6 @@ export const decideItem = bsb.action(
     if (!decided.ok) {
       return decided;
     }
-
-    await refreshCaller(auth, [MODERATION_TAG]);
 
     return ok(decided.data.id);
   },
@@ -42,15 +40,15 @@ export const liftBan = bsb.action(
     input: v.object({ banId: Id }),
     requireTenant: true,
     permission: "moderation.ban",
+    tags: () => [tags.moderation()],
+    refresh: true,
   },
-  async ({ banId }, { db, auth }) => {
+  async ({ banId }, { db }) => {
     const lifted = await db.moderation.unban(banId);
 
     if (!lifted.ok) {
       return lifted;
     }
-
-    await refreshCaller(auth, [MODERATION_TAG]);
 
     return ok(lifted.data);
   },

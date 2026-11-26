@@ -117,7 +117,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     action: "read" | "reply" | "assign" | "manage",
   ): string => q.command(`v_conv.${cv("tenant")}`, name, action);
 
-  const loadConversation = (
+  const getConversation = (
     param: string,
   ): string => `select * into v_conv from ${T("conversations")} where ${cv("id")} = ${param} for update;
   if not found then
@@ -627,7 +627,7 @@ declare
   v_direction text;
   v_kind text := coalesce(input ->> 'kind', 'message');
 begin
-  ${loadConversation("send_inbox_message.conversation")}
+  ${getConversation("send_inbox_message.conversation")}
   if ${service} then
     v_author_type := coalesce(input ->> 'author_type', 'bot');
     v_direction := case when v_author_type = 'contact' then 'inbound' else 'outbound' end;
@@ -771,7 +771,7 @@ declare
   v_conv ${T("conversations")}%rowtype;
   v_before uuid;${notifyDeclare}
 begin
-  ${loadConversation("assign_conversation.conversation")}
+  ${getConversation("assign_conversation.conversation")}
   if not (${service} or ${command("assign", "assign")} or (coalesce(assignee = (select auth.uid()), false) and ${staffCan("reply")})) then
     ${forbidden("not allowed to assign this conversation")}
   end if;
@@ -825,7 +825,7 @@ declare
   v_conv ${T("conversations")}%rowtype;
   v_before text;
 begin
-  ${loadConversation("set_conversation_status.conversation")}
+  ${getConversation("set_conversation_status.conversation")}
   if not (${service} or ${command("set_status", "reply")}) then
     ${forbidden("not allowed to change this conversation")}
   end if;
@@ -877,7 +877,7 @@ declare
   v_conv ${T("conversations")}%rowtype;
   v_before text;${notifyDeclare}
 begin
-  ${loadConversation("set_bot_mode.conversation")}
+  ${getConversation("set_bot_mode.conversation")}
   if not (${service} or ${command("set_bot_mode", "reply")}) then
     ${forbidden("not allowed to change this conversation")}
   end if;
@@ -918,7 +918,7 @@ as $$
 declare
   v_conv ${T("conversations")}%rowtype;
 begin
-  ${loadConversation("set_active_stream.conversation")}
+  ${getConversation("set_active_stream.conversation")}
   if not (${service} or ${command("set_bot_mode", "reply")}) then
     ${forbidden("not allowed to change this conversation")}
   end if;${

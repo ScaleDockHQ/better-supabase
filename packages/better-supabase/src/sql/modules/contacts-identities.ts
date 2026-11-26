@@ -230,7 +230,7 @@ ${userGrant(`${fn("list_person_identities")}(uuid)`)}
 
 -- Adds an address on a channel to a person, or marks it verified. An address
 -- another person of the organization holds is refused.
-create or replace function ${fn("add_person_identity")}(person uuid, channel text, address text, verified boolean default false)
+create or replace function ${fn("create_person_identity")}(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -238,13 +238,13 @@ set search_path = ''
 as $$
 declare
   v_tenant ${ctx.idType};
-  v_channel text := nullif(trim(add_person_identity.channel), '');
-  v_address text := nullif(trim(add_person_identity.address), '');
+  v_channel text := nullif(trim(create_person_identity.channel), '');
+  v_address text := nullif(trim(create_person_identity.address), '');
   v_holder uuid;
   v_row jsonb;
 begin
   select p.${pe("tenant")} into v_tenant from ${t("people")} p
-  where p.${pe("id")} = add_person_identity.person and p.${pe("mergedInto")} is null;
+  where p.${pe("id")} = create_person_identity.person and p.${pe("mergedInto")} is null;
   if v_tenant is null then
     ${fail("PARTY_NOT_FOUND", "person not found", "P0002")}
   end if;
@@ -254,15 +254,15 @@ begin
   end if;
   select i.${ic("person")} into v_holder from ${t("identities")} i
   where i.${ic("tenant")} = v_tenant and i.${ic("channel")} = v_channel and i.${ic("address")} = v_address;
-  if v_holder is not null and v_holder <> add_person_identity.person then
+  if v_holder is not null and v_holder <> create_person_identity.person then
     ${fail("PARTY_IDENTITY_TAKEN", "another person has this address", "23505")}
   end if;
   insert into ${t("identities")} (${ic("tenant")}, ${ic("person")}, ${ic("channel")}, ${ic("address")}${verified ? `, ${ic("verifiedAt")}` : ""})
-  values (v_tenant, add_person_identity.person, v_channel, v_address${verified ? ", case when add_person_identity.verified then now() end" : ""})
+  values (v_tenant, create_person_identity.person, v_channel, v_address${verified ? ", case when create_person_identity.verified then now() end" : ""})
   on conflict do nothing;${
     verified
       ? `
-  if add_person_identity.verified then
+  if create_person_identity.verified then
     update ${t("identities")} i set ${ic("verifiedAt")} = coalesce(i.${ic("verifiedAt")}, now())
     where i.${ic("tenant")} = v_tenant and i.${ic("channel")} = v_channel and i.${ic("address")} = v_address;
   end if;`
@@ -273,9 +273,9 @@ begin
   return v_row;
 end;
 $$;
-${userGrant(`${fn("add_person_identity")}(uuid, text, text, boolean)`)}
+${userGrant(`${fn("create_person_identity")}(uuid, text, text, boolean)`)}
 
-create or replace function ${fn("remove_person_identity")}(identity uuid)
+create or replace function ${fn("delete_person_identity")}(identity uuid)
 returns boolean
 language plpgsql
 security definer
@@ -284,16 +284,16 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select i.${ic("tenant")} into v_tenant from ${t("identities")} i where i.${ic("id")} = remove_person_identity.identity;
+  select i.${ic("tenant")} into v_tenant from ${t("identities")} i where i.${ic("id")} = delete_person_identity.identity;
   if v_tenant is null then
     return false;
   end if;
   ${guard("v_tenant")}
-  delete from ${t("identities")} i where i.${ic("id")} = remove_person_identity.identity;
+  delete from ${t("identities")} i where i.${ic("id")} = delete_person_identity.identity;
   return true;
 end;
 $$;
-${userGrant(`${fn("remove_person_identity")}(uuid)`)}
+${userGrant(`${fn("delete_person_identity")}(uuid)`)}
 
 -- The person an address on a channel belongs to, or null.
 create or replace function ${fn("find_person_by_identity")}(tenant ${ctx.idType}, channel text, address text)

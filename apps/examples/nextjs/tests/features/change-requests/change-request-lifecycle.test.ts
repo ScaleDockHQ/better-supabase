@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_CHANGE_GRAPH,
-  readLifecycle,
+  getLifecycle,
 } from "@/features/change-requests/change-request-lifecycle";
 
 describe("readLifecycle", () => {
   it("reads the default graph's stages, first stage and moves", () => {
-    const lifecycle = readLifecycle(DEFAULT_CHANGE_GRAPH);
+    const lifecycle = getLifecycle(DEFAULT_CHANGE_GRAPH);
 
     expect(lifecycle.stages.map((stage) => stage.label)).toStrictEqual([
       "Submitted",
@@ -25,7 +25,7 @@ describe("readLifecycle", () => {
   });
 
   it("walks through nodes without a stage to the next stage", () => {
-    const lifecycle = readLifecycle({
+    const lifecycle = getLifecycle({
       nodes: [
         { id: "t", kind: "trigger" },
         { id: "a", kind: "approval", config: { stage: "open" } },
@@ -44,7 +44,7 @@ describe("readLifecycle", () => {
   });
 
   it("ignores a returnsTo stage the graph does not have", () => {
-    const lifecycle = readLifecycle({
+    const lifecycle = getLifecycle({
       nodes: [
         {
           id: "t",

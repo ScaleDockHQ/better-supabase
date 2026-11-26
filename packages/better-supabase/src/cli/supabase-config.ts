@@ -92,7 +92,7 @@ export function configFileIn(
  * The config of one folder (such as `supabase/stacks/<name>`), parsed without
  * `env()` interpolation; undefined without a config file there.
  */
-export async function readConfigInDir(
+export async function getConfigInDir(
   dir: string,
 ): Promise<SupabaseConfig | undefined> {
   const file = configFileInDir(dir);
@@ -201,7 +201,7 @@ interface SupabaseConfigIo {
  * `@effect/platform-node`), so it is imported lazily through a variable:
  * projects without it get smol-toml instead of a load error.
  */
-async function loadSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
+async function getSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
   const specifier = "@supabase/config/io";
 
   try {
@@ -539,7 +539,7 @@ async function parseSupabaseConfig(
   format: ConfigFormat,
   location: { readonly path: string; readonly dir: string },
 ): Promise<SupabaseConfig> {
-  const io = text.includes("env(") ? await loadSupabaseConfig() : undefined;
+  const io = text.includes("env(") ? await getSupabaseConfig() : undefined;
 
   if (io) {
     try {

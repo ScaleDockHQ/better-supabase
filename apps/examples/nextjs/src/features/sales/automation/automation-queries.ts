@@ -3,14 +3,13 @@ import { subjectKey } from "better-supabase/blocks/subjects";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { CRM_TAG } from "@/features/crm/crm-cache";
 import { orMissing } from "@/lib/or-missing";
-import { readAllPagesResult } from "@/lib/read-all-pages";
+import { getAllPagesResult } from "@/lib/read-all-pages";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import { queueOf } from "../list-reads/queues-reads";
 import { segmentOf } from "../list-reads/segments-reads";
-import { SALES_TAG } from "../sales-cache";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
@@ -57,7 +56,7 @@ export async function loadSegment(
 ): Promise<SegmentDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;
@@ -112,12 +111,12 @@ export interface QueueDetail extends QueueRow {
   readonly memberRows: readonly QueueMemberRow[];
 }
 
-export async function loadQueue(
+export async function getQueue(
   id: string,
 ): Promise<QueueDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -191,12 +190,12 @@ export interface ScoreModelDetail {
 }
 
 /** One model with its rules, bands, versions and its 50 top-scored records. */
-export async function loadScoreModel(
+export async function getScoreModel(
   id: string,
 ): Promise<ScoreModelDetail | undefined | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;
@@ -276,17 +275,17 @@ export interface HealthData {
  * Account health: the top 200 scores of one model, the one named `health` when
  * the organization has it and the first company model otherwise.
  */
-export async function loadHealth(): Promise<HealthData | null> {
+export async function getHealth(): Promise<HealthData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const models = await readAllPagesResult((page) =>
+  const models = await getAllPagesResult((page) =>
     db.scores.modelPage({ filters: { subjectType: ["company"] }, ...page }),
   ).orThrow();
 
@@ -345,13 +344,13 @@ export interface ContactSales {
 }
 
 /** The segments a company or person is in, its scores and its queue history. */
-export async function loadContactSales(
+export async function getContactSales(
   type: "company" | "person",
   id: string,
 ): Promise<ContactSales | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -410,13 +409,13 @@ const show = (value: unknown): string =>
       : JSON.stringify(value);
 
 /** The latest 50 tracked column changes of a company or a deal. */
-export async function loadFieldHistory(
+export async function getFieldHistory(
   type: "company" | "deal",
   id: string,
 ): Promise<readonly FieldChangeRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
+  cacheTag(tags.sales(), tags.crm());
 
   if (!tenantOf(session)) {
     return null;

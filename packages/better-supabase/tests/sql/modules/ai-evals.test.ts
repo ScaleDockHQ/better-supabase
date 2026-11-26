@@ -9,7 +9,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
 
 const FUNCTIONS: Record<string, string> = {
   create_eval_dataset: "text, uuid, text",
-  add_eval_items: "uuid, jsonb",
+  create_eval_items: "uuid, jsonb",
   list_eval_items: "uuid, uuid, uuid, integer",
   create_eval_run: "uuid, text, integer, text, jsonb",
   record_eval_result: "uuid, uuid, text, jsonb, text, integer",
@@ -47,7 +47,9 @@ describe("ai-evals module", () => {
 
   it("reads rated replies from ai-chat when it is installed", () => {
     const sql = renderBlocks(["ai-chat", "ai-evals"])
-      .filter((file) => file.contents.includes("add_eval_items_from_feedback"))
+      .filter((file) =>
+        file.contents.includes("create_eval_items_from_feedback"),
+      )
       .map((file) => file.contents)
       .join("\n");
 

@@ -528,10 +528,10 @@ ${nodeKindsSql(ctx, s)}
 -- only workflow.admin changes restricted. A system definition (scope
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
-drop function if exists ${fn("save_workflow_definition")}(${id}, text, text, text);
+drop function if exists ${fn("upsert_workflow_definition")}(${id}, text, text, text);
 -- fields: the extra columns (columns your schema files add) to set.
-${extra.drop(fn("save_workflow_definition"), `${id}, text, text, text, text[], text, boolean`)}
-create or replace function ${fn("save_workflow_definition")}(
+${extra.drop(fn("upsert_workflow_definition"), `${id}, text, text, text, text[], text, boolean`)}
+create or replace function ${fn("upsert_workflow_definition")}(
   tenant ${id},
   slug text,
   name text,
@@ -607,11 +607,11 @@ begin
     insert into ${d} (${cd("tenant")}, ${cd("slug")}, ${cd("name")}, ${cd("description")}${subjectTyped ? `, ${cd("subjectTypes")}` : ""}${scoped ? `, ${cd("scope")}` : ""}, ${cd("restricted")}, ${cd("createdBy")})
     values (tenant, slug, name, description${subjectTyped ? ", coalesce(subject_types, '{}')" : ""}${scoped ? `, ${ctx.cast("definitions", "scope", "v_scope")}` : ""}, coalesce(restricted, false), (select auth.uid()))
     returning * into v_row;
-  end if;${writeExtraColumns(d, extras, "save_workflow_definition.fields", `x.${cd("id")} = v_row.${cd("id")}`, "v_row")}
+  end if;${writeExtraColumns(d, extras, "upsert_workflow_definition.fields", `x.${cd("id")} = v_row.${cd("id")}`, "v_row")}
   return ${definitionJson("v_row")};
 end;
 $$;
-${callable(`${fn("save_workflow_definition")}(${id}, text, text, text, text[], text, boolean${extra.type})`)}
+${callable(`${fn("upsert_workflow_definition")}(${id}, text, text, text, text[], text, boolean${extra.type})`)}
 
 -- The definitions the caller may read, by name, each with the number of its
 -- published version and whether it has a draft. With tenant, the tenant's
@@ -673,7 +673,7 @@ ${callable(`${fn("workflow_definition_get")}(uuid)`)}
 
 -- Deletes a definition with its versions, triggers and alerts: the service
 -- role or workflow.admin in its tenant. Its runs stay.
-create or replace function ${fn("remove_workflow_definition")}(definition uuid)
+create or replace function ${fn("delete_workflow_definition")}(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -686,14 +686,14 @@ begin
   return found;
 end;
 $$;
-${callable(`${fn("remove_workflow_definition")}(uuid)`)}
+${callable(`${fn("delete_workflow_definition")}(uuid)`)}
 
 -- Saves graph as the definition's draft: updates the draft, or opens one
 -- numbered after the last version. workflow.edit in its tenant, and an edit
 -- grant on a restricted definition. A null input_schema keeps the draft's
 -- current one.
-drop function if exists ${fn("save_workflow_draft")}(uuid, jsonb);
-create or replace function ${fn("save_workflow_draft")}(definition uuid, graph jsonb, input_schema jsonb default null)
+drop function if exists ${fn("upsert_workflow_draft")}(uuid, jsonb);
+create or replace function ${fn("upsert_workflow_draft")}(definition uuid, graph jsonb, input_schema jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -737,7 +737,7 @@ begin
   return ${versionJson("v_row", true)};
 end;
 $$;
-${callable(`${fn("save_workflow_draft")}(uuid, jsonb, jsonb)`)}
+${callable(`${fn("upsert_workflow_draft")}(uuid, jsonb, jsonb)`)}
 
 ${builderPublisherSql(s)}
 
@@ -863,7 +863,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "validate_workflow_graph", args: ["jsonb"], returns: "jsonb" },
     {
-      name: "save_workflow_definition",
+      name: "upsert_workflow_definition",
       args: [
         "{id}",
         "text",
@@ -882,9 +882,9 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "workflow_definition_get", args: ["uuid"], returns: "jsonb" },
-    { name: "remove_workflow_definition", args: ["uuid"], returns: "boolean" },
+    { name: "delete_workflow_definition", args: ["uuid"], returns: "boolean" },
     {
-      name: "save_workflow_draft",
+      name: "upsert_workflow_draft",
       args: ["uuid", "jsonb", "jsonb"],
       returns: "jsonb",
     },
@@ -937,12 +937,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_workflow_trigger",
+      name: "upsert_workflow_trigger",
       args: ["uuid", "text", "jsonb", "boolean", "uuid"],
       returns: "jsonb",
     },
     { name: "workflow_triggers_list", args: ["uuid"], returns: "jsonb" },
-    { name: "remove_workflow_trigger", args: ["uuid"], returns: "boolean" },
+    { name: "delete_workflow_trigger", args: ["uuid"], returns: "boolean" },
     { name: "rotate_workflow_webhook_token", args: ["uuid"], returns: "text" },
     { name: "workflow_webhook_target", args: ["text"], returns: "jsonb" },
     {
@@ -951,13 +951,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
-      name: "save_workflow_credential",
+      name: "upsert_workflow_credential",
       args: ["{id}", "text", "text", "jsonb", "text[]"],
       returns: "jsonb",
     },
     { name: "workflow_credentials_list", args: ["{id}"], returns: "jsonb" },
     { name: "workflow_credential_get", args: ["uuid"], returns: "jsonb" },
-    { name: "remove_workflow_credential", args: ["uuid"], returns: "jsonb" },
+    { name: "delete_workflow_credential", args: ["uuid"], returns: "jsonb" },
     { name: "sync_workflow_steps", args: ["jsonb"], returns: "integer" },
     { name: "workflow_steps_list", args: [], returns: "jsonb" },
     { name: "sync_workflow_node_kinds", args: ["jsonb"], returns: "integer" },
@@ -983,12 +983,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "workflow_node_runs_list", args: ["text"], returns: "jsonb" },
     {
-      name: "save_workflow_alert",
+      name: "upsert_workflow_alert",
       args: ["uuid", "text", "jsonb", "interval", "uuid"],
       returns: "jsonb",
     },
     { name: "workflow_alerts_list", args: ["uuid"], returns: "jsonb" },
-    { name: "remove_workflow_alert", args: ["uuid"], returns: "boolean" },
+    { name: "delete_workflow_alert", args: ["uuid"], returns: "boolean" },
     { name: "check_workflow_alerts", args: ["integer"], returns: "integer" },
   ];
 }
@@ -1008,7 +1008,7 @@ export const WORKFLOW_BUILDER: BlockSqlDefinition = {
     {
       from: 1,
       description:
-        "Definitions gain subject_types, scope, forked_from, forked_from_version and restricted, versions gain input_schema; workflow_opt_outs and workflow_definition_grants are new; save_workflow_definition, save_workflow_draft, workflow_definitions_list, workflow_start_target and workflow_run_principal take the new arguments, and fork_workflow_definition, set_workflow_opt_out, set_workflow_definition_grant, start_test_run and workflow_subject_start_target are new.",
+        "Definitions gain subject_types, scope, forked_from, forked_from_version and restricted, versions gain input_schema; workflow_opt_outs and workflow_definition_grants are new; upsert_workflow_definition, upsert_workflow_draft, workflow_definitions_list, workflow_start_target and workflow_run_principal take the new arguments, and fork_workflow_definition, set_workflow_opt_out, set_workflow_definition_grant, start_test_run and workflow_subject_start_target are new.",
       sql: () => "",
     },
     {

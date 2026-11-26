@@ -16,7 +16,7 @@ select set_config(
 set local role authenticated;
 
 insert into ids
-select 'board', (api.save_post_board('00000000-0000-4000-8000-000000000001',
+select 'board', (api.upsert_post_board('00000000-0000-4000-8000-000000000001',
   '{"key":"ideas","name":"Ideas","kind":"feedback"}') ->> 'id')::uuid;
 
 select is(
@@ -33,7 +33,7 @@ select set_config(
 );
 
 select throws_ok(
-  $$select api.save_post_board('00000000-0000-4000-8000-000000000001', '{"key":"mine","name":"Mine"}')$$,
+  $$select api.upsert_post_board('00000000-0000-4000-8000-000000000001', '{"key":"mine","name":"Mine"}')$$,
   '42501',
   null,
   'a member can''t manage boards'

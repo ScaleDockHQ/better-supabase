@@ -167,7 +167,7 @@ function build(ctx: BlockSqlContext): string {
 -- reply is the input, the rating, reason and comment go to the metadata, and a
 -- thumbs up keeps the reply as the expected output. A reply that is already in
 -- the dataset is skipped. A tenant's dataset only takes that tenant's chats.
-create or replace function ${fn("add_eval_items_from_feedback")}(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function ${fn("create_eval_items_from_feedback")}(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
@@ -178,11 +178,11 @@ declare
   v_dataset ${datasets}%rowtype;
   v_count integer;
 begin
-  select x.* into v_dataset from ${datasets} x where x.${d("id")} = add_eval_items_from_feedback.dataset;
+  select x.* into v_dataset from ${datasets} x where x.${d("id")} = create_eval_items_from_feedback.dataset;
   if not found then
-    ${missing("eval dataset", "AI_EVAL_DATASET_NOT_FOUND", "add_eval_items_from_feedback.dataset")}
+    ${missing("eval dataset", "AI_EVAL_DATASET_NOT_FOUND", "create_eval_items_from_feedback.dataset")}
   end if;
-  if add_eval_items_from_feedback.rating not in (-1, 1) then
+  if create_eval_items_from_feedback.rating not in (-1, 1) then
     ${raise("rating must be 1 or -1", "22023", "AI_EVAL_INVALID")}
   end if;
   with picked as materialized (
@@ -195,15 +195,15 @@ begin
     join ${chat.table("messages")} a on a.${m("chat")} = fb.${f("chat")} and a.${m("id")} = fb.${f("message")}
     join ${chat.table("messages")} q on q.${m("chat")} = a.${m("chat")} and q.${m("id")} = a.${m("parent")}
     join ${chat.table("chats")} ch on ch.${c("id")} = fb.${f("chat")}
-    where fb.${f("rating")} = add_eval_items_from_feedback.rating
-      and (v_dataset.${d("tenant")} is null or ch.${c("tenant")} = v_dataset.${d("tenant")})${stamp === undefined ? "" : `\n      and (add_eval_items_from_feedback.since is null or fb.${stamp} >= add_eval_items_from_feedback.since)`}
+    where fb.${f("rating")} = create_eval_items_from_feedback.rating
+      and (v_dataset.${d("tenant")} is null or ch.${c("tenant")} = v_dataset.${d("tenant")})${stamp === undefined ? "" : `\n      and (create_eval_items_from_feedback.since is null or fb.${stamp} >= create_eval_items_from_feedback.since)`}
     order by ${stamp === undefined ? `fb.${f("chat")}` : `fb.${stamp} desc`}
-    limit ${limit("add_eval_items_from_feedback.max_rows")}
+    limit ${limit("create_eval_items_from_feedback.max_rows")}
   ), added as (
     insert into ${items} (${i("dataset")}, ${i("input")}, ${i("expected")}, ${i("metadata")}, ${i("sourceChat")}, ${i("sourceMessage")})
     select v_dataset.${d("id")}, jsonb_build_object('prompt', p.prompt),
-      case when add_eval_items_from_feedback.rating = 1 then jsonb_build_object('output', p.reply) end,
-      jsonb_build_object('source', 'ai-chat-feedback', 'rating', add_eval_items_from_feedback.rating, 'reason', p.reason, 'comment', p.comment, 'reply', p.reply),
+      case when create_eval_items_from_feedback.rating = 1 then jsonb_build_object('output', p.reply) end,
+      jsonb_build_object('source', 'ai-chat-feedback', 'rating', create_eval_items_from_feedback.rating, 'reason', p.reason, 'comment', p.comment, 'reply', p.reply),
       p.chat_id::text, p.message_id
     from picked p
     where p.prompt is not null
@@ -214,21 +214,21 @@ begin
   return v_count;
 end;
 $$;
-${serviceGrant(`${fn("add_eval_items_from_feedback")}(uuid, integer, timestamptz, integer)`)}`;
+${serviceGrant(`${fn("create_eval_items_from_feedback")}(uuid, integer, timestamptz, integer)`)}`;
   } else {
     feedback = `
 -- Needs the ai-chat block, which is not installed here.
-create or replace function ${fn("add_eval_items_from_feedback")}(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
+create or replace function ${fn("create_eval_items_from_feedback")}(dataset uuid, rating integer default -1, since timestamptz default null, max_rows integer default 100)
 returns integer
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
-  ${raise("add_eval_items_from_feedback needs the ai-chat block", "55000", "AI_EVAL_FEEDBACK_UNAVAILABLE")}
+  ${raise("create_eval_items_from_feedback needs the ai-chat block", "55000", "AI_EVAL_FEEDBACK_UNAVAILABLE")}
 end;
 $$;
-${serviceGrant(`${fn("add_eval_items_from_feedback")}(uuid, integer, timestamptz, integer)`)}`;
+${serviceGrant(`${fn("create_eval_items_from_feedback")}(uuid, integer, timestamptz, integer)`)}`;
   }
 
   return `${schemaPreamble(ctx)}
@@ -382,7 +382,7 @@ ${evalPagesSql(ctx, { datasetJson, runJson })}
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most ${maxItems}.
-create or replace function ${fn("add_eval_items")}(dataset uuid, items jsonb)
+create or replace function ${fn("create_eval_items")}(dataset uuid, items jsonb)
 returns integer
 language plpgsql
 security definer
@@ -392,26 +392,26 @@ as $$
 declare
   v_count integer;
 begin
-  if not exists (select 1 from ${datasets} x where x.${d("id")} = add_eval_items.dataset) then
-    ${missing("eval dataset", "AI_EVAL_DATASET_NOT_FOUND", "add_eval_items.dataset")}
+  if not exists (select 1 from ${datasets} x where x.${d("id")} = create_eval_items.dataset) then
+    ${missing("eval dataset", "AI_EVAL_DATASET_NOT_FOUND", "create_eval_items.dataset")}
   end if;
-  if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
+  if jsonb_typeof(create_eval_items.items) is distinct from 'array' then
     ${raise("items must be a JSON array", "22023", "AI_EVAL_INVALID")}
   end if;
-  if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
+  if exists (select 1 from jsonb_array_elements(create_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
     ${raise("every item needs an input", "22023", "AI_EVAL_INVALID")}
   end if;
-  if (select count(*) from ${items} x where x.${i("dataset")} = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > ${maxItems} then
+  if (select count(*) from ${items} x where x.${i("dataset")} = create_eval_items.dataset) + jsonb_array_length(create_eval_items.items) > ${maxItems} then
     ${raise(`A dataset holds at most ${maxItems} items`, "54000", "AI_EVAL_DATASET_FULL")}
   end if;
   insert into ${items} (${i("dataset")}, ${i("input")}, ${i("expected")}, ${i("metadata")})
-  select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
-  from jsonb_array_elements(add_eval_items.items) e;
+  select create_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
+  from jsonb_array_elements(create_eval_items.items) e;
   get diagnostics v_count = row_count;
   return v_count;
 end;
 $$;
-${serviceGrant(`${fn("add_eval_items")}(uuid, jsonb)`)}
+${serviceGrant(`${fn("create_eval_items")}(uuid, jsonb)`)}
 ${feedback}
 
 -- The items of a dataset in id order after the given id. With pending_run,

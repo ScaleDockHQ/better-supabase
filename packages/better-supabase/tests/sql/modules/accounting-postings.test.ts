@@ -179,7 +179,7 @@ describe("accounting postings", () => {
       [
         "post_accounting_source",
         "accounting_tax_report",
-        "save_accounting_budget",
+        "upsert_accounting_budget",
         "get_accounting_budget",
         "list_accounting_budgets",
         "accounting_budget_vs_actual",
@@ -197,10 +197,10 @@ describe("accounting postings", () => {
 
     expect(dispatch).toContain("when 'invoice_charge' then");
     expect(dispatch).toContain("when 'invoice_write_off' then");
-    expect(body(invoices, "add_invoice_charge")).toContain(
+    expect(body(invoices, "create_invoice_charge")).toContain(
       `accounting_post_source"('invoice_charge'`,
     );
-    expect(body(invoices, "remove_invoice_charge")).toContain(
+    expect(body(invoices, "delete_invoice_charge")).toContain(
       `accounting_reverse_source"(`,
     );
     expect(body(invoices, "write_off_invoice")).toContain(

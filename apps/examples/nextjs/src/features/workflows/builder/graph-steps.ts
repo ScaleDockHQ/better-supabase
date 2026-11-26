@@ -24,7 +24,7 @@ import { serviceNotifications, serviceSupabase } from "../workflow-steps";
 import {
   JsonObjectSchema,
   JsonSchema,
-  readTemplatePath,
+  getTemplatePath,
   resolveTemplates,
 } from "./config-templates";
 import { stepLibrary } from "./step-library";
@@ -244,7 +244,7 @@ async function loopNode(call: GraphNodeCall): Promise<readonly unknown[]> {
       results: results.success ? results.output : {},
     };
 
-    const listed = readTemplatePath(scope, asPath(text(call.config, "items")));
+    const listed = getTemplatePath(scope, asPath(text(call.config, "items")));
 
     const items = Array.isArray(listed)
       ? listed

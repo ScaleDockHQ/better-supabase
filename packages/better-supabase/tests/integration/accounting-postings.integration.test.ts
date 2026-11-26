@@ -300,17 +300,17 @@ describe.skipIf(!live)("accounting postings", () => {
 
   it("books stock value movements under average costing", async () => {
     const product = await s.value<{ id: string }>(
-      "better_supabase.save_product($1, null, 'TEE', null, null, 'physical')",
+      "better_supabase.upsert_product($1, null, 'TEE', null, null, 'physical')",
       [tenant],
     );
 
     const variant = await s.value<{ id: string }>(
-      "better_supabase.save_variant($1, null, 'TEE', '{}'::uuid[], null, null, null, true, false)",
+      "better_supabase.upsert_variant($1, null, 'TEE', '{}'::uuid[], null, null, null, true, false)",
       [product.id],
     );
 
     const location = await s.value<{ id: string }>(
-      "better_supabase.save_location($1, null, 'WH', 'WH', 'warehouse')",
+      "better_supabase.upsert_location($1, null, 'WH', 'WH', 'warehouse')",
       [tenant],
     );
 

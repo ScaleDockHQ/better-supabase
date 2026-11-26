@@ -41,7 +41,7 @@ import { can } from "@/features/user/user-permissions";
 
 import type { JobRunRow, JobRunStatus } from "../jobs-queries";
 
-import { loadJobRuns } from "../jobs-queries";
+import { getJobRuns } from "../jobs-queries";
 import { JOBS_PERMISSION } from "../jobs-server";
 import { EnqueueTestJobButton, RetryJobButton } from "./job-run-controls";
 
@@ -51,9 +51,9 @@ type JobRunsState =
   | { readonly kind: "error" }
   | { readonly kind: "no-organization" };
 
-async function loadJobRunsState(): Promise<JobRunsState> {
+async function getJobRunsState(): Promise<JobRunsState> {
   try {
-    const runs = await loadJobRuns();
+    const runs = await getJobRuns();
 
     return runs ? { kind: "ok", runs } : { kind: "no-organization" };
   } catch (error) {
@@ -136,7 +136,7 @@ export async function JobRunsTable() {
     dead: t("Failed"),
   };
 
-  const state = await loadJobRunsState();
+  const state = await getJobRunsState();
 
   if (state.kind === "no-organization") {
     return null;

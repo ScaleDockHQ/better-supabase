@@ -30,7 +30,7 @@ export async function TargetsProgress() {
     return null;
   }
 
-  const targets = await settle(loadTargets);
+  const targets = await settle(getTargets);
 
   if (targets.kind === "no-organization") {
     return null;

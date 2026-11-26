@@ -56,7 +56,7 @@ const RECENT_RUNS = 50;
  * One definition of the active organization, or `null` when it is not the
  * caller's.
  */
-export async function loadDefinitionDetail(
+export async function getDefinitionDetail(
   id: string,
 ): Promise<DefinitionDetailData | null> {
   "use cache: private";

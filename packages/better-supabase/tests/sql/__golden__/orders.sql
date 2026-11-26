@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@5 managed
--- @bsb-hash sha256:b84b992caf846693f33322435731d280b4804f8b791f01a151bc939065f19542
+-- @bsb-hash sha256:9e5d183e48b33d6e4d9f34750722fdfd8492af0dbdb62aa8b2dac8ad111cf0c5
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -326,7 +326,7 @@ create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function "better_supabase"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "better_supabase"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -339,7 +339,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_shipping_rate.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_shipping_rate.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(data) is distinct from 'object' then
@@ -358,16 +358,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ '^[A-Z]{2}$') then
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into "better_supabase"."order_shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "better_supabase"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = coalesce(data ->> 'kind', 'flat'), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
-    where x."id" = save_shipping_rate.rate and x."tenant_id" = save_shipping_rate.tenant
+    where x."id" = upsert_shipping_rate.rate and x."tenant_id" = upsert_shipping_rate.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'shipping rate not found' using errcode = 'P0002', hint = 'ORDERS_RATE_NOT_FOUND';
@@ -376,8 +376,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -2970,7 +2970,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@5 managed
--- @bsb-hash sha256:cc96c96f3e18ceb6dc73843f5c97c9c154746af4a769b242597c2243f7457bc8
+-- @bsb-hash sha256:176428f36c84d89f3d07753095c8f143547ee8bc27d48b8b0b1c334e26c01338
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3295,7 +3295,7 @@ create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function "better_supabase"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "better_supabase"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3308,7 +3308,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_shipping_rate.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_shipping_rate.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(data) is distinct from 'object' then
@@ -3327,16 +3327,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ '^[A-Z]{2}$') then
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into "better_supabase"."order_shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "better_supabase"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = coalesce(data ->> 'kind', 'flat'), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
-    where x."id" = save_shipping_rate.rate and x."tenant_id" = save_shipping_rate.tenant
+    where x."id" = upsert_shipping_rate.rate and x."tenant_id" = upsert_shipping_rate.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'shipping rate not found' using errcode = 'P0002', hint = 'ORDERS_RATE_NOT_FOUND';
@@ -3345,8 +3345,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -4891,7 +4891,7 @@ begin
   if v_lines is null then
     raise exception 'the order has no catalog lines to buy' using errcode = '55000', hint = 'ORDERS_CART_EMPTY';
   end if;
-  v_purchase := "better_supabase"."save_purchase_order"(v_order.tenant, null, v_location, purchase_order_from_order.supplier_type,
+  v_purchase := "better_supabase"."upsert_purchase_order"(v_order.tenant, null, v_location, purchase_order_from_order.supplier_type,
     purchase_order_from_order.supplier_id, v_order.currency, null, v_lines, 'Drop ship');
   update "better_supabase"."purchase_orders" x set "ship_to" = v_order.ship_to, "origin_type" = 'order', "origin_id" = v_order.id::text
   where x."id" = (v_purchase ->> 'id')::uuid;
@@ -6199,7 +6199,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@5 managed
--- @bsb-hash sha256:b0f6fcc16039eedae068fc88cce510e36fe2fcbe900d10d82b71536b43691526
+-- @bsb-hash sha256:04ea66d46a0d616d42950f8bad1a2dfd6affdc846122f388db7c45c977b63fb4
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6529,7 +6529,7 @@ create policy bsb_order_refunds_read on "app_private"."order_refunds"
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function "app_private"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "app_private"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6542,7 +6542,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_shipping_rate.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_shipping_rate.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(data) is distinct from 'object' then
@@ -6561,16 +6561,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ '^[A-Z]{2}$') then
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into "app_private"."order_shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "app_private"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = coalesce(data ->> 'kind', 'flat'), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
-    where x."id" = save_shipping_rate.rate and x."tenant_id" = save_shipping_rate.tenant
+    where x."id" = upsert_shipping_rate.rate and x."tenant_id" = upsert_shipping_rate.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'shipping rate not found' using errcode = 'P0002', hint = 'ORDERS_RATE_NOT_FOUND';
@@ -6579,8 +6579,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "app_private"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "app_private"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "app_private"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "app_private"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -9173,7 +9173,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@5 managed
--- @bsb-hash sha256:e8c29ed8ba073557065aece2e5980d8baf16813b252425d4fe6872cbbcd831c3
+-- @bsb-hash sha256:86af4380debc787c500de1a6be246d126d8e9e2bb024544687154161e5b058b5
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9498,7 +9498,7 @@ create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function "better_supabase"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "better_supabase"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -9511,7 +9511,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_shipping_rate.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_shipping_rate.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(data) is distinct from 'object' then
@@ -9530,16 +9530,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ '^[A-Z]{2}$') then
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into "better_supabase"."order_shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "better_supabase"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = coalesce(data ->> 'kind', 'flat'), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
-    where x."id" = save_shipping_rate.rate and x."tenant_id" = save_shipping_rate.tenant
+    where x."id" = upsert_shipping_rate.rate and x."tenant_id" = upsert_shipping_rate.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'shipping rate not found' using errcode = 'P0002', hint = 'ORDERS_RATE_NOT_FOUND';
@@ -9548,8 +9548,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -12129,14 +12129,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "api"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_shipping_rate"($1, $2, $3) $$;
-revoke execute on function "api"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_shipping_rate"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -12484,7 +12484,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@5 managed
--- @bsb-hash sha256:966040ee3f83eb0531268988cf34f52af56855a140e33283e4671df192cb1c19
+-- @bsb-hash sha256:8ab38b6671eef6c0eaf11dc85283139ff5e6fee0651019da924e78a54a730af1
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12783,7 +12783,7 @@ create policy bsb_order_refunds_select on "better_supabase"."order_refunds"
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function "better_supabase"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "better_supabase"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -12796,7 +12796,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_shipping_rate.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_shipping_rate.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(data) is distinct from 'object' then
@@ -12815,16 +12815,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ '^[A-Z]{2}$') then
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into "better_supabase"."order_shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', better_supabase.as_column_type(coalesce(data ->> 'kind', 'flat'), (null::"better_supabase"."order_shipping_rates")."kind"),
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', better_supabase.as_column_type(coalesce(data ->> 'kind', 'flat'), (null::"better_supabase"."order_shipping_rates")."kind"),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "better_supabase"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = better_supabase.as_column_type(coalesce(data ->> 'kind', 'flat'), (null::"better_supabase"."order_shipping_rates")."kind"), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
-    where x."id" = save_shipping_rate.rate and x."tenant_id" = save_shipping_rate.tenant
+    where x."id" = upsert_shipping_rate.rate and x."tenant_id" = upsert_shipping_rate.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'shipping rate not found' using errcode = 'P0002', hint = 'ORDERS_RATE_NOT_FOUND';
@@ -12833,8 +12833,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_shipping_rate"(rate uuid)
 returns boolean
@@ -15427,7 +15427,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@5 managed
--- @bsb-hash sha256:47db609953bbd2b4e24886278d7454d8b8c9a78e95a54ae051374cb293a97946
+-- @bsb-hash sha256:569daab038cb7670a9a31865e934e37457defb66cbbadc0ea930f3295816adb3
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15752,7 +15752,7 @@ create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
 -- started kilogram for weight rates, free from an order subtotal when
 -- free_over is set. Countries are ISO 3166-1 alpha-2; none means anywhere.
 -- Amounts are text in minor units.
-create or replace function "better_supabase"."save_shipping_rate"(tenant uuid, rate uuid, data jsonb)
+create or replace function "better_supabase"."upsert_shipping_rate"(tenant uuid, rate uuid, data jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -15765,7 +15765,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_shipping_rate.tenant, 'orders.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', upsert_shipping_rate.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
   if jsonb_typeof(data) is distinct from 'object' then
@@ -15784,16 +15784,16 @@ begin
   if exists (select 1 from unnest(v_countries) as c(value) where c.value !~ '^[A-Z]{2}$') then
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
-  if save_shipping_rate.rate is null then
+  if upsert_shipping_rate.rate is null then
     insert into "better_supabase"."order_shipping_rates" ("org_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
-    values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
+    values (upsert_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
     update "better_supabase"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = coalesce(data ->> 'kind', 'flat'), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
-    where x."id" = save_shipping_rate.rate and x."org_id" = save_shipping_rate.tenant
+    where x."id" = upsert_shipping_rate.rate and x."org_id" = upsert_shipping_rate.tenant
     returning x."id" into v_id;
     if v_id is null then
       raise exception 'shipping rate not found' using errcode = 'P0002', hint = 'ORDERS_RATE_NOT_FOUND';
@@ -15802,8 +15802,8 @@ begin
   return jsonb_build_object('id', v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_shipping_rate"(uuid, uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_shipping_rate"(rate uuid)
 returns boolean

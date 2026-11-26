@@ -42,8 +42,8 @@ const segmentRow = {
 };
 
 const answers = {
-  save_segment: segmentRow,
-  remove_segment: true,
+  upsert_segment: segmentRow,
+  delete_segment: true,
   segments_list: [segmentRow],
   segment_get: { ...segmentRow, refreshedAt: AT, description: "Software" },
   list_segment_members: [{ subjectId: "c1", enteredAt: AT }],
@@ -73,7 +73,7 @@ describe("createSegments", () => {
       createdBy: "u1",
     });
     expect(saved.conditions).toEqual(conditions);
-    expect(call).toHaveBeenCalledWith("better_supabase", "save_segment", {
+    expect(call).toHaveBeenCalledWith("better_supabase", "upsert_segment", {
       tenant: "org",
       segment: { subjectType: "company", name: "SaaS", conditions },
     });

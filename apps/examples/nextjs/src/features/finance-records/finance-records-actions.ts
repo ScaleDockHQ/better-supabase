@@ -5,13 +5,9 @@ import { ok } from "better-supabase";
 import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
-import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { SHOP_TAG } from "@/features/shop/shop-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { FINANCE_RECORDS_TAG } from "./finance-records-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -21,7 +17,7 @@ const Text = (max: number) =>
 const Day = v.pipe(v.string(), v.isoDate());
 
 /** The tags every finance write expires: the lists and the domains they show. */
-const TAGS = [FINANCE_RECORDS_TAG, BILLING_TAG, BANKING_TAG, SHOP_TAG];
+const TAGS = [tags.financeRecords(), BILLING_TAG, tags.banking(), tags.shop()];
 
 /** Files a draft expense report for approval. */
 export const submitExpenseReport = bsb.action(
@@ -29,15 +25,15 @@ export const submitExpenseReport = bsb.action(
     input: v.object({ reportId: Id }),
     requireTenant: true,
     permission: "expenses.submit",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ reportId }, { db, auth }) => {
+  async ({ reportId }, { db }) => {
     const submitted = await db.expenses.submit(reportId);
 
     if (!submitted.ok) {
       return submitted;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(submitted.data.id);
   },
@@ -53,8 +49,10 @@ export const decideExpenseReport = bsb.action(
     }),
     requireTenant: true,
     permission: "expenses.approve",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ reportId, approved, note }, { db, auth }) => {
+  async ({ reportId, approved, note }, { db }) => {
     const decided = await db.expenses.decide({
       reportId,
       decision: { approved, ...(note === undefined ? {} : { note }) },
@@ -63,8 +61,6 @@ export const decideExpenseReport = bsb.action(
     if (!decided.ok) {
       return decided;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(decided.data.id);
   },
@@ -76,15 +72,15 @@ export const reimburseExpenseReport = bsb.action(
     input: v.object({ reportId: Id }),
     requireTenant: true,
     permission: "expenses.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ reportId }, { db, auth }) => {
+  async ({ reportId }, { db }) => {
     const paid = await db.expenses.reimburse({ reportId });
 
     if (!paid.ok) {
       return paid;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(paid.data.id);
   },
@@ -104,8 +100,10 @@ export const recordInvoicePayment = bsb.action(
     }),
     requireTenant: true,
     permission: "invoices.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ invoiceId, currency, amount }, { db, auth }) => {
+  async ({ invoiceId, currency, amount }, { db }) => {
     const paid = await db.invoices.recordPayment({
       invoiceId,
       payment: { amount: parseMoney(amount, currency), method: "manual" },
@@ -114,8 +112,6 @@ export const recordInvoicePayment = bsb.action(
     if (!paid.ok) {
       return paid;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(paid.data.status);
   },
@@ -127,8 +123,10 @@ export const voidInvoice = bsb.action(
     input: v.object({ invoiceId: Id, reason: v.optional(Text(300)) }),
     requireTenant: true,
     permission: "invoices.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ invoiceId, reason }, { db, auth }) => {
+  async ({ invoiceId, reason }, { db }) => {
     const voided = await db.invoices.void({
       invoiceId,
       ...(reason === undefined ? {} : { reason }),
@@ -137,8 +135,6 @@ export const voidInvoice = bsb.action(
     if (!voided.ok) {
       return voided;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(voided.data.status);
   },
@@ -150,8 +146,10 @@ export const approvePayable = bsb.action(
     input: v.object({ invoiceId: Id, comment: v.optional(Text(300)) }),
     requireTenant: true,
     permission: "invoices.approve",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ invoiceId, comment }, { db, auth }) => {
+  async ({ invoiceId, comment }, { db }) => {
     const approved = await db.invoices.approvePurchaseInvoice({
       invoiceId,
       ...(comment === undefined ? {} : { comment }),
@@ -160,8 +158,6 @@ export const approvePayable = bsb.action(
     if (!approved.ok) {
       return approved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(approved.data.status);
   },
@@ -173,15 +169,15 @@ export const lockPeriod = bsb.action(
     input: v.object({ periodId: Id }),
     requireTenant: true,
     permission: "periods.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ periodId }, { db, auth }) => {
+  async ({ periodId }, { db }) => {
     const locked = await db.periods.lock(periodId);
 
     if (!locked.ok) {
       return locked;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(locked.data.status);
   },
@@ -193,8 +189,10 @@ export const reopenPeriod = bsb.action(
     input: v.object({ periodId: Id, reason: v.optional(Text(300)) }),
     requireTenant: true,
     permission: "periods.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ periodId, reason }, { db, auth }) => {
+  async ({ periodId, reason }, { db }) => {
     const reopened = await db.periods.reopen({
       periodId,
       ...(reason === undefined ? {} : { reason }),
@@ -203,8 +201,6 @@ export const reopenPeriod = bsb.action(
     if (!reopened.ok) {
       return reopened;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(reopened.data.status);
   },
@@ -216,8 +212,10 @@ export const prepareTaxReturn = bsb.action(
     input: v.object({ since: Day, until: Day, period: v.optional(Text(50)) }),
     requireTenant: true,
     permission: "tax.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ since, until, period }, { db, auth }) => {
+  async ({ since, until, period }, { db }) => {
     const prepared = await db.tax.prepareReturn({
       since,
       until,
@@ -227,8 +225,6 @@ export const prepareTaxReturn = bsb.action(
     if (!prepared.ok) {
       return prepared;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(prepared.data.id);
   },
@@ -240,15 +236,15 @@ export const fileTaxReturn = bsb.action(
     input: v.object({ returnId: Id }),
     requireTenant: true,
     permission: "tax.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ returnId }, { db, auth }) => {
+  async ({ returnId }, { db }) => {
     const filed = await db.tax.fileReturn(returnId);
 
     if (!filed.ok) {
       return filed;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(filed.data.status);
   },
@@ -260,8 +256,10 @@ export const invoiceBillableTime = bsb.action(
     input: v.object({ title: v.optional(Text(200)) }),
     requireTenant: true,
     permission: "billable_time.invoice",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ title }, { db, auth }) => {
+  async ({ title }, { db }) => {
     const invoiced = await db.billableTime.invoice(
       title === undefined ? {} : { title },
     );
@@ -269,8 +267,6 @@ export const invoiceBillableTime = bsb.action(
     if (!invoiced.ok) {
       return invoiced;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(invoiced.data.invoiceId);
   },
@@ -282,8 +278,10 @@ export const createPayrollRun = bsb.action(
     input: v.object({ from: Day, to: Day, label: v.optional(Text(200)) }),
     requireTenant: true,
     permission: "payroll_export.export",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ from, to, label }, { db, auth }) => {
+  async ({ from, to, label }, { db }) => {
     const created = await db.payrollExport.create({
       from: Temporal.PlainDate.from(from),
       to: Temporal.PlainDate.from(to),
@@ -293,8 +291,6 @@ export const createPayrollRun = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(created.data.id);
   },
@@ -306,15 +302,15 @@ export const refreshPayrollRun = bsb.action(
     input: v.object({ runId: Id }),
     requireTenant: true,
     permission: "payroll_export.export",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ runId }, { db, auth }) => {
+  async ({ runId }, { db }) => {
     const refreshed = await db.payrollExport.refresh(runId);
 
     if (!refreshed.ok) {
       return refreshed;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(refreshed.data.id);
   },
@@ -331,8 +327,10 @@ export const createLegalEntity = bsb.action(
     }),
     requireTenant: true,
     permission: "legal_entities.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ code, name, vatNumber, defaultCurrency }, { db, auth }) => {
+  async ({ code, name, vatNumber, defaultCurrency }, { db }) => {
     const created = await db.legalEntities.create({
       code,
       name,
@@ -344,8 +342,6 @@ export const createLegalEntity = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok(created.data.id);
   },
 );
@@ -356,15 +352,15 @@ export const makeDefaultLegalEntity = bsb.action(
     input: v.object({ entityId: Id }),
     requireTenant: true,
     permission: "legal_entities.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ entityId }, { db, auth }) => {
+  async ({ entityId }, { db }) => {
     const updated = await db.legalEntities.setDefault(entityId);
 
     if (!updated.ok) {
       return updated;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(updated.data.id);
   },
@@ -376,15 +372,15 @@ export const archiveLegalEntity = bsb.action(
     input: v.object({ entityId: Id }),
     requireTenant: true,
     permission: "legal_entities.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ entityId }, { db, auth }) => {
+  async ({ entityId }, { db }) => {
     const archived = await db.legalEntities.archive(entityId);
 
     if (!archived.ok) {
       return archived;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(archived.data.id);
   },
@@ -396,8 +392,10 @@ export const endFundingAward = bsb.action(
     input: v.object({ awardId: Id, canceled: v.optional(v.boolean()) }),
     requireTenant: true,
     permission: "funding.write",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ awardId, canceled }, { db, auth }) => {
+  async ({ awardId, canceled }, { db }) => {
     const ended = await db.funding.endAward({
       awardId,
       ...(canceled === undefined ? {} : { canceled }),
@@ -406,8 +404,6 @@ export const endFundingAward = bsb.action(
     if (!ended.ok) {
       return ended;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(ended.data.status);
   },
@@ -424,8 +420,10 @@ export const createBankAccount = bsb.action(
     }),
     requireTenant: true,
     permission: "banking.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ name, iban, currency, holder }, { db, auth }) => {
+  async ({ name, iban, currency, holder }, { db }) => {
     const saved = await db.banking.saveAccount({
       input: {
         name,
@@ -438,8 +436,6 @@ export const createBankAccount = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(saved.data.id);
   },

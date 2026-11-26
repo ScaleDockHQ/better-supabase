@@ -214,7 +214,7 @@ describe("createAccounting", () => {
 
   it("saves, archives and lists accounts and their roles", async () => {
     const t = fieldsTransport({
-      save_accounting_account: () => ACCOUNT,
+      upsert_accounting_account: () => ACCOUNT,
       archive_accounting_account: () => BARE_ACCOUNT,
       set_accounting_account_role: () => ({ receivable: "a1", bank: "a3" }),
       list_accounting_accounts: () => [ACCOUNT, BARE_ACCOUNT],
@@ -271,7 +271,7 @@ describe("createAccounting", () => {
     expect(listed).toHaveLength(2);
     expect(t.calls).toEqual([
       [
-        "save_accounting_account",
+        "upsert_accounting_account",
         {
           tenant: "org-1",
           code: "1300",
@@ -288,7 +288,7 @@ describe("createAccounting", () => {
         },
       ],
       [
-        "save_accounting_account",
+        "upsert_accounting_account",
         {
           tenant: "org-1",
           code: "8000",
@@ -332,7 +332,7 @@ describe("createAccounting", () => {
 
   it("saves journals, fiscal years and periods", async () => {
     const t = fieldsTransport({
-      save_accounting_journal: () => JOURNAL,
+      upsert_accounting_journal: () => JOURNAL,
       list_accounting_journals: () => [JOURNAL],
       open_fiscal_year: () => [PERIOD],
       list_accounting_periods: () => [{ ...PERIOD, status: "open" }],
@@ -378,7 +378,7 @@ describe("createAccounting", () => {
     expect(listed?.status).toBe("open");
     expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
       [
-        "save_accounting_journal",
+        "upsert_accounting_journal",
         {
           tenant: "org-1",
           code: "SAL",
@@ -392,7 +392,7 @@ describe("createAccounting", () => {
         },
       ],
       [
-        "save_accounting_journal",
+        "upsert_accounting_journal",
         {
           tenant: "org-1",
           code: "GEN",
@@ -426,8 +426,8 @@ describe("createAccounting", () => {
     };
 
     const t = fieldsTransport({
-      save_accounting_dimension: () => ({ ...DIMENSION, values: null }),
-      save_accounting_dimension_value: () => DIMENSION,
+      upsert_accounting_dimension: () => ({ ...DIMENSION, values: null }),
+      upsert_accounting_dimension_value: () => DIMENSION,
       list_accounting_dimensions: () => [DIMENSION],
       set_accounting_fx_rate: () => ({
         organizationId: "org-1",
@@ -489,7 +489,7 @@ describe("createAccounting", () => {
     expect(rate.onDate.toString()).toBe("2026-01-15");
     expect(looked).toBe("0.93");
     expect(t.calls).toContainEqual([
-      "save_accounting_dimension_value",
+      "upsert_accounting_dimension_value",
       { dimension_id: "d1", code: "apollo", name: "Apollo", archived: false },
     ]);
     expect(t.calls).toContainEqual([
@@ -499,7 +499,7 @@ describe("createAccounting", () => {
   });
 
   it("saves an entry with its lines and extra fields", async () => {
-    const t = fieldsTransport({ save_accounting_entry: () => ENTRY });
+    const t = fieldsTransport({ upsert_accounting_entry: () => ENTRY });
     const books = createAccounting({ transport: t, fields: Fields });
 
     const saved = await books
@@ -558,7 +558,7 @@ describe("createAccounting", () => {
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(t.calls).toEqual([
       [
-        "save_accounting_entry",
+        "upsert_accounting_entry",
         {
           journal_id: "j1",
           entry_date: "2026-01-15",

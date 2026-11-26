@@ -6,7 +6,7 @@ import { fail, serviceGrant, triggerGrant, userGrant } from "../shared.ts";
 import { templateTypes } from "./templates-types.ts";
 
 /**
- * The rows-template functions: a type check for `save_template`, and
+ * The rows-template functions: a type check for `upsert_template`, and
  * `instantiate_template`, `pack_template`, `unpack_template`, `clone_row` and
  * `template_table`. Empty when no type is registered and nothing else asks,
  * except `clone_row` and `template_table`, which the `@bsb template` tag
@@ -19,7 +19,7 @@ export function templateRowsSql(ctx: BlockSqlContext): string {
   return `${cloneRowSql(fn)}${templateTableSql(ctx, fn)}${types.length === 0 ? "" : typedSql(ctx, types, fn)}`;
 }
 
-/** The statement `save_template` runs to refuse an unregistered type. */
+/** The statement `upsert_template` runs to refuse an unregistered type. */
 export function templateTypeCheck(ctx: BlockSqlContext): string {
   const types = templateTypes(ctx);
 
@@ -32,7 +32,7 @@ export function templateTypeCheck(ctx: BlockSqlContext): string {
   const settings = settingsCheck(ctx, types);
 
   return `
-  if save_template.template_id is null and save_template.type not in (${known}) then
+  if upsert_template.template_id is null and upsert_template.type not in (${known}) then
     ${fail("TEMPLATE_TYPE_UNKNOWN", "That template type is not registered", "22023")}
   end if;${settings}`;
 }
@@ -55,13 +55,13 @@ function settingsCheck(
     .join(" ");
 
   return `
-  if save_template.settings is not null then
+  if upsert_template.settings is not null then
     declare
-      v_schema json := case coalesce(save_template.type, v_row.${ctx.col("templates", "type")}) ${branches} else null end;
+      v_schema json := case coalesce(upsert_template.type, v_row.${ctx.col("templates", "type")}) ${branches} else null end;
       v_errors jsonb;
     begin
       if v_schema is not null then
-        v_errors := extensions.jsonschema_validation_errors(v_schema, save_template.settings::json);
+        v_errors := extensions.jsonschema_validation_errors(v_schema, upsert_template.settings::json);
         if v_errors <> '[]'::jsonb then
           ${fail("TEMPLATE_SETTINGS_INVALID", "settings does not match this template type", "23514")}
         end if;
@@ -255,7 +255,7 @@ begin
     else
       ${fail("TEMPLATE_TYPE_UNKNOWN", "That template type is not packed from rows", "22023")}
   end case;
-  return ${fn("save_template_draft")}(v_tpl.${ctx.col("templates", "id")}, v_body);
+  return ${fn("upsert_template_draft")}(v_tpl.${ctx.col("templates", "id")}, v_body);
 end;
 $$;
 ${userGrant(`${fn("pack_template")}(uuid)`)}

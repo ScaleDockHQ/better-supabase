@@ -3,10 +3,8 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
-
-import { REVIEWS_TAG } from "./reviews-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 
@@ -16,15 +14,15 @@ export const publishReview = bsb.action(
     input: v.object({ reviewId: Id }),
     requireTenant: true,
     permission: "reviews.manage",
+    tags: () => [tags.reviews()],
+    refresh: true,
   },
-  async ({ reviewId }, { db, auth }) => {
+  async ({ reviewId }, { db }) => {
     const published = await db.reviews.publish(reviewId);
 
     if (!published.ok) {
       return published;
     }
-
-    await refreshCaller(auth, [REVIEWS_TAG]);
 
     return ok(published.data.id);
   },
@@ -40,8 +38,10 @@ export const respondToReview = bsb.action(
     }),
     requireTenant: true,
     permission: "reviews.manage",
+    tags: () => [tags.reviews()],
+    refresh: true,
   },
-  async ({ reviewId, kind, text }, { db, auth }) => {
+  async ({ reviewId, kind, text }, { db }) => {
     const done =
       kind === "reject"
         ? await db.reviews.reject({ reviewId, reason: text })
@@ -50,8 +50,6 @@ export const respondToReview = bsb.action(
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, [REVIEWS_TAG]);
 
     return ok(done.data.id);
   },

@@ -11,13 +11,13 @@ import type {
 import {
   applyOverlay,
   applyOverlays,
-  loadJsonPath,
+  getJsonPath,
 } from "../../src/spec/index.ts";
 
 let jsonpath: JsonPathEngine;
 
 beforeAll(async () => {
-  jsonpath = await loadJsonPath();
+  jsonpath = await getJsonPath();
 });
 
 const info = { title: "Test", version: "1.0.0" };

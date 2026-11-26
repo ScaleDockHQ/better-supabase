@@ -159,7 +159,7 @@ const validate = (
 describe("createCompliance", () => {
   it("saves and lists frameworks", async () => {
     const t = fieldsTransport({
-      save_control_framework: () => FRAMEWORK,
+      upsert_control_framework: () => FRAMEWORK,
       list_control_frameworks: () => [FRAMEWORK, BARE_FRAMEWORK],
     });
 
@@ -203,7 +203,7 @@ describe("createCompliance", () => {
     ]);
     expect(t.calls).toEqual([
       [
-        "save_control_framework",
+        "upsert_control_framework",
         {
           tenant: "org-1",
           key: "soc2",
@@ -214,7 +214,7 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "save_control_framework",
+        "upsert_control_framework",
         {
           tenant: "org-1",
           key: "iso",
@@ -229,7 +229,7 @@ describe("createCompliance", () => {
   });
 
   it("saves a control with its extra fields and checks them", async () => {
-    const t = fieldsTransport({ save_control: () => CONTROL });
+    const t = fieldsTransport({ upsert_control: () => CONTROL });
     const controls = createCompliance({ transport: t, fields: Fields });
 
     const saved = await controls
@@ -267,7 +267,7 @@ describe("createCompliance", () => {
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(t.calls).toEqual([
       [
-        "save_control",
+        "upsert_control",
         {
           framework_id: "f1",
           code: "CC6.1",
@@ -282,7 +282,7 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "save_control",
+        "upsert_control",
         {
           framework_id: "f1",
           code: "CC6.2",
@@ -386,8 +386,8 @@ describe("createCompliance", () => {
 
   it("adds and removes evidence", async () => {
     const t = fieldsTransport({
-      add_control_evidence: () => EVIDENCE,
-      remove_control_evidence: () => BARE_EVIDENCE,
+      create_control_evidence: () => EVIDENCE,
+      delete_control_evidence: () => BARE_EVIDENCE,
     });
 
     const controls = createCompliance({ transport: t });
@@ -415,7 +415,7 @@ describe("createCompliance", () => {
     expect(removed.valid).toBe(false);
     expect(t.calls).toEqual([
       [
-        "add_control_evidence",
+        "create_control_evidence",
         {
           control_id: "c1",
           attachment_id: "a1",
@@ -425,7 +425,7 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "add_control_evidence",
+        "create_control_evidence",
         {
           control_id: "c1",
           attachment_id: null,
@@ -435,7 +435,7 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "add_control_evidence",
+        "create_control_evidence",
         {
           control_id: "c1",
           attachment_id: "a2",
@@ -444,13 +444,13 @@ describe("createCompliance", () => {
           task_id: null,
         },
       ],
-      ["remove_control_evidence", { evidence_id: "e2" }],
+      ["delete_control_evidence", { evidence_id: "e2" }],
     ]);
   });
 
   it("saves and lists evidence tasks, and reports the overdue ones", async () => {
     const t = fieldsTransport({
-      save_evidence_task: () => TASK,
+      upsert_evidence_task: () => TASK,
       list_evidence_tasks: () => [TASK, BARE_TASK],
       notify_overdue_evidence_tasks: () => 2,
     });
@@ -496,7 +496,7 @@ describe("createCompliance", () => {
     expect(await controls.notifyOverdue().orThrow()).toBe(2);
     expect(t.calls.slice(0, 4)).toEqual([
       [
-        "save_evidence_task",
+        "upsert_evidence_task",
         {
           control_id: "c1",
           title: "Quarterly access review",
@@ -508,7 +508,7 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "save_evidence_task",
+        "upsert_evidence_task",
         {
           control_id: "c1",
           title: "Pen test",
@@ -601,7 +601,7 @@ describe("createCompliance", () => {
 
   it("saves, publishes, archives and lists policies", async () => {
     const t = fieldsTransport({
-      save_compliance_policy: () => POLICY,
+      upsert_compliance_policy: () => POLICY,
       publish_compliance_policy: () => POLICY,
       archive_compliance_policy: () => BARE_POLICY,
       list_compliance_policies: () => [POLICY, BARE_POLICY],
@@ -667,7 +667,7 @@ describe("createCompliance", () => {
     ]);
     expect(t.calls).toEqual([
       [
-        "save_compliance_policy",
+        "upsert_compliance_policy",
         {
           tenant: "org-1",
           key: "security",
@@ -678,7 +678,7 @@ describe("createCompliance", () => {
         },
       ],
       [
-        "save_compliance_policy",
+        "upsert_compliance_policy",
         {
           tenant: "org-1",
           key: "travel",
@@ -708,7 +708,7 @@ describe("createCompliance", () => {
   it("rejects malformed rows and stored fields the schema refuses", async () => {
     const t = fieldsTransport({
       get_control: () => ({ ...BARE_CONTROL, status: "green" }),
-      save_evidence_task: () => ({ ...BARE_TASK, dueOn: null }),
+      upsert_evidence_task: () => ({ ...BARE_TASK, dueOn: null }),
       list_controls: () => [{ ...CONTROL, fields: { tier: "mid" } }],
     });
 

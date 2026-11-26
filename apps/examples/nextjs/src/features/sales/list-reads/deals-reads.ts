@@ -12,7 +12,7 @@ import type {
 } from "@/lib/block-entity-page";
 
 import { blockEntityReads, organizationPager } from "@/lib/block-entity-page";
-import { readAllPagesResult } from "@/lib/read-all-pages";
+import { getAllPagesResult } from "@/lib/read-all-pages";
 
 import type { DealRow, DealsData } from "../pipeline/pipeline-queries";
 
@@ -24,7 +24,7 @@ export function dealsFrom(
   db: AppDb,
   tenant: string,
 ): AsyncResult<DealsData | undefined> {
-  return readAllPagesResult((page) =>
+  return getAllPagesResult((page) =>
     db.pipelines.page({
       organizationId: tenant,
       filters: { subjectType: ["deal"] },

@@ -12,11 +12,11 @@ import * as v from "valibot";
 import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { SessionRow } from "./session-row";
 
-import { CHECKOUT_SESSIONS_TAG } from "./checkout-sessions-cache";
 import {
   SESSION_PAGE_SIZE,
   SESSION_PROTOCOLS,
@@ -73,7 +73,7 @@ function toRow(session: CheckoutSession): SessionRow {
  * One page of sessions. The selected statuses and protocols are list filters of
  * one block call, and its keyset cursor pages (`after` holds it as JSON).
  */
-export async function loadSessionPage(
+export async function getSessionPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<SessionRow>>> {
@@ -116,13 +116,13 @@ export async function loadSessionPage(
 export async function getSessions(): Promise<BlockPage<SessionRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(CHECKOUT_SESSIONS_TAG);
+  cacheTag(tags.agentCheckout());
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const result = await loadSessionPage(db, sessionList.defaults);
+  const result = await getSessionPage(db, sessionList.defaults);
 
   if (!result.ok) {
     throw new Error(result.error.message);
@@ -144,7 +144,7 @@ export async function getSession(
 ): Promise<SessionDetailData | null> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(CHECKOUT_SESSIONS_TAG);
+  cacheTag(tags.agentCheckout());
 
   const found = await db.agentCheckout.getSession(id);
 

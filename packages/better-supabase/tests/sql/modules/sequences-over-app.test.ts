@@ -106,7 +106,7 @@ declare
   v_run uuid;
 begin
   ${OWNER}
-  v_sequence := better_supabase.save_sequence('${TENANT}', '{"key": "welcome", "name": "Welcome", "status": "active", "steps": [{"id": "pause", "kind": "wait", "minutes": 60}]}'::jsonb);
+  v_sequence := better_supabase.upsert_sequence('${TENANT}', '{"key": "welcome", "name": "Welcome", "status": "active", "steps": [{"id": "pause", "kind": "wait", "minutes": 60}]}'::jsonb);
   v_id := (v_sequence ->> 'id')::uuid;
   if v_sequence ->> 'status' <> 'active' or (v_sequence ->> 'version')::integer <> 1 or v_sequence -> 'description' <> 'null'::jsonb then
     raise exception 'sequence %', v_sequence;
@@ -150,7 +150,7 @@ $$;`),
       run(`do $$
 begin
   ${OWNER}
-  perform better_supabase.save_sequence('${TENANT}', '{"key": "intro", "name": "Intro", "description": "Hello"}'::jsonb);
+  perform better_supabase.upsert_sequence('${TENANT}', '{"key": "intro", "name": "Intro", "description": "Hello"}'::jsonb);
 end;
 $$;`),
     ).rejects.toThrow(/no description column/);

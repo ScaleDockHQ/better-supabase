@@ -11,7 +11,7 @@ import {
 import { createSupabase } from "../../src/core/define.ts";
 import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { ok } from "../../src/core/result.ts";
-import { loadLite } from "../../src/lite/runtime.ts";
+import { getLite } from "../../src/lite/runtime.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -182,7 +182,7 @@ describe("function arguments on Postgres (PGlite)", { timeout: 60_000 }, () => {
   let sql: SqlClient;
 
   beforeAll(async () => {
-    const lite = await loadLite();
+    const lite = await getLite();
 
     if (!lite) {
       throw new Error("@supabase/lite is a devDependency of these tests");

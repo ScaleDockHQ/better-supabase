@@ -678,6 +678,6 @@ create index if not exists ai_harness_sessions_owner_idx on ${t.harness} (${hs.o
 create index if not exists ai_harness_sessions_idle_idx on ${t.harness} (${hs.lastActiveAt}) where ${hs.status} = 'active';${appKey(ctx, "harness", "harness", ["chat", "harness"])}
 ${lockTable(t.harness)}
 -- Resume state can carry harness credentials and sandbox ids, so only the
--- service role reads it, through load_ai_harness_session.
+-- service role reads it, through get_ai_harness_session.
 drop policy if exists ai_harness_sessions_owner_read on ${t.harness};`;
 }

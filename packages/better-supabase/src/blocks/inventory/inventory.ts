@@ -380,7 +380,7 @@ function savedOrderOf(value: unknown): {
   readonly id: string;
   readonly number?: string;
 } {
-  const row = recordOf(value, "save_purchase_order");
+  const row = recordOf(value, "upsert_purchase_order");
   const number = optionalText(row["number"]);
 
   return { id: textOf(row["id"]), ...(number ? { number } : {}) };
@@ -468,7 +468,7 @@ export function createInventory<
       )
         .andThen((valid) =>
           call(
-            "save_location",
+            "upsert_location",
             {
               tenant: organizationId,
               location: input.id ?? null,
@@ -478,7 +478,7 @@ export function createInventory<
               ...(valid === undefined ? {} : { fields: valid }),
             },
             (value) => {
-              const row = recordOf(value, "save_location");
+              const row = recordOf(value, "upsert_location");
 
               return {
                 id: textOf(row["id"]),
@@ -612,7 +612,7 @@ export function createInventory<
       }
 
       return call(
-        "save_purchase_order",
+        "upsert_purchase_order",
         {
           tenant: organizationId,
           purchase_order: input.id ?? null,

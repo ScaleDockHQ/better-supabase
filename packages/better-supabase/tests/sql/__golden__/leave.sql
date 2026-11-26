@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:90274c772d2e44655fe14eda214aa5cefc71cd3baa5ad99a70652582f29e2e94
+-- @bsb-hash sha256:770d1082c8f84ff519b183801bb658abf6ea270781980087f9133498fb761e13
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -392,7 +392,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
 
-create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+create or replace function "better_supabase"."upsert_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -405,11 +405,11 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color", "auto_approve")
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, coalesce(save_leave_type.unit, 'days'), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color, coalesce(save_leave_type.auto_approve, false))
+  values (upsert_leave_type.tenant, upsert_leave_type.key, upsert_leave_type.name, coalesce(upsert_leave_type.unit, 'days'), coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true), upsert_leave_type.allowance, upsert_leave_type.carryover_max, upsert_leave_type.color, coalesce(upsert_leave_type.auto_approve, false))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "unit" = excluded."unit", "paid" = excluded."paid",
       "tracked" = excluded."tracked", "allowance" = excluded."allowance",
@@ -419,8 +419,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function "better_supabase"."archive_leave_type"(type_id uuid)
@@ -1438,7 +1438,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f79a2a0781e2064781729827204ec063ed17f9077bb02be7355a45187f928b8b
+-- @bsb-hash sha256:37b194065976ee5a86e981475f2891119bf04ca3f4f4829555954f4a9904ceac
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1885,7 +1885,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
 
-create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+create or replace function "better_supabase"."upsert_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1898,11 +1898,11 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color", "auto_approve")
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, coalesce(save_leave_type.unit, 'days'), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color, coalesce(save_leave_type.auto_approve, false))
+  values (upsert_leave_type.tenant, upsert_leave_type.key, upsert_leave_type.name, coalesce(upsert_leave_type.unit, 'days'), coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true), upsert_leave_type.allowance, upsert_leave_type.carryover_max, upsert_leave_type.color, coalesce(upsert_leave_type.auto_approve, false))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "unit" = excluded."unit", "paid" = excluded."paid",
       "tracked" = excluded."tracked", "allowance" = excluded."allowance",
@@ -1912,8 +1912,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function "better_supabase"."archive_leave_type"(type_id uuid)
@@ -3260,7 +3260,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f2db498f5a5bbe261111c5986e5d094b0ba9beb9873dad1f3c05e5501f5cdcf7
+-- @bsb-hash sha256:0f0c5a4b8d8b7c799d26b64606d9b73df948cd9dd9444b7d375fb436bffd2db2
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3656,7 +3656,7 @@ grant execute on function "app_private"."leave_working_days"(date, date) to auth
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
 
-create or replace function "app_private"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+create or replace function "app_private"."upsert_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3669,11 +3669,11 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "app_private"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color", "auto_approve")
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, coalesce(save_leave_type.unit, 'days'), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color, coalesce(save_leave_type.auto_approve, false))
+  values (upsert_leave_type.tenant, upsert_leave_type.key, upsert_leave_type.name, coalesce(upsert_leave_type.unit, 'days'), coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true), upsert_leave_type.allowance, upsert_leave_type.carryover_max, upsert_leave_type.color, coalesce(upsert_leave_type.auto_approve, false))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "unit" = excluded."unit", "paid" = excluded."paid",
       "tracked" = excluded."tracked", "allowance" = excluded."allowance",
@@ -3683,8 +3683,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
-grant execute on function "app_private"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
+revoke execute on function "app_private"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "app_private"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function "app_private"."archive_leave_type"(type_id uuid)
@@ -4702,7 +4702,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:9bdbe1aea845ceeb1ec84d81cd70cf4f9d88bc98193a06d243b9d6da7c35a8ad
+-- @bsb-hash sha256:2ed372840accd3a37d6d1168a386deabe673a4f33ac8671753ac8a1d5ffbf6ad
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5093,7 +5093,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
 
-create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+create or replace function "better_supabase"."upsert_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5106,11 +5106,11 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color", "auto_approve")
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, coalesce(save_leave_type.unit, 'days'), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color, coalesce(save_leave_type.auto_approve, false))
+  values (upsert_leave_type.tenant, upsert_leave_type.key, upsert_leave_type.name, coalesce(upsert_leave_type.unit, 'days'), coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true), upsert_leave_type.allowance, upsert_leave_type.carryover_max, upsert_leave_type.color, coalesce(upsert_leave_type.auto_approve, false))
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "unit" = excluded."unit", "paid" = excluded."paid",
       "tracked" = excluded."tracked", "allowance" = excluded."allowance",
@@ -5120,8 +5120,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function "better_supabase"."archive_leave_type"(type_id uuid)
@@ -6186,14 +6186,14 @@ as $$ select "better_supabase"."leave_working_days"($1, $2) $$;
 revoke execute on function "api"."leave_working_days"(date, date) from public, anon;
 grant execute on function "api"."leave_working_days"(date, date) to authenticated, service_role;
 
-create or replace function "api"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+create or replace function "api"."upsert_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_leave_type"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
-revoke execute on function "api"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
-grant execute on function "api"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_leave_type"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "api"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 create or replace function "api"."archive_leave_type"(type_id uuid)
 returns jsonb
@@ -6315,7 +6315,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:41986802809bc090151d4d6b874736c9ad44b1df267128a3722030e2bf20a66e
+-- @bsb-hash sha256:a1ebf096c30fae0f59608a2b6c2a2a2c46e1f7480ea7f0ce9b3d7028c7907cba
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6695,7 +6695,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
 
-create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+create or replace function "better_supabase"."upsert_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6708,14 +6708,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
-  if save_leave_type.auto_approve is not null then
+  if upsert_leave_type.auto_approve is not null then
     raise exception 'this leave types table has no auto_approve column' using errcode = '22023', hint = 'LEAVE_AUTO_APPROVE_UNSUPPORTED';
   end if;
   insert into "better_supabase"."leave_types" ("tenant_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color")
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, better_supabase.as_column_type(coalesce(save_leave_type.unit, 'days'), (null::"better_supabase"."leave_types")."unit"), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color)
+  values (upsert_leave_type.tenant, upsert_leave_type.key, upsert_leave_type.name, better_supabase.as_column_type(coalesce(upsert_leave_type.unit, 'days'), (null::"better_supabase"."leave_types")."unit"), coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true), upsert_leave_type.allowance, upsert_leave_type.carryover_max, upsert_leave_type.color)
   on conflict ("tenant_id", "key") do update
     set "name" = excluded."name", "unit" = excluded."unit", "paid" = excluded."paid",
       "tracked" = excluded."tracked", "allowance" = excluded."allowance",
@@ -6725,8 +6725,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function "better_supabase"."archive_leave_type"(type_id uuid)
@@ -7728,7 +7728,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:25b6271ad249c810c6112eb95d169e2568bf244bd5027f8eb874202b1a45484b
+-- @bsb-hash sha256:6995e907fe59397e3f3cd7bf9d21bdca74f52adc1388f59c7a2801623a0fc9b6
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8119,7 +8119,7 @@ grant execute on function "better_supabase"."leave_working_days"(date, date) to 
 -- id of the type to update, and any other key creates one. auto_approve:
 -- its requests need no approval.
 
-create or replace function "better_supabase"."save_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
+create or replace function "better_supabase"."upsert_leave_type"(tenant uuid, key text, name text, unit text default 'days', paid boolean default true, tracked boolean default true, allowance numeric default null, carryover_max numeric default null, color text default null, auto_approve boolean default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8132,11 +8132,11 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_leave_type.tenant, 'leave.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_leave_type.tenant, 'leave.manage'), false)) then
     raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   insert into "better_supabase"."leave_types" ("org_id", "key", "name", "unit", "paid", "tracked", "allowance", "carryover_max", "color", "auto_approve")
-  values (save_leave_type.tenant, save_leave_type.key, save_leave_type.name, coalesce(save_leave_type.unit, 'days'), coalesce(save_leave_type.paid, true), coalesce(save_leave_type.tracked, true), save_leave_type.allowance, save_leave_type.carryover_max, save_leave_type.color, coalesce(save_leave_type.auto_approve, false))
+  values (upsert_leave_type.tenant, upsert_leave_type.key, upsert_leave_type.name, coalesce(upsert_leave_type.unit, 'days'), coalesce(upsert_leave_type.paid, true), coalesce(upsert_leave_type.tracked, true), upsert_leave_type.allowance, upsert_leave_type.carryover_max, upsert_leave_type.color, coalesce(upsert_leave_type.auto_approve, false))
   on conflict ("org_id", "key") do update
     set "name" = excluded."name", "unit" = excluded."unit", "paid" = excluded."paid",
       "tracked" = excluded."tracked", "allowance" = excluded."allowance",
@@ -8146,8 +8146,8 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
-grant execute on function "better_supabase"."save_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) from public, anon;
+grant execute on function "better_supabase"."upsert_leave_type"(uuid, text, text, text, boolean, boolean, numeric, numeric, text, boolean) to authenticated, service_role;
 
 -- Hides a type from new requests; its requests and ledger stay.
 create or replace function "better_supabase"."archive_leave_type"(type_id uuid)

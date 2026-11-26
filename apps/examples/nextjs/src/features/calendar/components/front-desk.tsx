@@ -27,7 +27,7 @@ import { Link } from "@/i18n/navigation";
 
 import type { MonthEvent } from "../calendar-queries";
 
-import { loadCalendarMonth, settle } from "../calendar-queries";
+import { getCalendarMonth, settle } from "../calendar-queries";
 import { CalendarLoadError } from "./calendar-load-error";
 
 const AHEAD_DAYS = 6;
@@ -45,7 +45,7 @@ export async function FrontDesk() {
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(() => loadCalendarMonth(today.toString(), until.toString())),
+    settle(() => getCalendarMonth(today.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "calendar.read")) {

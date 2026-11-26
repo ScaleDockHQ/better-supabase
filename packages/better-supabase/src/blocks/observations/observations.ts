@@ -736,9 +736,9 @@ export function createObservations<
       ),
     saveDefinition: ({ organizationId, key, input }) =>
       call(
-        "save_observation_definition",
+        "upsert_observation_definition",
         { tenant: organizationId, key, definition: definitionArgs(input) },
-        (value) => definitionOf(value, "save_observation_definition"),
+        (value) => definitionOf(value, "upsert_observation_definition"),
       ),
     archiveDefinition: (definitionId) =>
       call(

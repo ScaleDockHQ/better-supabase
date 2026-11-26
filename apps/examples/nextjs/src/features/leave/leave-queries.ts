@@ -16,11 +16,11 @@ import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
 import { pageEntityRows } from "@/lib/block-entity-page";
+import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LeaveRow } from "./leave-list";
 
-import { LEAVE_TAG } from "./leave-cache";
 import { leaveList, leaveMap } from "./leave-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -32,7 +32,7 @@ interface LeaveNames {
   readonly nameByEmployee: ReadonlyMap<string, string>;
 }
 
-async function readLeaveNames(
+async function getLeaveNames(
   db: Db,
   organizationId: string,
 ): Promise<LeaveNames> {
@@ -88,7 +88,7 @@ function leaveRowOf(request: LeaveRequest, names: LeaveNames): LeaveRow {
  * One page of the requests the caller reads, with the leave block's page and
  * facet methods: everyone's with `leave.read`, else their own.
  */
-export async function loadLeavePage(
+export async function getLeavePage(
   db: Db,
   organizationId: string,
   query: RecordListUrlQuery,
@@ -100,7 +100,7 @@ export async function loadLeavePage(
   const { leave } = db;
 
   const [names, everyone] = await Promise.all([
-    known ?? readLeaveNames(db, organizationId),
+    known ?? getLeaveNames(db, organizationId),
     leave.requestCount({ organizationId, filters: { everyone: ["true"] } }),
   ]);
 
@@ -140,7 +140,7 @@ export interface LeaveOverviewData {
 async function loadLeave(): Promise<LeaveOverviewData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LEAVE_TAG);
+  cacheTag(tags.leave());
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -148,7 +148,7 @@ async function loadLeave(): Promise<LeaveOverviewData | null> {
   }
 
   const [{ page, types }, balances] = await Promise.all([
-    loadLeavePage(db, organizationId, leaveList.defaults),
+    getLeavePage(db, organizationId, leaveList.defaults),
     db.leave.balances({ organizationId }).orThrow(),
   ]);
 
@@ -183,7 +183,7 @@ export type LeaveDetailData =
 async function loadLeaveRequest(id: string): Promise<LeaveDetailData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
-  cacheTag(LEAVE_TAG);
+  cacheTag(tags.leave());
   const organizationId = tenantOf(session);
 
   if (!organizationId) {
@@ -202,7 +202,7 @@ async function loadLeaveRequest(id: string): Promise<LeaveDetailData | null> {
 
   const request = leaveRowOf(
     found.data,
-    await readLeaveNames(db, organizationId),
+    await getLeaveNames(db, organizationId),
   );
 
   const [ledger, balances] = await Promise.all([

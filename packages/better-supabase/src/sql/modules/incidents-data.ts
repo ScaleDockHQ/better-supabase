@@ -8,7 +8,7 @@ const COLUMN = "action_items";
 
 /**
  * Copies each postmortem's `action_items` into tasks through
- * `add_incident_postmortem_action`. A postmortem that already has linked
+ * `create_incident_postmortem_action`. A postmortem that already has linked
  * actions is skipped. An item is a string or an object with a `title` (or
  * `text`, `name`, `description`), an optional `assigneeId` and an optional
  * `dueAt`; a value that doesn't parse is dropped from the task, never the
@@ -19,7 +19,7 @@ function copyActionItems(ctx: BlockSqlContext): string {
   const actions = ctx.table("actions");
   const pm = (column: string): string => ctx.col("postmortems", column);
   const a = (column: string): string => ctx.col("actions", column);
-  const add = ctx.fn("add_incident_postmortem_action");
+  const add = ctx.fn("create_incident_postmortem_action");
 
   return `do $$
 declare
@@ -84,14 +84,14 @@ $$;`;
 /**
  * The step to version 3: postmortem `action_items` become tasks and the column
  * goes (ADR 0149). It runs before the schema diff. When the module has no
- * `add_incident_postmortem_action` yet (a 0.46 database) and the column holds
- * items, it stops and says what to do, because the diff would otherwise drop
- * them.
+ * `create_incident_postmortem_action` yet (a 0.46 database) and the column
+ * holds items, it stops and says what to do, because the diff would otherwise
+ * drop them.
  */
 export const ACTION_ITEMS_TO_TASKS: BlockSqlUpgrade = {
   from: 2,
   description:
-    "Postmortem action_items are copied into tasks through add_incident_postmortem_action and the column is dropped. Without the tasks block the items are only dropped when the column is empty.",
+    "Postmortem action_items are copied into tasks through create_incident_postmortem_action and the column is dropped. Without the tasks block the items are only dropped when the column is empty.",
   sql: (ctx) => {
     if (ctx.mode === "custom") {
       return "";
@@ -105,7 +105,7 @@ export const ACTION_ITEMS_TO_TASKS: BlockSqlUpgrade = {
 
     const holds = `exists (select 1 from ${table} x where jsonb_typeof(x.${COLUMN}) = 'array' and jsonb_array_length(x.${COLUMN}) > 0)`;
 
-    const ready = `to_regprocedure(${sqlString(`${ctx.fn("add_incident_postmortem_action")}(uuid, text, uuid, timestamptz)`)}) is not null`;
+    const ready = `to_regprocedure(${sqlString(`${ctx.fn("create_incident_postmortem_action")}(uuid, text, uuid, timestamptz)`)}) is not null`;
 
     const move = withTasks
       ? `    if ${holds} then

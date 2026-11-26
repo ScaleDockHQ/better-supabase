@@ -547,7 +547,7 @@ export function cliFromTree(
       // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
       const [
         loaded,
-        { defaultConfig, discoverConfig, loadConfig },
+        { defaultConfig, discoverConfig, getConfig },
         { configEnvironment, isCi, parseEnv },
       ] = await Promise.all([
         node.load(),
@@ -575,8 +575,8 @@ export function cliFromTree(
       const environment = configEnvironment(globals.env, env);
       const configFile = discoverConfig(cwd, globals.config);
 
-      const loadWith = (path?: string): Promise<ResolvedConfig> =>
-        loadConfig(cwd, globals.config, environment, path, {
+      const getWith = (path?: string): Promise<ResolvedConfig> =>
+        getConfig(cwd, globals.config, environment, path, {
           legacyTables: readsLegacyTables(command),
         }).catch((cause: unknown) => {
           throw cause instanceof CliError
@@ -587,11 +587,11 @@ export function cliFromTree(
         });
 
       // Reloads discover the file again, so a config created under `--watch` is picked up.
-      const reloadConfig = (): Promise<ResolvedConfig> => loadWith();
+      const reloadConfig = (): Promise<ResolvedConfig> => getWith();
 
       const loadFailure: { error?: CliError } = {};
 
-      const config = await loadWith(configFile).catch((cause: unknown) => {
+      const config = await getWith(configFile).catch((cause: unknown) => {
         if (
           runsWithInvalidConfig(command) &&
           toCliError(cause).code === "config_invalid"

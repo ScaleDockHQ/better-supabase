@@ -14,16 +14,16 @@ export type LocalTeamFunction =
   | "update_team"
   | "archive_team"
   | "restore_team"
-  | "add_team_member"
-  | "remove_team_member";
+  | "create_team_member"
+  | "delete_team_member";
 
 const FUNCTIONS: readonly LocalTeamFunction[] = [
   "list_teams",
   "update_team",
   "archive_team",
   "restore_team",
-  "add_team_member",
-  "remove_team_member",
+  "create_team_member",
+  "delete_team_member",
 ];
 
 export interface PowerSyncTeamsOptions {
@@ -167,7 +167,7 @@ export function powersyncTeamsTransport(
         return status(args["team"], "active");
       }
 
-      case "add_team_member": {
+      case "create_team_member": {
         const [team] = await database.getAll<Row>(
           `SELECT ${tenant} AS tenant FROM ${teams} WHERE id = ?`,
           [args["team"]],
@@ -187,7 +187,7 @@ export function powersyncTeamsTransport(
         return true;
       }
 
-      case "remove_team_member": {
+      case "delete_team_member": {
         await database.execute(
           `DELETE FROM ${members} WHERE team_id = ? AND user_id = ?`,
           [args["team"], args["member"]],

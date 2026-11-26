@@ -15,31 +15,31 @@ set local role authenticated;
 
 -- Person modes.
 select is(
-  better_supabase.save_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Outside Olga"}') ->> 'mode',
+  better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Outside Olga"}') ->> 'mode',
   'external',
   'a person is external by default'
 );
 select throws_ok(
-  $$select better_supabase.save_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Tenant Tim", "mode": "tenant"}')$$,
+  $$select better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Tenant Tim", "mode": "tenant"}')$$,
   '22023',
   'a tenant person needs a userId',
   'a tenant person needs a user'
 );
 select throws_ok(
-  $$select better_supabase.save_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Odd Otto", "mode": "guest"}')$$,
+  $$select better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Odd Otto", "mode": "guest"}')$$,
   '22023',
   'a person is external or tenant',
   'a mode is external or tenant'
 );
 select is(
-  better_supabase.save_person('00000000-0000-4000-8000-000000000001', null,
+  better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null,
     '{"name": "Member Mia", "mode": "tenant", "userId": "00000000-0000-4000-8000-0000000000a2"}') ->> 'mode',
   'tenant',
   'a tenant person has its user'
 );
-select set_config('t.person', better_supabase.save_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Plain Paul"}') ->> 'id', true);
+select set_config('t.person', better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', null, '{"name": "Plain Paul"}') ->> 'id', true);
 select throws_ok(
-  format($$select better_supabase.save_person('00000000-0000-4000-8000-000000000001', %L, '{"mode": "tenant"}')$$, current_setting('t.person')),
+  format($$select better_supabase.upsert_person('00000000-0000-4000-8000-000000000001', %L, '{"mode": "tenant"}')$$, current_setting('t.person')),
   '23514',
   null,
   'a person without a user can not become a tenant person'
@@ -48,7 +48,7 @@ select throws_ok(
 -- Company fields.
 select is(
   (select jsonb_build_array(c ->> 'legal_name', c ->> 'registration_id', c ->> 'phone')
-   from (select better_supabase.save_company('00000000-0000-4000-8000-000000000001', null,
+   from (select better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null,
      '{"name": "Gaps BV", "legalName": "Gaps Holding B.V.", "registrationId": "12345678", "phone": "+31 10 555 0100"}') as c) x),
   '["Gaps Holding B.V.", "12345678", "+31 10 555 0100"]'::jsonb,
   'a company keeps its legal name, register number and phone'
@@ -130,11 +130,11 @@ select throws_ok(
 );
 
 -- The purchase order document.
-select set_config('t.product', better_supabase.save_product('00000000-0000-4000-8000-000000000001', null, 'Gasket', 'gasket-po-doc', null, 'physical', null) ->> 'id', true);
-select set_config('t.variant', better_supabase.save_variant(current_setting('t.product')::uuid, null, 'GASKET-1', null, 'Gasket', null, null, true, false, null) ->> 'id', true);
-select set_config('t.location', better_supabase.save_location('00000000-0000-4000-8000-000000000001', null, 'PODOC', 'PO dock', null, null) ->> 'id', true);
-select set_config('t.supplier', better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Gasket Supplies"}') ->> 'id', true);
-select set_config('t.po', better_supabase.save_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, 'company',
+select set_config('t.product', better_supabase.upsert_product('00000000-0000-4000-8000-000000000001', null, 'Gasket', 'gasket-po-doc', null, 'physical', null) ->> 'id', true);
+select set_config('t.variant', better_supabase.upsert_variant(current_setting('t.product')::uuid, null, 'GASKET-1', null, 'Gasket', null, null, true, false, null) ->> 'id', true);
+select set_config('t.location', better_supabase.upsert_location('00000000-0000-4000-8000-000000000001', null, 'PODOC', 'PO dock', null, null) ->> 'id', true);
+select set_config('t.supplier', better_supabase.upsert_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Gasket Supplies"}') ->> 'id', true);
+select set_config('t.po', better_supabase.upsert_purchase_order('00000000-0000-4000-8000-000000000001', null, current_setting('t.location')::uuid, 'company',
   current_setting('t.supplier'), 'EUR', null,
   jsonb_build_array(jsonb_build_object('variantId', current_setting('t.variant'), 'quantity', 4, 'unitCost', '1000')),
   null) ->> 'id', true);
