@@ -79,14 +79,19 @@ describe("the disk module store", () => {
     setCacheEnabled(true);
   });
 
-  it("renders every registered module from a store a full render filled", () => {
-    const store = createDiskModuleStore(folder, "s1");
-    setModuleRenderStore(store);
-    const all = Object.keys(SQL_MODULES);
-    renderBlocks(all, {});
+  // Renders every module twice: 15.6 s on a loaded CI shard.
+  it(
+    "renders every registered module from a store a full render filled",
+    { timeout: 60_000 },
+    () => {
+      const store = createDiskModuleStore(folder, "s1");
+      setModuleRenderStore(store);
+      const all = Object.keys(SQL_MODULES);
+      renderBlocks(all, {});
 
-    const before = moduleRenderStats.misses;
-    renderBlocks(all, {});
-    expect(moduleRenderStats.misses).toBe(before);
-  });
+      const before = moduleRenderStats.misses;
+      renderBlocks(all, {});
+      expect(moduleRenderStats.misses).toBe(before);
+    },
+  );
 });

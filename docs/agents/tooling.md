@@ -61,17 +61,23 @@ bump is one commit series:
   `main`, packed by `packages/better-supabase/tests/unit-durations.json`;
   the `coverage` job merges the blob reports and checks the thresholds below
   (ADR 1230). A red `main` opens the `main-red` issue.
-- The `coverage` job also fails when a test file runs twice and 5 seconds over
-  its time in `scripts/unit-time-budget.json`, or a test runs past half its
-  timeout and the budget does not list it (or it doubled). It lists the 20
-  slowest files in the step summary. A file's time swings by up to 1.8 times
-  with its shard neighbours, so the budget keeps the slowest of the runs it is
-  written from and lists every test past 40% of its timeout, and the shard
-  packing (`unit-durations.json`) is a separate file. After a deliberate change, run
-  `gh run download <run id> -n unit-times -D <dir>` for one or more green runs,
-  then `node scripts/unit-durations.ts --write <dir>/unit-times.json ...`.
-  `--pack` rewrites the packing the same way, which moves files between shards,
-  so refresh the budget from a run after it. Commit either with the reason.
+- The `coverage` job also checks `scripts/unit-time-budget.json` (ADR 1230): a
+  file twice and 5 seconds over its time, the library's summed time 15% over,
+  or a test past half its timeout (capped at 20 seconds) that the budget does
+  not list. `verify / test` and the Integration validation jobs check the
+  validation projects' tests the same way. Refresh the budget only from cold
+  runs, where the library's `test` task missed the Turbo cache, because a
+  replayed blob repeats the old times. The budget keeps one section for runs
+  with coverage (the library's shards) and one for runs without it (the
+  validation projects). Download the `unit-times` artifact of two or three
+  such runs and the `validation-times-*` artifacts, then run
+  `node scripts/unit-durations.ts --write <every unit-times.json>`; it
+  rewrites each section from the runs of its kind. To list new files and tests
+  without a full refresh, run `--add` with the same files: it keeps every
+  existing baseline, so one slow run cannot loosen it.
+  `--pack` rewrites the shard packing from the same files, which moves files
+  between shards, so refresh the budget from a cold run after a repack. Commit
+  either with the reason.
 - Coverage counts every file in `packages/better-supabase/src` (except
   `src/cli/bin.ts`), from unit tests only, with a separate threshold set for
   `src/cli/**`. Code that needs a database or the

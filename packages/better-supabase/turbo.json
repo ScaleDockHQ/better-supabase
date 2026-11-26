@@ -15,6 +15,7 @@
       "outputs": [".vitest/blob/**"],
       "inputs": [
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/typescript-config/**",
         "$TURBO_ROOT$/packages/registry/registry.json",
         "$TURBO_ROOT$/apps/marketing/public/r/**",
         "$TURBO_ROOT$/apps/docs/content/docs/**",

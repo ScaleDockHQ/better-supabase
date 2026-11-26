@@ -1,4 +1,4 @@
-# 1230: Measure the Next.js example with a committed harness
+# 1229: Measure the Next.js example with a committed harness
 
 - Status: accepted
 - Date: 2026-11-24

@@ -3,6 +3,3 @@
 # @workflow/vitest artifacts
 /.workflow-data/
 /.workflow-vitest/
-
-# Written by the unit time budget reporter (scripts/unit-durations.ts)
-unit-times.json
