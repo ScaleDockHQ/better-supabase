@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -36,15 +35,17 @@ export const beginChatLink = bsb.action(
 
 /** Removes a linked identity. */
 export const unlinkIdentity = bsb.action(
-  { input: v.object({ id: v.pipe(v.string(), v.uuid()) }) },
-  async ({ id }, { db, auth }) => {
+  {
+    input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
+    tags: () => [tags.identities()],
+    refresh: true,
+  },
+  async ({ id }, { db }) => {
     const unlinked = await db.$blocks.identities.unlink(id);
 
     if (!unlinked.ok) {
       return unlinked;
     }
-
-    await refreshCaller(auth, [tags.identities()]);
 
     return ok(unlinked.data);
   },

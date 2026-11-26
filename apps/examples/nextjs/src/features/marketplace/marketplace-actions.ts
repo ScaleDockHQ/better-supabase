@@ -3,7 +3,6 @@
 import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -25,8 +24,10 @@ export const connectInstallation = bsb.action(
     }),
     requireTenant: true,
     permission: "settings.manage",
+    tags: () => [tags.marketplace()],
+    refresh: true,
   },
-  async ({ configurationId }, { tenant, auth }) => {
+  async ({ configurationId }, { tenant }) => {
     const linked = await bsb
       .admin()
       .$client.schema("api")
@@ -38,8 +39,6 @@ export const connectInstallation = bsb.action(
     if (linked.error) {
       return err(dbError("unexpected", linked.error.message));
     }
-
-    await refreshCaller(auth, [tags.marketplace()]);
 
     return ok(configurationId);
   },

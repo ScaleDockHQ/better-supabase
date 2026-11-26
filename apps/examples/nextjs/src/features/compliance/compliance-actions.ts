@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -20,8 +19,10 @@ export const addControlEvidence = bsb.action(
     }),
     requireTenant: true,
     permission: "compliance.collect",
+    tags: () => [tags.compliance()],
+    refresh: true,
   },
-  async ({ controlId, evidenceTaskId, note }, { db, auth }) => {
+  async ({ controlId, evidenceTaskId, note }, { db }) => {
     const added = await db.compliance.addEvidence({
       controlId,
       input: evidenceTaskId === undefined ? { note } : { note, evidenceTaskId },
@@ -30,8 +31,6 @@ export const addControlEvidence = bsb.action(
     if (!added.ok) {
       return added;
     }
-
-    await refreshCaller(auth, [tags.compliance()]);
 
     return ok({ id: added.data.id });
   },

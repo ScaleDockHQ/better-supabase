@@ -4,7 +4,6 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -73,11 +72,11 @@ export const confirmAttachment = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "attachments.upload",
+    tags: () => [tags.customers(), tags.crm(), tags.drive()],
+    refresh: true,
   },
-  async ({ id }, { supabase, auth }) => {
+  async ({ id }, { supabase }) => {
     const confirmed = await recordAttachments(supabase).confirm(id);
-
-    await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
     return confirmed.ok ? ok(null) : confirmed;
   },

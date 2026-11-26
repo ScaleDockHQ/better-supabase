@@ -4,7 +4,6 @@ import { err, invalidInput, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { Decimal, Id, given, Name, Optional, Whole } from "@/lib/form-input";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -18,15 +17,15 @@ export const completePickList = bsb.action(
     input: v.object({ pickListId: Id }),
     requireTenant: true,
     permission: "warehouse.pick",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ pickListId }, { db, auth }) => {
+  async ({ pickListId }, { db }) => {
     const done = await db.warehouse.completePickList(pickListId);
 
     if (!done.ok) {
       return done;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ status: done.data.status });
   },
@@ -38,8 +37,10 @@ export const recordPick = bsb.action(
     input: v.object({ lineId: Id, quantity: Decimal }),
     requireTenant: true,
     permission: "warehouse.pick",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ lineId, quantity }, { db, auth }) => {
+  async ({ lineId, quantity }, { db }) => {
     const picked = await db.warehouse.recordPick({
       lineId,
       pick: { quantity: Number(quantity) },
@@ -48,8 +49,6 @@ export const recordPick = bsb.action(
     if (!picked.ok) {
       return picked;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -64,8 +63,10 @@ export const optimizePickRoute = bsb.action(
     input: v.object({ pickListId: Id }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ pickListId }, { db, auth }) => {
+  async ({ pickListId }, { db }) => {
     const list = await db.warehouse.getPickList(pickListId);
 
     if (!list.ok) {
@@ -99,8 +100,6 @@ export const optimizePickRoute = bsb.action(
       return routed;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ source: routed.data.optimization.source });
   },
 );
@@ -110,15 +109,15 @@ export const createPickWave = bsb.action(
     input: v.object({ name: Name, locationId: Id }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const wave = await db.warehouse.createPickWave(input);
 
     if (!wave.ok) {
       return wave;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: wave.data.id });
   },
@@ -130,8 +129,10 @@ export const transitionWave = bsb.action(
     input: v.object({ waveId: Id, action: v.picklist(["release", "cancel"]) }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ waveId, action }, { db, auth }) => {
+  async ({ waveId, action }, { db }) => {
     const moved =
       action === "release"
         ? await db.warehouse.releasePickWave(waveId)
@@ -140,8 +141,6 @@ export const transitionWave = bsb.action(
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -158,8 +157,10 @@ export const savePutawayRule = bsb.action(
     }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const priority = Number(input.priority ?? "10");
     const max = Number(input.maxQuantity);
 
@@ -178,8 +179,6 @@ export const savePutawayRule = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -189,15 +188,15 @@ export const deletePutawayRule = bsb.action(
     input: v.object({ ruleId: Id }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ ruleId }, { db, auth }) => {
+  async ({ ruleId }, { db }) => {
     const removed = await db.warehouse.deletePutawayRule(ruleId);
 
     if (!removed.ok) {
       return removed;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(removed.data);
   },
@@ -213,8 +212,10 @@ export const createCountPlan = bsb.action(
     }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const limit = Number(input.varianceLimitPct);
 
     const plan = await db.warehouse.createCountPlan({
@@ -231,8 +232,6 @@ export const createCountPlan = bsb.action(
       return plan;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: plan.data.id });
   },
 );
@@ -243,8 +242,10 @@ export const runCountPlans = bsb.action(
     input: v.object({ planId: Optional }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ planId }, { db, auth }) => {
+  async ({ planId }, { db }) => {
     const opened =
       planId === undefined
         ? await db.warehouse.runDueCountPlans()
@@ -253,8 +254,6 @@ export const runCountPlans = bsb.action(
     if (!opened.ok) {
       return opened;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -266,15 +265,15 @@ export const postCycleCount = bsb.action(
     input: v.object({ countId: Id, approve: v.optional(v.boolean(), false) }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ countId, approve }, { db, auth }) => {
+  async ({ countId, approve }, { db }) => {
     const posted = await db.warehouse.postCycleCount({ countId, approve });
 
     if (!posted.ok) {
       return posted;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -295,8 +294,10 @@ export const createAllocation = bsb.action(
     }),
     requireTenant: true,
     permission: "inventory.reserve",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { tenant: organizationId, db, auth }) => {
+  async (input, { tenant: organizationId, db }) => {
     const allocated = await db.inventory.allocate({
       organizationId,
       input: {
@@ -313,8 +314,6 @@ export const createAllocation = bsb.action(
       return allocated;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: allocated.data.id });
   },
 );
@@ -325,15 +324,15 @@ export const createPickList = bsb.action(
     input: v.object({ locationId: Id, documentType: Name, documentId: Id }),
     requireTenant: true,
     permission: "warehouse.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const list = await db.warehouse.createPickList(input);
 
     if (!list.ok) {
       return list;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: list.data.id });
   },
@@ -348,8 +347,10 @@ export const receiveOrder = bsb.action(
     input: v.object({ purchaseOrderId: Id }),
     requireTenant: true,
     permission: "inventory.purchase",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ purchaseOrderId }, { db, auth }) => {
+  async ({ purchaseOrderId }, { db }) => {
     const lines = await openOrderLines(purchaseOrderId);
 
     if (lines.length === 0) {
@@ -372,8 +373,6 @@ export const receiveOrder = bsb.action(
     if (!received.ok) {
       return received;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ receiptId: received.data.receiptId ?? null });
   },

@@ -37,6 +37,12 @@ const WRITE =
 
 const CALL = /refreshCaller\(\s*[\w.]+\s*,\s*\[([^\]]*)\]/gu;
 
+/**
+ * `tags: () => [...]` or `tags: ({ tenant }) => cond ? [...] : [...]` on
+ * `bsb.action`.
+ */
+const OPTION = /\btags: \([^)]*\) =>[^[;]*?\[([^\]]*)\]/gu;
+
 interface Use {
   readonly file: string;
   readonly names: readonly string[];
@@ -51,7 +57,7 @@ const USES: Use[] = ALL.filter((file) => file.endsWith("-actions.ts")).flatMap(
       ...new Set([...text.matchAll(WRITE)].map((m) => m[1] ?? "")),
     ];
 
-    return [...text.matchAll(CALL)].map((call) => ({
+    return [...text.matchAll(CALL), ...text.matchAll(OPTION)].map((call) => ({
       file: file.slice(FEATURES.length + 1),
       names: (call[1] ?? "")
         .split(",")

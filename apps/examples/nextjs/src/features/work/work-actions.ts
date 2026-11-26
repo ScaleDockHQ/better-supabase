@@ -10,7 +10,6 @@ import type { AppDb } from "@/lib/supabase";
 import type { WorkItemChange } from "@/lib/supabase/blocks.generated";
 
 import { teamsTag } from "@/features/teams/teams-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -59,8 +58,10 @@ export const createWorkItem = bsb.action(
     }),
     requireTenant: true,
     permission: "tasks.write",
+    tags: () => [tags.work(), tags.projects(), tags.customFields()],
+    refresh: true,
   },
-  async ({ title, teamId, priority, custom }, { tenant, db, auth }) => {
+  async ({ title, teamId, priority, custom }, { tenant, db }) => {
     const created = await db.$blocks.tasks.create({
       organizationId: tenant,
       input: teamId === "" ? { title, priority } : { title, priority, teamId },
@@ -104,12 +105,6 @@ export const createWorkItem = bsb.action(
       }
     }
 
-    await refreshCaller(auth, [
-      tags.work(),
-      tags.projects(),
-      tags.customFields(),
-    ]);
-
     return ok(created.data.identifier);
   },
 );
@@ -131,8 +126,10 @@ export const moveWorkItem = bsb.action(
     }),
     requireTenant: true,
     permission: "tasks.write",
+    tags: () => [tags.work(), tags.projects(), tags.customFields()],
+    refresh: true,
   },
-  async ({ id, stageId, stageChanged, previousId, nextId }, { db, auth }) => {
+  async ({ id, stageId, stageChanged, previousId, nextId }, { db }) => {
     if (stageChanged) {
       const moved = await applyChanges(db, [
         { workItemId: id, field: "stageId", value: stageId },
@@ -149,12 +146,6 @@ export const moveWorkItem = bsb.action(
       target: { previous: previousId ?? null, next: nextId ?? null },
     });
 
-    await refreshCaller(auth, [
-      tags.work(),
-      tags.projects(),
-      tags.customFields(),
-    ]);
-
     if (!ranked.ok) {
       return stageChanged ? ok({ ordered: false }) : ranked;
     }
@@ -169,8 +160,10 @@ export const setWorkItemStage = bsb.action(
     input: v.object({ id: Id, stageId: Id }),
     requireTenant: true,
     permission: "tasks.write",
+    tags: () => [tags.work(), tags.projects(), tags.customFields()],
+    refresh: true,
   },
-  async ({ id, stageId }, { db, auth }) => {
+  async ({ id, stageId }, { db }) => {
     const moved = await applyChanges(db, [
       { workItemId: id, field: "stageId", value: stageId },
     ]);
@@ -178,12 +171,6 @@ export const setWorkItemStage = bsb.action(
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, [
-      tags.work(),
-      tags.projects(),
-      tags.customFields(),
-    ]);
 
     return ok(true);
   },
@@ -195,8 +182,10 @@ export const setWorkItemAssignee = bsb.action(
     input: v.object({ id: Id, userId: OptionalId }),
     requireTenant: true,
     permission: "tasks.write",
+    tags: () => [tags.work(), tags.projects(), tags.customFields()],
+    refresh: true,
   },
-  async ({ id, userId }, { db, auth }) => {
+  async ({ id, userId }, { db }) => {
     const assigned = await db.$blocks.tasks.assign({
       workItemId: id,
       userIds: userId ? [userId] : [],
@@ -205,12 +194,6 @@ export const setWorkItemAssignee = bsb.action(
     if (!assigned.ok) {
       return assigned;
     }
-
-    await refreshCaller(auth, [
-      tags.work(),
-      tags.projects(),
-      tags.customFields(),
-    ]);
 
     return ok(assigned.data);
   },
@@ -224,15 +207,16 @@ export const createTeam = bsb.action(
     }),
     requireTenant: true,
     permission: "teams.manage",
+    tags: ({ tenant }) =>
+      tenant === undefined ? [tags.work()] : [tags.work(), teamsTag(tenant)],
+    refresh: true,
   },
-  async ({ name }, { tenant, db, auth }) => {
+  async ({ name }, { tenant, db }) => {
     const created = await db.teams.create({ organizationId: tenant, name });
 
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [tags.work(), teamsTag(tenant)]);
 
     return ok(created.data.id);
   },
@@ -249,8 +233,10 @@ export const saveWorkView = bsb.action(
     }),
     requireTenant: true,
     permission: "saved_views.read",
+    tags: () => [tags.work(), tags.projects(), tags.customFields()],
+    refresh: true,
   },
-  async ({ name, q, state, sort }, { tenant, db, auth }) => {
+  async ({ name, q, state, sort }, { tenant, db }) => {
     const query: WorkViewQuery = { sort };
 
     if (q !== "") {
@@ -272,12 +258,6 @@ export const saveWorkView = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [
-      tags.work(),
-      tags.projects(),
-      tags.customFields(),
-    ]);
-
     return ok(saved.data.id);
   },
 );
@@ -287,19 +267,15 @@ export const deleteWorkView = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "saved_views.read",
+    tags: () => [tags.work(), tags.projects(), tags.customFields()],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
 
     if (!deleted.ok) {
       return deleted;
     }
-
-    await refreshCaller(auth, [
-      tags.work(),
-      tags.projects(),
-      tags.customFields(),
-    ]);
 
     return ok(deleted.data);
   },
@@ -324,8 +300,10 @@ export const runWorkBulkAction = bsb.action(
     ]),
     requireTenant: true,
     permission: "bulk_actions.run",
+    tags: () => [tags.work(), tags.projects(), tags.customFields()],
+    refresh: true,
   },
-  async (input, { tenant, db, auth }) => {
+  async (input, { tenant, db }) => {
     const { bulkActions: bulk } = db;
 
     const result =
@@ -348,12 +326,6 @@ export const runWorkBulkAction = bsb.action(
     if (!result.ok) {
       return result;
     }
-
-    await refreshCaller(auth, [
-      tags.work(),
-      tags.projects(),
-      tags.customFields(),
-    ]);
 
     return ok({
       total: result.data.total,

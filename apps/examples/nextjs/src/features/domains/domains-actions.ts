@@ -26,10 +26,12 @@ export const addDomain = bsb.action(
     input: v.object({
       hostname: v.pipe(v.string(), v.trim(), v.minLength(3), v.maxLength(253)),
     }),
+    tags: () => [tags.domains()],
+    refresh: true,
   },
   async (
     { hostname },
-    { tenant, session, auth },
+    { tenant, session },
   ): Promise<Result<{ id: string }>> => {
     const caller = requireCaller(session);
 
@@ -58,16 +60,19 @@ export const addDomain = bsb.action(
       return err(dbError("not_found", "The hostname was not added"));
     }
 
-    await refreshCaller(auth, [tags.domains()]);
-
     return ok({ id: first.row.id });
   },
 );
 
 /** Makes a verified hostname the organization's primary one. */
 export const setPrimaryDomain = bsb.action(
-  { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id }),
+    tags: () => [tags.domains()],
+    refresh: true,
+  },
+  async ({ id }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -86,16 +91,19 @@ export const setPrimaryDomain = bsb.action(
       return set;
     }
 
-    await refreshCaller(auth, [tags.domains()]);
-
     return ok(true);
   },
 );
 
 /** Removes a hostname the caller manages. */
 export const removeDomain = bsb.action(
-  { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id }),
+    tags: () => [tags.domains()],
+    refresh: true,
+  },
+  async ({ id }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -120,8 +128,6 @@ export const removeDomain = bsb.action(
     if (removed.data[0]?.removed !== true) {
       return err(dbError("not_found", "Hostname not found"));
     }
-
-    await refreshCaller(auth, [tags.domains()]);
 
     return ok(true);
   },

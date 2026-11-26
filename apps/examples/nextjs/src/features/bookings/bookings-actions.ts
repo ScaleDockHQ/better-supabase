@@ -8,7 +8,6 @@ import * as v from "valibot";
 
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -43,8 +42,10 @@ export const setUpBookingPage = bsb.action(
     }),
     requireTenant: true,
     permission: "bookings.manage",
+    tags: () => [tags.bookings(), tags.calendar()],
+    refresh: true,
   },
-  async ({ tz }, { tenant, db, session, auth }) => {
+  async ({ tz }, { tenant, db, session }) => {
     if (session.kind !== "user") {
       return notSetUp();
     }
@@ -100,8 +101,6 @@ export const setUpBookingPage = bsb.action(
       return index;
     }
 
-    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
-
     return ok(null);
   },
 );
@@ -126,8 +125,10 @@ export const saveWeeklyHours = bsb.action(
     }),
     requireTenant: true,
     permission: "bookings.manage",
+    tags: () => [tags.bookings(), tags.calendar()],
+    refresh: true,
   },
-  async ({ hours }, { tenant, db, session, auth }) => {
+  async ({ hours }, { tenant, db, session }) => {
     const page =
       session.kind === "user"
         ? await findBookingPage(db, tenant, session.user.id)
@@ -146,8 +147,6 @@ export const saveWeeklyHours = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
-
     return ok({ days: saved.data });
   },
 );
@@ -159,8 +158,10 @@ export const createBookingLink = bsb.action(
     requireTenant: true,
     permission: "bookings.manage",
     authorize: async () => can(await getPermissions(), "share_links.create"),
+    tags: () => [tags.bookings(), tags.calendar()],
+    refresh: true,
   },
-  async (_input, { tenant, db, session, auth }) => {
+  async (_input, { tenant, db, session }) => {
     const page =
       session.kind === "user"
         ? await findBookingPage(db, tenant, session.user.id)
@@ -179,8 +180,6 @@ export const createBookingLink = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
-
     return ok({ token: created.data.token });
   },
 );
@@ -197,8 +196,10 @@ export const bookSlot = bsb.action(
       notes: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(2000))),
     }),
     allow: ["none", "user"],
+    tags: () => [tags.bookings(), tags.calendar()],
+    refresh: true,
   },
-  async ({ token, resourceId, startsAt, name, email, notes }, { db, auth }) => {
+  async ({ token, resourceId, startsAt, name, email, notes }, { db }) => {
     const booking = db.bookings.public;
 
     const customer: Writable<BookingCustomer> & {
@@ -229,8 +230,6 @@ export const bookSlot = bsb.action(
     if (!confirmed.ok) {
       return confirmed;
     }
-
-    await refreshCaller(auth, [tags.bookings(), tags.calendar()]);
 
     return ok({
       startsAt: confirmed.data.startsAt.toString(),

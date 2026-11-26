@@ -5,7 +5,6 @@ import type { SequenceStep } from "better-supabase/blocks/sequences";
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -23,8 +22,10 @@ export const createSampleSequence = bsb.action(
     }),
     requireTenant: true,
     permission: "sequences.manage",
+    tags: () => [tags.sequences()],
+    refresh: true,
   },
-  async ({ name, subject, text, task }, { db, auth }) => {
+  async ({ name, subject, text, task }, { db }) => {
     const saved = await db.sequences.upsert({
       key: `sample-${crypto.randomUUID().slice(0, 8)}`,
       name,
@@ -39,8 +40,6 @@ export const createSampleSequence = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [tags.sequences()]);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -54,15 +53,15 @@ export const setSequenceStatus = bsb.action(
     }),
     requireTenant: true,
     permission: "sequences.manage",
+    tags: () => [tags.sequences()],
+    refresh: true,
   },
-  async ({ sequenceId, status }, { db, auth }) => {
+  async ({ sequenceId, status }, { db }) => {
     const saved = await db.sequences.upsert({ id: sequenceId, status });
 
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [tags.sequences()]);
 
     return ok({ status: saved.data.status });
   },
@@ -113,8 +112,10 @@ export const addSequenceStep = bsb.action(
     input: v.intersect([v.object({ sequenceId: Id }), StepInput]),
     requireTenant: true,
     permission: "sequences.manage",
+    tags: () => [tags.sequences()],
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const { sequences } = db;
     const current = await sequences.get(input.sequenceId);
 
@@ -130,8 +131,6 @@ export const addSequenceStep = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [tags.sequences()]);
 
     return ok({ steps: saved.data.steps.length });
   },

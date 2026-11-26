@@ -9,7 +9,6 @@ import * as v from "valibot";
 import type { Mutable } from "@/lib/block-status-list";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -25,8 +24,10 @@ export const recordGift = bsb.action(
     }),
     requireTenant: true,
     permission: "donations.manage",
+    tags: () => [tags.donations()],
+    refresh: true,
   },
-  async ({ donorId, amount, fundId }, { db, auth }) => {
+  async ({ donorId, amount, fundId }, { db }) => {
     const input: Mutable<GiftInput> = {
       donor: { type: "customer", id: donorId },
       amount: parseMoney(amount, SHOP_CURRENCY),
@@ -42,8 +43,6 @@ export const recordGift = bsb.action(
       return gift;
     }
 
-    await refreshCaller(auth, [tags.donations()]);
-
     return ok(gift.data.id);
   },
 );
@@ -54,15 +53,15 @@ export const issueReceipt = bsb.action(
     input: v.object({ giftId: Id }),
     requireTenant: true,
     permission: "donations.manage",
+    tags: () => [tags.donations()],
+    refresh: true,
   },
-  async ({ giftId }, { db, auth }) => {
+  async ({ giftId }, { db }) => {
     const receipt = await db.donations.issueGiftReceipt(giftId);
 
     if (!receipt.ok) {
       return receipt;
     }
-
-    await refreshCaller(auth, [tags.donations()]);
 
     return ok(receipt.data.number);
   },

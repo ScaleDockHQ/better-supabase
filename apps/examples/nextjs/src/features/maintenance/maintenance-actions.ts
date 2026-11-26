@@ -12,7 +12,6 @@ import {
   Optional,
   Whole,
 } from "@/lib/form-input";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -26,15 +25,15 @@ export const generateWorkOrders = bsb.action(
     input: v.object({}),
     requireTenant: true,
     permission: "maintenance.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (_input, { db, auth }) => {
+  async (_input, { db }) => {
     const opened = await db.maintenance.generateWorkOrders();
 
     if (!opened.ok) {
       return opened;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ opened: opened.data.length });
   },
@@ -58,8 +57,10 @@ export const createPlan = bsb.action(
     }),
     requireTenant: true,
     permission: "maintenance.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const created = await db.maintenance.createPlan({
       title: input.title,
       kind: input.kind,
@@ -90,8 +91,6 @@ export const createPlan = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, TAGS);
-
     return ok({ id: created.data.id });
   },
 );
@@ -102,8 +101,10 @@ export const setPlanStatus = bsb.action(
     input: v.object({ planId: Id, status: v.picklist(["active", "paused"]) }),
     requireTenant: true,
     permission: "maintenance.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ planId, status }, { db, auth }) => {
+  async ({ planId, status }, { db }) => {
     const saved = await db.maintenance.updatePlan({
       planId,
       change: { status },
@@ -112,8 +113,6 @@ export const setPlanStatus = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -124,8 +123,10 @@ export const changePlanPriority = bsb.action(
     input: v.object({ planId: Id, priority: Priority }),
     requireTenant: true,
     permission: "maintenance.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ planId, priority }, { db, auth }) => {
+  async ({ planId, priority }, { db }) => {
     const saved = await db.maintenance.updatePlan({
       planId,
       change: { priority },
@@ -134,8 +135,6 @@ export const changePlanPriority = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -146,15 +145,15 @@ export const deletePlan = bsb.action(
     input: v.object({ planId: Id }),
     requireTenant: true,
     permission: "maintenance.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ planId }, { db, auth }) => {
+  async ({ planId }, { db }) => {
     const removed = await db.maintenance.purgePlan(planId);
 
     if (!removed.ok) {
       return removed;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -168,15 +167,15 @@ export const createMeter = bsb.action(
     }),
     requireTenant: true,
     permission: "maintenance.manage",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ name, unit }, { db, auth }) => {
+  async ({ name, unit }, { db }) => {
     const created = await db.maintenance.createMeter({ name, unit });
 
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: created.data.id });
   },
@@ -188,15 +187,15 @@ export const recordReading = bsb.action(
     input: v.object({ meterId: Id, value: Decimal }),
     requireTenant: true,
     permission: "maintenance.record",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async ({ meterId, value }, { db, auth }) => {
+  async ({ meterId, value }, { db }) => {
     const saved = await db.maintenance.recordReading({ meterId, value });
 
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok(true);
   },
@@ -213,8 +212,10 @@ export const recordCalibration = bsb.action(
     }),
     requireTenant: true,
     permission: "maintenance.record",
+    tags: () => TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const performedAt = instantOf(
       input.performedOn ?? new Date().toISOString().slice(0, 10),
     );
@@ -234,8 +235,6 @@ export const recordCalibration = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, TAGS);
 
     return ok({ id: saved.data.id });
   },

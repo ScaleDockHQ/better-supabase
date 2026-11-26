@@ -9,7 +9,6 @@ import {
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
@@ -32,23 +31,30 @@ async function runExport(exportId: string): Promise<void> {
 }
 
 /** Exports the caller's own data. */
-export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
-  const requested = await db.dataLifecycle.requestExport();
+export const requestMyExport = bsb.action(
+  { tags: () => [tags.privacy()], refresh: true },
+  async (_input, { db }) => {
+    const requested = await db.dataLifecycle.requestExport();
 
-  if (!requested.ok) {
-    return requested;
-  }
+    if (!requested.ok) {
+      return requested;
+    }
 
-  await runExport(requested.data.id);
-  await refreshCaller(auth, [tags.privacy()]);
+    await runExport(requested.data.id);
 
-  return ok(requested.data.id);
-});
+    return ok(requested.data.id);
+  },
+);
 
 /** Exports the active organization's data (`data_lifecycle.export`). */
 export const requestOrganizationExport = bsb.action(
-  { requireTenant: true, permission: "data_lifecycle.export" },
-  async (_input, { tenant, db, auth }) => {
+  {
+    requireTenant: true,
+    permission: "data_lifecycle.export",
+    tags: () => [tags.privacy()],
+    refresh: true,
+  },
+  async (_input, { tenant, db }) => {
     const requested = await db.dataLifecycle.requestExport({
       organizationId: tenant,
     });
@@ -58,7 +64,6 @@ export const requestOrganizationExport = bsb.action(
     }
 
     await runExport(requested.data.id);
-    await refreshCaller(auth, [tags.privacy()]);
 
     return ok(requested.data.id);
   },
@@ -83,8 +88,13 @@ export const downloadExport = bsb.action(
  * period (`organization.delete`).
  */
 export const requestOrganizationDeletion = bsb.action(
-  { requireTenant: true, permission: "organization.delete" },
-  async (_input, { tenant, db, auth }) => {
+  {
+    requireTenant: true,
+    permission: "organization.delete",
+    tags: () => [tags.privacy()],
+    refresh: true,
+  },
+  async (_input, { tenant, db }) => {
     const requested = await db.dataLifecycle.requestOrganizationDeletion({
       organizationId: tenant,
     });
@@ -93,23 +103,19 @@ export const requestOrganizationDeletion = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [tags.privacy()]);
-
     return ok(requested.data.purgeAfter.toString());
   },
 );
 
 /** Cancels the pending purge and enables the organization again. */
 export const cancelOrganizationDeletion = bsb.action(
-  { requireTenant: true },
-  async (_input, { tenant, db, auth }) => {
+  { requireTenant: true, tags: () => [tags.privacy()], refresh: true },
+  async (_input, { tenant, db }) => {
     const cancelled = await db.dataLifecycle.cancelOrganizationDeletion(tenant);
 
     if (!cancelled.ok) {
       return cancelled;
     }
-
-    await refreshCaller(auth, [tags.privacy()]);
 
     return ok(cancelled.data !== undefined);
   },

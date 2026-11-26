@@ -103,11 +103,10 @@ export const createShareLink = bsb.action(
     }),
     requireTenant: true,
     permission: "share_links.create",
+    tags: () => [tags.customers(), tags.crm(), tags.drive()],
+    refresh: true,
   },
-  async (
-    { customerId, expiresInDays },
-    { tenant: organizationId, db, auth },
-  ) => {
+  async ({ customerId, expiresInDays }, { tenant: organizationId, db }) => {
     const options =
       expiresInDays === 0
         ? { role: "view" }
@@ -129,8 +128,6 @@ export const createShareLink = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
-
     return ok({ token: created.data.token });
   },
 );
@@ -149,8 +146,10 @@ export const restoreCustomerVersion = bsb.action(
     requireTenant: true,
     permission: "versions.restore",
     authorize: async () => can(await getPermissions(), "customers.write"),
+    tags: () => [tags.customers(), tags.crm(), tags.drive()],
+    refresh: true,
   },
-  async ({ customerId, versionId }, { tenant: organizationId, db, auth }) => {
+  async ({ customerId, versionId }, { tenant: organizationId, db }) => {
     const { versions } = db.$with({ tenant: organizationId });
     const version = await versions.get(versionId);
 
@@ -181,8 +180,6 @@ export const restoreCustomerVersion = bsb.action(
     if (!restored.ok) {
       return restored;
     }
-
-    await refreshCaller(auth, [tags.customers(), tags.crm(), tags.drive()]);
 
     return ok(null);
   },

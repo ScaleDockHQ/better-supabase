@@ -5,7 +5,6 @@ import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -30,8 +29,10 @@ export const requestAccess = bsb.action(
     }),
     requireTenant: true,
     permission: "access_requests.create",
+    tags: () => [tags.accessRequests(), tags.approvals()],
+    refresh: true,
   },
-  async ({ role, duration, reason }, { tenant, db, auth }) => {
+  async ({ role, duration, reason }, { tenant, db }) => {
     const input: AccessRequestDraft = { organizationId: tenant, role };
 
     if (reason) {
@@ -48,8 +49,6 @@ export const requestAccess = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
-
     return ok(requested.data.id);
   },
 );
@@ -63,8 +62,10 @@ export const decideAccessRequest = bsb.action(
     }),
     requireTenant: true,
     permission: "members.update_role",
+    tags: () => [tags.accessRequests(), tags.approvals()],
+    refresh: true,
   },
-  async ({ approvalId, decision }, { db, auth }) => {
+  async ({ approvalId, decision }, { db }) => {
     const { approvals } = db;
 
     const decided =
@@ -76,23 +77,24 @@ export const decideAccessRequest = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
-
     return ok(decided.data.id);
   },
 );
 
 /** Withdraws the caller's own pending request. */
 export const cancelAccessRequest = bsb.action(
-  { input: v.object({ approvalId: ID }), requireTenant: true },
-  async ({ approvalId }, { db, auth }) => {
+  {
+    input: v.object({ approvalId: ID }),
+    requireTenant: true,
+    tags: () => [tags.accessRequests(), tags.approvals()],
+    refresh: true,
+  },
+  async ({ approvalId }, { db }) => {
     const cancelled = await db.approvals.cancel(approvalId);
 
     if (!cancelled.ok) {
       return cancelled;
     }
-
-    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
 
     return ok(cancelled.data.id);
   },
@@ -100,15 +102,18 @@ export const cancelAccessRequest = bsb.action(
 
 /** Ends a granted role early: a manager, or the holder giving it up. */
 export const endAccess = bsb.action(
-  { input: v.object({ id: ID }), requireTenant: true },
-  async ({ id }, { db, auth }) => {
+  {
+    input: v.object({ id: ID }),
+    requireTenant: true,
+    tags: () => [tags.accessRequests(), tags.approvals()],
+    refresh: true,
+  },
+  async ({ id }, { db }) => {
     const ended = await db.accessRequests.end(id);
 
     if (!ended.ok) {
       return ended;
     }
-
-    await refreshCaller(auth, [tags.accessRequests(), tags.approvals()]);
 
     return ok(ended.data.id);
   },

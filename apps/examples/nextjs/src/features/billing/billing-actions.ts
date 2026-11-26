@@ -130,8 +130,10 @@ export const createDraftInvoice = bsb.action(
     }),
     requireTenant: true,
     permission: "invoices.write",
+    tags: () => [BILLING_TAG, tags.banking()],
+    refresh: true,
   },
-  async ({ title, amount }, { tenant, db, auth }) => {
+  async ({ title, amount }, { tenant, db }) => {
     const created = await db.invoices.create({
       organizationId: tenant,
       input: { title, currency: SHOP_CURRENCY },
@@ -148,8 +150,6 @@ export const createDraftInvoice = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [BILLING_TAG, tags.banking()]);
-
     return ok(created.data.id);
   },
 );
@@ -160,15 +160,15 @@ export const issueInvoice = bsb.action(
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
     permission: "invoices.write",
+    tags: () => [BILLING_TAG, tags.banking()],
+    refresh: true,
   },
-  async ({ invoiceId }, { db, auth }) => {
+  async ({ invoiceId }, { db }) => {
     const issued = await db.invoices.issue({ invoiceId });
 
     if (!issued.ok) {
       return issued;
     }
-
-    await refreshCaller(auth, [BILLING_TAG, tags.banking()]);
 
     return ok(issued.data.status);
   },

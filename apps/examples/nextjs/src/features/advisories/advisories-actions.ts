@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,8 +21,10 @@ export const saveProduct = bsb.action(
     }),
     requireTenant: true,
     permission: "advisories.write",
+    tags: () => [tags.advisories()],
+    refresh: true,
   },
-  async ({ key, name, vendor }, { db, auth }) => {
+  async ({ key, name, vendor }, { db }) => {
     const saved = vendor
       ? await db.advisories.saveProduct({ key, name, vendor })
       : await db.advisories.saveProduct({ key, name });
@@ -31,8 +32,6 @@ export const saveProduct = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [tags.advisories()]);
 
     return ok(saved.data.id);
   },
@@ -47,8 +46,10 @@ export const trackVulnerability = bsb.action(
     }),
     requireTenant: true,
     permission: "advisories.write",
+    tags: () => [tags.advisories()],
+    refresh: true,
   },
-  async ({ vulnId, summary }, { db, auth }) => {
+  async ({ vulnId, summary }, { db }) => {
     const saved = summary
       ? await db.advisories.saveVulnerability({ vulnId, summary })
       : await db.advisories.saveVulnerability({ vulnId });
@@ -56,8 +57,6 @@ export const trackVulnerability = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [tags.advisories()]);
 
     return ok(saved.data.id);
   },
@@ -69,8 +68,10 @@ export const publishAdvisory = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "advisories.publish",
+    tags: () => [tags.advisories()],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const published = await db.advisories.publishAdvisory({
       id,
       status: "final",
@@ -79,8 +80,6 @@ export const publishAdvisory = bsb.action(
     if (!published.ok) {
       return published;
     }
-
-    await refreshCaller(auth, [tags.advisories()]);
 
     return ok(published.data.id);
   },

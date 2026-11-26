@@ -96,8 +96,13 @@ export const createWebhookEndpoint = bsb.action(
 
 /** Turns an endpoint on or off. Turning it on clears an automatic disable. */
 export const setWebhookEndpointEnabled = bsb.action(
-  { ...manage, input: v.object({ id: Id, enabled: v.boolean() }) },
-  async ({ id, enabled }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id, enabled: v.boolean() }),
+    tags: () => [tags.webhooks()],
+    refresh: true,
+  },
+  async ({ id, enabled }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -127,16 +132,19 @@ export const setWebhookEndpointEnabled = bsb.action(
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
 
-    await refreshCaller(auth, [tags.webhooks()]);
-
     return ok(enabled);
   },
 );
 
 /** Deletes an endpoint with its deliveries and secrets. */
 export const deleteWebhookEndpoint = bsb.action(
-  { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { session, auth }): Promise<Result<boolean>> => {
+  {
+    ...manage,
+    input: v.object({ id: Id }),
+    tags: () => [tags.webhooks()],
+    refresh: true,
+  },
+  async ({ id }, { session }): Promise<Result<boolean>> => {
     const caller = requireCaller(session);
 
     if (!caller.ok) {
@@ -161,8 +169,6 @@ export const deleteWebhookEndpoint = bsb.action(
     if (deleted.data.length === 0) {
       return err(dbError("not_found", "Webhook endpoint not found"));
     }
-
-    await refreshCaller(auth, [tags.webhooks()]);
 
     return ok(true);
   },

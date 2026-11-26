@@ -6,7 +6,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { getAllPagesResult } from "@/lib/read-all-pages";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -38,8 +37,10 @@ export const createContact = bsb.action(
     }),
     requireTenant: true,
     permission: "contacts.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ kind, name, email, domain }, { tenant, db, auth }) => {
+  async ({ kind, name, email, domain }, { tenant, db }) => {
     const { contacts: parties } = db.$blocks;
 
     const saved =
@@ -57,8 +58,6 @@ export const createContact = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
-
     return ok({ id: saved.data.id, name: saved.data.name });
   },
 );
@@ -69,8 +68,10 @@ export const linkPerson = bsb.action(
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
     requireTenant: true,
     permission: "contacts.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ companyId, personId, role }, { db, auth }) => {
+  async ({ companyId, personId, role }, { db }) => {
     const linked = await db.$blocks.contacts.linkPerson({
       companyId,
       personId,
@@ -80,8 +81,6 @@ export const linkPerson = bsb.action(
     if (!linked.ok) {
       return linked;
     }
-
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok(true);
   },
@@ -99,11 +98,10 @@ export const logActivity = bsb.action(
     }),
     requireTenant: true,
     permission: "activities.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async (
-    { subjectType, subjectId, type, title, body },
-    { tenant, db, auth },
-  ) => {
+  async ({ subjectType, subjectId, type, title, body }, { tenant, db }) => {
     const logged = await db.activities.log({
       organizationId: tenant,
       input: {
@@ -119,8 +117,6 @@ export const logActivity = bsb.action(
     if (!logged.ok) {
       return logged;
     }
-
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok({ id: logged.data.id });
   },
@@ -142,8 +138,13 @@ const DEFAULT_STAGES = [
 
 /** Creates the "Sales" deal pipeline with six stages, unless one exists. */
 export const createDefaultPipeline = bsb.action(
-  { requireTenant: true, permission: "pipelines.manage" },
-  async (_input, { tenant, db, auth }) => {
+  {
+    requireTenant: true,
+    permission: "pipelines.manage",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
+  },
+  async (_input, { tenant, db }) => {
     const { pipelines } = db;
 
     const existing = await getAllPagesResult((page) =>
@@ -190,8 +191,6 @@ export const createDefaultPipeline = bsb.action(
       }
     }
 
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
-
     return ok({ id: pipeline.data.id });
   },
 );
@@ -209,10 +208,12 @@ export const createDeal = bsb.action(
     }),
     requireTenant: true,
     permission: "deals.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
   async (
     { name, amount, currency, closeOn, pipelineId, stageId },
-    { tenant, db, auth },
+    { tenant, db },
   ) => {
     const created = await db.deals.create({
       organizationId: tenant,
@@ -230,8 +231,6 @@ export const createDeal = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
-
     return ok({ id: created.data.id, identifier: created.data.identifier });
   },
 );
@@ -242,8 +241,10 @@ export const moveDeal = bsb.action(
     input: v.object({ dealId: Id, stageId: Id }),
     requireTenant: true,
     permission: "deals.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ dealId, stageId }, { db, auth }) => {
+  async ({ dealId, stageId }, { db }) => {
     const moved = await db.deals.update({
       changes: [{ dealId, field: "stageId", value: stageId }],
       strict: true,
@@ -252,8 +253,6 @@ export const moveDeal = bsb.action(
     if (!moved.ok) {
       return moved;
     }
-
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok(true);
   },
@@ -272,10 +271,12 @@ export const createTarget = bsb.action(
     }),
     requireTenant: true,
     permission: "goals.manage",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
   async (
     { name, metric, goal, currency, periodStart, periodEnd },
-    { tenant, db, auth },
+    { tenant, db },
   ) => {
     const amount = metric === "deals.won_amount";
 
@@ -301,8 +302,6 @@ export const createTarget = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
-
     return ok({ id: saved.data.id });
   },
 );
@@ -313,8 +312,10 @@ export const createQuote = bsb.action(
     input: v.object({ title: Name, currency: Currency }),
     requireTenant: true,
     permission: "quotes.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ title, currency }, { tenant, db, auth }) => {
+  async ({ title, currency }, { tenant, db }) => {
     const created = await db.quotes.create({
       organizationId: tenant,
       input: { title, currency },
@@ -323,8 +324,6 @@ export const createQuote = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok({ id: created.data.id });
   },
@@ -348,8 +347,10 @@ export const saveQuoteLines = bsb.action(
     }),
     requireTenant: true,
     permission: "quotes.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ quoteId, currency, lines }, { db, auth }) => {
+  async ({ quoteId, currency, lines }, { db }) => {
     const saved = await db.quotes.setLines({
       quoteId,
       lines: lines.map((line) => ({
@@ -365,8 +366,6 @@ export const saveQuoteLines = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
-
     return ok(saved.data.total);
   },
 );
@@ -377,15 +376,15 @@ export const sendQuote = bsb.action(
     input: v.object({ quoteId: Id }),
     requireTenant: true,
     permission: "quotes.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ quoteId }, { db, auth }) => {
+  async ({ quoteId }, { db }) => {
     const sent = await db.quotes.send({ quoteId });
 
     if (!sent.ok) {
       return sent;
     }
-
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok(true);
   },
@@ -400,15 +399,15 @@ export const decideQuote = bsb.action(
     }),
     requireTenant: true,
     permission: "quotes.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ quoteId, decision }, { db, auth }) => {
+  async ({ quoteId, decision }, { db }) => {
     const decided = await db.quotes.decide({ quoteId, decision });
 
     if (!decided.ok) {
       return decided;
     }
-
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok(true);
   },
@@ -420,15 +419,15 @@ export const reviseQuote = bsb.action(
     input: v.object({ quoteId: Id }),
     requireTenant: true,
     permission: "quotes.write",
+    tags: () => [tags.crm(), tags.customers()],
+    refresh: true,
   },
-  async ({ quoteId }, { db, auth }) => {
+  async ({ quoteId }, { db }) => {
     const revised = await db.quotes.revise({ quoteId });
 
     if (!revised.ok) {
       return revised;
     }
-
-    await refreshCaller(auth, [tags.crm(), tags.customers()]);
 
     return ok({ id: revised.data.id });
   },

@@ -21,8 +21,10 @@ export const requestSupportSession = bsb.action(
       reason: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
     permission: "impersonation.start",
+    tags: () => [tags.supportSessions()],
+    refresh: true,
   },
-  async ({ target, reason }, { db, auth }) => {
+  async ({ target, reason }, { db }) => {
     const result = await db.impersonation.request({
       target,
       reason,
@@ -33,23 +35,24 @@ export const requestSupportSession = bsb.action(
       return err(result.error);
     }
 
-    await refreshCaller(auth, [tags.supportSessions()]);
-
     return ok(target);
   },
 );
 
 /** Ends a support session before it expires. */
 export const endSupportSession = bsb.action(
-  { input: v.object({ sessionId: Id }), permission: "impersonation.revoke" },
-  async ({ sessionId }, { db, auth }) => {
+  {
+    input: v.object({ sessionId: Id }),
+    permission: "impersonation.revoke",
+    tags: () => [tags.supportSessions()],
+    refresh: true,
+  },
+  async ({ sessionId }, { db }) => {
     const result = await db.impersonation.end(sessionId);
 
     if (!result.ok) {
       return err(result.error);
     }
-
-    await refreshCaller(auth, [tags.supportSessions()]);
 
     return ok(sessionId);
   },

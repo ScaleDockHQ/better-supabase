@@ -9,7 +9,6 @@ import * as v from "valibot";
 import type { Mutable } from "@/lib/block-status-list";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -26,8 +25,10 @@ export const createClaim = bsb.action(
     }),
     requireTenant: true,
     permission: "warranty.write",
+    tags: () => [tags.warranty()],
+    refresh: true,
   },
-  async ({ title, assetId, amount, manufacturer }, { db, auth }) => {
+  async ({ title, assetId, amount, manufacturer }, { db }) => {
     const parsed = parseMoney(amount, SHOP_CURRENCY);
 
     const input: Mutable<WarrantyClaimInput> = {
@@ -47,8 +48,6 @@ export const createClaim = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [tags.warranty()]);
-
     return ok(created.data.id);
   },
 );
@@ -59,15 +58,15 @@ export const submitClaim = bsb.action(
     input: v.object({ claimId: Id }),
     requireTenant: true,
     permission: "warranty.write",
+    tags: () => [tags.warranty()],
+    refresh: true,
   },
-  async ({ claimId }, { db, auth }) => {
+  async ({ claimId }, { db }) => {
     const submitted = await db.warranty.submit(claimId);
 
     if (!submitted.ok) {
       return submitted;
     }
-
-    await refreshCaller(auth, [tags.warranty()]);
 
     return ok(submitted.data.id);
   },
@@ -83,8 +82,10 @@ export const decideClaim = bsb.action(
     }),
     requireTenant: true,
     permission: "warranty.decide",
+    tags: () => [tags.warranty()],
+    refresh: true,
   },
-  async ({ claimId, status, decision }, { db, auth }) => {
+  async ({ claimId, status, decision }, { db }) => {
     if (status !== "closed" && !decision) {
       return err(
         invalidInput("A decision says why the claim was approved or denied.", [
@@ -102,8 +103,6 @@ export const decideClaim = bsb.action(
     if (!decided.ok) {
       return decided;
     }
-
-    await refreshCaller(auth, [tags.warranty()]);
 
     return ok(decided.data.id);
   },

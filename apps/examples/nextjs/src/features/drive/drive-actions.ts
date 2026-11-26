@@ -6,7 +6,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
@@ -28,8 +27,10 @@ export const createDriveFolder = bsb.action(
     input: v.object({ parentId: ParentId, name: Name }),
     requireTenant: true,
     permission: "drive.create",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ parentId, name }, { tenant, db, auth }) => {
+  async ({ parentId, name }, { tenant, db }) => {
     const folder = await driveOf(db).createFolder({
       organizationId: tenant,
       folder: { parentId, name, conflict: "rename" },
@@ -38,8 +39,6 @@ export const createDriveFolder = bsb.action(
     if (!folder.ok) {
       return folder;
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: folder.data.id, name: folder.data.name });
   },
@@ -95,15 +94,15 @@ export const commitDriveUpload = bsb.action(
     input: v.object({ nodeId: Id, attachmentId: Id }),
     requireTenant: true,
     permission: "drive.create",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ nodeId, attachmentId }, { db, auth }) => {
+  async ({ nodeId, attachmentId }, { db }) => {
     const committed = await driveOf(db).commit({ id: nodeId, attachmentId });
 
     if (!committed.ok) {
       return committed;
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: committed.data.id, name: committed.data.name });
   },
@@ -124,15 +123,15 @@ export const renameDriveItem = bsb.action(
     input: v.object({ id: Id, name: Name }),
     requireTenant: true,
     permission: "drive.create",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ id, name }, { db, auth }) => {
+  async ({ id, name }, { db }) => {
     const renamed = await driveOf(db).rename({ id, name, conflict: "rename" });
 
     if (!renamed.ok) {
       return renamed;
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: renamed.data.id, name: renamed.data.name });
   },
@@ -147,15 +146,15 @@ export const trashDriveItem = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "drive.create",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const trashed = await driveOf(db).trash(id);
 
     if (!trashed.ok) {
       return trashed;
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ trashItemId: trashed.data.id, count: trashed.data.count });
   },
@@ -185,8 +184,10 @@ export const setDriveCheckout = bsb.action(
     input: v.object({ id: Id, locked: v.boolean() }),
     requireTenant: true,
     permission: "drive.create",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ id, locked }, { db, auth }) => {
+  async ({ id, locked }, { db }) => {
     const drive = driveOf(db);
 
     const node = locked
@@ -200,8 +201,6 @@ export const setDriveCheckout = bsb.action(
       return node;
     }
 
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
-
     return ok({ id: node.data.id, locked: node.data.lockedBy !== undefined });
   },
 );
@@ -212,15 +211,15 @@ export const setDriveDownloadsBlocked = bsb.action(
     input: v.object({ id: Id, blocked: v.boolean() }),
     requireTenant: true,
     permission: "drive.create",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ id, blocked }, { db, auth }) => {
+  async ({ id, blocked }, { db }) => {
     const node = await driveOf(db).blockDownloads({ id, blocked });
 
     if (!node.ok) {
       return node;
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: node.data.id, blocked: node.data.downloadBlocked });
   },
@@ -232,15 +231,15 @@ export const requestDriveApproval = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "drive.create",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const requested = await driveOf(db).requestApproval({ id });
 
     if (!requested.ok) {
       return requested;
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok({ id: requested.data.id, revision: requested.data.revision });
   },
@@ -332,15 +331,15 @@ export const shareDriveItem = bsb.action(
     }),
     requireTenant: true,
     permission: "drive.read",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ id, principal, role }, { db, auth }) => {
+  async ({ id, principal, role }, { db }) => {
     const shared = await driveOf(db).share({ id, principal, role });
 
     if (!shared.ok) {
       return shared;
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok(null);
   },
@@ -352,8 +351,10 @@ export const unshareDriveItem = bsb.action(
     input: v.object({ id: Id, principal: Principal }),
     requireTenant: true,
     permission: "drive.read",
+    tags: () => [tags.drive(), tags.customers()],
+    refresh: true,
   },
-  async ({ id, principal }, { db, auth }) => {
+  async ({ id, principal }, { db }) => {
     const removed = await driveOf(db).unshare({ id, principal });
 
     if (!removed.ok) {
@@ -363,8 +364,6 @@ export const unshareDriveItem = bsb.action(
     if (!removed.data) {
       return err(dbError("not_found", "Grant not found"));
     }
-
-    await refreshCaller(auth, [tags.drive(), tags.customers()]);
 
     return ok(null);
   },

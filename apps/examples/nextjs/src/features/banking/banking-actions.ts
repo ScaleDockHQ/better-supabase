@@ -4,7 +4,6 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -19,8 +18,10 @@ export const matchBankTransaction = bsb.action(
     input: v.object({ transactionId: Id, invoiceId: Id }),
     requireTenant: true,
     permission: "banking.reconcile",
+    tags: () => [tags.banking(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ transactionId, invoiceId }, { db, auth }) => {
+  async ({ transactionId, invoiceId }, { db }) => {
     const matched = await db.banking.match({
       transactionId,
       matches: [{ targetType: "invoice", targetId: invoiceId }],
@@ -29,8 +30,6 @@ export const matchBankTransaction = bsb.action(
     if (!matched.ok) {
       return matched;
     }
-
-    await refreshCaller(auth, [tags.banking(), BILLING_TAG]);
 
     return ok({ id: matched.data.id, status: matched.data.status });
   },
@@ -42,15 +41,15 @@ export const ignoreBankTransaction = bsb.action(
     input: v.object({ transactionId: Id }),
     requireTenant: true,
     permission: "banking.reconcile",
+    tags: () => [tags.banking(), BILLING_TAG],
+    refresh: true,
   },
-  async ({ transactionId }, { db, auth }) => {
+  async ({ transactionId }, { db }) => {
     const ignored = await db.banking.ignore({ transactionId });
 
     if (!ignored.ok) {
       return ignored;
     }
-
-    await refreshCaller(auth, [tags.banking(), BILLING_TAG]);
 
     return ok({ id: ignored.data.id, status: ignored.data.status });
   },

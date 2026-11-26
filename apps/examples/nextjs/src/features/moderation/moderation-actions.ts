@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -19,8 +18,10 @@ export const decideItem = bsb.action(
     }),
     requireTenant: true,
     permission: "moderation.manage",
+    tags: () => [tags.moderation()],
+    refresh: true,
   },
-  async ({ itemId, decision, reason }, { db, auth }) => {
+  async ({ itemId, decision, reason }, { db }) => {
     const decided = reason
       ? await db.moderation.decide({ itemId, decision, reason })
       : await db.moderation.decide({ itemId, decision });
@@ -28,8 +29,6 @@ export const decideItem = bsb.action(
     if (!decided.ok) {
       return decided;
     }
-
-    await refreshCaller(auth, [tags.moderation()]);
 
     return ok(decided.data.id);
   },
@@ -41,15 +40,15 @@ export const liftBan = bsb.action(
     input: v.object({ banId: Id }),
     requireTenant: true,
     permission: "moderation.ban",
+    tags: () => [tags.moderation()],
+    refresh: true,
   },
-  async ({ banId }, { db, auth }) => {
+  async ({ banId }, { db }) => {
     const lifted = await db.moderation.unban(banId);
 
     if (!lifted.ok) {
       return lifted;
     }
-
-    await refreshCaller(auth, [tags.moderation()]);
 
     return ok(lifted.data);
   },

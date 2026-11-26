@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -24,8 +23,14 @@ const STANDARD_LEVELS = [
 
 /** Replaces the organization's reminder levels with the standard three. */
 export const applyStandardDunningLevels = bsb.action(
-  { input: v.object({}), requireTenant: true, permission: "invoices.manage" },
-  async (_input, { tenant, db, auth }) => {
+  {
+    input: v.object({}),
+    requireTenant: true,
+    permission: "invoices.manage",
+    tags: () => [tags.dunning()],
+    refresh: true,
+  },
+  async (_input, { tenant, db }) => {
     const saved = await db.invoices.setDunningLevels({
       organizationId: tenant,
       levels: STANDARD_LEVELS,
@@ -34,8 +39,6 @@ export const applyStandardDunningLevels = bsb.action(
     if (!saved.ok) {
       return saved;
     }
-
-    await refreshCaller(auth, [tags.dunning()]);
 
     return ok({ levels: saved.data.length });
   },

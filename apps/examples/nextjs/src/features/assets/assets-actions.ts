@@ -7,7 +7,6 @@ import * as v from "valibot";
 
 import type { Mutable } from "@/lib/block-status-list";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -29,8 +28,10 @@ export const createAsset = bsb.action(
     }),
     requireTenant: true,
     permission: "assets.manage",
+    tags: () => [tags.assets()],
+    refresh: true,
   },
-  async ({ name, kind, tag, serialNumber }, { db, auth }) => {
+  async ({ name, kind, tag, serialNumber }, { db }) => {
     const input: Mutable<AssetInput> = { name, kind };
 
     if (tag) {
@@ -64,8 +65,6 @@ export const createAsset = bsb.action(
       return created;
     }
 
-    await refreshCaller(auth, [tags.assets()]);
-
     return ok(created.data.id);
   },
 );
@@ -76,15 +75,15 @@ export const setAssetStatus = bsb.action(
     input: v.object({ assetId: Id, status: v.picklist(ASSET_STATUSES) }),
     requireTenant: true,
     permission: "assets.manage",
+    tags: () => [tags.assets()],
+    refresh: true,
   },
-  async ({ assetId, status }, { db, auth }) => {
+  async ({ assetId, status }, { db }) => {
     const updated = await db.assets.updateAsset({ assetId, patch: { status } });
 
     if (!updated.ok) {
       return updated;
     }
-
-    await refreshCaller(auth, [tags.assets()]);
 
     return ok(updated.data.id);
   },
@@ -96,15 +95,15 @@ export const releaseAsset = bsb.action(
     input: v.object({ assetId: Id }),
     requireTenant: true,
     permission: "assets.assign",
+    tags: () => [tags.assets()],
+    refresh: true,
   },
-  async ({ assetId }, { db, auth }) => {
+  async ({ assetId }, { db }) => {
     const released = await db.assets.release(assetId);
 
     if (!released.ok) {
       return released;
     }
-
-    await refreshCaller(auth, [tags.assets()]);
 
     return ok(released.data.id);
   },

@@ -4,7 +4,6 @@ import { ok } from "better-supabase";
 import { FORM_FIELD_TYPES } from "better-supabase/blocks/forms";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -32,8 +31,10 @@ export const createForm = bsb.action(
     }),
     requireTenant: true,
     permission: "forms.manage",
+    tags: () => [tags.forms()],
+    refresh: true,
   },
-  async ({ title, description }, { tenant, db, auth }) => {
+  async ({ title, description }, { tenant, db }) => {
     const base = { organizationId: tenant, key: keyOf(title), title };
 
     const form = await db.forms.create(
@@ -43,8 +44,6 @@ export const createForm = bsb.action(
     if (!form.ok) {
       return form;
     }
-
-    await refreshCaller(auth, [tags.forms()]);
 
     return ok({ id: form.data.id, title: form.data.title });
   },
@@ -74,8 +73,10 @@ export const publishForm = bsb.action(
     }),
     requireTenant: true,
     permission: "forms.manage",
+    tags: () => [tags.forms()],
+    refresh: true,
   },
-  async ({ formId, fields }, { db, auth }) => {
+  async ({ formId, fields }, { db }) => {
     const version = await db.forms.publish({
       formId,
       definition: {
@@ -94,8 +95,6 @@ export const publishForm = bsb.action(
       return version;
     }
 
-    await refreshCaller(auth, [tags.forms()]);
-
     return ok({ number: version.data.number });
   },
 );
@@ -113,15 +112,15 @@ export const submitForm = bsb.action(
     input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
     requireTenant: true,
     permission: "forms.submit",
+    tags: () => [tags.forms()],
+    refresh: true,
   },
-  async ({ formId, answers }, { db, auth }) => {
+  async ({ formId, answers }, { db }) => {
     const submission = await db.forms.submit({ formId, answers });
 
     if (!submission.ok) {
       return submission;
     }
-
-    await refreshCaller(auth, [tags.forms()]);
 
     return ok({ id: submission.data.id });
   },

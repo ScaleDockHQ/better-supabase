@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -25,8 +24,10 @@ export const createEntry = bsb.action(
     }),
     requireTenant: true,
     permission: "content.write",
+    tags: () => [tags.contentEntries()],
+    refresh: true,
   },
-  async ({ type, slug, title, summary }, { db, auth }) => {
+  async ({ type, slug, title, summary }, { db }) => {
     const created = summary
       ? await db.content.create({ type, slug, title, summary })
       : await db.content.create({ type, slug, title });
@@ -34,8 +35,6 @@ export const createEntry = bsb.action(
     if (!created.ok) {
       return created;
     }
-
-    await refreshCaller(auth, [tags.contentEntries()]);
 
     return ok(created.data.id);
   },
@@ -47,15 +46,15 @@ export const publishEntry = bsb.action(
     input: v.object({ entryId: Id }),
     requireTenant: true,
     permission: "content.publish",
+    tags: () => [tags.contentEntries()],
+    refresh: true,
   },
-  async ({ entryId }, { db, auth }) => {
+  async ({ entryId }, { db }) => {
     const published = await db.content.publish(entryId);
 
     if (!published.ok) {
       return published;
     }
-
-    await refreshCaller(auth, [tags.contentEntries()]);
 
     return ok(published.data.id);
   },
@@ -67,15 +66,15 @@ export const archiveEntry = bsb.action(
     input: v.object({ entryId: Id }),
     requireTenant: true,
     permission: "content.publish",
+    tags: () => [tags.contentEntries()],
+    refresh: true,
   },
-  async ({ entryId }, { db, auth }) => {
+  async ({ entryId }, { db }) => {
     const archived = await db.content.archive(entryId);
 
     if (!archived.ok) {
       return archived;
     }
-
-    await refreshCaller(auth, [tags.contentEntries()]);
 
     return ok(archived.data.id);
   },

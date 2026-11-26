@@ -7,7 +7,6 @@ import * as v from "valibot";
 
 import { Decimal, Id, Optional, given } from "@/lib/form-input";
 import { getAllPagesResult } from "@/lib/read-all-pages";
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -27,8 +26,10 @@ export const createTill = bsb.action(
     }),
     requireTenant: true,
     permission: "tills.manage",
+    tags: () => TILLS_CACHE_TAGS,
+    refresh: true,
   },
-  async ({ name }, { tenant: organizationId, db, auth }) => {
+  async ({ name }, { tenant: organizationId, db }) => {
     const settings = await db.accounting.settings(organizationId);
 
     if (!settings.ok) {
@@ -96,8 +97,6 @@ export const createTill = bsb.action(
       return till;
     }
 
-    await refreshCaller(auth, TILLS_CACHE_TAGS);
-
     return ok({ id: till.data.id, accountId });
   },
 );
@@ -115,8 +114,10 @@ export const openSession = bsb.action(
     }),
     requireTenant: true,
     permission: "tills.write",
+    tags: () => TILLS_CACHE_TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const float = input.openingFloat;
 
     const opened = await db.tills.openSession({
@@ -134,8 +135,6 @@ export const openSession = bsb.action(
       return opened;
     }
 
-    await refreshCaller(auth, TILLS_CACHE_TAGS);
-
     return ok({ id: opened.data.id });
   },
 );
@@ -152,8 +151,10 @@ export const recordMovement = bsb.action(
     }),
     requireTenant: true,
     permission: "tills.write",
+    tags: () => TILLS_CACHE_TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const recorded = await db.tills.recordMovement({
       sessionId: input.sessionId,
       kind: input.kind,
@@ -164,8 +165,6 @@ export const recordMovement = bsb.action(
     if (!recorded.ok) {
       return recorded;
     }
-
-    await refreshCaller(auth, TILLS_CACHE_TAGS);
 
     return ok(true);
   },
@@ -182,8 +181,10 @@ export const closeSession = bsb.action(
     }),
     requireTenant: true,
     permission: "tills.write",
+    tags: () => TILLS_CACHE_TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const closed = await db.tills.closeSession({
       sessionId: input.sessionId,
       input: {
@@ -195,8 +196,6 @@ export const closeSession = bsb.action(
     if (!closed.ok) {
       return closed;
     }
-
-    await refreshCaller(auth, TILLS_CACHE_TAGS);
 
     return ok(true);
   },
@@ -213,8 +212,10 @@ export const depositCash = bsb.action(
     }),
     requireTenant: true,
     permission: "tills.manage",
+    tags: () => TILLS_CACHE_TAGS,
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const deposited = await db.tills.deposit({
       sessionId: input.sessionId,
       input: {
@@ -226,8 +227,6 @@ export const depositCash = bsb.action(
     if (!deposited.ok) {
       return deposited;
     }
-
-    await refreshCaller(auth, TILLS_CACHE_TAGS);
 
     return ok(true);
   },
@@ -245,8 +244,10 @@ export const importDepositStatement = bsb.action(
     }),
     requireTenant: true,
     permission: "banking.import",
+    tags: () => [...TILLS_CACHE_TAGS, tags.banking()],
+    refresh: true,
   },
-  async ({ accountId, statement }, { db, auth }) => {
+  async ({ accountId, statement }, { db }) => {
     let parsed: ReturnType<typeof parseMt940>;
 
     try {
@@ -281,8 +282,6 @@ export const importDepositStatement = bsb.action(
       added += imported.data.imported;
     }
 
-    await refreshCaller(auth, [...TILLS_CACHE_TAGS, tags.banking()]);
-
     return ok({ imported: added });
   },
 );
@@ -293,15 +292,15 @@ export const reconcileDeposit = bsb.action(
     input: v.object({ depositId: Id, bankTransactionId: Id }),
     requireTenant: true,
     permission: "tills.manage",
+    tags: () => [...TILLS_CACHE_TAGS, tags.banking()],
+    refresh: true,
   },
-  async (input, { db, auth }) => {
+  async (input, { db }) => {
     const reconciled = await db.tills.reconcileDeposit(input);
 
     if (!reconciled.ok) {
       return reconciled;
     }
-
-    await refreshCaller(auth, [...TILLS_CACHE_TAGS, tags.banking()]);
 
     return ok(true);
   },

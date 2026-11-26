@@ -7,7 +7,6 @@ import * as v from "valibot";
 
 import type { Mutable } from "@/lib/block-status-list";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -38,8 +37,10 @@ export const issuePass = bsb.action(
     }),
     requireTenant: true,
     permission: "passes.manage",
+    tags: () => [tags.passes()],
+    refresh: true,
   },
-  async ({ holderName, holderEmail, kind, usesAllowed }, { db, auth }) => {
+  async ({ holderName, holderEmail, kind, usesAllowed }, { db }) => {
     const input: Mutable<PassInput> = { holderName };
 
     if (holderEmail) {
@@ -60,8 +61,6 @@ export const issuePass = bsb.action(
       return issued;
     }
 
-    await refreshCaller(auth, [tags.passes()]);
-
     return ok(issued.data.id);
   },
 );
@@ -72,15 +71,15 @@ export const revokePass = bsb.action(
     input: v.object({ passId: Id }),
     requireTenant: true,
     permission: "passes.manage",
+    tags: () => [tags.passes()],
+    refresh: true,
   },
-  async ({ passId }, { db, auth }) => {
+  async ({ passId }, { db }) => {
     const revoked = await db.passes.revoke(passId);
 
     if (!revoked.ok) {
       return revoked;
     }
-
-    await refreshCaller(auth, [tags.passes()]);
 
     return ok(revoked.data.id);
   },
@@ -92,15 +91,15 @@ export const checkInPass = bsb.action(
     input: v.object({ passId: Id }),
     requireTenant: true,
     permission: "passes.check_in",
+    tags: () => [tags.passes()],
+    refresh: true,
   },
-  async ({ passId }, { db, auth }) => {
+  async ({ passId }, { db }) => {
     const scanned = await db.passes.checkInManually({ passId });
 
     if (!scanned.ok) {
       return scanned;
     }
-
-    await refreshCaller(auth, [tags.passes()]);
 
     return ok(scanned.data.admitted);
   },

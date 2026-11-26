@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -26,8 +25,10 @@ export const openIncident = bsb.action(
     }),
     requireTenant: true,
     permission: "incidents.write",
+    tags: () => [tags.incidents()],
+    refresh: true,
   },
-  async ({ title, severity, message }, { tenant, db, auth }) => {
+  async ({ title, severity, message }, { tenant, db }) => {
     const opened = message
       ? await db.incidents.open({
           organizationId: tenant,
@@ -41,8 +42,6 @@ export const openIncident = bsb.action(
     if (!opened.ok) {
       return opened;
     }
-
-    await refreshCaller(auth, [tags.incidents()]);
 
     return ok(opened.data.id);
   },
@@ -58,8 +57,10 @@ export const postIncidentUpdate = bsb.action(
     }),
     requireTenant: true,
     permission: "incidents.write",
+    tags: () => [tags.incidents()],
+    refresh: true,
   },
-  async ({ incidentId, status, body }, { db, auth }) => {
+  async ({ incidentId, status, body }, { db }) => {
     const posted = await db.incidents.postUpdate({
       incidentId,
       input: { status, body },
@@ -68,8 +69,6 @@ export const postIncidentUpdate = bsb.action(
     if (!posted.ok) {
       return posted;
     }
-
-    await refreshCaller(auth, [tags.incidents()]);
 
     return ok(posted.data.id);
   },
@@ -81,15 +80,15 @@ export const resolveIncident = bsb.action(
     input: v.object({ incidentId: Id, body: Text(2000) }),
     requireTenant: true,
     permission: "incidents.write",
+    tags: () => [tags.incidents()],
+    refresh: true,
   },
-  async ({ incidentId, body }, { db, auth }) => {
+  async ({ incidentId, body }, { db }) => {
     const resolved = await db.incidents.resolve({ incidentId, body });
 
     if (!resolved.ok) {
       return resolved;
     }
-
-    await refreshCaller(auth, [tags.incidents()]);
 
     return ok(resolved.data.id);
   },

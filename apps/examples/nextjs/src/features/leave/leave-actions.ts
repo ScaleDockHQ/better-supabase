@@ -6,7 +6,6 @@ import { ok } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -41,8 +40,10 @@ export const requestLeave = bsb.action(
     }),
     requireTenant: true,
     permission: "leave.request",
+    tags: () => [tags.leave()],
+    refresh: true,
   },
-  async (input, { tenant, db, auth }) => {
+  async (input, { tenant, db }) => {
     const leave: Writable<LeaveRequestInput> = {
       typeId: input.typeId,
       startsOn: Temporal.PlainDate.from(input.startsOn),
@@ -69,8 +70,6 @@ export const requestLeave = bsb.action(
       return requested;
     }
 
-    await refreshCaller(auth, [tags.leave()]);
-
     return ok({ id: requested.data.id, amount: requested.data.amount });
   },
 );
@@ -81,15 +80,15 @@ export const cancelLeave = bsb.action(
     input: v.object({ requestId: Id }),
     requireTenant: true,
     permission: "leave.request",
+    tags: () => [tags.leave()],
+    refresh: true,
   },
-  async ({ requestId }, { db, auth }) => {
+  async ({ requestId }, { db }) => {
     const cancelled = await db.leave.cancel(requestId);
 
     if (!cancelled.ok) {
       return cancelled;
     }
-
-    await refreshCaller(auth, [tags.leave()]);
 
     return ok({ status: cancelled.data.status });
   },
@@ -101,8 +100,10 @@ export const decideLeave = bsb.action(
     input: v.object({ approvalId: Id, approved: v.boolean(), comment: Note }),
     requireTenant: true,
     permission: "leave.approve",
+    tags: () => [tags.leave()],
+    refresh: true,
   },
-  async ({ approvalId, approved, comment }, { db, auth }) => {
+  async ({ approvalId, approved, comment }, { db }) => {
     const input: Writable<ApprovalDecision> = { id: approvalId };
 
     if (comment !== undefined) {
@@ -117,16 +118,20 @@ export const decideLeave = bsb.action(
       return decided;
     }
 
-    await refreshCaller(auth, [tags.leave()]);
-
     return ok({ status: decided.data.status });
   },
 );
 
 /** Creates the types a new organization starts with. */
 export const setUpLeaveTypes = bsb.action(
-  { input: v.object({}), requireTenant: true, permission: "leave.manage" },
-  async (_input, { tenant, db, auth }) => {
+  {
+    input: v.object({}),
+    requireTenant: true,
+    permission: "leave.manage",
+    tags: () => [tags.leave()],
+    refresh: true,
+  },
+  async (_input, { tenant, db }) => {
     const vacation = await db.leave.saveType({
       organizationId: tenant,
       input: {
@@ -167,8 +172,6 @@ export const setUpLeaveTypes = bsb.action(
     if (!accrued.ok) {
       return accrued;
     }
-
-    await refreshCaller(auth, [tags.leave()]);
 
     return ok({ granted: accrued.data });
   },

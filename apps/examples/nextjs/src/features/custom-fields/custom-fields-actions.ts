@@ -4,7 +4,6 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
-import { refreshCaller } from "@/lib/refresh-caller";
 import { tags } from "@/lib/supabase/generated.tags";
 import { bsb } from "@/lib/supabase/server";
 
@@ -27,8 +26,15 @@ export const saveField = bsb.action(
     }),
     requireTenant: true,
     permission: "custom_fields.manage",
+    tags: () => [
+      tags.customFields(),
+      tags.work(),
+      tags.projects(),
+      tags.customers(),
+    ],
+    refresh: true,
   },
-  async ({ entity, key, label, type, sensitive }, { db, auth }) => {
+  async ({ entity, key, label, type, sensitive }, { db }) => {
     const saved = await db.customFields.saveDefinition({
       entity,
       key,
@@ -41,13 +47,6 @@ export const saveField = bsb.action(
       return saved;
     }
 
-    await refreshCaller(auth, [
-      tags.customFields(),
-      tags.work(),
-      tags.projects(),
-      tags.customers(),
-    ]);
-
     return ok(saved.data.id);
   },
 );
@@ -57,20 +56,20 @@ export const deleteField = bsb.action(
     input: v.object({ id: Id }),
     requireTenant: true,
     permission: "custom_fields.manage",
+    tags: () => [
+      tags.customFields(),
+      tags.work(),
+      tags.projects(),
+      tags.customers(),
+    ],
+    refresh: true,
   },
-  async ({ id }, { db, auth }) => {
+  async ({ id }, { db }) => {
     const archived = await db.customFields.archiveDefinition(id);
 
     if (!archived.ok) {
       return archived;
     }
-
-    await refreshCaller(auth, [
-      tags.customFields(),
-      tags.work(),
-      tags.projects(),
-      tags.customers(),
-    ]);
 
     return ok(true);
   },
@@ -89,8 +88,15 @@ export const moveField = bsb.action(
     }),
     requireTenant: true,
     permission: "custom_fields.manage",
+    tags: () => [
+      tags.customFields(),
+      tags.work(),
+      tags.projects(),
+      tags.customers(),
+    ],
+    refresh: true,
   },
-  async ({ entity, id, direction }, { db, auth }) => {
+  async ({ entity, id, direction }, { db }) => {
     const { customFields } = db;
 
     const listed = await customFields
@@ -142,13 +148,6 @@ export const moveField = bsb.action(
         previous = ranked.data;
       }
     }
-
-    await refreshCaller(auth, [
-      tags.customFields(),
-      tags.work(),
-      tags.projects(),
-      tags.customers(),
-    ]);
 
     return ok(true);
   },
