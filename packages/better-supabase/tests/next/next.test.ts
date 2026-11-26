@@ -932,6 +932,32 @@ describe("createNext", () => {
     ]);
   });
 
+  it("evicts the caller's session entries after a successful action only", async () => {
+    mocks.headers = new Headers({
+      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
+    });
+
+    const save = bsb.action(
+      { input: v.object({ fail: v.boolean() }), evictSession: true },
+      (input) => {
+        if (input.fail) {
+          throw new DbException(dbError("conflict", "Taken"));
+        }
+
+        return "saved";
+      },
+    );
+
+    mocks.updateTag.mockReset();
+    expect(await save({ fail: true })).toMatchObject({ ok: false });
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+
+    expect(await save({ fail: false })).toMatchObject({ ok: true });
+    expect(mocks.updateTag.mock.calls.some(([tag]) => tag.includes(USER))).toBe(
+      true,
+    );
+  });
+
   it("maps the data of a successful action to another type, after invalidating", async () => {
     mocks.headers = new Headers({
       authorization: `Bearer ${await signer.sign({ sub: USER })}`,

@@ -808,6 +808,18 @@ export const createAgendaItem = bsb.action(
 );
 ```
 
+`evictSession: true` drops every cached entry of the caller after a successful
+call (`bsb.evictSession`) and re-renders their page. Use it for a write that
+changes what other domains read, such as a membership, role or profile change,
+and prefer `tags` when the write reaches one domain:
+
+```ts
+export const renameOrganization = bsb.action(
+  async ({ name }, { db }) => await db.organizations.rename(name),
+  { input: renameSchema, evictSession: true },
+);
+```
+
 #### Mapping the data to another type
 
 `result` keeps the data type. To return a different type, pass a mapper as the

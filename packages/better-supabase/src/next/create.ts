@@ -1069,6 +1069,10 @@ export function createNext<
             { tenant, input: parsed, data: settled.data },
             invalidate,
           );
+
+          if (actionOptions.evictSession && ctx.auth.kind === "user") {
+            await evictSession(ctx.auth.user.id);
+          }
         }
 
         if (settled.ok && mapData) {

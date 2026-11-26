@@ -366,6 +366,13 @@ export interface ActionOptions<
    * router shows the write without each caller doing it.
    */
   readonly refresh?: boolean;
+  /**
+   * Drops every `bsb.cached()` entry of the caller after a successful call
+   * (`bsb.evictSession`), which also re-renders the caller's page. Use it for a
+   * write that changes what other domains read, such as a membership, role or
+   * profile change; prefer `tags` when the write reaches one domain.
+   */
+  readonly evictSession?: boolean;
 }
 
 /**
