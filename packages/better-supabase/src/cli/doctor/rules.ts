@@ -29,6 +29,7 @@ import { diffEngine, migrationCommand, tomlGet } from "../supabase-config.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
+import { moduleOwned } from "./audit-coverage.ts";
 import { AUTH_USER_RULES } from "./auth-users.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
@@ -91,6 +92,7 @@ import { SHIPPED_SHIM_RULES } from "./shipped-shims.ts";
 import { STACK_RULES } from "./stacks.ts";
 import { SUPABASE_CLI_RULES } from "./supabase-cli.ts";
 import { TABLE_FACT_RULES } from "./table-facts.ts";
+import { tenantColumnOf, tenantIndexGap } from "./tenant-column.ts";
 import { findLine } from "./tree.ts";
 import { VERCEL_ENV_RULES } from "./vercel-env.ts";
 import { WIRING_RULES } from "./wiring.ts";
@@ -562,32 +564,42 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Tenant column without an index",
     description:
-      "The memberships extension and organization policies filter every query on this column. A view is left out: a query on it uses the indexes of its tables.",
+      "Queries filter on the tenant column, so it needs an index that starts with it. Doctor checks every table in `schemas` except the block schemas and the tables blocks adopt. A view is left out: a query on it uses the indexes of its tables.",
     check: (context) => {
-      const tenant = context.config.extensions.tenant;
+      const owned = moduleOwned(context);
 
-      if (!tenant) {
-        return [];
-      }
+      return catalogOf(context).tables.flatMap((table) => {
+        if (
+          table.kind !== "table" ||
+          table.partitionOf !== undefined ||
+          !context.config.schemas.includes(table.schema) ||
+          owned.schemas.has(table.schema) ||
+          owned.tables.has(qualified(table))
+        ) {
+          return [];
+        }
 
-      return exposed(context)
-        .filter(
-          (table) =>
-            table.kind === "table" &&
-            table.columns.some((column) => column.name === tenant.column) &&
-            !table.indexes.some(
-              // An expression key also marks an index partial; only a
-              // predicate keeps it from serving every tenant query.
-              (index) =>
-                (!index.partial || index.predicate === null) &&
-                index.columns[0] === tenant.column,
-            ),
-        )
-        .map((table) => ({
-          message: `${qualified(table)}.${tenant.column} has no index starting with it.`,
-          target: `${qualified(table)}.${tenant.column}`,
-          object: tableObject(table),
-        }));
+        const column = tenantColumnOf(context, table);
+
+        if (
+          column === undefined ||
+          !table.columns.some((entry) => entry.name === column)
+        ) {
+          return [];
+        }
+
+        const message = tenantIndexGap(table, column);
+
+        return message === undefined
+          ? []
+          : [
+              {
+                message,
+                target: `${qualified(table)}.${column}`,
+                object: tableObject(table),
+              },
+            ];
+      });
     },
   },
   {

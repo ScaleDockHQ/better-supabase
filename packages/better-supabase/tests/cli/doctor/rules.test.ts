@@ -356,6 +356,112 @@ describe("BS204, BS210, BS301", () => {
     expect(await run("BS204", context())).toEqual([]);
   });
 
+  it("checks a private schema, a per-table column and a user-scoped table", async () => {
+    const snap = snapshot((tables) => {
+      const notes = structuredClone(table(tables, "notes"));
+      notes.schema = "billing";
+      notes.name = "invoices";
+      notes.indexes = notes.indexes.filter(
+        (index) => index.columns[0] !== "organization_id",
+      );
+      tables.push(notes);
+
+      const customers = table(tables, "customers");
+      customers.columns = [
+        ...customers.columns,
+        { ...customers.columns[0]!, name: "workspace_id" },
+      ];
+
+      const profiles = structuredClone(notes);
+      profiles.schema = "public";
+      profiles.name = "profiles";
+      profiles.columns = [
+        ...profiles.columns,
+        { ...profiles.columns[0]!, name: "user_id" },
+      ];
+      profiles.indexes = [];
+      tables.push(profiles);
+    });
+
+    const findings = await run(
+      "BS204",
+      context(
+        snap,
+        {},
+        // SAFETY: appTables is a resolve input, not a grouped config key, and
+        // the audit columns entry is the per-table tenant override the rule
+        // reads by table name.
+        {
+          database: { schemas: ["public", "billing"] },
+          blocks: {
+            memberships: {},
+            audit: { columns: { customers: { tenant: "workspace_id" } } },
+          },
+          appTables: { profiles: { scope: "user" } },
+        } as BetterSupabaseConfig,
+      ),
+    );
+
+    const targets = findings.map((finding) => finding.target);
+    expect(targets).toContain("billing.invoices.organization_id");
+    expect(targets).toContain("public.customers.workspace_id");
+    expect(targets).toContain("public.profiles.user_id");
+    expect(targets).not.toContain("public.customers.organization_id");
+  });
+
+  it("names a partial index and a column that is not first", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.indexes = [
+        {
+          name: "notes_live",
+          columns: ["organization_id"],
+          unique: false,
+          primary: false,
+          partial: true,
+          method: "btree",
+          predicate: "(archived_at IS NULL)",
+        },
+      ];
+      const customers = table(tables, "customers");
+      customers.indexes = [
+        {
+          name: "customers_name_tenant",
+          columns: ["name", "organization_id"],
+          unique: false,
+          primary: false,
+          partial: false,
+          method: "btree",
+          predicate: null,
+        },
+      ];
+    });
+
+    const findings = await run(
+      "BS204",
+      context(snap, {}, { blocks: { memberships: {} } }),
+    );
+
+    const notes = findings.find(
+      (finding) => finding.target === "public.notes.organization_id",
+    );
+
+    const customers = findings.find(
+      (finding) => finding.target === "public.customers.organization_id",
+    );
+
+    expect(notes?.message).toContain(
+      "only has a partial index starting with it",
+    );
+    expect(notes?.message).toContain(
+      "create index on public.notes (organization_id);",
+    );
+    expect(customers?.message).toContain("is in an index but not first");
+    expect(customers?.message).toContain(
+      "create index on public.customers (organization_id);",
+    );
+  });
+
   it("accepts aggregates enabled with on, and passes code without them", async () => {
     const withSetting = (value: string): Snapshot => ({
       ...base,
