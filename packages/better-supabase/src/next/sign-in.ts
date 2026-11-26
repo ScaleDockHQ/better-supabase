@@ -240,7 +240,7 @@ function refused(auth: AuthState): ActionResult<never> {
  * no token: it crosses the action boundary, and the session is on the request's
  * reads.
  */
-export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
+function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
   const { auth } = deps;
 
   const cookieName = (): string =>
