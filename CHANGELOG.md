@@ -1,5 +1,308 @@
 # Changelog
 
+## 0.88.0 (2026-11-26)
+
+- **Behaviour change:** the audit log now records a service write made for a member (`admin(context, { as })`, the `x-bsb-actor` header) with `actor_kind = 'user'`, where it recorded `service`; `actor_role` keeps `service_role`. A filter or report that read such writes as `service` needs `actor_role` instead. Run `better-supabase upgrade` and diff to pick up the audit functions.
+
+  - `server.admin(context, { as, headers })` sends `headers` on every request too, such as the request id and client address the audit log reads.
+  - `bsb.bootstrap({ redirect, require: "user" })` also redirects a caller without a user session, with `?reason=signed_out` (`reasons.signedOut`), and types the result as `UserBootstrap`, an active user session. `require` without `redirect` is a type error and throws.
+  - `syncWithAuth(db, auth, { connectOptions })` passes `connectOptions` to every `connect`, such as PowerSync's `{ checkpointMode: "requests" }`.
+  - `createUploadConnector({ onUploaded })` gets each batch's changes after `complete()` succeeds, without the upload waiting for it. `CrudEntryLike` carries `previousValues`.
+  - `createClient`, `bindClient` and `createNativeClient` take `verifySession: { rpc, schema? }`: a session that signs in or loads from storage is checked against the sessions block's `bootstrap_<rpc>` wrapper (in the schema `gen` recorded, else `better_supabase`), and signed out locally when the server ended it and the same user is still signed in.
+- `bsb.action` takes `evictSession`. After a successful call the library drops every cached entry of the caller, as `bsb.evictSession(userId)` does.
+
+  | Before                                             | After                |
+  | -------------------------------------------------- | -------------------- |
+  | `await bsb.evictSession(auth.user.id)` in the body | `evictSession: true` |
+- `bsb.action` takes `tags` and `refresh`. After a successful call the library expires the tags `tags({ tenant, input, data })` returns and, with `refresh: true`, calls `refresh()` from `next/cache`.
+
+  | Before                                  | After                                 |
+  | --------------------------------------- | ------------------------------------- |
+  | `updateTag(tag)` inside the action body | `tags: ({ tenant }) => [tag(tenant)]` |
+  | `refresh()` in every caller             | `refresh: true`                       |
+- Add `createNext({ actions: { envelope, guard, from } })` for rules every `bsb.action` shares, `ActionDefaultsProvider` in `better-supabase/react` for app-wide `onSuccess` and `onError` of `useAction`, `useOptimisticAction` and `useActionForm`, and `defineTags(tables)` for tags a reader and an action declare once.
+
+  | Before                                         | After                                                          |
+  | ---------------------------------------------- | -------------------------------------------------------------- |
+  | a wrapper around `bsb.action` for the envelope | `createNext(bs, { actions: { envelope } })`                    |
+  | the same toast in every `useAction` call       | `<ActionDefaultsProvider value={{ onError }}>`                 |
+  | a hand-written `*-cache.ts` tag helper         | `const tags = defineTags(["customers"])`; `tags.customers(id)` |
+- The authorization refresh joins its Realtime channel when the browser is idle (`requestIdleCallback`, else a timer), keeps one channel per client, topic and event, and skips the `caller_authz_version()` call on the first join when `SessionProvider` gets `liveVersion` (the bootstrap's `authzVersion`). A join after a reconnect still reads the version. Pass `liveVersion` to save the call on every page load.
+- `bsb.cached({ keep: { name } })` keeps the reads of `ctx.db` in the kept store, per user and table, so a cold page or a new instance answers them without calling the database, and parallel renders share one fill. `bsb.bootstrap({ rpc, kept: true })` keeps the wrapper's answer the same way. `db.$wrapExecutor(wrap)` puts a wrapper around a client's executor, outside the plugins and the call counts.
+- `doctor` checks `--out` before it reads the project, so a path outside the project or a directory fails at once instead of after the run. It logs the time of each phase, prints the times under the text report and lists them as `phases` in the JSON report (`doctor-report-v1.json`). A text report of 20 findings or more starts with one line per rule and its count. BS609 prints the read set that replaces the parallel reads it found, with `s` as the builder and one key per table.
+- Add `bsb.expireTags(tags)`, which expires tags in Next's cache (`updateTag` in a
+  Server Action, `revalidateTag` in a Route Handler) and in the `bsb.kept()`
+  store, and resolves once the store has them. Doctor gains BS648 (`updateTag` or
+  `revalidateTag` beside `bsb.kept`) and BS649 (`refresh()` that expires nothing
+  beside `bsb.kept`), and `better-supabase codemod expire-tags` lists the calls to
+  change.
+- Add the `better-supabase/generators/tags` generator, which writes `<output>.tags.ts` with a `defineTags` call over the schema's tables.
+
+  | Before                                          | After                                                 |
+  | ----------------------------------------------- | ----------------------------------------------------- |
+  | `defineTags(["customers", "invoices"])` by hand | `gen: { generators: [tags()] }` and `import { tags }` |
+- Reads are `get*` everywhere (ADR 1250). The functions that read a source lose
+  their `load` and `read` verb, the record binding `load` member is `get`, and
+  `better-supabase codemod naming` renames the functions in your app.
+
+  | Old                                                   | New                                                  |
+  | ----------------------------------------------------- | ---------------------------------------------------- |
+  | `loadConfig`, `loadProject`, `loadSnapshot`           | `getConfig`, `getProject`, `getSnapshot`             |
+  | `loadEnv`, `loadJsonPath`                             | `getEnv`, `getJsonPath`                              |
+  | `loadBindings`, `loadMyWork`, `loadTimeline`          | `getBindings`, `getMyWork`, `getTimeline`            |
+  | `readCatalog`, `readSecurityCatalog`                  | `getCatalog`, `getSecurityCatalog`                   |
+  | `readDesignFile`                                      | `getDesignFile`                                      |
+  | `readPolicies`, `readGrants`, `readRulePolicies`      | `getPolicies`, `getGrants`, `getRulePolicies`        |
+  | `readArgSource`, `readArgSqlType`                     | `getArgSource`, `getArgSqlType`                      |
+  | `readStatus`, `readBitstringStatus`                   | `getStatus`, `getBitstringStatus`                    |
+  | `readC2paManifest`                                    | `getC2paManifest`                                    |
+  | `bsb.record(...).load(id)`, `recordListServer.load`   | `bsb.record(...).get(id)`, `recordListServer.get`    |
+  | record binding `load`                                 | `get`                                                |
+  | `SchemaMeta.tableLoaders`, `SchemaMeta.loadFunctions` | `SchemaMeta.tableGetters`, `SchemaMeta.getFunctions` |
+  | generated `load<Name>SearchParams`                    | `get<Name>SearchParams`                              |
+- Request stats gain `keptHits`, the kept entries that served a read without a fill, per phase. The `bsb.action` log line prints it as `keptHits=render:4`.
+- `createProxy({ auth, env, jwks, debug })` runs without the app definition, so `proxy.ts` no longer imports the schema or the blocks. `gen` writes `proxy-permissions.generated.ts` (permission key to bit index) when `gen.permissionCatalog` is on, so `permissionsOf` reads the token bitset without the catalog. A new doctor rule, BS650, reads the proxy's file trace from the last `next build` and reports above 400 KB. The old `createProxy(betterSupabase, options)` form keeps working.
+- SQL functions use the data verbs (ADR 1251). The module functions named with
+  `save`, `add` and `remove` are `upsert`, `create` and `delete`, and two reads
+  are `get`. The next schema diff drops each old function and creates the new
+  one with its grants, so run `better-supabase codemod naming` on your own SQL
+  and apply the migration together. `better-supabase doctor` reports calls to an
+  old name, and `codemod naming` rewrites `better_supabase.<old>` in app SQL.
+
+  | Old                                                 | New                                                  |
+  | --------------------------------------------------- | ---------------------------------------------------- |
+  | `better_supabase.save_accounting_account`           | `better_supabase.upsert_accounting_account`          |
+  | `better_supabase.save_accounting_budget`            | `better_supabase.upsert_accounting_budget`           |
+  | `better_supabase.save_accounting_dimension`         | `better_supabase.upsert_accounting_dimension`        |
+  | `better_supabase.save_accounting_dimension_value`   | `better_supabase.upsert_accounting_dimension_value`  |
+  | `better_supabase.save_accounting_entry`             | `better_supabase.upsert_accounting_entry`            |
+  | `better_supabase.save_accounting_journal`           | `better_supabase.upsert_accounting_journal`          |
+  | `better_supabase.save_accounting_opening_balances`  | `better_supabase.upsert_accounting_opening_balances` |
+  | `better_supabase.save_activity_notes`               | `better_supabase.upsert_activity_notes`              |
+  | `better_supabase.save_activity_transcript`          | `better_supabase.upsert_activity_transcript`         |
+  | `better_supabase.save_advisory`                     | `better_supabase.upsert_advisory`                    |
+  | `better_supabase.save_advisory_product`             | `better_supabase.upsert_advisory_product`            |
+  | `better_supabase.save_vex_statement`                | `better_supabase.upsert_vex_statement`               |
+  | `better_supabase.save_vulnerability`                | `better_supabase.upsert_vulnerability`               |
+  | `better_supabase.save_agent`                        | `better_supabase.upsert_agent`                       |
+  | `better_supabase.add_ai_chat_participant`           | `better_supabase.create_ai_chat_participant`         |
+  | `better_supabase.add_ai_chat_party`                 | `better_supabase.create_ai_chat_party`               |
+  | `better_supabase.load_ai_harness_session`           | `better_supabase.get_ai_harness_session`             |
+  | `better_supabase.remove_ai_chat_participant`        | `better_supabase.delete_ai_chat_participant`         |
+  | `better_supabase.remove_ai_chat_party`              | `better_supabase.delete_ai_chat_party`               |
+  | `better_supabase.save_ai_assistant_message`         | `better_supabase.upsert_ai_assistant_message`        |
+  | `better_supabase.save_ai_harness_session`           | `better_supabase.upsert_ai_harness_session`          |
+  | `better_supabase.save_ai_project`                   | `better_supabase.upsert_ai_project`                  |
+  | `better_supabase.add_eval_items`                    | `better_supabase.create_eval_items`                  |
+  | `better_supabase.add_eval_items_from_feedback`      | `better_supabase.create_eval_items_from_feedback`    |
+  | `better_supabase.save_ai_batch_items`               | `better_supabase.upsert_ai_batch_items`              |
+  | `better_supabase.save_ai_provider_key`              | `better_supabase.upsert_ai_provider_key`             |
+  | `better_supabase.save_ai_task`                      | `better_supabase.upsert_ai_task`                     |
+  | `better_supabase.save_announcement`                 | `better_supabase.upsert_announcement`                |
+  | `better_supabase.remove_approval_policy`            | `better_supabase.delete_approval_policy`             |
+  | `better_supabase.save_approval_policy`              | `better_supabase.upsert_approval_policy`             |
+  | `better_supabase.remove_assignment_queue`           | `better_supabase.delete_assignment_queue`            |
+  | `better_supabase.save_assignment_queue`             | `better_supabase.upsert_assignment_queue`            |
+  | `better_supabase.remove_rule`                       | `better_supabase.delete_rule`                        |
+  | `better_supabase.save_rule`                         | `better_supabase.upsert_rule`                        |
+  | `better_supabase.save_bank_account`                 | `better_supabase.upsert_bank_account`                |
+  | `better_supabase.save_bank_rule`                    | `better_supabase.upsert_bank_rule`                   |
+  | `better_supabase.add_booking_exception`             | `better_supabase.create_booking_exception`           |
+  | `better_supabase.save_booking_resource`             | `better_supabase.upsert_booking_resource`            |
+  | `better_supabase.save_booking_service`              | `better_supabase.upsert_booking_service`             |
+  | `better_supabase.remove_calendar_attendee`          | `better_supabase.delete_calendar_attendee`           |
+  | `better_supabase.remove_calendar_grant`             | `better_supabase.delete_calendar_grant`              |
+  | `better_supabase.save_calendar_event`               | `better_supabase.upsert_calendar_event`              |
+  | `better_supabase.add_care_plan_action`              | `better_supabase.create_care_plan_action`            |
+  | `better_supabase.add_care_plan_goal`                | `better_supabase.create_care_plan_goal`              |
+  | `better_supabase.add_care_plan_problem`             | `better_supabase.create_care_plan_problem`           |
+  | `better_supabase.remove_case_action`                | `better_supabase.delete_case_action`                 |
+  | `better_supabase.save_case_kind`                    | `better_supabase.upsert_case_kind`                   |
+  | `better_supabase.add_product_media`                 | `better_supabase.create_product_media`               |
+  | `better_supabase.remove_product_media`              | `better_supabase.delete_product_media`               |
+  | `better_supabase.save_catalog_channel`              | `better_supabase.upsert_catalog_channel`             |
+  | `better_supabase.save_category`                     | `better_supabase.upsert_category`                    |
+  | `better_supabase.save_collection`                   | `better_supabase.upsert_collection`                  |
+  | `better_supabase.save_discount_group`               | `better_supabase.upsert_discount_group`              |
+  | `better_supabase.save_discount_rule`                | `better_supabase.upsert_discount_rule`               |
+  | `better_supabase.save_price_list`                   | `better_supabase.upsert_price_list`                  |
+  | `better_supabase.save_product`                      | `better_supabase.upsert_product`                     |
+  | `better_supabase.save_product_identifier`           | `better_supabase.upsert_product_identifier`          |
+  | `better_supabase.save_product_option`               | `better_supabase.upsert_product_option`              |
+  | `better_supabase.save_product_relation`             | `better_supabase.upsert_product_relation`            |
+  | `better_supabase.save_supplier_item`                | `better_supabase.upsert_supplier_item`               |
+  | `better_supabase.save_variant`                      | `better_supabase.upsert_variant`                     |
+  | `better_supabase.save_care_rule`                    | `better_supabase.upsert_care_rule`                   |
+  | `better_supabase.add_collection_entries`            | `better_supabase.create_collection_entries`          |
+  | `better_supabase.remove_collection_entries`         | `better_supabase.delete_collection_entries`          |
+  | `better_supabase.remove_saved_item`                 | `better_supabase.delete_saved_item`                  |
+  | `better_supabase.save_for_later`                    | `better_supabase.upsert_for_later`                   |
+  | `better_supabase.save_commission_plan`              | `better_supabase.upsert_commission_plan`             |
+  | `better_supabase.add_control_evidence`              | `better_supabase.create_control_evidence`            |
+  | `better_supabase.remove_control_evidence`           | `better_supabase.delete_control_evidence`            |
+  | `better_supabase.save_compliance_policy`            | `better_supabase.upsert_compliance_policy`           |
+  | `better_supabase.save_control`                      | `better_supabase.upsert_control`                     |
+  | `better_supabase.save_control_framework`            | `better_supabase.upsert_control_framework`           |
+  | `better_supabase.save_evidence_task`                | `better_supabase.upsert_evidence_task`               |
+  | `better_supabase.save_connector_server`             | `better_supabase.upsert_connector_server`            |
+  | `better_supabase.save_connector_session`            | `better_supabase.upsert_connector_session`           |
+  | `better_supabase.save_consent_purpose`              | `better_supabase.upsert_consent_purpose`             |
+  | `better_supabase.add_person_identity`               | `better_supabase.create_person_identity`             |
+  | `better_supabase.remove_company_person`             | `better_supabase.delete_company_person`              |
+  | `better_supabase.remove_person_identity`            | `better_supabase.delete_person_identity`             |
+  | `better_supabase.save_company`                      | `better_supabase.upsert_company`                     |
+  | `better_supabase.save_payment_term`                 | `better_supabase.upsert_payment_term`                |
+  | `better_supabase.save_person`                       | `better_supabase.upsert_person`                      |
+  | `better_supabase.save_contract_obligation`          | `better_supabase.upsert_contract_obligation`         |
+  | `better_supabase.save_course`                       | `better_supabase.upsert_course`                      |
+  | `better_supabase.save_course_lesson`                | `better_supabase.upsert_course_lesson`               |
+  | `better_supabase.save_course_module`                | `better_supabase.upsert_course_module`               |
+  | `better_supabase.read_field_values`                 | `better_supabase.get_field_values`                   |
+  | `better_supabase.save_field_definition`             | `better_supabase.upsert_field_definition`            |
+  | `better_supabase.remove_retention_policy`           | `better_supabase.delete_retention_policy`            |
+  | `better_supabase.save_rule_version`                 | `better_supabase.upsert_rule_version`                |
+  | `better_supabase.remove_work_order_part`            | `better_supabase.delete_work_order_part`             |
+  | `better_supabase.save_document_template`            | `better_supabase.upsert_document_template`           |
+  | `better_supabase.save_document_text_block`          | `better_supabase.upsert_document_text_block`         |
+  | `better_supabase.save_document_version`             | `better_supabase.upsert_document_version`            |
+  | `better_supabase.add_hostname`                      | `better_supabase.create_hostname`                    |
+  | `better_supabase.remove_hostname`                   | `better_supabase.delete_hostname`                    |
+  | `better_supabase.save_donation_fund`                | `better_supabase.upsert_donation_fund`               |
+  | `better_supabase.add_employee_contract`             | `better_supabase.create_employee_contract`           |
+  | `better_supabase.save_employee_private_details`     | `better_supabase.upsert_employee_private_details`    |
+  | `better_supabase.save_enrollment_program`           | `better_supabase.upsert_enrollment_program`          |
+  | `better_supabase.add_expense_line`                  | `better_supabase.create_expense_line`                |
+  | `better_supabase.remove_expense_line`               | `better_supabase.delete_expense_line`                |
+  | `better_supabase.save_expense_category`             | `better_supabase.upsert_expense_category`            |
+  | `better_supabase.save_flag`                         | `better_supabase.upsert_flag`                        |
+  | `better_supabase.save_flag_segment`                 | `better_supabase.upsert_flag_segment`                |
+  | `better_supabase.save_funding_award`                | `better_supabase.upsert_funding_award`               |
+  | `better_supabase.save_funding_product`              | `better_supabase.upsert_funding_product`             |
+  | `better_supabase.save_goal`                         | `better_supabase.upsert_goal`                        |
+  | `better_supabase.save_job`                          | `better_supabase.upsert_job`                         |
+  | `better_supabase.save_inbox_draft`                  | `better_supabase.upsert_inbox_draft`                 |
+  | `better_supabase.add_incident_postmortem_action`    | `better_supabase.create_incident_postmortem_action`  |
+  | `better_supabase.remove_incident_postmortem_action` | `better_supabase.delete_incident_postmortem_action`  |
+  | `better_supabase.save_incident_postmortem`          | `better_supabase.upsert_incident_postmortem`         |
+  | `better_supabase.save_incident_regulatory_profile`  | `better_supabase.upsert_incident_regulatory_profile` |
+  | `better_supabase.save_status_component`             | `better_supabase.upsert_status_component`            |
+  | `better_supabase.save_status_page`                  | `better_supabase.upsert_status_page`                 |
+  | `better_supabase.add_inspection_finding`            | `better_supabase.create_inspection_finding`          |
+  | `better_supabase.save_inspection_checklist`         | `better_supabase.upsert_inspection_checklist`        |
+  | `better_supabase.save_inspection_program`           | `better_supabase.upsert_inspection_program`          |
+  | `better_supabase.save_bin`                          | `better_supabase.upsert_bin`                         |
+  | `better_supabase.save_location`                     | `better_supabase.upsert_location`                    |
+  | `better_supabase.save_lot`                          | `better_supabase.upsert_lot`                         |
+  | `better_supabase.save_purchase_order`               | `better_supabase.upsert_purchase_order`              |
+  | `better_supabase.add_invoice_charge`                | `better_supabase.create_invoice_charge`              |
+  | `better_supabase.remove_invoice_charge`             | `better_supabase.delete_invoice_charge`              |
+  | `better_supabase.save_leave_type`                   | `better_supabase.upsert_leave_type`                  |
+  | `better_supabase.save_lims_method`                  | `better_supabase.upsert_lims_method`                 |
+  | `better_supabase.save_bom`                          | `better_supabase.upsert_bom`                         |
+  | `better_supabase.save_work_center`                  | `better_supabase.upsert_work_center`                 |
+  | `better_supabase.save_medication`                   | `better_supabase.upsert_medication`                  |
+  | `better_supabase.add_meeting_action_item`           | `better_supabase.create_meeting_action_item`         |
+  | `better_supabase.remove_meeting_attendee`           | `better_supabase.delete_meeting_attendee`            |
+  | `better_supabase.save_meeting_agenda_item`          | `better_supabase.upsert_meeting_agenda_item`         |
+  | `better_supabase.add_member_role`                   | `better_supabase.create_member_role`                 |
+  | `better_supabase.remove_member_role`                | `better_supabase.delete_member_role`                 |
+  | `better_supabase.add_conversation_members`          | `better_supabase.create_conversation_members`        |
+  | `better_supabase.remove_conversation_member`        | `better_supabase.delete_conversation_member`         |
+  | `better_supabase.save_thread_summary`               | `better_supabase.upsert_thread_summary`              |
+  | `better_supabase.save_observation_definition`       | `better_supabase.upsert_observation_definition`      |
+  | `better_supabase.save_option_set`                   | `better_supabase.upsert_option_set`                  |
+  | `better_supabase.save_option_set_item`              | `better_supabase.upsert_option_set_item`             |
+  | `better_supabase.save_kitchen_station`              | `better_supabase.upsert_kitchen_station`             |
+  | `better_supabase.save_shipping_rate`                | `better_supabase.upsert_shipping_rate`               |
+  | `better_supabase.remove_member`                     | `better_supabase.delete_member`                      |
+  | `better_supabase.save_pipeline`                     | `better_supabase.upsert_pipeline`                    |
+  | `better_supabase.save_pipeline_stage`               | `better_supabase.upsert_pipeline_stage`              |
+  | `better_supabase.save_post_board`                   | `better_supabase.upsert_post_board`                  |
+  | `better_supabase.save_promotion`                    | `better_supabase.upsert_promotion`                   |
+  | `better_supabase.add_qualification_requirement`     | `better_supabase.create_qualification_requirement`   |
+  | `better_supabase.remove_qualification_requirement`  | `better_supabase.delete_qualification_requirement`   |
+  | `better_supabase.save_qualification_type`           | `better_supabase.upsert_qualification_type`          |
+  | `better_supabase.save_custom_emoji`                 | `better_supabase.upsert_custom_emoji`                |
+  | `better_supabase.save_reminder`                     | `better_supabase.upsert_reminder`                    |
+  | `better_supabase.save_risk_matrix`                  | `better_supabase.upsert_risk_matrix`                 |
+  | `better_supabase.save_view`                         | `better_supabase.upsert_view`                        |
+  | `better_supabase.save_score_model`                  | `better_supabase.upsert_score_model`                 |
+  | `better_supabase.remove_segment`                    | `better_supabase.delete_segment`                     |
+  | `better_supabase.save_segment`                      | `better_supabase.upsert_segment`                     |
+  | `better_supabase.save_sequence`                     | `better_supabase.upsert_sequence`                    |
+  | `better_supabase.save_shift`                        | `better_supabase.upsert_shift`                       |
+  | `better_supabase.save_shift_template`               | `better_supabase.upsert_shift_template`              |
+  | `better_supabase.save_intrastat_line`               | `better_supabase.upsert_intrastat_line`              |
+  | `better_supabase.add_signing_key`                   | `better_supabase.create_signing_key`                 |
+  | `better_supabase.save_sla_policy`                   | `better_supabase.upsert_sla_policy`                  |
+  | `better_supabase.add_organization_domain`           | `better_supabase.create_organization_domain`         |
+  | `better_supabase.remove_organization_domain`        | `better_supabase.delete_organization_domain`         |
+  | `better_supabase.add_subject_member`                | `better_supabase.create_subject_member`              |
+  | `better_supabase.save_iteration`                    | `better_supabase.upsert_iteration`                   |
+  | `better_supabase.save_project`                      | `better_supabase.upsert_project`                     |
+  | `better_supabase.save_task_checklist_item`          | `better_supabase.upsert_task_checklist_item`         |
+  | `better_supabase.save_task_material_line`           | `better_supabase.upsert_task_material_line`          |
+  | `better_supabase.save_task_specification_line`      | `better_supabase.upsert_task_specification_line`     |
+  | `better_supabase.save_tax_code`                     | `better_supabase.upsert_tax_code`                    |
+  | `better_supabase.save_tax_rate`                     | `better_supabase.upsert_tax_rate`                    |
+  | `better_supabase.add_team_member`                   | `better_supabase.create_team_member`                 |
+  | `better_supabase.remove_team_member`                | `better_supabase.delete_team_member`                 |
+  | `better_supabase.remove_template`                   | `better_supabase.delete_template`                    |
+  | `better_supabase.remove_template_schedule`          | `better_supabase.delete_template_schedule`           |
+  | `better_supabase.save_template`                     | `better_supabase.upsert_template`                    |
+  | `better_supabase.save_template_draft`               | `better_supabase.upsert_template_draft`              |
+  | `better_supabase.save_template_schedule`            | `better_supabase.upsert_template_schedule`           |
+  | `better_supabase.remove_usage_quota`                | `better_supabase.delete_usage_quota`                 |
+  | `better_supabase.remove_marketplace_installation`   | `better_supabase.delete_marketplace_installation`    |
+  | `better_supabase.save_bin_slot`                     | `better_supabase.upsert_bin_slot`                    |
+  | `better_supabase.save_putaway_rule`                 | `better_supabase.upsert_putaway_rule`                |
+  | `better_supabase.save_variant_size`                 | `better_supabase.upsert_variant_size`                |
+  | `better_supabase.remove_workflow_alert`             | `better_supabase.delete_workflow_alert`              |
+  | `better_supabase.remove_workflow_credential`        | `better_supabase.delete_workflow_credential`         |
+  | `better_supabase.remove_workflow_definition`        | `better_supabase.delete_workflow_definition`         |
+  | `better_supabase.remove_workflow_trigger`           | `better_supabase.delete_workflow_trigger`            |
+  | `better_supabase.save_workflow_alert`               | `better_supabase.upsert_workflow_alert`              |
+  | `better_supabase.save_workflow_credential`          | `better_supabase.upsert_workflow_credential`         |
+  | `better_supabase.save_workflow_definition`          | `better_supabase.upsert_workflow_definition`         |
+  | `better_supabase.save_workflow_draft`               | `better_supabase.upsert_workflow_draft`              |
+  | `better_supabase.save_workflow_trigger`             | `better_supabase.upsert_workflow_trigger`            |
+  | `better_supabase.remove_workflow_schedule`          | `better_supabase.delete_workflow_schedule`           |
+- Request stats now count services that call `betterSupabase.connect()` themselves:
+  `connect(supabase, { claims })`, `connect({ executor: postgresExecutor(sql), storage })`
+  and the client `contextFromSession()` returns find the current request's
+  recorder, so one page's `calls` matches `pg_stat_statements`. Stats gain
+  `decodes` (session cookie parses) next to `verifications`, and `phases` with
+  calls per phase. `bsb.phase(name, run)` marks a wrapper's calls as
+  `authorization`, `write` or any phase, and the `bsb.action` log line ends with
+  the phase counts and `decodes`. `bsb.debugRoute()` answers 404 with a JSON
+  `reason` when debug is off or `?id=` is missing.
+- Add the `domains` option to the `tags()` generator, so feature tags such as `crm` are declared once next to the table tags.
+
+  | Before                                 | After                                      |
+  | -------------------------------------- | ------------------------------------------ |
+  | `export const CRM_TAG = tagFor("crm")` | `tags({ domains: ["crm"] })`, `tags.crm()` |
+- Add `gate: true` to the options of `bsb.tenant()`, `bsb.activeTenant()` and `bsb.auth()`, and add `bsb.shared(ref, permission, read)`. A gated scope returns before the permission check settles and its `db` settles each read after it, so a cold call costs one round trip. `bsb.shared` checks the caller outside the cache, then returns a `"use cache"` read shared by every member of the tenant.
+
+  | Before                             | After                                              |
+  | ---------------------------------- | -------------------------------------------------- |
+  | scope returned after the check     | `bsb.tenant(ref, permission, { gate: true })`      |
+  | a tenant read cached once per user | `bsb.shared(ref, permission, (t) => readOf(t.id))` |
+- Add `bsb.auth()`, `bsb.tenant(ref, permission?, options?)` and `bsb.activeTenant()` to `createNext` for cached reads. They resolve the tenant through the new `tenants` option, check the caller, and end the render with `unauthorized()`, `notFound()` or `forbidden()` when the caller is refused. Add `.orNull()` and `.or(fallback)` to every read result: a `not_found` error becomes `null` or the fallback, other errors throw.
+
+  | Before                                 | After                                        |
+  | -------------------------------------- | -------------------------------------------- |
+  | a `null` ladder around `bsb.cached()`  | `await bsb.tenant(org, permission, options)` |
+  | `result.orThrow()` plus a `null` check | `result.orNull()`                            |
+  | `bsb.tenant()` (root param, unchanged) | `bsb.tenant()` or `bsb.activeTenant()`       |
+- Move the resource routes and the sign-in flows off `createNext` onto their own subpaths, so an app that does not import them does not ship them.
+
+  | Before                                                                                                                                             | After                                                                                |
+  | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+  | `bsb.resources(map)`                                                                                                                               | `createResources(bsb)(map)` from `better-supabase/next/resources`                    |
+  | `bsb.signInWithPassword(input)`                                                                                                                    | `createAuthFlows(bsb).signInWithPassword(input)` from `better-supabase/next/sign-in` |
+  | `bsb.verifyOtp`, `signInWithOtp`, `signUp`, `resend`, `resetPasswordForEmail`, `signInWithOAuth`, `exchangeCodeForSession`, `verifyMfa`, `signOut` | the same names on `createAuthFlows(bsb)`                                             |
+- `doctor` matches a provider call the way Postgres stores it. BS428 and the table share check read `pg_policies.qual`, where a key literal carries a cast (`'tasks.read'::text`), the function may lose its schema or be quoted, and a key list is `ARRAY['a'::text, 'b'::text]` or `'{a,b}'::text[]`. All of those now count as the keys the policy checks. BS430 already read the function body as a parsed tree and handled casts, and BS429 reads no key literals.
+
 ## 0.87.0 (2026-11-25)
 
 - `reveal_audit_entry` and `reveal_audit_entries` let platform staff reveal restricted audit details only with `permissions.revealPlatform`, which falls back to the `reveal` key on the platform, instead of the read-all key. Platform staff who only read every tenant's log no longer see IP addresses, user agents and row snapshots. Set `revealPlatform` to your platform reveal key and run `better-supabase upgrade`.
