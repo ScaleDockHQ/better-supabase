@@ -2721,6 +2721,76 @@
       ],
       "additionalProperties": false
     },
+    "clientNotesRevealResult": {
+      "title": "client_notes_reveal result",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "birthDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "diagnosis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "birthDate",
+          "diagnosis",
+          "id"
+        ]
+      }
+    },
+    "customerNoteCountsResult": {
+      "title": "customer_note_counts result",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lastNoteAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "noteCount": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "customerId",
+          "lastNoteAt",
+          "noteCount"
+        ]
+      }
+    },
     "importCustomerResult": {
       "title": "import_customer result"
     },
@@ -2738,6 +2808,229 @@
     "islandCountsResult": {
       "title": "island_counts result"
     },
+    "myOrganizationsResult": {
+      "title": "my_organizations result",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "lastUsedAt",
+          "name",
+          "plan",
+          "role",
+          "slug"
+        ]
+      }
+    },
+    "myProfileResult": {
+      "title": "my_profile result",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "avatarPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fullName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "avatarPath",
+          "avatarUrl",
+          "email",
+          "fullName",
+          "username"
+        ]
+      }
+    },
+    "organizationInvitationsResult": {
+      "title": "organization_invitations result",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "invitedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "createdAt",
+          "email",
+          "expiresAt",
+          "id",
+          "invitedBy",
+          "role"
+        ]
+      }
+    },
+    "organizationMembersResult": {
+      "title": "organization_members result",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "avatarPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fullName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "joinedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "avatarPath",
+          "avatarUrl",
+          "email",
+          "fullName",
+          "joinedAt",
+          "role",
+          "userId"
+        ]
+      }
+    },
     "rsFinanceOverviewResult": {
       "title": "rs_finance_overview result"
     },
@@ -2746,6 +3039,27 @@
     },
     "rsWorkspaceSummaryResult": {
       "title": "rs_workspace_summary result"
+    },
+    "searchNotesScoresResult": {
+      "title": "search_notes_scores result",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {},
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "score"
+        ]
+      }
     },
     "shellBootstrapResult": {
       "title": "shell_bootstrap result"

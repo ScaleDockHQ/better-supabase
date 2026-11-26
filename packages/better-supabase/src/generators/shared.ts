@@ -1,6 +1,8 @@
 import type { FieldSpec, ScalarKind } from "../core/table-json-schema.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 
+import { columnField, columnKind, columnKinds } from "../core/column-kind.ts";
+
 export type { ScalarKind };
 
 /** What field planning reads: the metadata and the typed-jsonb config. */
@@ -11,68 +13,6 @@ export interface SchemaSource {
 }
 
 export type Variant = "Row" | "Insert" | "Update";
-
-const INTEGER = new Set(["int2", "int4", "int8"]);
-const NUMBER = new Set(["float4", "float8", "numeric", "oid", "money"]);
-
-// `timestamp` values have no offset, so they stay plain strings.
-const DATETIME = new Set(["timestamptz"]);
-
-function scalarKind(column: ColumnMeta): ScalarKind {
-  if (column.enum) {
-    return { kind: "enum", values: column.enum };
-  }
-
-  if (column.json) {
-    return { kind: "json" };
-  }
-
-  if (column.codec === "instant") {
-    return { kind: "instant" };
-  }
-
-  if (column.codec === "plainDateTime") {
-    return { kind: "plainDateTime" };
-  }
-
-  if (column.codec === "bigint") {
-    return { kind: "bigint" };
-  }
-
-  if (column.codec === "string") {
-    return { kind: "string" };
-  }
-
-  if (column.type === "uuid") {
-    return { kind: "uuid" };
-  }
-
-  if (INTEGER.has(column.type)) {
-    return { kind: "integer" };
-  }
-
-  if (NUMBER.has(column.type)) {
-    return { kind: "number" };
-  }
-
-  if (column.type === "bool") {
-    return { kind: "boolean" };
-  }
-
-  if (DATETIME.has(column.type)) {
-    return { kind: "datetime" };
-  }
-
-  if (column.type === "date") {
-    return { kind: "date" };
-  }
-
-  if (column.type === "record" || column.type === "void") {
-    return { kind: "unknown" };
-  }
-
-  return { kind: "string" };
-}
 
 export interface FieldPlan {
   readonly name: string;
@@ -142,7 +82,7 @@ export function fieldsFor(
     fields.push({
       name,
       column,
-      scalar: scalarKind(column),
+      scalar: columnKind(column),
       nullable: column.nullable === true,
       optional:
         variant === "Update" ||
@@ -190,10 +130,12 @@ export function temporalGuardImport(
         continue;
       }
 
-      const guard = TEMPORAL_GUARDS[plan.scalar.kind];
+      for (const scalar of columnKinds(plan.column)) {
+        const guard = TEMPORAL_GUARDS[scalar.kind];
 
-      if (guard) {
-        names.add(guard);
+        if (guard) {
+          names.add(guard);
+        }
       }
     }
   }
@@ -727,12 +669,44 @@ export function fieldDocs(
  * result for one with a validator.
  */
 export function fieldSpec(plan: FieldPlan, docs: FieldDocs): FieldSpec {
+  const spec = plan.customJson
+    ? { kind: "custom" as const }
+    : plan.column.fields
+      ? {
+          kind: "object" as const,
+          fields: Object.fromEntries(
+            Object.entries(plan.column.fields).map(([name, column]) => [
+              name,
+              columnField(column),
+            ]),
+          ),
+        }
+      : plan.scalar;
+
   return {
-    ...(plan.customJson ? { kind: "custom" } : plan.scalar),
+    ...spec,
     ...(plan.nullable ? { nullable: true } : {}),
     ...(plan.optional ? { optional: true } : {}),
     ...(plan.column.array ? { array: true } : {}),
     ...(plan.managed ? { readOnly: true } : {}),
+    ...(plan.column.minimum === undefined
+      ? {}
+      : { minimum: plan.column.minimum }),
+    ...(plan.column.exclusiveMinimum === undefined
+      ? {}
+      : { exclusiveMinimum: plan.column.exclusiveMinimum }),
+    ...(plan.column.maximum === undefined
+      ? {}
+      : { maximum: plan.column.maximum }),
+    ...(plan.column.exclusiveMaximum === undefined
+      ? {}
+      : { exclusiveMaximum: plan.column.exclusiveMaximum }),
+    ...(plan.column.minLength === undefined
+      ? {}
+      : { minLength: plan.column.minLength }),
+    ...(plan.column.maxLength === undefined
+      ? {}
+      : { maxLength: plan.column.maxLength }),
     ...docs,
   };
 }

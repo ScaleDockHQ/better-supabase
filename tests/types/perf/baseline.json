@@ -220,6 +220,23 @@
       "checkTime": 0.016
     }
   },
+  "readSets": {
+    "ts6": {
+      "types": 125715,
+      "instantiations": 212201,
+      "checkTime": 1.89
+    },
+    "ts7": {
+      "types": 194998,
+      "instantiations": 278115,
+      "checkTime": 0.188
+    },
+    "ts71": {
+      "types": 181630,
+      "instantiations": 271793,
+      "checkTime": 0.141
+    }
+  },
   "runtime": {
     "promise": 0.071,
     "asyncResult": 0.232,

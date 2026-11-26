@@ -10,6 +10,11 @@ export function registerRpcReturn(
   returns.set(name, schema);
 }
 
+/** The schema `registerRpcReturn` stored for `name`, if the app registered one. */
+export function rpcReturnSchema(name: string): StandardSchemaV1 | undefined {
+  return returns.get(name);
+}
+
 /**
  * Checks an `$rpc` result when the function's comment named a schema. A missing
  * registration leaves the value as the database returned it. The schema's

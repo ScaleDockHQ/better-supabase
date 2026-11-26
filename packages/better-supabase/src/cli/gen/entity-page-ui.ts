@@ -64,7 +64,8 @@ export function kindOf(field: Field): EntityFieldKind {
     }
 
     case "json":
-    case "custom": {
+    case "custom":
+    case "object": {
       return "json";
     }
 

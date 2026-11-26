@@ -1,9 +1,10 @@
-import type { FunctionResult } from "../../index.ts";
+import type { ColumnMeta, FunctionResult } from "../../index.ts";
 import type { FunctionModel, ModelContext, TableModel } from "./model-types.ts";
 
 import { clientNotNull, resolveBlock } from "../../sql/index.ts";
+import { compositeFields } from "./composites.ts";
 import { CODEC_TYPE, applyCasing, codecFor, enumType } from "./model-types.ts";
-import { arrayOf, configFor } from "./shared.ts";
+import { arrayOf, configFor, isJsonUdt } from "./shared.ts";
 
 const NOT_NULL_TAG = /@notNull(?:\(([^)]*)\))?/u;
 const RETURNS_TAG = /@bsb\s+returns=(\S+)/u;
@@ -208,6 +209,7 @@ export function buildFunctions(
 
       let returns: string;
       let result: FunctionResult | undefined;
+      let returnsFields: Readonly<Record<string, ColumnMeta>> | undefined;
 
       const rowTable = fn.returnsRelation
         ? tablesByName.get(fn.returnsRelation)
@@ -221,10 +223,21 @@ export function buildFunctions(
             ? CODEC_TYPE[codec]
             : typeOf(column.udt, column.typeSchema);
 
+          const app = applyCasing(column.name, config.casing);
+
+          const fields = compositeFields(
+            ctx.introspection.types,
+            column.typeSchema ?? fn.schema,
+            column.udt,
+          );
+
           return {
             db: column.name,
-            app: applyCasing(column.name, config.casing),
+            app,
             codec,
+            udt: column.udt,
+            notNull: column.notNull === true,
+            ...(fields ? { fields } : {}),
             tsType: column.notNull ? tsType : orNull(tsType, column.name),
           };
         });
@@ -239,6 +252,20 @@ export function buildFunctions(
         returns = `{ ${columns
           .map((column) => `${JSON.stringify(column.app)}: ${column.tsType}`)
           .join("; ")} }[]`;
+
+        returnsFields = Object.fromEntries(
+          columns.map((column) => [
+            column.app,
+            {
+              db: column.db,
+              type: column.udt,
+              ...(column.notNull ? {} : { nullable: true }),
+              ...(column.codec ? { codec: column.codec } : {}),
+              ...(column.fields ? { fields: column.fields } : {}),
+              ...(isJsonUdt(column.udt) ? { json: true } : {}),
+            },
+          ]),
+        );
 
         if (
           columns.some(
@@ -269,6 +296,18 @@ export function buildFunctions(
 
         if (fn.returnsSet) {
           returns = arrayOf(returns);
+        }
+
+        const element = fn.returns.replace(/^_/, "");
+
+        const fields = compositeFields(
+          ctx.introspection.types,
+          fn.returnsSchema ?? fn.schema,
+          element,
+        );
+
+        if (fields) {
+          returnsFields = fields;
         }
       }
 
@@ -330,6 +369,7 @@ export function buildFunctions(
           values: enumsByName.get(`${arg.typeSchema ?? fn.schema}.${arg.udt}`),
         })),
         returns,
+        ...(returnsFields ? { returnsFields } : {}),
       };
     });
 

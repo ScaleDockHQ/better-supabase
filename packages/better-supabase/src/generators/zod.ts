@@ -18,6 +18,7 @@ import {
   extraSchemas,
   fieldDocs,
   fieldMetaLines,
+  fieldSpec,
   fieldsFor,
   HEADER,
   objectType,
@@ -189,6 +190,15 @@ function field(
 ): string {
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
 
+  if (
+    plan.column.fields &&
+    imported === undefined &&
+    !plan.customJson &&
+    plan.column.storage === undefined
+  ) {
+    return `  ${propertyKey(plan.name)}: ${specExpr(fieldSpec(plan, docs), flavor)},`;
+  }
+
   const expr =
     imported ??
     (plan.customJson
@@ -231,6 +241,16 @@ function wrap(expr: string, spec: FieldOptions, flavor: ZodFlavor): string {
 }
 
 function specExpr(spec: FieldSpec, flavor: ZodFlavor): string {
+  if (spec.kind === "object") {
+    const entries = Object.entries(spec.fields)
+      .map(
+        ([name, field]) => `${propertyKey(name)}: ${specExpr(field, flavor)}`,
+      )
+      .join(", ");
+
+    return wrap(`z.object({ ${entries} })`, spec, flavor);
+  }
+
   return wrap(
     spec.kind === "custom"
       ? "z.unknown()"
@@ -259,6 +279,21 @@ function resultExpr(
     }
 
     return mini ? `z.nullable(${row})` : `${row}.nullable()`;
+  }
+
+  if (result.of.kind === "fields") {
+    const object = specExpr(
+      { kind: "object", fields: result.of.fields },
+      flavor,
+    );
+
+    const item = result.nullable
+      ? mini
+        ? `z.nullable(${object})`
+        : `${object}.nullable()`
+      : object;
+
+    return result.set ? `z.array(${item})` : item;
   }
 
   const item = scalar(result.of.scalar);

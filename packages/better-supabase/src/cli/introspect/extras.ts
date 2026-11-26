@@ -323,19 +323,37 @@ where n.nspname = any(${schemas}) and c.relkind in ('v', 'm')
   and col_description(c.oid, a.attnum) is not null
 order by 1, 2`;
 
-// Typegen types a domain in a function signature as `unknown`, so record the
-// base type and NOT NULL of each domain the read schemas' functions use.
+// Typegen types a domain as its name, so record the base type, NOT NULL and
+// CHECK constraints of each domain the read schemas' functions and columns use.
 const FUNCTION_DOMAINS = (schemas: string) => `
 select distinct tn.nspname as schema, t.typname as name,
-  bt.typname as base_type, bn.nspname as base_schema, t.typnotnull as not_null
-from pg_proc p
-join pg_namespace n on n.oid = p.pronamespace
-cross join lateral unnest(array_append(coalesce(p.proallargtypes, p.proargtypes::oid[]), p.prorettype)) as a(type_id)
-join pg_type t on t.oid = a.type_id and t.typtype = 'd'
+  bt.typname as base_type, bn.nspname as base_schema, t.typnotnull as not_null,
+  coalesce(checks.defs, '{}') as checks
+from pg_type t
 join pg_namespace tn on tn.oid = t.typnamespace
 join pg_type bt on bt.oid = t.typbasetype
 join pg_namespace bn on bn.oid = bt.typnamespace
-where n.nspname = any(${schemas})
+left join lateral (
+  select array_agg(pg_get_constraintdef(c.oid) order by c.oid) as defs
+  from pg_constraint c
+  where c.contypid = t.oid and c.contype = 'c'
+) checks on true
+where t.typtype = 'd'
+  and t.oid in (
+    select a.type_id
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join lateral unnest(array_append(coalesce(p.proallargtypes, p.proargtypes::oid[]), p.prorettype)) as a(type_id)
+    where n.nspname = any(${schemas})
+    union
+    select a.atttypid
+    from pg_attribute a
+    join pg_class c on c.oid = a.attrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = any(${schemas})
+      and a.attnum > 0 and not a.attisdropped
+      and c.relkind in ('r', 'v', 'm', 'p', 'f')
+  )
 order by 1, 2`;
 
 const HAS_TABLE = (qualified: string) =>
@@ -610,6 +628,7 @@ export async function getExtras(
       base_type: string;
       base_schema: string;
       not_null: boolean;
+      checks: string[] | null;
     }>(db, FUNCTION_DOMAINS(list)),
     functionNames.length > 0 || shareable
       ? rows<{ schema: string; name: string; source: string }>(
@@ -778,6 +797,9 @@ export async function getExtras(
             baseType: row.base_type,
             baseSchema: row.base_schema,
             notNull: row.not_null,
+            ...(row.checks && row.checks.length > 0
+              ? { checks: row.checks }
+              : {}),
           })),
         }
       : {}),

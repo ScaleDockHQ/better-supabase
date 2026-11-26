@@ -3899,6 +3899,15 @@
       "RecurrenceRule"
     ]
   },
+  "./result-schema": {
+    "values": [
+      "resultSchema",
+      "specResultSchema"
+    ],
+    "types": [
+      "ResultSchemaOptions"
+    ]
+  },
   "./generators/zod": {
     "values": [
       "zod"

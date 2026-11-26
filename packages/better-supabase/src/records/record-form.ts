@@ -153,7 +153,8 @@ function coerce(spec: FieldSpec, value: string, timeZone: string): unknown {
     case "date":
     case "enum":
     case "custom":
-    case "unknown": {
+    case "unknown":
+    case "object": {
       return value;
     }
 
@@ -213,7 +214,8 @@ function inputOf(spec: FieldSpec): RecordFormInput {
 
     case "json":
     case "custom":
-    case "unknown": {
+    case "unknown":
+    case "object": {
       return "json";
     }
 

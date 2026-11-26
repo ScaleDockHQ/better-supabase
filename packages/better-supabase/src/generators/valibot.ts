@@ -18,6 +18,7 @@ import {
   extraSchemas,
   fieldDocs,
   fieldMetaLines,
+  fieldSpec,
   fieldsFor,
   HEADER,
   objectType,
@@ -171,6 +172,15 @@ function field(
 ): string {
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
 
+  if (
+    plan.column.fields &&
+    imported === undefined &&
+    !plan.customJson &&
+    plan.column.storage === undefined
+  ) {
+    return `  ${propertyKey(plan.name)}: ${specExpr(fieldSpec(plan, docs))},`;
+  }
+
   let expr =
     imported ??
     (plan.customJson
@@ -197,6 +207,26 @@ function field(
 }
 
 function specExpr(spec: FieldSpec): string {
+  if (spec.kind === "object") {
+    const entries = Object.entries(spec.fields)
+      .map(([name, field]) => `${propertyKey(name)}: ${specExpr(field)}`)
+      .join(", ");
+
+    let expr = `v.object({ ${entries} })`;
+
+    if (spec.array) {
+      expr = `v.array(${expr})`;
+    }
+
+    if (spec.nullable) {
+      expr = `v.nullable(${expr})`;
+    }
+
+    expr = piped(expr, docActions(spec));
+
+    return spec.optional ? `v.exactOptional(${expr})` : expr;
+  }
+
   let expr =
     spec.kind === "custom"
       ? "v.unknown()"
@@ -227,6 +257,13 @@ function resultExpr(
     const row = schemaName(result.of.table, "Row");
 
     return result.set ? `v.array(${row})` : `v.nullable(${row})`;
+  }
+
+  if (result.of.kind === "fields") {
+    const object = specExpr({ kind: "object", fields: result.of.fields });
+    const element = result.nullable ? `v.nullable(${object})` : object;
+
+    return result.set ? `v.array(${element})` : element;
   }
 
   const item = scalar(result.of.scalar);

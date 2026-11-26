@@ -1,6 +1,6 @@
 ---
 title: validation
-description: Validate writes with zod, valibot or any Standard Schema.
+description: Validate writes, and composed reads, with a Standard Schema.
 ---
 
 When `gen.generators` includes `zod()`, `valibot()` or `standardSchema()` (no
@@ -114,3 +114,28 @@ standardSchema({ settings: "./src/settings.ts#settings" });
 
 The CLI imports that module when it loads the config. A `schemas` option on
 the block wins.
+
+## Validating read results
+
+`readSet.parse` checks the shape of a composed read. `resultSchema` from
+`better-supabase/result-schema` checks each column, the way `tableSchema`
+checks a row. It returns a Standard Schema of `ReadSetResult`, so
+`oRPC` and tRPC can take it as `.output`. Nothing calls it unless the app
+does. `specResultSchema` does the same for one `QuerySpec`, the value
+`db.$run` returns.
+
+Unknown keys are dropped. Pass `unknownKeys: "reject"` to fail a payload that
+carries a column the read did not ask for. A gated entry may be `null`. A
+function entry uses the columns of a `returns table` result, or a schema
+registered with `registerRpcReturn`. Without either, the value stays
+`unknown`. A record binding is one of those function entries (`record_summary`),
+so it stays unchecked until you register a schema for it. A table that the
+schema has not loaded fails the call with `invalid_request`.
+
+```ts
+import { resultSchema } from "better-supabase/result-schema";
+
+const customerPage = resultSchema(page);
+
+customerPage["~standard"].validate(payload);
+```

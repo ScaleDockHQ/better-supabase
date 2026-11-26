@@ -315,6 +315,25 @@ describe("tableSchema() JSON Schema", () => {
       v: { oneOf: [{ type: "string" }, { type: "number" }], nullable: true },
     });
 
+    expect(
+      check(
+        {
+          fields: {
+            address: { kind: "object", fields: { city: { kind: "string" } } },
+          },
+        },
+        { address: { city: "Amsterdam", extra: 1 } },
+      ),
+    ).toEqual({ value: { address: { city: "Amsterdam" } } });
+    expect(
+      messages(
+        check(
+          { unknownKeys: "reject", fields: { name: { kind: "string" } } },
+          { name: "Acme", leaked: true },
+        ),
+      ),
+    ).toEqual(["Unexpected key"]);
+
     const plain = tableSchema({
       fields: {
         meta: {

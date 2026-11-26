@@ -423,6 +423,11 @@
       "types": "./dist/recurrence/index.d.ts",
       "default": "./dist/recurrence/index.js"
     },
+    "./result-schema": {
+      "@better-supabase/source": "./src/result-schema/index.ts",
+      "types": "./dist/result-schema/index.d.ts",
+      "default": "./dist/result-schema/index.js"
+    },
     "./generators/zod": {
       "@better-supabase/source": "./src/generators/zod/index.ts",
       "types": "./dist/generators/zod/index.d.ts",
@@ -1900,6 +1905,10 @@
       "./recurrence": {
         "types": "./dist/recurrence/index.d.ts",
         "default": "./dist/recurrence/index.js"
+      },
+      "./result-schema": {
+        "types": "./dist/result-schema/index.d.ts",
+        "default": "./dist/result-schema/index.js"
       },
       "./generators/zod": {
         "types": "./dist/generators/zod/index.d.ts",

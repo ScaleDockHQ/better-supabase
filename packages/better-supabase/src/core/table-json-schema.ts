@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import { isList } from "./guards.ts";
+import { isList, isRecord } from "./guards.ts";
 
 /** Validator for one scalar, independent of the target library. */
 export type ScalarKind =
@@ -44,22 +44,34 @@ export interface FieldOptions {
 /**
  * One column of a table schema. `custom` is a jsonb column with a TypeScript
  * type from the config and no schema: any value except `undefined` passes.
+ * `object` is a composite type, or a page and aggregate wrapper.
  */
-export type FieldSpec = (ScalarKind | { readonly kind: "custom" }) &
+export type FieldSpec = (
+  | ScalarKind
+  | { readonly kind: "custom" }
+  | {
+      readonly kind: "object";
+      readonly fields: Readonly<Record<string, FieldSpec>>;
+    }
+) &
   FieldOptions;
 
 export interface TableSchemaSpec {
   readonly title?: string;
   readonly description?: string;
   readonly fields: Readonly<Record<string, FieldSpec>>;
+  /**
+   * What to do with a key the schema does not name. `strip` (the default) drops
+   * it. `reject` fails the value, which catches a column that leaked into a
+   * payload.
+   */
+  readonly unknownKeys?: "strip" | "reject";
 }
 
 export type JsonSchema = Record<string, unknown>;
 
 /** JSON Schema for one scalar. Codec values are described by their wire form. */
-function scalarJsonSchema(
-  kind: ScalarKind | { readonly kind: "custom" },
-): JsonSchema {
+function scalarJsonSchema(kind: FieldSpec): JsonSchema {
   switch (kind.kind) {
     case "uuid": {
       return { type: "string", format: "uuid" };
@@ -116,6 +128,26 @@ function scalarJsonSchema(
 
     case "enum": {
       return { type: "string", enum: [...kind.values] };
+    }
+
+    case "object": {
+      const properties: Record<string, JsonSchema> = {};
+      const required: string[] = [];
+
+      for (const [name, field] of Object.entries(kind.fields)) {
+        properties[name] = fieldJsonSchema(field);
+
+        if (!field.optional) {
+          required.push(name);
+        }
+      }
+
+      return {
+        type: "object",
+        properties,
+        additionalProperties: false,
+        ...(required.length > 0 ? { required } : {}),
+      };
     }
 
     default: {
@@ -183,9 +215,48 @@ function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
   return field.readOnly ? { ...schema, readOnly: true } : schema;
 }
 
+/**
+ * A nested Standard Schema's JSON Schema, without its dialect URI. Absent when
+ * the schema does not implement Standard JSON Schema.
+ */
+function nestedJson(field: FieldSpec): JsonSchema | undefined {
+  const schema = field.schema;
+
+  if (!schema) {
+    return undefined;
+  }
+
+  const standard = schema["~standard"];
+
+  if (!("jsonSchema" in standard) || !isRecord(standard.jsonSchema)) {
+    return undefined;
+  }
+
+  const output = standard.jsonSchema["output"];
+
+  if (typeof output !== "function") {
+    return undefined;
+  }
+
+  // SAFETY: the typeof check above proves output is a function.
+  const convert = output as (options: { readonly target: string }) => unknown;
+
+  const produced: unknown = convert({ target: "draft-2020-12" });
+
+  if (!isRecord(produced)) {
+    return undefined;
+  }
+
+  const rest: JsonSchema = { ...produced };
+
+  Reflect.deleteProperty(rest, "$schema");
+
+  return rest;
+}
+
 /** The JSON Schema for one field, with its array, null, bounds and docs. */
 export function fieldJsonSchema(field: FieldSpec): JsonSchema {
-  return propertySchema(field, scalarJsonSchema(field));
+  return propertySchema(field, nestedJson(field) ?? scalarJsonSchema(field));
 }
 
 /**

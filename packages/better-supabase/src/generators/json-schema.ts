@@ -108,6 +108,18 @@ function resultJsonSchema(
     };
   }
 
+  if (result.of.kind === "fields") {
+    return {
+      title: result.title,
+      ...fieldJsonSchema({
+        kind: "object",
+        fields: result.of.fields,
+        array: result.set,
+        nullable: result.nullable && !result.set,
+      }),
+    };
+  }
+
   return {
     title: result.title,
     ...fieldJsonSchema({

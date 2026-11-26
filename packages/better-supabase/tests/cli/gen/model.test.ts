@@ -1037,3 +1037,71 @@ describe("buildModel config edges", () => {
     ).toEqual({ updatedBy: "name", impersonatedBy: "id" });
   });
 });
+
+describe("buildModel column types", () => {
+  it("notices one list of column types it cannot map", async () => {
+    const built = await model((generator) => ({
+      columns: generator.columns.map((column) =>
+        column.schema === "public" &&
+        column.table === "tags" &&
+        column.name === "name"
+          ? { ...column, data_type: "USER-DEFINED", format: "widget" }
+          : column,
+      ),
+    }));
+
+    expect(built.meta.tables["tags"]?.columns["name"]?.type).toBe("widget");
+    expect(built.notices).toContain(
+      "gen left these column types unknown: public.tags.name (widget). Map them in gen.json, or name the column in standardSchema({ json }).",
+    );
+    expect(built.notices.join("\n")).not.toContain("note_kind");
+  });
+
+  it("resolves a domain column to its base type and checks", async () => {
+    const built = await model(
+      (generator) => ({
+        columns: generator.columns.map((column) =>
+          column.schema === "public" &&
+          column.table === "notes" &&
+          column.name === "body"
+            ? {
+                ...column,
+                data_type: "USER-DEFINED",
+                format: "score",
+                type_schema: "public",
+                is_nullable: true,
+              }
+            : column,
+        ),
+      }),
+      {},
+      {
+        domains: [
+          {
+            schema: "public",
+            name: "score",
+            baseType: "int4",
+            baseSchema: "pg_catalog",
+            notNull: true,
+            checks: ["CHECK ((VALUE >= 0))"],
+          },
+        ],
+      },
+    );
+
+    expect(built.meta.tables["notes"]?.columns["body"]).toMatchObject({
+      type: "int4",
+      minimum: 0,
+    });
+
+    const body = built.tables
+      .find((table) => table.key === "notes")
+      ?.columns.find((column) => column.db === "body");
+
+    expect({
+      nullable: body?.nullable,
+      resolved: body?.resolved.type,
+      minimum: body?.resolved.bounds?.minimum,
+    }).toEqual({ nullable: false, resolved: "int4", minimum: 0 });
+  });
+});

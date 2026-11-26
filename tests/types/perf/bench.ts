@@ -17,6 +17,7 @@ import type { RuntimeTimes } from "./runtime.ts";
 import {
   calibrationProgram,
   configProgram,
+  readSetProgram,
   consumer,
   name,
   serverProgram,
@@ -60,6 +61,8 @@ interface Baseline {
   readonly upgrade?: UpgradeTimes;
   /** The config program typed against a provider key union (ADR 0323). */
   readonly config?: Readonly<Record<Compiler, Measurement>>;
+  /** A wide read set and a three-level include (ADR 1261). */
+  readonly readSets?: Readonly<Record<Compiler, Measurement>>;
   /** `AsyncResult` against a bare promise chain, at run time (ADR 0581). */
   readonly runtime?: RuntimeTimes;
 }
@@ -871,6 +874,72 @@ function benchConfig(): Readonly<Record<Compiler, Measurement>> {
   };
 }
 
+function benchReadSets(): Readonly<Record<Compiler, Measurement>> {
+  const directory = join(work, "read-sets");
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "program.ts"), readSetProgram());
+  writeFileSync(
+    join(directory, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        module: "preserve",
+        moduleResolution: "bundler",
+        customConditions: ["@better-supabase/source"],
+        target: "es2025",
+        lib: [
+          "ES2025",
+          "ESNext.Disposable",
+          "ESNext.Temporal",
+          "DOM",
+          "DOM.Iterable",
+        ],
+        types: ["node"],
+        verbatimModuleSyntax: true,
+        allowImportingTsExtensions: true,
+        skipLibCheck: true,
+        noEmit: true,
+      },
+      files: ["program.ts"],
+    }),
+  );
+
+  const project = join(directory, "tsconfig.json");
+
+  return {
+    ts6: measure(compilers.ts6, [], project),
+    ts7: measure(compilers.ts7, [], project),
+    ts71: measure(compilers.ts71, [], project),
+  };
+}
+
+function checkReadSets(
+  now: Readonly<Record<Compiler, Measurement>>,
+  before: Readonly<Record<Compiler, Measurement>> | undefined,
+): void {
+  if (!before) {
+    console.error(
+      "readSets has no baseline. Run `pnpm --filter @better-supabase/types-perf update`.",
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  for (const compiler of ["ts6", "ts7", "ts71"] as const) {
+    for (const metric of ["instantiations", "types"] as const) {
+      if (now[compiler][metric] > before[compiler][metric] * (1 + TOLERANCE)) {
+        console.error(
+          `readSets (${compiler}): ${metric} grew from ${String(before[compiler][metric])} to ${String(now[compiler][metric])} (tolerance ${String(TOLERANCE * 100)}%).`,
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
 function checkConfig(
   now: Readonly<Record<Compiler, Measurement>>,
   before: Readonly<Record<Compiler, Measurement>> | undefined,
@@ -906,6 +975,12 @@ console.log(
   `upgrade --check (centrakit): cold ${upgradeNow.check.cold.toFixed(2)}s, warm ${upgradeNow.check.warm.toFixed(2)}s, owned column ${upgradeNow.check.ownedColumn.toFixed(2)}s`,
 );
 
+const readSetsNow = benchReadSets();
+
+console.log(
+  `readSets: ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(readSetsNow[compiler].instantiations)} instantiations, ${String(readSetsNow[compiler].types)} types`).join("; ")}`,
+);
+
 const configNow = benchConfig();
 
 console.log(
@@ -920,6 +995,7 @@ console.log(
 
 if (!update) {
   checkUpgrade(upgradeNow, baseline.upgrade);
+  checkReadSets(readSetsNow, baseline.readSets);
   checkConfig(configNow, baseline.config);
 
   for (const failure of checkRuntime(
@@ -941,6 +1017,7 @@ if (update && only === undefined) {
         profiles: next,
         upgrade: upgradeNow,
         config: configNow,
+        readSets: readSetsNow,
         runtime: runtimeNow,
       },
       null,

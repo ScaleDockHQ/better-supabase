@@ -40,6 +40,18 @@ export interface ColumnMeta {
   /** How values are decoded from the wire (see the `codecs` config). */
   readonly codec?: Codec;
   /**
+   * Attributes of a composite type, keyed by attribute name. Nested attributes
+   * are nullable: the catalog does not record their nullability.
+   */
+  readonly fields?: Readonly<Record<string, ColumnMeta>>;
+  /** A domain CHECK bound, applied by the generated validators. */
+  readonly minimum?: number;
+  readonly exclusiveMinimum?: number;
+  readonly maximum?: number;
+  readonly exclusiveMaximum?: number;
+  readonly minLength?: number;
+  readonly maxLength?: number;
+  /**
    * Listed in `config.sensitive`; the `noSensitiveSelect` rule guards reads of
    * it.
    */
