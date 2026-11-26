@@ -666,6 +666,41 @@ Action cannot read a root param, and Next.js keys the cache on the arguments.
 `.orNull()` on a read returns `null` for a `not_found` error and throws any
 other error. `.or(fallback)` returns the fallback in the same case.
 
+Pass `gate: true` in the options to save a round trip on a cold call. The
+scope returns at once, the permission check runs beside your first read, and
+`db` settles each read after the check. A refused caller gets a `forbidden`,
+`not_found` or `unauthorized` error Result from the read instead of rows
+(ADR 1255). Do not treat `can` or `granted` as proof before that read settles.
+
+```ts
+const { db } = await bsb.tenant(org, permissions.agenda.read, {
+  tables: ["agenda_items"],
+  gate: true,
+});
+```
+
+For data every member of a tenant reads alike, `bsb.shared(ref, permission,
+read)` checks the caller outside the cache, then returns `read(tenant)`. Write
+`read` as a `"use cache"` function of the tenant, so the database is read once
+per tenant and a refused caller never reaches the entry. The library does not
+create a restricted database role: `read` runs under the client you choose, so
+filter by the tenant yourself.
+
+```ts
+async function readRoles(tenantId: string) {
+  "use cache";
+  cacheTag(`roles@${tenantId}`);
+  return bsb.admin().roles.list({ where: { tenantId } }).orThrow();
+}
+
+export const getRoles = (org: string) =>
+  bsb.shared(org, permissions.roles.read, (tenant) => readRoles(tenant.id));
+```
+
+Fill `TenantProvider` from `better-supabase/react` in the layout with
+`scope.tenant`, and client components read it with `useTenant()` instead of
+taking `orgSlug` or `organizationId` props.
+
 ### Permission snapshots
 
 Read the caller's permissions once, in the compact form, and pass that one

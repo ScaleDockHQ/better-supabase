@@ -175,3 +175,68 @@ describe("bsb.activeTenant()", () => {
     );
   });
 });
+
+describe("gate: true", () => {
+  const fetchMock = vi.fn(() =>
+    Promise.resolve(
+      new Response("[]", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    ),
+  );
+
+  beforeEach(() => {
+    fetchMock.mockClear();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  it("returns the scope before the check and lets a member read", async () => {
+    await signIn("org-1");
+
+    const scope = await bsb.tenant("acme", "agenda.read", {
+      tables: ["customers"],
+      gate: true,
+    });
+
+    expect(scope.tenant.id).toBe("org-1");
+    expect(scope.user).toBeDefined();
+    await scope.db.customers.list();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("settles a non-member's read with the refusal, not rows", async () => {
+    await signIn("org-1");
+
+    const scope = await bsb.tenant("other", "agenda.read", {
+      tables: ["customers"],
+      gate: true,
+    });
+
+    const result = await scope.db.customers.list();
+
+    expect(result.ok ? "rows" : result.error.kind).toBe("not_found");
+  });
+});
+
+describe("bsb.shared()", () => {
+  it("runs the read once the caller passes the check", async () => {
+    await signIn("org-1");
+
+    const read = vi.fn((tenant: { id: string }) => Promise.resolve(tenant.id));
+
+    expect(await bsb.shared("acme", "agenda.read", read)).toBe("org-1");
+    expect(read).toHaveBeenCalledOnce();
+  });
+
+  it("never runs the read for a non-member", async () => {
+    await signIn("org-1");
+
+    const read = vi.fn(() => Promise.resolve("rows"));
+
+    expect(
+      await digest(() => bsb.shared("other", "agenda.read", read)),
+    ).not.toBe("resolved");
+    expect(read).not.toHaveBeenCalled();
+  });
+});

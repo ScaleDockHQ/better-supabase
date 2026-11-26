@@ -727,6 +727,29 @@ export interface BetterNext<
     options?: ScopeCallOptions<Extract<keyof M, string>>,
   ): Promise<TenantScope<M, F, E, C, P, B, D, Ref>>;
   /**
+   * Checks the caller's membership and `permission` in the tenant `ref` names,
+   * outside any cache, then returns `read(tenant)`. Make `read` a `"use cache"`
+   * function of the tenant: reference data costs one database read per tenant
+   * instead of one per user, and a caller who fails the check never reaches it.
+   * A refusal ends the render like `bsb.tenant()` (ADR 1255).
+   *
+   * ```ts
+   * async function readRoles(tenantId: string) {
+   *   "use cache";
+   *   cacheTag(`roles@${tenantId}`);
+   *   return bsb.admin().roles.list({ where: { tenantId } }).orThrow();
+   * }
+   *
+   * export const getRoles = (org: string) =>
+   *   bsb.shared(org, permissions.roles.read, (t) => readRoles(t.id));
+   * ```
+   */
+  shared<T>(
+    ref: TenantRef,
+    permission: Ref | undefined,
+    read: (tenant: TenantRecord) => Promise<T>,
+  ): Promise<T>;
+  /**
    * The cached context for a signed-in caller without a tenant: `db`,
    * `session`, `user` and `can`. A caller without a session ends the render
    * with `unauthorized()`, one without `permission` with `forbidden()`.
@@ -1518,7 +1541,16 @@ export type TenantRef = string | { readonly [kind: string]: string };
 export type ScopeCallOptions<T extends string = string> = Omit<
   PrivateCachedOptions<T>,
   "scope" | "tenant"
->;
+> & {
+  /**
+   * Start the permission check without waiting for it and gate `db` instead: a
+   * read starts at once under RLS and settles after the check, so a cold call
+   * costs one round trip. A refusal settles the read with a `forbidden`,
+   * `not_found` or `unauthorized` error Result. Do not read `can` or `granted`
+   * as proof before the first read settles.
+   */
+  readonly gate?: boolean;
+};
 
 /** What `bsb.auth()` returns: the cached context plus the caller. */
 export type AuthScope<

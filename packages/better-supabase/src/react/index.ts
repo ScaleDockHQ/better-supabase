@@ -74,6 +74,8 @@ export type { DataHooks, DataView, InfiniteList } from "./data-hooks.ts";
 
 export { can, PermissionsProvider, useCan } from "./permissions.ts";
 
+export { TenantProvider, useTenant } from "./tenant.ts";
+
 export { OfflineContext } from "./offline.ts";
 
 export type {

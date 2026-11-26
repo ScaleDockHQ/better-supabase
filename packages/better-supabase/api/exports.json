@@ -987,6 +987,7 @@
       "SUPPORT_UNAVAILABLE_DIGEST",
       "supportOf",
       "tenantOf",
+      "TenantProvider",
       "useAction",
       "useActionForm",
       "useAuth",
@@ -1017,6 +1018,7 @@
       "useSupabase",
       "useSupportSession",
       "useSyncStatus",
+      "useTenant",
       "useUpload"
     ],
     "types": [

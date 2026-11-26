@@ -1,6 +1,7 @@
 import type { AuthState } from "../auth/resolve.ts";
 import type { AnyAuthorizer } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
+import type { Executor } from "../core/executor.ts";
 import type {
   NextOptions,
   NextTenants,
@@ -9,6 +10,7 @@ import type {
   TenantRef,
 } from "./types.ts";
 
+import { err } from "../core/result.ts";
 import { accessOf } from "../server/bootstrap.ts";
 import { interrupt } from "./control-flow.ts";
 
@@ -73,6 +75,84 @@ async function resolveTenantRef(
   return record;
 }
 
+const REFUSALS: Readonly<Record<string, DbError>> = {
+  "401": { kind: "unauthorized", message: "Sign in to continue.", status: 401 },
+  "403": { kind: "forbidden", message: "Permission denied.", status: 403 },
+  "404": { kind: "not_found", message: "No such tenant.", status: 404 },
+};
+
+/** The error a refusal interrupt stands for; anything else is rethrown as is. */
+function refusalOf(cause: unknown): DbError {
+  const digest =
+    cause instanceof Error && "digest" in cause ? String(cause.digest) : "";
+
+  const known = REFUSALS[digest.split(";")[1] ?? ""];
+
+  if (known === undefined) {
+    throw cause;
+  }
+
+  return known;
+}
+
+/**
+ * An executor whose every call waits for `check`, so a read starts at once
+ * under RLS and settles only after the permission check. A refusal settles the
+ * read with a `forbidden`, `not_found` or `unauthorized` error.
+ */
+function gatedExecutor(check: Promise<unknown>) {
+  /** Waits for the check; a refusal becomes the error the read settles with. */
+  const passed = async (): Promise<DbError | undefined> => {
+    try {
+      await check;
+    } catch (cause) {
+      return refusalOf(cause);
+    }
+
+    return undefined;
+  };
+
+  return (executor: Executor): Executor => ({
+    ...executor,
+    execute: async (op, context) => {
+      const [refusal, result] = await Promise.all([
+        passed(),
+        executor.execute(op, context),
+      ]);
+
+      return refusal === undefined ? result : err(refusal);
+    },
+    ...(executor.rpc === undefined
+      ? {}
+      : {
+          rpc: async (name, args, context) => {
+            const [refusal, result] = await Promise.all([
+              passed(),
+              // SAFETY: rpc is present, checked above.
+              executor.rpc!(name, args, context),
+            ]);
+
+            return refusal === undefined ? result : err(refusal);
+          },
+        }),
+    ...(executor.batch === undefined
+      ? {}
+      : {
+          batch: async (ops, context) => {
+            const [refusal, results] = await Promise.all([
+              passed(),
+              // SAFETY: batch is present, checked above.
+              executor.batch!(ops, context),
+            ]);
+
+            return refusal === undefined
+              ? results
+              : results.map(() => err(refusal));
+          },
+        }),
+  });
+}
+
 /**
  * `bsb.auth`, `bsb.tenant(ref)` and `bsb.activeTenant`, built on `cached` and
  * `require`. They run both at once, and a refused caller never receives the
@@ -93,6 +173,7 @@ export function scopeMembers(
   readonly tenant: never;
   readonly activeTenant: never;
   readonly auth: never;
+  readonly shared: never;
 } {
   const host = {
     cached: (callOptions: never) => getNext().cached(callOptions),
@@ -113,17 +194,79 @@ export function scopeMembers(
     },
   };
 
+  const buildGated = async (
+    record: TenantRecord | null,
+    permission: unknown,
+    cachedOptions: ScopeCallOptions,
+  ): Promise<object> => {
+    const tenant = record?.id;
+
+    // SAFETY: the options are PrivateCachedOptions without scope and tenant, plus the tenant.
+    const scope = (await host.cached({
+      ...cachedOptions,
+      ...(tenant === undefined ? {} : { tenant }),
+    } as never)) as {
+      db: { $wrapExecutor: (wrap: (e: Executor) => Executor) => object };
+      session: { kind: string; user?: unknown };
+    };
+
+    // SAFETY: the options are RequireOptions the declared signature allows.
+    const check = host.requireCaller({
+      ...(permission === undefined ? {} : { permission }),
+      ...(tenant === undefined ? {} : { requireTenant: true, tenant }),
+    } as never);
+
+    // A rejection is read by the first read that waits on it.
+    check.catch(() => undefined);
+
+    if (scope.session.kind !== "user") {
+      await check;
+    }
+
+    return Object.defineProperties(
+      {},
+      {
+        ...Object.getOwnPropertyDescriptors(scope),
+        db: {
+          value: scope.db.$wrapExecutor(gatedExecutor(check)),
+          enumerable: true,
+        },
+        user: { value: scope.session.user, enumerable: true },
+        ...(record === null
+          ? {}
+          : {
+              tenant: { value: record, enumerable: true },
+              granted: { value: true, enumerable: true },
+            }),
+        can: {
+          value: async (asked: unknown) =>
+            accessOf(await host.context(tenant), {
+              tenant: tenant ?? null,
+              authzVersion: null,
+              authorizer: host.authorizer,
+            }).can(asked),
+          enumerable: true,
+        },
+      },
+    );
+  };
+
   const build = async (
     record: TenantRecord | null,
     permission: unknown,
     scopeOptions: ScopeCallOptions = {},
   ): Promise<object> => {
     const tenant = record?.id;
+    const { gate = false, ...cachedOptions } = scopeOptions;
+
+    if (gate) {
+      return buildGated(record, permission, cachedOptions);
+    }
 
     const [scope, caller] = await Promise.all([
       // SAFETY: the options are PrivateCachedOptions without scope and tenant, plus the tenant.
       host.cached({
-        ...scopeOptions,
+        ...cachedOptions,
         ...(tenant === undefined ? {} : { tenant }),
       } as never),
       // SAFETY: the options are RequireOptions the declared signature allows.
@@ -188,5 +331,21 @@ export function scopeMembers(
     },
     auth: (permission?: unknown, scopeOptions?: ScopeCallOptions) =>
       build(null, permission, scopeOptions),
+    async shared(
+      ref: TenantRef,
+      permission: unknown,
+      read: (tenant: TenantRecord) => Promise<unknown>,
+    ) {
+      const record = await resolveTenantRef(ref, host.tenants);
+
+      // SAFETY: the options are RequireOptions the declared signature allows.
+      await host.requireCaller({
+        ...(permission === undefined ? {} : { permission }),
+        requireTenant: true,
+        tenant: record.id,
+      } as never);
+
+      return read(record);
+    },
   } as never;
 }
