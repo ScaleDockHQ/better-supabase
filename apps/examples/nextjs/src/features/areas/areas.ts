@@ -29,13 +29,21 @@ export interface AreaStep {
   readonly route: string;
 }
 
+/** A composite Server Action of an area and the page that runs it. */
+export interface AreaAction {
+  /** The export name in `composites-actions.ts`. */
+  readonly name: string;
+  readonly label: string;
+  readonly route: string;
+}
+
 export interface Area {
   readonly id: AreaId;
   readonly name: string;
   readonly flow: string;
   readonly steps: readonly AreaStep[];
-  /** The Server Actions of the composites this area runs, by action name. */
-  readonly actions: readonly string[];
+  /** The composites this area runs, with the page each one runs on. */
+  readonly actions: readonly AreaAction[];
 }
 
 export const AREAS: readonly Area[] = [
@@ -50,7 +58,19 @@ export const AREAS: readonly Area[] = [
       { label: "Contracts", route: "/crm/contracts" },
       { label: "Invoices", route: "/finance/invoices" },
     ],
-    actions: ["closeDealLost", "acceptQuote"],
+    actions: [
+      {
+        name: "closeDealWon",
+        label: "Close a deal as won",
+        route: "/crm/deals",
+      },
+      {
+        name: "closeDealLost",
+        label: "Close a deal as lost",
+        route: "/crm/deals",
+      },
+      { name: "acceptQuote", label: "Accept a quote", route: "/crm/quotes" },
+    ],
   },
   {
     id: "erp",
@@ -63,7 +83,28 @@ export const AREAS: readonly Area[] = [
       { label: "Bank", route: "/banking" },
       { label: "Periods", route: "/finance/periods" },
     ],
-    actions: ["payAndFulfilOrder", "reconcileAccount"],
+    actions: [
+      {
+        name: "payAndFulfilOrder",
+        label: "Pay and fulfil an order",
+        route: "/shop/orders",
+      },
+      {
+        name: "reconcileAccount",
+        label: "Reconcile a bank account",
+        route: "/banking/accounts",
+      },
+      {
+        name: "payDueBills",
+        label: "Pay the due bills",
+        route: "/finance/payables",
+      },
+      {
+        name: "closeAccountingPeriod",
+        label: "Close an accounting period",
+        route: "/finance/periods",
+      },
+    ],
   },
   {
     id: "manufacturing",
@@ -91,7 +132,14 @@ export const AREAS: readonly Area[] = [
       { label: "Tills", route: "/tills" },
       { label: "Assets", route: "/dam" },
     ],
-    actions: [],
+    actions: [
+      {
+        name: "requestOrderReturn",
+        label: "Request an order return",
+        route: "/shop/orders",
+      },
+      { name: "settleReturn", label: "Settle a return", route: "/shop/orders" },
+    ],
   },
   {
     id: "service",
@@ -104,7 +152,13 @@ export const AREAS: readonly Area[] = [
       { label: "Maintenance", route: "/maintenance" },
       { label: "Warehouse", route: "/warehouse" },
     ],
-    actions: [],
+    actions: [
+      {
+        name: "completeVisit",
+        label: "Complete a field visit",
+        route: "/field/dispatch",
+      },
+    ],
   },
   {
     id: "support",
@@ -114,10 +168,19 @@ export const AREAS: readonly Area[] = [
       { label: "Inbox", route: "/inbox" },
       { label: "Cases", route: "/cases" },
       { label: "Incidents", route: "/incidents" },
+      { label: "Change requests", route: "/change-requests" },
       { label: "Knowledge", route: "/knowledge" },
       { label: "Chat", route: "/chat" },
     ],
-    actions: [],
+    actions: [
+      { name: "openTicket", label: "Open a ticket", route: "/cases" },
+      { name: "discussCase", label: "Discuss a case", route: "/cases" },
+      {
+        name: "moveChangeRequest",
+        label: "Move a change request",
+        route: "/change-requests",
+      },
+    ],
   },
   {
     id: "projects",
@@ -130,7 +193,13 @@ export const AREAS: readonly Area[] = [
       { label: "Approvals", route: "/approvals" },
       { label: "Billing", route: "/finance" },
     ],
-    actions: [],
+    actions: [
+      {
+        name: "approveAndInvoiceTimesheet",
+        label: "Approve and invoice a week",
+        route: "/projects/portfolio",
+      },
+    ],
   },
   {
     id: "people",
@@ -144,11 +213,27 @@ export const AREAS: readonly Area[] = [
       { label: "Payroll", route: "/payroll" },
     ],
     actions: [
-      "hireApplication",
-      "onboardEmployee",
-      "offboardEmployee",
-      "assignCourse",
-      "bookWithReminder",
+      {
+        name: "hireApplication",
+        label: "Hire an applicant",
+        route: "/people/hiring",
+      },
+      {
+        name: "onboardEmployee",
+        label: "Onboard an employee",
+        route: "/people",
+      },
+      {
+        name: "offboardEmployee",
+        label: "Offboard an employee",
+        route: "/people",
+      },
+      { name: "assignCourse", label: "Assign a course", route: "/courses" },
+      {
+        name: "bookWithReminder",
+        label: "Book with a reminder",
+        route: "/people",
+      },
     ],
   },
   {
@@ -162,7 +247,18 @@ export const AREAS: readonly Area[] = [
       { label: "Drive", route: "/drive" },
       { label: "Meetings", route: "/meetings" },
     ],
-    actions: [],
+    actions: [
+      {
+        name: "shareDriveWithRoles",
+        label: "Share a drive folder with roles",
+        route: "/drive",
+      },
+      {
+        name: "createPublicLink",
+        label: "Create a public link",
+        route: "/drive",
+      },
+    ],
   },
   {
     id: "care",
@@ -175,7 +271,13 @@ export const AREAS: readonly Area[] = [
       { label: "Observations", route: "/observations" },
       { label: "Prescriptions", route: "/prescriptions" },
     ],
-    actions: [],
+    actions: [
+      {
+        name: "prescribeMedicationWithConsent",
+        label: "Prescribe with consent",
+        route: "/care",
+      },
+    ],
   },
   {
     id: "governance",
@@ -188,7 +290,13 @@ export const AREAS: readonly Area[] = [
       { label: "Deadlines", route: "/deadlines" },
       { label: "Audit", route: "/settings/audit" },
     ],
-    actions: [],
+    actions: [
+      {
+        name: "exportRecordSubject",
+        label: "Export a data subject",
+        route: "/risks",
+      },
+    ],
   },
   {
     id: "ai",
@@ -214,7 +322,18 @@ export const AREAS: readonly Area[] = [
       { label: "Webhooks", route: "/settings/webhooks" },
       { label: "Billing", route: "/settings/billing" },
     ],
-    actions: [],
+    actions: [
+      {
+        name: "rotateKey",
+        label: "Rotate an API key",
+        route: "/settings/api-keys",
+      },
+      {
+        name: "inviteWithinSeats",
+        label: "Invite within the seats",
+        route: "/settings/members",
+      },
+    ],
   },
 ];
 

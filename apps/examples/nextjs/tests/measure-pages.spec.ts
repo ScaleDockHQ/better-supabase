@@ -1,7 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
-/* oxlint-disable vitest/prefer-each -- Playwright has no test.each; the loop
-   generates one case per route of the manifest (1 finding). */
 import type { Response } from "@playwright/test";
 
 import { expect, test } from "@playwright/test";
@@ -95,6 +91,14 @@ for (const entry of openableRoutes(ROUTES)) {
         }
       }
     }
+
+    // A private or public entry records only its miss, so the entries the
+    // first render filled and the warm render did not are the hits: visits
+    // minus misses.
+    measured["servedFromCache"] = Math.max(
+      0,
+      (measured["first_misses"] ?? 0) - (measured["misses"] ?? 0),
+    );
 
     recordPerf(`pages-${user}.json`, entry.route, measured);
   });

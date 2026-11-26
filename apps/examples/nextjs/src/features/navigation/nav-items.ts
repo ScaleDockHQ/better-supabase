@@ -73,6 +73,7 @@ export type NavId =
   | "content"
   | "moderation"
   | "incidents"
+  | "changeRequests"
   | "inspections"
   | "meetings"
   | "maintenance"
@@ -445,6 +446,7 @@ export const navItems: readonly NavItem[] = [
     area: "operations",
     requires: "incidents.read",
   },
+  { id: "changeRequests", href: "/change-requests", area: "operations" },
   {
     id: "inspections",
     href: "/inspections",

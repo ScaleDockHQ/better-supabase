@@ -216,3 +216,25 @@ describe("snapshots", () => {
     );
   });
 });
+
+describe("processSessionMemo counters", () => {
+  it("attaches counters to the shared memo instead of making a private one", async () => {
+    clearProcessSessionMemo();
+
+    const counters = { hits: 0, misses: 0 };
+    const proxy = processSessionMemo<Value>((value) => value.exp);
+
+    const render = processSessionMemo<Value>((value) => value.exp, {
+      counters,
+    });
+
+    const load = vi.fn(async () => ({ user: "a", exp: null }));
+
+    await proxy.seed("token", { user: "a", exp: null });
+    await render.get("token", load);
+
+    expect(load).not.toHaveBeenCalled();
+    expect(counters).toEqual({ hits: 1, misses: 0 });
+    clearProcessSessionMemo();
+  });
+});

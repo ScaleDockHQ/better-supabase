@@ -135,9 +135,9 @@ acceptance as `INVITATION_INVITER_REVOKED`.
 A pg-delta export compares grants, comments and triggers as well as tables:
 
 ```bash
-pnpm exec supabase db schema declarative generate --local --output-dir /tmp/before
+pnpm exec supabase db schema declarative generate --output-dir /tmp/before
 # change the schema, then reset
-pnpm exec supabase db schema declarative generate --local --output-dir /tmp/after
+pnpm exec supabase db schema declarative generate --output-dir /tmp/after
 diff -r /tmp/before /tmp/after
 ```
 
@@ -168,13 +168,13 @@ created, and a plain `supabase start` picks Docker when it is running.
   starts all of them and turns the idle stop off.
 - A stack keeps running after its shell exits. `supabase stack list` shows
   every stack on the machine, `supabase stop` stops the current one and
-  `supabase stop --stack-id <id>` or `--all` stops others.
+  `supabase stack stop --stack <id>` or `supabase stop --all` stops others.
 - Each running stack holds a shared memory segment, and macOS allows 32 on
   the machine (`kern.sysv.shmmni`), so `supabase start` fails once a few
   dozen worktrees and branches have run a stack. `ipcs -m` counts the
   segments. `pnpm supabase:prune` lists the stacks of branches merged into
   `main` in this checkout and its worktrees, and `--apply` stops them; it
-  keeps their data. Stop other idle stacks with `supabase stop --stack-id`.
+  keeps their data. Stop other idle stacks with `supabase stack stop --stack <id>`.
 - A new worktree has no `supabase/signing_keys.json` (it is gitignored).
   Run `node packages/better-supabase/src/cli/bin.ts dev keys --cwd .` before
   `pnpm supabase:start`.

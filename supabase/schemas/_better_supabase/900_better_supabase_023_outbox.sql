@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@7 managed
--- @bsb-hash sha256:3d184e8599bd1562a776b7ef6e2753ba2a96e4e5cae601cf3d867090ff2baf85
+-- @bsb-hash sha256:99bfb29c27fb1eea90c242e0f85917e12490d3bd0c17c1df73d808cf1297aad1
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,6 +23,23 @@ create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("su
 create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
 create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
 create index outbox_events_xid_idx on "better_supabase"."outbox_events" ("xid", "position");
+create or replace function "better_supabase"."outbox_stamp_xid"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new."xid" := pg_current_xact_id();
+  else
+    new."xid" := old."xid";
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."outbox_stamp_xid"() from public, anon, authenticated;
+create trigger "bsb_outbox_stamp_xid" before insert or update of "xid" on "better_supabase"."outbox_events"
+for each row execute function "better_supabase"."outbox_stamp_xid"();
 alter table "better_supabase"."outbox_events" enable row level security;
 revoke all on "better_supabase"."outbox_events" from public, anon, authenticated;
 grant all on "better_supabase"."outbox_events" to service_role;
@@ -213,6 +230,7 @@ as $$
 declare
   c "better_supabase"."outbox_consumers";
   events jsonb;
+  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());
 begin
   update "better_supabase"."outbox_consumers" k
   set "lease_owner" = owner, "lease_expires_at" = now() + lease, "updated_at" = now()
@@ -242,7 +260,7 @@ begin
   ) as event, row_number() over (order by e."xid", e."position") as n
     from "better_supabase"."outbox_events" e
     where (e."xid", e."position") > (c."cursor_xid", c."cursor_position")
-      and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      and e."xid" < v_xmin
       and (c."types" is null or exists (
         select 1 from unnest(c."types") p
         where p = '*' or p = e."type"
@@ -255,12 +273,12 @@ begin
     update "better_supabase"."outbox_consumers" k
     set ("cursor_xid", "cursor_position") = (
       select e."xid", e."position" from "better_supabase"."outbox_events" e
-      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot())
+      where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin
       order by e."xid" desc, e."position" desc
       limit 1
     )
     where k."name" = consumer
-      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < pg_snapshot_xmin(pg_current_snapshot()));
+      and exists (select 1 from "better_supabase"."outbox_events" e where (e."xid", e."position") > (c."cursor_xid", c."cursor_position") and e."xid" < v_xmin);
   end if;
   return coalesce(events, '[]');
 end;

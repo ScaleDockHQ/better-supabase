@@ -101,7 +101,11 @@ describe("layout-reachable client code budget", () => {
 // 36: the lazy Assistant button of the header (its panel loads on intent).
 const MAX_CLIENT_MODULES = 36;
 const MIN_ENSURE_STATIC = 59;
-const MAX_CLIENT_BYTES = 109_994;
+
+// 110_187: the lazy search wrapper takes the `areas` prop; the area commands
+// load with the palette, on intent.
+// 110_264: the Change requests menu item (its label case and icon).
+const MAX_CLIENT_BYTES = 110_264;
 
 describe("shell prerender table", () => {
   const exports = (name: string): string[] =>

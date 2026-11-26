@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:a0356426e51f9c3e0325dbd856fcb3f681c153e10c5beb3df4a958c7383daa00
+-- @bsb-hash sha256:f042b44ee3de31a4f964f32f7c324df64c846d025c82d71983ca19d42c6058d1
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -974,7 +974,8 @@ $$;
 revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) to authenticated, service_role;
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function "better_supabase"."drive_delete"(node uuid)
 returns boolean
 language plpgsql
@@ -993,7 +994,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(v_node."id", 'owner'))) then
     raise exception 'not allowed to delete this item for good' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
   if (coalesce(v_node."source"::text, 'internal') not in ('internal', 'request') or false) then

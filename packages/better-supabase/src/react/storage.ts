@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { DbError } from "../core/errors.ts";
 import type { AsyncResult, Result } from "../core/result.ts";
@@ -62,8 +62,9 @@ export function useSignedUrl<T>(
   }>({ key: null, url: undefined, error: undefined });
 
   const latest = useRef({ target, options });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  latest.current = { target, options };
+  useLayoutEffect(() => {
+    latest.current = { target, options };
+  });
   const ttl = ttlSeconds(options.ttl);
 
   useEffect(() => {
@@ -227,8 +228,9 @@ export function useImage<T, V extends string = never>(
   }>({ key: null, urls: undefined, error: undefined });
 
   const latest = useRef({ target, scaled, cacheNonce });
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  latest.current = { target, scaled, cacheNonce };
+  useLayoutEffect(() => {
+    latest.current = { target, scaled, cacheNonce };
+  });
 
   const isPublic = bucket.public;
 

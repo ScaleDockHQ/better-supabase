@@ -30,6 +30,10 @@ import {
   stampWrite,
 } from "./state-machine-guards.ts";
 import {
+  insertCheckFunction,
+  insertCheckTrigger,
+} from "./state-machine-insert.ts";
+import {
   LIFECYCLE_INTERNAL,
   lifecycleWorkflowSql,
   WORKFLOW_DECLARE,
@@ -523,7 +527,8 @@ ${declare}begin
   return new;
 end;
 $$;
-${item.contributed === true ? "" : transitionTrigger(item)}`;
+${insertCheckFunction(ctx, item)}
+${item.contributed === true ? "" : transitionTrigger({ ...item, insertCheck: item.workflow === undefined })}`;
 }
 
 /**
@@ -534,12 +539,15 @@ export function transitionTrigger(item: {
   readonly name: string;
   readonly table: string;
   readonly column: string;
+  /** Attach the client insert check that the machine's module created. */
+  readonly insertCheck?: boolean;
+  readonly insertStatuses?: readonly string[];
 }): string {
   const target = quotedTable(item.table);
 
   return `drop trigger if exists bsb_transition_${item.name} on ${target};
 create trigger bsb_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
-for each row execute function better_supabase.bsb_transition_${item.name}();`;
+for each row execute function better_supabase.bsb_transition_${item.name}();${insertCheckTrigger(item, target)}`;
 }
 
 /** A `case subject_type` over the machines, with `unknown` for any other name. */

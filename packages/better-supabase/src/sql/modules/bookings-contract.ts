@@ -57,6 +57,15 @@ export function contract(
       returns: "jsonb",
     },
     ...archiveContract(ctx),
+    ...(ctx.installed("reminders")
+      ? [
+          {
+            name: "book_with_reminder",
+            args: ["uuid", "uuid", "timestamptz", "jsonb", "integer"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
     {
       name: "list_bookings_for_customer",
       args: ["{id}", "text", "integer"],

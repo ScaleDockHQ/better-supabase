@@ -1,7 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
-/* oxlint-disable vitest/prefer-each -- Playwright has no test.each; the loop
-   generates one case per declared page (1 finding). */
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 

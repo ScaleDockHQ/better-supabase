@@ -1,5 +1,5 @@
 import "server-only";
-import { tenantOf } from "better-supabase/next";
+import { tagFor, tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { readAdminRows } from "@/features/admin-lists/admin-detail-read";
@@ -37,7 +37,7 @@ interface DetailRaw extends SummaryRaw {
   readonly created_at: string;
 }
 
-const CONNECTORS_TAG = "connectors";
+export const CONNECTORS_TAG = tagFor("connectors");
 
 /** The organization's connector servers; `null` without `connectors.read`. */
 export async function getConnectors(): Promise<

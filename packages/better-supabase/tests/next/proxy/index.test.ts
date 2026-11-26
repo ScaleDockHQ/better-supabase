@@ -73,4 +73,23 @@ describe("createProxy", () => {
     expect(auth).toHaveBeenCalledOnce();
     expect(response.headers.getSetCookie().join("\n")).toContain(NAME);
   });
+
+  it("runs from the options alone, with no definition", async () => {
+    const bare = createProxy({
+      env: {
+        url: PROJECT_URL,
+        publishableKey: "sb_publishable_test",
+        jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
+      },
+      auth: { jwks: signer.jwks, fetch: auth },
+      prefetchJwks: false,
+      protect: (state) =>
+        state.kind === "user"
+          ? undefined
+          : Response.redirect("https://app.test/sign-in", 307),
+    });
+
+    expect((await bare(page(""))).status).toBe(307);
+    expect((await bare(page(await cookieExpiringIn(3600)))).status).toBe(200);
+  });
 });

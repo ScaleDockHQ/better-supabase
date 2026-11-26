@@ -2,12 +2,22 @@ import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { CacheAdapter } from "../core/cache.ts";
 import type { EventHub } from "../core/events.ts";
+import type {
+  ExecuteContext,
+  ExecuteResult,
+  Executor,
+} from "../core/executor.ts";
 import type { KeptCache, KeptStore } from "../core/kept-cache.ts";
+import type { Result } from "../core/result.ts";
 import type { CacheEntryStat } from "../core/stats.ts";
+import type { Operation } from "../ir/types.ts";
 import type { SchemaMeta } from "../schema/types.ts";
+import type { BootstrapMemo, BootstrapRow } from "../server/bootstrap.ts";
 import type { TenantShare } from "../server/tenant-share.ts";
 import type {
   CacheScope,
+  CachedOptions,
+  KeepReadsOptions,
   KeptFunction,
   KeptOptions,
   NextKeptOptions,
@@ -61,11 +71,13 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
   readonly userTags: (userId: string) => readonly string[];
   readonly waitUntil: (work: Promise<unknown>) => void;
   /** Records the store's tag calls on the current request. */
-  readonly onTagCalls?: (calls: number) => void;
+  readonly onTagCalls?: (calls: number, tags: readonly string[]) => void;
   /** Records how a call was served, on the request `source` came from. */
   readonly onEntry?: (
     record: CacheEntryStat,
     source: SessionHandle | undefined,
+    /** What the call returned, for its size. */
+    value: unknown,
   ) => void;
   /** The `anon` context a `share: "public"` entry fills with. */
   readonly publicScope: () => KeptScope<Ctx, C, P>;
@@ -78,18 +90,54 @@ export interface KeptDeps<Ctx extends KeptContext<C, P>, C, P> {
   ) => Promise<TenantShare>;
 }
 
-export interface KeptBinding<Ctx> {
+export interface KeptBinding<Ctx, C = unknown, P = unknown> {
   readonly kept: <A extends readonly unknown[], R>(
     fn: (ctx: Ctx, ...args: A) => Promise<R>,
     options: KeptOptions<string, A>,
   ) => KeptFunction<A, R>;
+  /**
+   * The wrapper `bsb.cached({ keep })` puts around a client's executor: its
+   * reads go through the kept store, keyed on the user and the operation.
+   */
+  readonly keepReads: (
+    scope: KeptScope<Ctx, C, P>,
+    keep: KeepReadsOptions,
+  ) => (executor: Executor) => Executor;
+  /**
+   * `memo` with each answer kept for `bootstrap({ kept })`; `memo` itself for a
+   * call without it, a support session or a token that failed to verify.
+   */
+  readonly keepMemo: (
+    scope: KeptScope<Ctx, C, P>,
+    call: {
+      readonly rpc: string;
+      readonly kept?: BootstrapOptionsKept | undefined;
+      readonly tables?: readonly string[] | undefined;
+    },
+    memo: BootstrapMemo,
+  ) => BootstrapMemo;
+  /** `ctx.db` of a `bsb.cached({ keep })` scope, with its reads kept. */
+  readonly keepDb: <
+    Db extends { $wrapExecutor: (wrap: (e: Executor) => Executor) => Db },
+  >(
+    scope: KeptScope<Ctx, C, P>,
+    db: Db,
+    options: CachedOptions,
+  ) => Db;
   /**
    * Expires `tags` in the kept store, as `invalidateAll` does for Next.js. A
    * store the app named is opened for it; the default memory store only when a
    * kept function already ran. Failures are logged.
    */
   readonly expireTags: (tags: readonly string[]) => void;
+  /** The same, resolving once the store has expired them; rejects on failure. */
+  readonly expireTagsNow: (tags: readonly string[]) => Promise<void>;
 }
+
+/** `BootstrapOptions.kept`. */
+type BootstrapOptionsKept =
+  | true
+  | { readonly life?: { readonly revalidate?: number } };
 
 /** The calls a store makes for `tags`: one per batch of 16. */
 const batches = (tags: readonly string[]): number =>
@@ -104,7 +152,7 @@ const caches = new WeakMap<KeptStore, KeptCache>();
 /** `bsb.kept()`, bound to one `createNext`. */
 export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
   deps: KeptDeps<Ctx, C, P>,
-): KeptBinding<Ctx> {
+): KeptBinding<Ctx, C, P> {
   let cache: KeptCache | undefined;
   let version: Promise<string> | undefined;
   // SAFETY: `createNext` passes the generated schema's meta, or nothing.
@@ -149,7 +197,7 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           const tags = cacheTagsOf(target);
 
           await attached.expireTags(tags);
-          deps.onTagCalls?.(batches(tags));
+          deps.onTagCalls?.(batches(tags), tags);
         },
       });
     }
@@ -163,41 +211,46 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
     return version;
   };
 
-  const expireTags = (tags: readonly string[]): void => {
+  const expireTagsNow = async (tags: readonly string[]): Promise<void> => {
     if (tags.length === 0 || (!cache && !deps.options?.store)) {
       return;
     }
 
-    cacheOf()
-      .expireTags(tags)
-      .then(() => {
-        deps.onTagCalls?.(batches(tags));
-      })
-      .catch((cause: unknown) => {
-        deps.events.logger.warn("bsb.kept() could not expire its tags", {
-          cause,
-        });
-      });
+    await cacheOf().expireTags(tags);
+    deps.onTagCalls?.(batches(tags), tags);
   };
 
-  const kept = <A extends readonly unknown[], R>(
+  const expireTags = (tags: readonly string[]): void => {
+    expireTagsNow(tags).catch((cause: unknown) => {
+      deps.events.logger.warn("bsb.kept() could not expire its tags", {
+        cause,
+      });
+    });
+  };
+
+  const build = <A extends readonly unknown[], R>(
     fn: (ctx: Ctx, ...args: A) => Promise<R>,
     options: KeptOptions<string, A>,
-  ): KeptFunction<A, R> => {
+  ): KeptFunction<A, R> & {
+    in(resolved: KeptScope<Ctx, C, P>, ...args: A): Promise<R>;
+  } => {
     const revalidate = options.life?.revalidate ?? DEFAULT_REVALIDATE;
     const expire = Math.max(options.life?.expire ?? DEFAULT_EXPIRE, revalidate);
 
     const run = async (
       source: SessionHandle | undefined,
       args: A,
+      resolved?: KeptScope<Ctx, C, P>,
     ): Promise<R> => {
       const open = options.share === "public";
 
       // A public entry never reads the request, so it runs in a plain
       // "use cache" scope too.
-      const { ctx, view, scope, tenant } = open
-        ? deps.publicScope()
-        : await deps.scopeOf(source, options.tenant?.(...args));
+      const { ctx, view, scope, tenant } =
+        resolved ??
+        (open
+          ? deps.publicScope()
+          : await deps.scopeOf(source, options.tenant?.(...args)));
 
       const appTags =
         typeof options.tags === "function"
@@ -328,6 +381,7 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
           ...(served.fillMs === undefined ? {} : { fillMs: served.fillMs }),
         },
         source,
+        served.value,
       );
 
       return served.value;
@@ -338,8 +392,106 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
         (source: SessionHandle) =>
         (...args: A) =>
           run(source, args),
+      in: (resolved: KeptScope<Ctx, C, P>, ...args: A) =>
+        run(undefined, args, resolved),
     });
   };
 
-  return { kept, expireTags };
+  const kept = <A extends readonly unknown[], R>(
+    fn: (ctx: Ctx, ...args: A) => Promise<R>,
+    options: KeptOptions<string, A>,
+  ): KeptFunction<A, R> => build(fn, options);
+
+  const keepReads =
+    (
+      scope: KeptScope<Ctx, C, P>,
+      keep: KeepReadsOptions,
+    ): ((executor: Executor) => Executor) =>
+    (inner) => {
+      const read = (
+        op: Operation,
+        context: ExecuteContext,
+      ): Promise<Result<ExecuteResult>> => {
+        // A function source, or an operation JSON can't carry, is not kept.
+        let canonical: string;
+
+        if (op.kind !== "select" || op.source !== undefined) {
+          return inner.execute(op, context);
+        }
+
+        try {
+          canonical = canonicalJson({ ...op, table: op.table.key });
+        } catch {
+          return inner.execute(op, context);
+        }
+
+        const table = op.table.key;
+
+        const fn = build(
+          (_ctx: Ctx, _operation: string) => inner.execute(op, context),
+          {
+            name: `${keep.name}:${table}`,
+            tables: [table],
+            ...(keep.life ? { life: keep.life } : {}),
+            ...(keep.version === undefined ? {} : { version: keep.version }),
+          },
+        );
+
+        return fn.in(scope, canonical);
+      };
+
+      return { ...inner, execute: read };
+    };
+
+  const keepMemo = (
+    scope: KeptScope<Ctx, C, P>,
+    call: {
+      readonly rpc: string;
+      readonly kept?: BootstrapOptionsKept | undefined;
+      readonly tables?: readonly string[] | undefined;
+    },
+    memo: BootstrapMemo,
+  ): BootstrapMemo => {
+    const keep = call.kept;
+
+    if (!keep || scope.ctx.support || scope.ctx.auth.kind === "invalid") {
+      return memo;
+    }
+
+    const revalidate =
+      (keep === true ? undefined : keep.life?.revalidate) ?? 30;
+
+    return Object.assign(
+      (key: string, run: () => Promise<BootstrapRow>) =>
+        memo(key, () =>
+          build((_ctx: Ctx, _key: string) => run(), {
+            name: `bootstrap:${call.rpc}`,
+            tables: [
+              ...new Set([
+                ...(call.tables ?? []),
+                ...(schemaMeta?.bootstrap?.tables?.[call.rpc] ?? []),
+              ]),
+            ],
+            life: { revalidate },
+          }).in(scope, key),
+        ),
+      memo.has ? { has: memo.has } : {},
+    );
+  };
+
+  const keepDb = <
+    Db extends { $wrapExecutor: (wrap: (e: Executor) => Executor) => Db },
+  >(
+    scope: KeptScope<Ctx, C, P>,
+    db: Db,
+    options: CachedOptions,
+  ): Db => {
+    const keep = "keep" in options ? options.keep : undefined;
+
+    return !keep || scope.ctx.support || scope.ctx.auth.kind === "invalid"
+      ? db
+      : db.$wrapExecutor(keepReads(scope, keep));
+  };
+
+  return { kept, keepReads, keepDb, keepMemo, expireTags, expireTagsNow };
 }

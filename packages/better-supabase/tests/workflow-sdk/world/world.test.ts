@@ -404,20 +404,25 @@ describe("createSupabaseWorld", () => {
     expect(queries.map((query) => query.fn)).toContain("complete_job");
   });
 
-  it("declares no run serialization and mints spec 8 even when spec 9 is requested", async () => {
-    vi.stubEnv("WORKFLOW_SPEC_VERSION", "9");
-    const world = createSupabaseWorld({ pool: fakePool({}).pool });
+  it.each(["9", "10"])(
+    "declares no run serialization or rate limits and mints spec 8 when spec %s is requested",
+    async (requested) => {
+      vi.stubEnv("WORKFLOW_SPEC_VERSION", requested);
+      const world = createSupabaseWorld({ pool: fakePool({}).pool });
 
-    expect(world.specVersion).toBe(8);
+      expect(world.specVersion).toBe(8);
 
-    expect(world.capabilities).toMatchObject({
-      maxConcurrency: false,
-      inBandFence: false,
-    });
+      expect(world.capabilities).toMatchObject({
+        maxConcurrency: false,
+        inBandFence: false,
+        rateLimits: false,
+        rateEventsInBatch: false,
+      });
 
-    await world.close();
-    vi.unstubAllEnvs();
-  });
+      await world.close();
+      vi.unstubAllEnvs();
+    },
+  );
 
   it("delivers a prefix to its registered handler or route", async () => {
     const jobs: unknown[] = [];

@@ -16,9 +16,10 @@ import { NextResponse } from "next/server";
 import { env } from "@/env";
 
 import { requiredPermission } from "./features/navigation/nav-items";
-import { pricingFlags, signupWaitlist, VISITOR_COOKIE } from "./flags";
 import { localizedPath, routing } from "./i18n/routing";
-import { app } from "./lib/supabase/app";
+import { Claims, Profile } from "./lib/claims";
+import { catalog } from "./lib/permission-catalog";
+import { VISITOR_COOKIE } from "./visitor-cookie";
 
 const intl = createMiddleware(routing);
 
@@ -36,6 +37,13 @@ const PUBLIC = new Set([
 
 /** Pages a signed-in user skips, to the `?next=` path or the dashboard. */
 const GUEST_ONLY = new Set(["/login", "/signup", "/forgot-password"]);
+
+/**
+ * The flag declarations, loaded on the two requests that evaluate a flag. They
+ * pull in the shell block set and the flag adapter, which every other request
+ * the proxy handles never uses (a lazy chunk, not part of the proxy's start).
+ */
+const loadFlags = () => import("./flags");
 
 /**
  * The locale and the path inside it. With `localePrefix: "as-needed"` a path
@@ -82,7 +90,9 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // The pricing flags are evaluated here once, and the static page for
   // their values is served; `precompute` signs them with FLAGS_SECRET.
   if (path === "/pricing") {
-    const code = env.FLAGS_SECRET ? await precompute(pricingFlags) : "default";
+    const code = env.FLAGS_SECRET
+      ? await precompute((await loadFlags()).pricingFlags)
+      : "default";
 
     return NextResponse.rewrite(
       new URL(`/${locale}/pricing/${code}${search}`, request.url),
@@ -102,7 +112,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     path.startsWith("/store/");
 
   if (session.kind !== "user") {
-    if (path === "/signup" && (await signupWaitlist())) {
+    if (path === "/signup" && (await (await loadFlags()).signupWaitlist())) {
       return NextResponse.rewrite(
         new URL(`/${locale}/waitlist${search}`, request.url),
       );
@@ -126,7 +136,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   }
 
   const needed = requiredPermission(path);
-  const keys = permissionsOf(session);
+  const keys = permissionsOf(session, undefined, { catalog });
 
   if (
     needed !== undefined &&
@@ -141,11 +151,13 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   return;
 };
 
-// The proxy builds only the session runtime from the app definition, so it
-// loads neither the block set nor the data layer (ADR 0635).
-const handle = createProxy(app, {
+// The proxy takes the claims and profile schemas, not the app definition, so
+// its bundle carries no table registry, repository or block (ADR 0635).
+const handle = createProxy({
+  auth: { claims: Claims, userMetadata: Profile },
   debug: {
     enabled: env.EXPOSE_TESTING_API === "1",
+    coldStart: env.EXPOSE_TESTING_API === "1",
     budget: { calls: 8, waves: 2 },
     route: "/api/bs-stats",
   },
@@ -184,8 +196,9 @@ export const proxy = (request: NextRequest) => handle(request);
 
 export const config = {
   matcher: [
-    // The workflow, Flags Explorer and MCP metadata routes answer without a
-    // session; the proxy would redirect them to a locale or the sign-in page.
-    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|.*\\.(?:svg|png|jpg|webp|ico|txt|js|html|webmanifest)$).*)",
+    // The workflow, Flags Explorer, MCP metadata and JWKS routes answer
+    // without a session; the proxy would redirect them to a locale or the
+    // sign-in page.
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|\\.well-known/oauth-protected-resource|\\.well-known/jwks/|.*\\.(?:svg|png|jpg|jpeg|gif|avif|webp|ico|css|map|woff|woff2|ttf|otf|txt|js|html|webmanifest)$).*)",
   ],
 };

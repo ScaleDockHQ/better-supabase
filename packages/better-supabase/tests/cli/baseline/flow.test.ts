@@ -154,10 +154,10 @@ describe("baseline build", () => {
 
     await expect(readFile(files.seedStorage)).resolves.toBeInstanceOf(Buffer);
     expect(world.calls).toContain(
-      "supabase stack destroy --stack-id id-bsb-baseline-empty --yes",
+      "supabase stack destroy --stack id-bsb-baseline-empty --yes",
     );
     expect(world.calls).toContain(
-      "supabase stack destroy --stack-id id-bsb-baseline-build --yes",
+      "supabase stack destroy --stack id-bsb-baseline-build --yes",
     );
   });
 
@@ -188,7 +188,7 @@ describe("baseline build", () => {
 
     expect(result.verified).toBe(true);
     expect(world.calls).toContain(
-      "supabase stack destroy --stack-id id-bsb-baseline-verify --yes",
+      "supabase stack destroy --stack id-bsb-baseline-verify --yes",
     );
     expect(
       uploads.calls
@@ -218,7 +218,7 @@ describe("baseline build", () => {
       "The pgmq queue big is partitioned",
     );
     expect(world.calls).toContain(
-      "supabase stack destroy --stack-id id-bsb-baseline-build --yes",
+      "supabase stack destroy --stack id-bsb-baseline-build --yes",
     );
   });
 });

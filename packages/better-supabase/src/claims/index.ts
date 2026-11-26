@@ -16,6 +16,10 @@ export type {
   MembershipClaim,
 } from "../auth/entitlements.ts";
 
+export { permissionCatalog } from "../auth/permission-bitset.ts";
+
+export type { PermissionCatalog } from "../auth/permission-bitset.ts";
+
 export { isTruncated, permissionsOf } from "../auth/permissions.ts";
 
 export type { PermissionsOfOptions } from "../auth/permissions.ts";

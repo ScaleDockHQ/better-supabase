@@ -164,9 +164,42 @@ alter table ${n.t} add column if not exists ${n.e("xid")} xid8 not null default 
 create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`;
 }
 
+/**
+ * The xid orders the outbox and decides when an event is settled, so a row
+ * always carries its writing transaction's id, whatever an insert names.
+ */
+function stampXid(ctx: BlockSqlContext, n: Names): string {
+  if (!n.has("xid")) {
+    return "";
+  }
+
+  const fn = ctx.fn("outbox_stamp_xid");
+  const trigger = ctx.trigger("outbox_stamp_xid");
+
+  return `
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    new.${n.e("xid")} := pg_current_xact_id();
+  else
+    new.${n.e("xid")} := old.${n.e("xid")};
+  end if;
+  return new;
+end;
+$$;
+${triggerGrant(`${fn}()`)}
+drop trigger if exists ${trigger} on ${n.t};
+create trigger ${trigger} before insert or update of ${n.e("xid")} on ${n.t}
+for each row execute function ${fn}();`;
+}
+
 function tables(ctx: BlockSqlContext, n: Names): string {
   if (!ctx.owns("events")) {
-    return `${adoptXid(n)}${consumersTable(n)}`;
+    return `${adoptXid(n)}${stampXid(ctx, n)}${consumersTable(n)}`;
   }
 
   const samePosition = n.e("position") === n.e("id");
@@ -241,7 +274,7 @@ create index if not exists outbox_events_created_idx on ${n.t} (${n.e("createdAt
     n.has("xid")
       ? `\ncreate index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`
       : ""
-  }
+  }${stampXid(ctx, n)}
 ${lockTable(n.t)}${
     n.partitioned
       ? `
@@ -418,8 +451,10 @@ function consumers(ctx: BlockSqlContext, n: Names): string {
       ? `${row}.${n.e("xid")}${direction}, ${pos(row)}${direction}`
       : `${pos(row)}${direction}`;
 
+  // One xmin for the whole claim: each statement takes its own snapshot, and
+  // an event that commits between them must not be passed over.
   const settled = byXid
-    ? `e.${n.e("xid")} < pg_snapshot_xmin(pg_current_snapshot())`
+    ? `e.${n.e("xid")} < v_xmin`
     : `e.${n.e("createdAt")} < now() - ${sqlString(settle)}::interval`;
 
   const xidOf = (row: string) => (byXid ? `${row}.${n.e("xid")}` : `'0'::xid8`);
@@ -537,7 +572,7 @@ as $$
 #variable_conflict use_variable
 declare
   c ${n.c};
-  events jsonb;
+  events jsonb;${byXid ? "\n  v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());" : ""}
 begin
   update ${n.c} k
   set ${n.k("leaseOwner")} = owner, ${n.k("leaseUntil")} = now() + lease, ${n.k("updatedAt")} = now()

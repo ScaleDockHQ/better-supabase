@@ -19,6 +19,14 @@ import type {
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
+import type {
+  BATCH_ITEM_STATUSES,
+  BATCH_STATUSES,
+} from "../../sql/modules/banking-batches.ts";
+import type {
+  MATCH_TARGETS,
+  TRANSACTION_STATUSES,
+} from "../../sql/modules/banking-sql.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { BankFeed } from "./feed.ts";
 import type { BankReads } from "./reads.ts";
@@ -26,43 +34,33 @@ import type {
   BankDate,
   BankStatementFormat,
   BankStatementInput,
-  BankTransactionInput,
 } from "./statement.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
-import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
-import {
-  BATCH_ITEM_STATUSES,
-  BATCH_STATUSES,
-} from "../../sql/modules/banking-batches.ts";
-import {
-  MATCH_TARGETS,
-  STATEMENT_FORMATS,
-  TRANSACTION_STATUSES,
-} from "../../sql/modules/banking-sql.ts";
-import { amountText, moneyOf, optionalMoneyOf } from "../money-codec.ts";
-import {
-  applyTemporal,
-  blockCall,
-  enumOrThrow,
-  isRecord,
-  optionalInstant,
-  optionalText,
-  recordOf,
-  recordsOf,
-  requiredInstant,
-  stringsOf,
-  textOf,
-} from "../shared.ts";
+import { amountText } from "../money-codec.ts";
+import { applyTemporal, blockCall, recordOf, recordsOf } from "../shared.ts";
 import { bankFeedOf } from "./feed.ts";
 import { bankAccountListSurface, paymentBatchListSurface } from "./lists.ts";
+import {
+  dateText,
+  accountOf,
+  statementOf,
+  transactionOf,
+  ruleOf,
+  suggestionOf,
+  reconciliationOf,
+  batchOf,
+  importOf,
+  sepaFile,
+  defined,
+  statementArg,
+} from "./mappers.ts";
 import { bankReads } from "./reads.ts";
-import { sepaCreditTransferXml } from "./sepa.ts";
 
 /** Where a bank transaction stands. */
 export type BankTransactionStatus = (typeof TRANSACTION_STATUSES)[number];
@@ -512,6 +510,15 @@ export interface Banking<
    * approval.
    */
   postPaymentBatch(batchId: string): AsyncResult<PaymentBatch>;
+  /**
+   * `createPaymentBatch`, then `postPaymentBatch`, and with `sepa` the SEPA
+   * file, in one database call and one transaction (ADR 1235). A bill that
+   * needs approval refuses the post and rolls the batch back. The TypeScript
+   * hooks of the single steps do not fire, the hook of `payBatch` does.
+   */
+  payBatch(
+    input: PaymentBatchInput & { sepa?: SepaExportOptions | undefined },
+  ): AsyncResult<{ batch: PaymentBatch; sepa: string | null }>;
   /** Cancels a draft or posted batch and frees its bills. */
   cancelPaymentBatch(batchId: string): AsyncResult<PaymentBatch>;
   /**
@@ -541,393 +548,6 @@ export interface BankingOptions<
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
-
-const REASONS: readonly BankMatchReason[] = [
-  "reference",
-  "remittance",
-  "amount",
-  "counterparty",
-];
-
-const dateText = (value: BankDate | undefined): string | undefined =>
-  value === undefined ? undefined : value.toString();
-
-function accountOf(value: unknown, fn: string): BankAccount {
-  const row = recordOf(value, fn);
-  const iban = optionalText(row["iban"]);
-  const bic = optionalText(row["bic"]);
-  const holder = optionalText(row["holder"]);
-  const journalId = optionalText(row["journalId"]);
-  const archivedAt = optionalInstant(row["archivedAt"]);
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    name: textOf(row["name"]),
-    ...(iban ? { iban } : {}),
-    ...(bic ? { bic } : {}),
-    currency: textOf(row["currency"]),
-    ...(holder ? { holder } : {}),
-    primary: row["primary"] === true,
-    position: typeof row["position"] === "number" ? row["position"] : 0,
-    ...(journalId ? { journalId } : {}),
-    ...(archivedAt ? { archivedAt } : {}),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    fields: isRecord(row["fields"]) ? row["fields"] : {},
-  };
-}
-
-function statementOf(value: unknown, fn: string): BankStatement {
-  const row = recordOf(value, fn);
-  const currency = row["currency"];
-  const reference = optionalText(row["reference"]);
-  const fromOn = optionalPlainDateOf(row["fromOn"]);
-  const untilOn = optionalPlainDateOf(row["untilOn"]);
-
-  const openingBalance = optionalMoneyOf(
-    row["openingBalance"],
-    currency,
-    "openingBalance",
-  );
-
-  const closingBalance = optionalMoneyOf(
-    row["closingBalance"],
-    currency,
-    "closingBalance",
-  );
-
-  const attachmentId = optionalText(row["attachmentId"]);
-  const importedBy = optionalText(row["importedBy"]);
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    accountId: textOf(row["accountId"]),
-    ...(reference ? { reference } : {}),
-    ...(fromOn ? { fromOn } : {}),
-    ...(untilOn ? { untilOn } : {}),
-    ...(openingBalance ? { openingBalance } : {}),
-    ...(closingBalance ? { closingBalance } : {}),
-    format: enumOrThrow(
-      row["format"],
-      STATEMENT_FORMATS,
-      "bank statement format",
-    ),
-    ...(attachmentId ? { attachmentId } : {}),
-    ...(importedBy ? { importedBy } : {}),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-  };
-}
-
-function matchOf(value: unknown, currency: unknown, fn: string): BankMatch {
-  const row = recordOf(value, fn);
-  const createdBy = optionalText(row["createdBy"]);
-
-  return {
-    id: textOf(row["id"]),
-    transactionId: textOf(row["transactionId"]),
-    targetType: enumOrThrow(
-      row["targetType"],
-      MATCH_TARGETS,
-      "bank match target",
-    ),
-    targetId: textOf(row["targetId"]),
-    amount: moneyOf(row["amount"], currency),
-    ...(createdBy ? { createdBy } : {}),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-  };
-}
-
-const TRANSACTION_TEXT = [
-  "statementId",
-  "counterpartyName",
-  "counterpartyIban",
-  "remittance",
-  "structuredReference",
-  "endToEndId",
-  "ruleId",
-  "matchedBy",
-] as const;
-
-function transactionOf(value: unknown, fn: string): BankTransaction {
-  const row = recordOf(value, fn);
-  const currency = row["currency"];
-  const valueOn = optionalPlainDateOf(row["valueOn"]);
-  const matchedAt = optionalInstant(row["matchedAt"]);
-
-  const text = Object.fromEntries(
-    TRANSACTION_TEXT.flatMap((key) => {
-      const found = optionalText(row[key]);
-
-      return found ? [[key, found]] : [];
-    }),
-  );
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    accountId: textOf(row["accountId"]),
-    bookedOn: plainDateOf(row["bookedOn"]),
-    ...(valueOn ? { valueOn } : {}),
-    amount: moneyOf(row["amount"], currency),
-    ...text,
-    externalId: textOf(row["externalId"]),
-    status: enumOrThrow(
-      row["status"],
-      TRANSACTION_STATUSES,
-      "bank transaction status",
-    ),
-    ...(matchedAt ? { matchedAt } : {}),
-    matches: recordsOf(row["matches"], fn).map((match) =>
-      matchOf(match, currency, fn),
-    ),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-  };
-}
-
-const isFilterGroup = (value: unknown): value is FilterQuery =>
-  isRecord(value) && value["type"] === "group" && Array.isArray(value["rules"]);
-
-function ruleOf(value: unknown, fn: string): BankRule {
-  const row = recordOf(value, fn);
-  const conditions = row["conditions"];
-  const dimensions = row["dimensions"];
-  const accountId = optionalText(row["accountId"]);
-  const partyId = optionalText(row["partyId"]);
-
-  if (!isFilterGroup(conditions)) {
-    throw new TypeError(
-      `bank rule conditions are ${JSON.stringify(conditions)}`,
-    );
-  }
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    name: textOf(row["name"]),
-    conditions,
-    ...(accountId ? { accountId } : {}),
-    ...(partyId ? { partyId } : {}),
-    dimensions: isRecord(dimensions)
-      ? Object.fromEntries(
-          Object.entries(dimensions).map(([key, entry]) => [
-            key,
-            String(entry),
-          ]),
-        )
-      : {},
-    priority: Number(row["priority"]),
-    active: row["active"] === true,
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-  };
-}
-
-function suggestionOf(value: unknown, fn: string): BankMatchSuggestion {
-  const row = recordOf(value, fn);
-
-  return {
-    targetType: enumOrThrow(
-      row["targetType"],
-      MATCH_TARGETS,
-      "bank match target",
-    ),
-    targetId: textOf(row["targetId"]),
-    label: textOf(row["label"]),
-    balance: moneyOf(row["balance"], row["currency"], "balance"),
-    score: Number(row["score"]),
-    reasons: stringsOf(row["reasons"]).map((reason) =>
-      enumOrThrow(reason, REASONS, "bank match reason"),
-    ),
-  };
-}
-
-function reconciliationOf(value: unknown, fn: string): BankReconciliation {
-  const row = recordOf(value, fn);
-  const currency = row["currency"];
-  const statementId = optionalText(row["statementId"]);
-
-  const statementBalance = optionalMoneyOf(
-    row["statementBalance"],
-    currency,
-    "statementBalance",
-  );
-
-  const ledgerBalance = optionalMoneyOf(
-    row["ledgerBalance"],
-    currency,
-    "ledgerBalance",
-  );
-
-  const difference = optionalMoneyOf(row["difference"], currency, "difference");
-
-  return {
-    accountId: textOf(row["accountId"]),
-    asOf: plainDateOf(row["asOf"]),
-    ...(statementId ? { statementId } : {}),
-    ...(statementBalance ? { statementBalance } : {}),
-    transactionTotal: moneyOf(
-      row["transactionTotal"],
-      currency,
-      "transactionTotal",
-    ),
-    unmatchedCount: Number(row["unmatchedCount"]),
-    unmatchedTotal: moneyOf(row["unmatchedTotal"], currency, "unmatchedTotal"),
-    ...(ledgerBalance ? { ledgerBalance } : {}),
-    ...(difference ? { difference } : {}),
-    reconciled: row["reconciled"] === true,
-  };
-}
-
-function batchItemOf(value: unknown, currency: unknown): PaymentBatchItem {
-  const row = recordOf(value, "payment batch item");
-  const bic = optionalText(row["creditorBic"]);
-  const remittance = optionalText(row["remittance"]);
-
-  return {
-    id: textOf(row["id"]),
-    invoiceId: textOf(row["invoiceId"]),
-    partyId: textOf(row["partyId"]),
-    creditorName: textOf(row["creditorName"]),
-    creditorIban: textOf(row["creditorIban"]),
-    ...(bic ? { creditorBic: bic } : {}),
-    amount: moneyOf(row["amount"], currency),
-    discount: moneyOf(row["discount"], currency, "discount"),
-    endToEndId: textOf(row["endToEndId"]),
-    ...(remittance ? { remittance } : {}),
-    status: enumOrThrow(
-      row["status"],
-      BATCH_ITEM_STATUSES,
-      "payment batch item status",
-    ),
-  };
-}
-
-function batchOf(value: unknown, fn: string): PaymentBatch {
-  const row = recordOf(value, fn);
-  const currency = row["currency"];
-  const transactionId = optionalText(row["transactionId"]);
-  const createdBy = optionalText(row["createdBy"]);
-  const postedAt = optionalInstant(row["postedAt"]);
-  const reconciledAt = optionalInstant(row["reconciledAt"]);
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    accountId: textOf(row["accountId"]),
-    reference: textOf(row["reference"]),
-    messageId: textOf(row["messageId"]),
-    dueBy: plainDateOf(row["dueBy"]),
-    executionOn: plainDateOf(row["executionOn"]),
-    total: moneyOf(row["total"], currency, "total"),
-    itemCount: Number(row["itemCount"]),
-    status: enumOrThrow(row["status"], BATCH_STATUSES, "payment batch status"),
-    ...(transactionId ? { transactionId } : {}),
-    ...(createdBy ? { createdBy } : {}),
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    ...(postedAt ? { postedAt } : {}),
-    ...(reconciledAt ? { reconciledAt } : {}),
-    items: recordsOf(row["items"], fn).map((item) =>
-      batchItemOf(item, currency),
-    ),
-  };
-}
-
-function importOf(value: unknown, fn: string): BankStatementImport {
-  const row = recordOf(value, fn);
-
-  return {
-    statement: statementOf(row["statement"], fn),
-    imported: Number(row["imported"]),
-    skipped: Number(row["skipped"]),
-  };
-}
-
-const sepaInvalid = (message: string): AsyncResult<string> =>
-  AsyncResult.err(
-    dbError("invalid_request", message, { hint: "SEPA_EXPORT_INVALID" }),
-  );
-
-/** The SEPA file of a batch, or the error of what the format refuses. */
-function sepaFile(
-  batch: PaymentBatch,
-  accounts: readonly BankAccount[],
-  options: SepaExportOptions,
-): AsyncResult<string> {
-  const account = accounts.find((each) => each.id === batch.accountId);
-
-  if (!account?.iban) {
-    return sepaInvalid("The batch's bank account has no IBAN");
-  }
-
-  try {
-    return AsyncResult.ok(
-      sepaCreditTransferXml({
-        messageId: batch.messageId,
-        createdAt: batch.createdAt,
-        executionOn: batch.executionOn,
-        debtorName: options.debtorName ?? account.name,
-        debtorIban: account.iban,
-        ...(account.bic ? { debtorBic: account.bic } : {}),
-        ...(options.initiatingPartyName
-          ? { initiatingPartyName: options.initiatingPartyName }
-          : {}),
-        transfers: batch.items
-          .filter((item) => item.status !== "cancelled")
-          .map((item) => ({
-            endToEndId: item.endToEndId,
-            amount: item.amount,
-            creditorName: item.creditorName,
-            creditorIban: item.creditorIban,
-            ...(item.creditorBic ? { creditorBic: item.creditorBic } : {}),
-            ...(item.remittance ? { remittance: item.remittance } : {}),
-          })),
-      }),
-    );
-  } catch (error) {
-    return sepaInvalid(error instanceof Error ? error.message : String(error));
-  }
-}
-
-/** Drops `undefined` so the SQL reads a missing key, not `null`. */
-const defined = (value: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(
-    Object.entries(value).filter(([, entry]) => entry !== undefined),
-  );
-
-const transactionArg = (tx: BankTransactionInput): Record<string, unknown> =>
-  defined({
-    externalId: tx.externalId,
-    bookedOn: dateText(tx.bookedOn),
-    valueOn: dateText(tx.valueOn),
-    amount: amountText(tx.amount),
-    currency: tx.amount.currency,
-    counterpartyName: tx.counterpartyName,
-    counterpartyIban: tx.counterpartyIban,
-    remittance: tx.remittance,
-    structuredReference: tx.structuredReference,
-    endToEndId: tx.endToEndId,
-  });
-
-const statementArg = (statement: BankStatementInput): Record<string, unknown> =>
-  defined({
-    reference: statement.reference,
-    fromOn: dateText(statement.fromOn),
-    untilOn: dateText(statement.untilOn),
-    openingBalance:
-      statement.openingBalance === undefined
-        ? undefined
-        : amountText(statement.openingBalance),
-    closingBalance:
-      statement.closingBalance === undefined
-        ? undefined
-        : amountText(statement.closingBalance),
-    format: statement.format,
-    attachmentId: statement.attachmentId,
-    transactions: statement.transactions.map(transactionArg),
-  });
 
 /**
  * Bank accounts, imported statements and their reconciliation against invoices,
@@ -1113,7 +733,7 @@ export function createBanking<
           ignored: Number(row["ignored"]),
         };
       }),
-    ...bankReads(call),
+    ...bankReads(call, transaction("reconcile_bank_account")),
     reconciliation: ({ accountId, asOf }) =>
       call(
         "bank_reconciliation_status",
@@ -1160,6 +780,42 @@ export function createBanking<
     getPaymentBatch: (batchId) =>
       call("get_payment_batch", { batch_id: batchId }, (value) =>
         batchOf(value, "get_payment_batch"),
+      ),
+    payBatch: ({ sepa, ...input }) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "pay_payment_batch",
+          {
+            tenant: organizationId,
+            input: defined({
+              accountId: input.accountId,
+              dueBy: dateText(input.dueBy),
+              executionOn: dateText(input.executionOn),
+              reference: input.reference,
+              invoiceIds: input.invoiceIds,
+              creditors: input.creditors,
+            }),
+            with_accounts: sepa !== undefined,
+          },
+          (value) => {
+            const row = recordOf(value, "pay_payment_batch");
+
+            return {
+              batch: batchOf(row["batch"], "pay_payment_batch"),
+              accounts: recordsOf(row["accounts"], "pay_payment_batch").map(
+                (account) => accountOf(account, "pay_payment_batch"),
+              ),
+            };
+          },
+        ).andThen<{ batch: PaymentBatch; sepa: string | null }>(
+          ({ batch, accounts }) =>
+            sepa === undefined
+              ? AsyncResult.ok({ batch, sepa: null })
+              : sepaFile(batch, accounts, sepa).map((file) => ({
+                  batch,
+                  sepa: file,
+                })),
+        ),
       ),
     postPaymentBatch: (batchId) =>
       call("post_payment_batch", { batch_id: batchId }, (value) =>

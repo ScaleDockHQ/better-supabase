@@ -16,7 +16,12 @@ import {
   documentPreludeSql,
   driveDocumentsSql,
 } from "./drive-documents.ts";
-import { labelTags, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
+import {
+  deleteKey,
+  labelTags,
+  READ_ONLY_GUARD,
+  UUID_TEXT,
+} from "./drive-kit.ts";
 import { driveChangesSql, driveRetentionSql } from "./drive-lifecycle.ts";
 import { driveLinksSql } from "./drive-links.ts";
 import { lockGuard, subtreeLockGuard } from "./drive-locks.ts";
@@ -707,7 +712,7 @@ end;
 $$;
 ${userGrant(`${fn("drive_bin")}(${ctx.idType}, integer, timestamptz, uuid)`)}
 
--- Deletes a bin entry for good (the share role, or drive.manage).
+-- Deletes a bin entry for good (the share role, and the delete key when set).
 create or replace function ${fn("drive_purge")}(item uuid)
 returns integer
 language plpgsql
@@ -724,7 +729,7 @@ begin
   if not found or not (${SERVICE_CALLER} or ${canRead(`v_root.${ti("subjectId")}::uuid`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canShare(`v_root.${ti("subjectId")}::uuid`)}) then
+  if not (${SERVICE_CALLER} or (${canShare(`v_root.${ti("subjectId")}::uuid`)}${deleteKey(kit, `v_root.${ti("tenant")}`)})) then
     ${forbidden("delete this item for good")}
   end if;
   return ${trash.fn("trash_purge_batch")}(v_root.${ti("batch")});

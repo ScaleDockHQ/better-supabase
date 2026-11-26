@@ -274,6 +274,31 @@ describe("custom-fields module", () => {
     );
   });
 
+  it("keeps the tenant read key for a record type without a read permission", () => {
+    const sql = sqlOf(
+      {
+        subjects: {
+          task: {
+            table: "public.tasks",
+            idType: "bigint",
+            permissions: { read: "tasks.read" },
+          },
+          note: { table: "public.notes" },
+        },
+        modules: { "custom-fields": { options: { readAccess: "record" } } },
+      },
+      ["subjects"],
+    );
+
+    expect(sql).not.toContain(`when 'note' then exists`);
+    expect(sql).toContain(
+      `when read_field_values.subject_type in ('task') then case read_field_values.subject_type`,
+    );
+    expect(sql).toContain(
+      `else coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false) end`,
+    );
+  });
+
   it("keeps the tenant read key without record-checked types", () => {
     expect(sqlOf()).toContain(
       `and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))`,

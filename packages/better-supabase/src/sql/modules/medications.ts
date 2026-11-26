@@ -169,6 +169,13 @@ const NAMES: BlockSqlNames = {
 };
 
 function tables(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
+  const medicationsReadable = registryReadable(
+    ctx,
+    layout,
+    "medications",
+    "medications_subject_readable",
+  );
+
   const medications = ctx.table("medications");
   const orders = ctx.table("orders");
   const administrations = ctx.table("administrations");
@@ -282,13 +289,13 @@ create index if not exists ${name("orders", "subject_idx")} on ${orders} (${o("s
 create index if not exists ${name("orders", "status_idx")} on ${orders} (${o("tenant")}, ${o("status")});
 create unique index if not exists ${name("orders", "external_idx")} on ${orders} (${o("tenant")}, ${o("externalId")}) where ${o("externalId")} is not null;
 ${lockModuleTable(ctx, "orders", { read: true })}
-${readPolicy(
-  "orders",
-  guestOr(
-    `${ctx.scope.check(o("tenant"), read)} and ${registryReadable(ctx, layout, "medications", { type: `${orders}.${o("subjectType")}`, id: `${orders}.${o("subjectId")}`, tenant: `${orders}.${o("tenant")}` })}`,
-    guestOf(o("tenant"), o("subjectType"), o("subjectId")),
-  ),
-)}
+${medicationsReadable.sql}${readPolicy(
+    "orders",
+    guestOr(
+      `${ctx.scope.check(o("tenant"), read)} and ${medicationsReadable.using({ type: `${orders}.${o("subjectType")}`, id: `${orders}.${o("subjectId")}`, tenant: `${orders}.${o("tenant")}` })}`,
+      guestOf(o("tenant"), o("subjectType"), o("subjectId")),
+    ),
+  )}
 ${readPolicy(
   "medications",
   guestOr(
@@ -507,6 +514,7 @@ export const MEDICATIONS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
+  internal: ["medications_subject_readable"],
   names: NAMES,
   contract,
   build,

@@ -341,6 +341,13 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     return "";
   }
 
+  const slaReadable = registryReadable(
+    ctx,
+    layout,
+    "sla",
+    "sla_subject_readable",
+  );
+
   const keys = moduleOperations("sla");
   const read = ctx.permission("read", keys.read);
   const manage = ctx.permission("manage", keys.manage);
@@ -623,7 +630,7 @@ ${renderPolicy(makePolicy({ table: t("escalations"), name: "sla_escalations_read
 `
     : ""
 }
-${renderPolicy(makePolicy({ table: t("clocks"), name: "sla_clocks_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(k("tenant"), read)} and ${registryReadable(ctx, layout, "sla", { type: `${t("clocks")}.${k("subjectType")}`, id: `${t("clocks")}.${k("subjectId")}`, tenant: `${t("clocks")}.${k("tenant")}` })}` }), { target: t("clocks") })}
+${slaReadable.sql}${renderPolicy(makePolicy({ table: t("clocks"), name: "sla_clocks_read", command: "select", roles: ["authenticated"], using: `${ctx.scope.check(k("tenant"), read)} and ${slaReadable.using({ type: `${t("clocks")}.${k("subjectType")}`, id: `${t("clocks")}.${k("subjectId")}`, tenant: `${t("clocks")}.${k("tenant")}` })}` }), { target: t("clocks") })}
 `
     : ""
 }
@@ -981,6 +988,7 @@ export const SLA: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,
+  internal: ["sla_subject_readable"],
   names: NAMES,
   contract,
   build,

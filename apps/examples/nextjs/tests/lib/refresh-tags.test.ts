@@ -7,10 +7,18 @@ const features = fileURLToPath(new URL("../../src/features", import.meta.url));
 
 /**
  * Domains whose writes change what every other domain reads (restore and purge)
- * or what the session is (roles, sessions): they expire the whole session on
- * purpose (ADR 0615 and 0633).
+ * or what the session is (roles, sessions, and the organization, profile and
+ * onboarding steps the shell reads from the session's private entries): they
+ * expire the whole session on purpose (ADR 0615 and 0633).
  */
-const SESSION_WIDE = new Set(["roles", "sessions", "trash"]);
+const SESSION_WIDE = new Set([
+  "billing",
+  "organization",
+  "roles",
+  "sessions",
+  "trash",
+  "user",
+]);
 
 /**
  * Reads that belong to the session, not to a domain: the user's own profile,

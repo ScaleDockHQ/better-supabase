@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
@@ -74,5 +72,29 @@ test("a project shows its tracked time against the budget", async ({
   ).toBeVisible();
   await expect(
     main.getByText("Budget left").filter({ visible: true }),
+  ).toBeVisible();
+});
+
+test("an admin approves a member's submitted week and invoices it", async ({
+  page,
+}) => {
+  // The seed submits one week for the member; submitting opens an approval
+  // request, so the composite decides that request instead of approving the
+  // week directly.
+  await page.goto("/projects/portfolio");
+
+  const card = page
+    .getByRole("main")
+    .locator("[data-slot=card]")
+    .filter({ hasText: "Time awaiting approval" });
+
+  const button = card.getByRole("button", { name: "Approve and invoice" });
+
+  await expect(button).toBeVisible();
+  await button.click();
+
+  await expect(page.getByText("Week approved and invoiced")).toBeVisible();
+  await expect(
+    card.getByText("No submitted week is waiting for approval."),
   ).toBeVisible();
 });

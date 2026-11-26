@@ -78,7 +78,9 @@ export async function MetricDetail({ metricKey }: { metricKey: string }) {
     <div className="grid gap-6">
       <Card size="sm">
         <CardHeader>
-          <CardTitle>{t("New customers, last 90 days")}</CardTitle>
+          <CardTitle>
+            <h1>{t("New customers, last 90 days")}</h1>
+          </CardTitle>
           <CardDescription>
             {t("{previous} in the 90 days before", {
               previous: format.number(metric.previous),

@@ -636,6 +636,13 @@ export interface FlagsProviderOptions<
   readonly mappers?: readonly ErrorMapper[];
   /** How long the definitions are cached, in milliseconds. Default 30000. */
   readonly ttl?: number;
+  /**
+   * How long after `ttl` the previous definitions are still served while a
+   * refresh runs behind the evaluation, in milliseconds, so one request per
+   * `ttl` no longer waits on the Data API. A refresh that fails keeps serving
+   * them until this passes. Default 300000; 0 waits for every reload.
+   */
+  readonly staleTtl?: number;
   /** Fixed definitions instead of a transport, for tests and static flags. */
   readonly definitions?: readonly FlagDefinition[];
   /**
@@ -737,37 +744,79 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
   }
 
   const ttl = options.ttl ?? 30_000;
+  const staleTtl = options.staleTtl ?? 300_000;
   const now = options.now ?? Date.now;
 
   // SAFETY: without errorCodes, Code is its default, FlagErrorCode.
   const codes =
     options.errorCodes ?? (DEFAULT_CODES as Record<FlagErrorCode, Code>);
 
-  let cache:
-    | {
-        readonly at: number;
-        readonly flags: Promise<ReadonlyMap<string, FlagDefinition>>;
-      }
-    | undefined;
+  type Definitions = ReadonlyMap<string, FlagDefinition>;
 
-  const load = (): Promise<ReadonlyMap<string, FlagDefinition>> => {
-    if (cache && now() - cache.at < ttl) {
-      return cache.flags;
-    }
+  interface CacheEntry {
+    readonly at: number;
+    readonly flags: Promise<Definitions>;
+    /** Set once the load succeeded: what a stale read serves. */
+    loaded?: Definitions;
+  }
 
+  let cache: CacheEntry | undefined;
+
+  let refreshing = false;
+
+  const fill = (): Promise<Definitions> => {
     const flags = fetchFlags().then(
       (list) => new Map(list.map((flag) => [flag.key, flag])),
     );
 
-    const entry = { at: now(), flags };
+    const entry: CacheEntry = { at: now(), flags };
     cache = entry;
-    flags.catch(() => {
-      if (cache === entry) {
-        cache = undefined;
-      }
-    });
+    flags.then(
+      (loaded) => {
+        entry.loaded = loaded;
+      },
+      () => {
+        if (cache === entry) {
+          cache = undefined;
+        }
+      },
+    );
 
     return flags;
+  };
+
+  /** Reloads behind a stale read: the old entry serves until the new one lands. */
+  const refreshBehind = (): void => {
+    refreshing = true;
+    fetchFlags()
+      .then(
+        (list) => {
+          const loaded = new Map(list.map((flag) => [flag.key, flag]));
+          cache = { at: now(), flags: Promise.resolve(loaded), loaded };
+        },
+        () => undefined,
+      )
+      .finally(() => {
+        refreshing = false;
+      });
+  };
+
+  const load = (): Promise<Definitions> => {
+    const age = cache ? now() - cache.at : Infinity;
+
+    if (cache && age < ttl) {
+      return cache.flags;
+    }
+
+    if (cache?.loaded && age < ttl + staleTtl) {
+      if (!refreshing) {
+        refreshBehind();
+      }
+
+      return Promise.resolve(cache.loaded);
+    }
+
+    return fill();
   };
 
   async function resolve<T extends FlagValue>(

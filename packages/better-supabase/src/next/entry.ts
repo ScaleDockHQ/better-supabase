@@ -1,5 +1,6 @@
 import * as nextCache from "next/cache.js";
 import { cacheLife } from "next/cache.js";
+import { redirect } from "next/dist/client/components/redirect.js";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
@@ -128,4 +129,29 @@ export function applyCacheEntry<C, P>(input: CacheEntryScope<C, P>): void {
   if (tags.length > 0) {
     applyCacheTags(tags);
   }
+}
+
+/**
+ * What `bsb.bootstrap()` does with an ended session: the entry isn't kept, and
+ * the caller goes to `redirect` with the reason, when the call names one.
+ */
+export function endBootstrap<R extends { readonly endReason: string | null }>(
+  result: R,
+  options: {
+    readonly redirect?: string | undefined;
+    readonly reasons?: { readonly ended?: string; readonly banned?: string };
+  },
+): R {
+  cacheLife({ stale: 0, revalidate: 0, expire: 0 });
+
+  if (options.redirect !== undefined) {
+    const reason =
+      result.endReason === "user_banned"
+        ? (options.reasons?.banned ?? "user_banned")
+        : (options.reasons?.ended ?? "session_not_found");
+
+    redirect(`${options.redirect}?reason=${encodeURIComponent(reason)}`);
+  }
+
+  return result;
 }

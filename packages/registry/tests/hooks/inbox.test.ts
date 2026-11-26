@@ -31,6 +31,7 @@ const runtime = vi.hoisted(() => {
   const state = {
     slots: [] as Slot[],
     index: 0,
+    layout: [] as (() => void)[],
     pending: [] as (() => void)[],
     provided: new Map<object, unknown>(),
     rendering: false,
@@ -70,6 +71,26 @@ const runtime = vi.hoisted(() => {
 vi.mock(import("react"), async (importOriginal) => {
   const actual = await importOriginal();
   const { state, slot, changed, schedule } = runtime;
+
+  // Layout effects go to `state.layout`, which runs before `state.pending`.
+  const queueEffect = (
+    queue: (() => void)[],
+    effect: () => (() => void) | undefined,
+    deps: readonly unknown[] | undefined,
+  ): void => {
+    const cell = slot();
+
+    if (!changed(cell.deps, deps)) {
+      return;
+    }
+
+    cell.deps = deps;
+    queue.push(() => {
+      cell.cleanup?.();
+      const cleanup = effect();
+      cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
+    });
+  };
 
   const standIn = {
     createElement: (
@@ -138,18 +159,13 @@ vi.mock(import("react"), async (importOriginal) => {
       effect: () => (() => void) | undefined,
       deps?: readonly unknown[],
     ) => {
-      const cell = slot();
-
-      if (!changed(cell.deps, deps)) {
-        return;
-      }
-
-      cell.deps = deps;
-      state.pending.push(() => {
-        cell.cleanup?.();
-        const cleanup = effect();
-        cell.cleanup = typeof cleanup === "function" ? cleanup : undefined;
-      });
+      queueEffect(state.pending, effect, deps);
+    },
+    useLayoutEffect: (
+      effect: () => (() => void) | undefined,
+      deps?: readonly unknown[],
+    ) => {
+      queueEffect(state.layout, effect, deps);
     },
     // Transitions run at once here; a rejected async one is the boundary's.
     useTransition: () => [
@@ -228,7 +244,10 @@ function renderHook<P, R>(
       state.flushing = true;
 
       try {
-        for (const effect of state.pending.splice(0)) {
+        for (const effect of [
+          ...state.layout.splice(0),
+          ...state.pending.splice(0),
+        ]) {
           effect();
         }
       } finally {

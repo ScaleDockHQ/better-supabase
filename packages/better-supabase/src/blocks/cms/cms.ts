@@ -21,13 +21,14 @@ export interface PublishedVersion {
 export interface Cms {
   /**
    * Keeps a version of the entry's content (`versions.snapshot` on `subject`,
-   * labelled `label`), then publishes the entry (`content.publish`). A snapshot
-   * of unchanged content returns the latest version, so a retry adds none. A
-   * failed publish returns its error with the version kept.
+   * default `{ type: "content_entry", id: entryId }`, labelled `label`), then
+   * publishes the entry (`content.publish`). A snapshot of unchanged content
+   * returns the latest version, so a retry adds none. A failed publish returns
+   * its error with the version kept.
    */
   publishWithVersion(input: {
     entryId: string;
-    subject: RecordRef;
+    subject?: RecordRef | undefined;
     label?: string | undefined;
   }): AsyncResult<PublishedVersion>;
 }
@@ -49,7 +50,7 @@ export function createCms(options: CmsOptions): Cms {
     publishWithVersion: ({ entryId, subject, label }) =>
       Async.from(async () => {
         const version = await versions.snapshot({
-          subject,
+          subject: subject ?? { type: "content_entry", id: entryId },
           ...(label === undefined ? {} : { input: { label } }),
         });
 

@@ -6060,7 +6060,13 @@
               "autoTables": {},
               "tenantRow": {},
               "anonymize": {},
-              "omitPattern": {}
+              "omitPattern": {},
+              "restoreExclude": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         }
@@ -6105,6 +6111,9 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "lineDiscountRates": {
+                "type": "string"
               },
               "searchColumn": {
                 "type": "boolean",
@@ -6869,6 +6878,9 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "lineDiscountRates": {
+                "type": "string"
               },
               "totals": {
                 "type": "string",
@@ -7937,6 +7949,9 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "lineDiscountRates": {
+                "type": "string"
               },
               "workingCopy": {
                 "type": "boolean",

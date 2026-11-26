@@ -39,7 +39,13 @@ import { provideConnectionRuntime } from "../core/define-runtime-full.ts";
 import { dbError } from "../core/errors.ts";
 import { postgrestExecutor } from "../core/postgrest-executor.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
-import { StatsRecorder, recordingFetch } from "../core/stats.ts";
+import {
+  StatsRecorder,
+  ambientFetch,
+  ambientStats,
+  markAmbientClient,
+  recordingFetch,
+} from "../core/stats.ts";
 import { credentialProviderOf } from "../credentials/provider.ts";
 import { ACCOUNT_PARTS, accountClient } from "./account-parts.ts";
 import { serverAudit } from "./audit.ts";
@@ -600,16 +606,29 @@ export function createServer<
 
     // With a request recorder, the raw client records its own calls, so `db`
     // keeps its own PostgREST client and its calls aren't counted twice.
+    // Without one, a client built while the debug collector runs counts its
+    // calls on whichever request it is used in.
+    const ambient = !parent && ambientStats() !== undefined;
+
     const recording = parent
       ? recordingFetch(recorder, () => options.fetch ?? globalThis.fetch)
-      : undefined;
+      : ambient
+        ? ambientFetch(() => options.fetch ?? globalThis.fetch)
+        : undefined;
 
-    const client = (): SupabaseClient =>
-      (supabase ??= contextClient(
+    const client = (): SupabaseClient => {
+      if (supabase) {
+        return supabase;
+      }
+
+      supabase = contextClient(
         auth,
         sharesClient ? clientHeaders : headers,
         recording,
-      ));
+      );
+
+      return ambient ? markAmbientClient(supabase) : supabase;
+    };
 
     let replica: ReplicaState | undefined;
 

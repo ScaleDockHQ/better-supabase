@@ -597,6 +597,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "close_accounting_period", args: ["uuid"], returns: "jsonb" },
     {
+      name: "close_accounting_period_if_clear",
+      args: ["uuid"],
+      returns: "jsonb",
+    },
+    {
       name: "reopen_accounting_period",
       args: ["uuid", "text"],
       returns: "jsonb",

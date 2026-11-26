@@ -1,7 +1,9 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { ImportTargetContribution } from "../contributions.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail, raise, serviceGrant } from "../shared.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The import entity restored rows go through (ADR 0141). */
 const RESTORE_ENTITY = "data_lifecycle_row";
@@ -14,6 +16,114 @@ export const RESTORE_CONTRACT: readonly BlockSqlContractFunction[] = [
     returns: "jsonb",
   },
 ];
+
+/**
+ * Modules whose tables decide access, billing, usage, keys or platform state. A
+ * restore runs as the service role for a tenant, so it never writes them: an
+ * edited export could otherwise make its importer an owner or lift a quota.
+ */
+export const CONTROL_MODULES: readonly string[] = [
+  "memberships",
+  "invitations",
+  "permissions",
+  "impersonation",
+  "sessions",
+  "api-keys",
+  "service-accounts",
+  "usage",
+  "billing",
+  "entitlements",
+  "flags",
+  "audit",
+  "outbox",
+  "sso",
+  "domains",
+  "imports",
+  "signing-keys",
+  "security-events",
+  "rate-limit",
+  "ai-keys",
+  "credentials",
+  "teams",
+  "guests",
+  "approvals",
+  "access-requests",
+  "agents",
+  "share-links",
+  "oauth-server",
+  "mfa",
+  "identities",
+  "organizations",
+  "connectors",
+  "agent-checkout",
+];
+
+/**
+ * Tables of other blocks that grant access or hold a secret: `module.table`.
+ * `tests/sql/modules/data-lifecycle-restore.test.ts` fails when a block adds a
+ * tenant table whose name says it decides access and neither list has it.
+ */
+export const CONTROL_TABLES: readonly string[] = [
+  "drive.grants",
+  "drive.driveGrants",
+  "inspections.members",
+  "invoices.approvalLevels",
+  "invoices.approvals",
+  "knowledge.collectionGrants",
+  "messaging.members",
+  "deals.members",
+  "subjects.members",
+  "webhooks.secrets",
+  "workflow-editor.credentials",
+];
+
+/**
+ * The tables a restore never writes: the tenant tables of the control modules,
+ * and `options.restoreExclude` for the app's own (such as its billing tables).
+ */
+function restoreExcluded(ctx: BlockSqlContext): readonly string[] {
+  const own = ctx.installedModules.flatMap((module) => {
+    const of = ctx.of(module);
+
+    return Object.entries(of.names.tables).flatMap(([logical, spec]) => {
+      if (
+        spec.lifecycle?.tenant === undefined ||
+        !of.hasTable(logical) ||
+        !(
+          CONTROL_MODULES.includes(module) ||
+          CONTROL_TABLES.includes(`${module}.${logical}`)
+        )
+      ) {
+        return [];
+      }
+
+      const { schema, name } = of.tableName(logical);
+
+      return [`${schema}.${name}`];
+    });
+  });
+
+  const option = ctx.option("restoreExclude") ?? [];
+
+  if (
+    !Array.isArray(option) ||
+    !option.every(
+      (name) =>
+        typeof name === "string" &&
+        /^[a-z_][a-z0-9_$]*(\.[a-z_][a-z0-9_$]*)?$/.test(name),
+    )
+  ) {
+    throw new TypeError(
+      'blocks.data-lifecycle.options.restoreExclude must be a list of "table" or "schema.table" names',
+    );
+  }
+
+  const app = option.map((name: string) =>
+    name.includes(".") ? name : `public.${name}`,
+  );
+
+  return [...new Set([...own, ...app])].toSorted();
+}
 
 /** What `imports` calls for a restored row: this module's write function. */
 export function restoreTargets(
@@ -37,6 +147,9 @@ export function restoreTargets(
  */
 export function restoreSql(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
+  const excluded = restoreExcluded(ctx);
+
+  const creator = creatorCheck(ctx);
 
   return `
 -- The tables a restore may write, from the same list an export reads. Each
@@ -54,7 +167,12 @@ begin
   with listed as (
     select t.name, t.tbl, t.col, t.omit, to_regclass(t.tbl) as oid
     from ${fn("data_lifecycle_tables")}() t
-    where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null
+    where t.subject = 'organization' and t.exported and to_regclass(t.tbl) is not null${
+      excluded.length === 0
+        ? ""
+        : `
+      and t.name <> all (array[${excluded.map(sqlString).join(", ")}]::text[])`
+    }
   )
   select coalesce(jsonb_agg(jsonb_build_object(
     'name', l.name,
@@ -112,10 +230,11 @@ declare
   v_sets text[];
   v_sql text;
   v_count bigint;
+  v_creator uuid;
 begin
   if not (${SERVICE_CALLER}) then
     ${fail("DATA_RESTORE_FORBIDDEN", "Only the service role restores data")}
-  end if;
+  end if;${creator}
   if v_name is null or jsonb_typeof(v_row) is distinct from 'object' then
     ${fail("DATA_RESTORE_ROW_INVALID", "an item needs data.table and a data.row object", "22023")}
   end if;
@@ -171,4 +290,31 @@ end;
 $$;
 ${serviceGrant(`${fn("restore_data_row")}(uuid, jsonb, text)`)}
 `;
+}
+
+/**
+ * Who started the run must hold the restore key: the worker writes as the
+ * service role, so the run's creator is the one the restore acts for.
+ */
+function creatorCheck(ctx: BlockSqlContext): string {
+  const restoreKey = ctx.permission(
+    "restore",
+    ctx.permissionKey("delete", moduleOperations("data-lifecycle").delete),
+  );
+
+  if (!ctx.installedModules.includes("imports")) {
+    return "";
+  }
+
+  const imports = ctx.of("imports");
+
+  return `
+  select r.${imports.col("runs", "createdBy")}::uuid into v_creator
+  from ${imports.table("runs")} r where r.${imports.col("runs", "id")} = restore_data_row.run;
+  if not found then
+    ${fail("DATA_RESTORE_FORBIDDEN", "a restore runs inside an import run")}
+  end if;
+  if v_creator is not null and coalesce(better_supabase.can_user(v_creator, 'tenant', v_tenant::${ctx.idType}, ${restoreKey}), false) is false then
+    ${fail("DATA_RESTORE_FORBIDDEN", "the run's creator can't restore this organization")}
+  end if;`;
 }

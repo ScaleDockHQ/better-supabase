@@ -854,7 +854,7 @@ begin
   v := replace(v, '{dd}', to_char(at at time zone 'utc', 'DD'));
   while v ~ '\\{n:[0-9]+\\}' loop
     width := regexp_match(v, '\\{n:([0-9]+)\\}');
-    v := regexp_replace(v, '\\{n:[0-9]+\\}', lpad(n::text, width[1]::int, '0'));
+    v := regexp_replace(v, '\\{n:[0-9]+\\}', lpad(n::text, greatest(width[1]::int, length(n::text)), '0'));
   end loop;
   return replace(v, '{n}', n::text);
 end;

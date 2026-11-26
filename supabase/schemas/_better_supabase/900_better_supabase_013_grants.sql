@@ -1,6 +1,6 @@
 -- better-supabase module: grants
 -- @bsb-block grants@1 managed
--- @bsb-hash sha256:2f7c76c7cc7101ac87c0d3f3f125d0e339ae2d265bc17ec4deff4edd9473ee49
+-- @bsb-hash sha256:64206717b1ad6bc28c4f7b2fd8667132eb9bfdb6c3a9eb55f8c77436ecd56617
 -- Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,9 +32,11 @@ revoke all on table "public"."organizations" from public, anon, authenticated, s
 grant select on table "public"."organizations" to authenticated;
 grant select, insert, update, delete on table "public"."organizations" to service_role;
 revoke all on table "public"."plans" from public, anon, authenticated, service_role;
+grant select on table "public"."plans" to anon;
 grant select on table "public"."plans" to authenticated;
 grant select, insert, update, delete on table "public"."plans" to service_role;
 revoke all on table "public"."plan_features" from public, anon, authenticated, service_role;
+grant select on table "public"."plan_features" to anon;
 grant select on table "public"."plan_features" to authenticated;
 grant select, insert, update, delete on table "public"."plan_features" to service_role;
 revoke all on table "public"."subscriptions" from public, anon, authenticated, service_role;

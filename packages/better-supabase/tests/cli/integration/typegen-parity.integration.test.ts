@@ -56,9 +56,9 @@ async function normalize(source: string): Promise<string> {
 }
 
 describe.skipIf(!live)("database.types.ts parity", () => {
-  it("matches `supabase gen types --local` for the fixture database", async () => {
+  it("matches `supabase gen types` for the fixture database", async () => {
     const cli = await supabaseCli(
-      ["gen", "types", "typescript", "--local", "--schema", "public"],
+      ["gen", "types", "typescript", "--schema", "public"],
       repoRoot,
       parseEnv(process.env),
     );

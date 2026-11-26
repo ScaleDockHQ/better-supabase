@@ -2,6 +2,8 @@ import type {
   BuilderWithMiddlewares,
   DecoratedMiddleware,
   DecoratedProcedure,
+  MiddlewareOptions as OrpcMiddlewareOptions,
+  ORPCErrorConstructorMap,
   Schema,
 } from "@orpc/server";
 
@@ -157,6 +159,14 @@ export type OrpcRateLimitMiddleware<TContext extends OrpcRequestContext> =
     // oxlint-disable-next-line typescript/no-explicit-any -- as oRPC's `middleware()` default, like `OrpcMiddleware`
     any,
     Record<never, never>
+  >;
+
+type RateLimitMiddlewareOptions<TContext extends OrpcRequestContext> =
+  OrpcMiddlewareOptions<
+    TContext,
+    // oxlint-disable-next-line typescript/no-explicit-any -- as oRPC's `middleware()` default, like `OrpcMiddleware`
+    any,
+    ORPCErrorConstructorMap<Record<never, never>>
   >;
 
 /** Guard and authorize options of `middleware()` and `authed()`. */
@@ -533,28 +543,41 @@ export function createOrpc<
           : declared({ message: fallback.message, data: fallback.data });
       };
 
-      return os
-        .$context<TContext>()
-        .middleware(async ({ context, path, next, errors }) => {
-          const request = requestOf(context);
-          const outcome = await gate({ context, path, request });
+      return (
+        os
+          .$context<TContext>()
+          // oRPC can't merge a generic `$InContext` into the initial context, and
+          // `any` is the input it maps back to `TContext`; the options below
+          // keep the handler's context typed.
+          // oxlint-disable-next-line typescript/no-explicit-any -- see above, and the `any` output is oRPC's default
+          .middleware<Record<never, never>, unknown, any, any>(
+            async ({
+              context,
+              path,
+              next,
+              errors,
+            }: RateLimitMiddlewareOptions<TContext>) => {
+              const request = requestOf(context);
+              const outcome = await gate({ context, path, request });
 
-          if (outcome.kind === "skip") {
-            return next();
-          }
+              if (outcome.kind === "skip") {
+                return next();
+              }
 
-          const target = responseHeadersOf(context) ?? keptHeaders(request);
+              const target = responseHeadersOf(context) ?? keptHeaders(request);
 
-          for (const [name, value] of outcome.headers) {
-            target.set(name, value);
-          }
+              for (const [name, value] of outcome.headers) {
+                target.set(name, value);
+              }
 
-          if (outcome.kind === "deny") {
-            throw refusal(outcome.error, errors);
-          }
+              if (outcome.kind === "deny") {
+                throw refusal(outcome.error, errors);
+              }
 
-          return next();
-        });
+              return next();
+            },
+          )
+      );
     },
 
     authed(authedOptions) {

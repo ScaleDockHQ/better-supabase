@@ -10,11 +10,11 @@ catalog:
   # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react,
   # sandbox-vercel and workflow move together.
   "@ai-sdk/anthropic": 4.0.107
-  "@ai-sdk/harness": 1.0.190
-  "@ai-sdk/mcp": 2.0.102
-  "@ai-sdk/react": 4.0.183
-  "@ai-sdk/sandbox-vercel": 1.0.190
-  "@ai-sdk/workflow": 2.0.111
+  "@ai-sdk/harness": 1.0.192
+  "@ai-sdk/mcp": 2.0.104
+  "@ai-sdk/react": 4.0.186
+  "@ai-sdk/sandbox-vercel": 1.0.192
+  "@ai-sdk/workflow": 2.0.113
   # Released 2026-10-15, past minimumReleaseAge; the example runs axe over its declared pages.
   "@axe-core/playwright": 4.14.0
   "@base-ui/react": 1.9.0
@@ -24,40 +24,40 @@ catalog:
   "@changesets/config": 4.0.1
   "@changesets/pre": 3.0.0
   "@changesets/read": 1.0.1
-  "@clack/prompts": 1.8.1
+  "@clack/prompts": 1.9.0
   "@commitlint/cli": 21.2.4
   "@commitlint/config-conventional": 21.2.4
   "@commitlint/types": 21.2.3
   "@dnd-kit/core": 6.3.1
   "@dnd-kit/sortable": 10.0.0
   "@dnd-kit/utilities": 3.2.2
-  "@effect/platform-node": 4.1.2
+  "@effect/platform-node": 4.1.5
   "@expo/log-box": 58.0.15
   "@expo/metro-runtime": 58.0.17
   "@manypkg/get-packages": 3.1.0
-  "@json-render/core": 0.22.0
-  "@json-render/react": 0.22.0
+  "@json-render/core": 0.23.2
+  "@json-render/react": 0.23.2
   "@modelcontextprotocol/client": 2.4.0
   "@modelcontextprotocol/server": 2.4.0
-  "@nestjs/common": 12.5.0
+  "@nestjs/common": 12.6.0
   # The version next depends on, so the config shares Next's loaded env state.
   "@next/env": 16.4.6
   "@next/playwright": 16.4.6
   "@op-engineering/op-sqlite": 18.2.5
   "@openfeature/server-sdk": 1.23.0
   "@opentelemetry/api": 1.9.1
-  "@orpc/contract": 2.0.0-beta.50
-  "@orpc/openapi": 2.0.0-beta.50
-  "@orpc/server": 2.0.0-beta.50
-  "@playwright/test": 1.65.0
+  "@orpc/contract": 2.0.0-beta.53
+  "@orpc/openapi": 2.0.0-beta.53
+  "@orpc/server": 2.0.0-beta.53
+  "@playwright/test": 1.65.1
   "@powersync/common": 2.5.0
-  "@powersync/react-native": 2.4.0
+  "@powersync/react-native": 2.4.1
   "@react-native-async-storage/async-storage": 3.1.1
   "@react-native-community/netinfo": 12.0.1
   "@react-native/metro-config": 0.88.1
   "@shopify/flash-list": 2.3.3
-  "@solidjs/start": 2.2.2
-  "@streamdown/code": 2.0.0
+  "@solidjs/start": 2.2.3
+  "@streamdown/code": 2.0.1
   "@supabase-labs/middleware-openfeature": 0.2.0
   "@supabase/config": 1.10.0
   "@supabase/lite": 0.11.0
@@ -67,17 +67,17 @@ catalog:
   "@supabase/server": 1.9.2
   "@supabase/ssr": 0.12.7
   "@supabase/supabase-js": 2.119.2
-  "@sveltejs/kit": 3.2.0
+  "@sveltejs/kit": 3.4.0
   "@t3-oss/env-core": 0.13.11
   "@t3-oss/env-nextjs": 0.13.11
   "@tailwindcss/postcss": 4.3.5
-  "@tanstack/query-async-storage-persister": 5.107.1
-  "@tanstack/query-core": 5.107.1
-  "@tanstack/react-query": 5.107.1
-  "@tanstack/react-query-persist-client": 5.105.1
-  "@tanstack/react-start": 1.169.5
+  "@tanstack/query-async-storage-persister": 5.108.4
+  "@tanstack/query-core": 5.108.4
+  "@tanstack/react-query": 5.108.4
+  "@tanstack/react-query-persist-client": 5.108.4
+  "@tanstack/react-start": 1.169.7
   "@tanstack/react-table": 9.3.1
-  "@tanstack/react-virtual": 3.14.26
+  "@tanstack/react-virtual": 3.14.28
   "@types/express": 5.0.6
   "@types/koa": 3.0.3
   "@types/mdx": 2.0.14
@@ -92,7 +92,7 @@ catalog:
   "@vercel/connect": 2.9.5
   "@vercel/detect-agent": 1.2.7
   "@vercel/firewall": 1.2.6
-  # @workflow/core 5.7.1 depends on ^3.11.3. 3.11.3 and the @vercel/oidc it pins are
+  # @workflow/core depends on ^3.11.1. 3.11.3 and the @vercel/oidc it pins are
   # excluded from trustPolicy (ADR 1097).
   "@vercel/functions": 3.11.3
   "@vercel/kms": 0.3.12
@@ -102,22 +102,22 @@ catalog:
   "@vercel/schedules": 0.0.3
   "@vercel/sdk": 1.28.67
   "@vercel/speed-insights": 2.1.0
-  "@vitejs/plugin-react": 6.2.1
+  "@vitejs/plugin-react": 6.3.0
   # The World's `if not exists` DDL can't alter existing columns, so a
   # world-postgres migration that does needs its own upgrade step in the
   # workflow-sdk SQL module before these move.
-  "@workflow/vitest": 5.0.13
-  "@workflow/world": 5.3.0
-  "@workflow/world-postgres": 5.4.1
-  "@workflow/world-testing": 5.1.4
+  "@workflow/vitest": 5.0.15
+  "@workflow/world": 5.4.0
+  "@workflow/world-postgres": 5.5.0
+  "@workflow/world-testing": 5.1.6
   "@wrksz/themes": 2.1.1
   "@xyflow/react": 12.12.1
-  ai: 7.0.179
+  ai: 7.0.181
   ajv: 8.20.0
   ajv-formats: 3.0.1
-  astro: 7.4.11
+  astro: 7.4.13
   babel-plugin-react-compiler: 1.0.0
-  "@vitest/coverage-v8": 5.1.0
+  "@vitest/coverage-v8": 5.1.1
   better-result: 3.0.1
   botid: 1.5.13
   # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
@@ -139,70 +139,71 @@ catalog:
   # @supabase/config 0.15 and earlier fail to load on effect 4.0.7 and 4.1
   # (Schema.optionalKey with index signatures); 1.x loads, so it moves with
   # @effect/platform-node.
-  effect: 4.1.2
+  effect: 4.1.5
   elysia: 1.4.32
-  # eve 1.3.0 bundles Workflow 5.7.1.
-  eve: 1.3.0
-  expo: 58.0.23
-  expo-constants: 58.0.15
-  expo-linking: 58.0.16
-  expo-notifications: 58.1.8
-  expo-router: 58.0.30
-  expo-secure-store: 58.0.2
+  # 1.5.0 moves to Workflow 5.8; it is in minimumReleaseAgeExclude until it
+  # passes the release age on 2026-11-26.
+  eve: 1.5.0
+  expo: 58.0.26
+  expo-constants: 58.0.16
+  expo-linking: 58.0.17
+  expo-notifications: 58.1.9
+  expo-router: 58.0.32
+  expo-secure-store: 58.0.3
   # Moves with expo-router: 58.x depends on expo-server 58, and a second copy
   # breaks the example's loader types.
   expo-server: 58.1.0
-  expo-web-browser: 58.0.7
+  expo-web-browser: 58.1.0
   express: 5.3.0
   fastest-levenshtein: 1.0.16
   fastify: 5.12.8
-  flags: 4.5.0
-  fumadocs-core: 16.17.5
-  fumadocs-mdx: 15.4.7
-  fumadocs-typescript: 5.5.2
+  flags: 4.5.1
+  fumadocs-core: 16.19.7
+  fumadocs-mdx: 15.6.4
+  fumadocs-typescript: 5.6.2
   # Base UI build of fumadocs-ui, kept on the fumadocs-core version.
-  fumadocs-ui: npm:@fumadocs/base-ui@16.17.5
+  fumadocs-ui: npm:@fumadocs/base-ui@16.19.7
   h3: 2.0.8
   # The H3 1 that Nuxt 4 runs (@nuxt/nitro-server depends on h3 ^1.15.11), so
   # tests/frameworks.test-d.ts checks better-supabase/h3/v1 next to h3 2.
   h3-v1: npm:h3@1.15.11
-  hono: 4.13.18
+  hono: 4.13.21
   input-otp: 1.5.0
   jsonc-parser: 3.3.1
   jsonpath-rfc9535: 1.3.0
-  knip: 6.44.2
+  knip: 6.48.0
   koa: 3.3.0
-  lefthook: 2.2.1
-  lucide-react: 1.70.0
+  lefthook: 2.2.2
+  lucide-react: 1.79.0
   magic-string: 1.4.5
   next: 16.4.6
-  next-intl: 4.14.9
+  next-intl: 4.16.1
   next-themes: 0.4.6
   nuqs: 2.10.3
-  nuxt: 4.6.4
+  nuxt: 4.7.0
   oxfmt: 0.74.0
   oxc-walker: 1.1.1
   "@shadcn/lint": 0.2.5
-  eslint-plugin-turbo: 2.11.11
-  oxlint-plugin-react-doctor: 0.9.22
-  oxlint: 1.93.0
-  oxlint-tsgolint: 7.0.2006
-  react-router: 8.5.1
-  ultracite: 8.1.1
+  eslint-plugin-turbo: 2.11.13
+  oxlint-plugin-react-doctor: 0.9.23
+  oxlint: 1.95.0
+  oxlint-tsgolint: 7.0.2008
+  react-router: 8.5.2
+  ultracite: 8.3.1
   pg: 8.23.1
-  portless: 0.17.0
-  postcss: 8.5.32
+  portless: 0.18.1
+  postcss: 8.5.33
   publint: 0.3.25
   react: 19.3.1
   reflect-metadata: 0.2.2
-  redis: 6.3.1
+  redis: 6.4.0
   resumable-stream: 2.2.13
   rxjs: 7.8.2
-  undici: 8.12.4
-  unpdf: 2.2.1
+  undici: 8.13.1
+  unpdf: 2.2.2
   mammoth: 1.13.0
   yjs: 13.6.33
-  fast-xml-parser: 5.12.0
+  fast-xml-parser: 5.12.1
   react-dom: 19.3.1
   # The versions in expo@58 bundledNativeModules.json; Expo SDK 58 supports
   # React Native 0.88 only.
@@ -210,36 +211,36 @@ catalog:
   react-native-safe-area-context: 5.11.1
   react-native-screens: 4.30.1
   react-native-web: 0.21.4
-  rolldown: 1.3.0
+  rolldown: 1.3.3
   server-only: 0.0.1
   shadcn: 4.23.0
   shiki: 4.6.0
-  simple-icons: 16.37.0
+  simple-icons: 16.38.1
   smol-toml: 1.9.1
   solid-js: 1.9.19
   sonner: 2.0.8
-  streamdown: 2.7.1
-  stripe: 23.1.0
+  streamdown: 2.8.0
+  stripe: 23.2.0
   # debug's optional peer. Pinned to the copy the examples resolve, so
   # better-supabase and the Next.js examples share one next instance.
   supports-color: 11.0.0
-  # CI runs this copy (`pnpm exec supabase`). 3.2.0 is the Supabase CLI floor
-  # (docs/decisions/1177).
-  supabase: 3.2.0
-  svelte: 5.57.3
-  tailwind-merge: 3.7.0
+  # CI runs this copy (`pnpm exec supabase`). 3.3.0 is the Supabase CLI floor
+  # (docs/decisions/1177 and the ADR that raised the floor to 3.3.0).
+  supabase: 3.4.0
+  svelte: 5.59.1
+  tailwind-merge: 3.7.1
   tailwindcss: 4.3.5
   temporal-polyfill: 1.0.8
   tinyexec: 1.3.1
   tsdown: 0.23.7
-  turbo: 2.11.11
+  turbo: 2.11.13
   tw-animate-css: 1.4.0
   typescript: 7.0.2
   valibot: 1.5.0
-  vite: 8.3.6
-  vitest: 5.1.0
-  vue: 3.5.45
-  workflow: 5.7.1
+  vite: 8.3.8
+  vitest: 5.1.1
+  vue: 3.5.46
+  workflow: 5.8.0
   yaml: 2.9.1
   # Parts the shadcn CLI installs into the Next.js example (chat, command,
   # chart, calendar, resizable) and the helpers its chat tests script with.
@@ -248,8 +249,8 @@ catalog:
   cmdk: 1.1.1
   cn: 0.5.2
   react-day-picker: 10.0.2
-  react-resizable-panels: 4.21.0
-  recharts: 3.8.0
+  react-resizable-panels: 4.24.1
+  recharts: 3.11.1
   # Only the core package's zod generator fixture imports Zod, and `ai` needs it
   # as a peer (docs/decisions/0002). Lint rejects `zod` imports everywhere else.
   zod: 4.6.7
@@ -286,28 +287,28 @@ catalogs:
   peers:
     # The AI SDK set moves together: @ai-sdk/react and @ai-sdk/workflow pin ai
     # exactly, and all of them share one @ai-sdk/provider-utils.
-    "@ai-sdk/harness": ">=1.0.190 <2"
-    "@ai-sdk/mcp": ">=2.0.102 <3"
-    "@ai-sdk/react": ">=4.0.183 <5"
-    "@ai-sdk/workflow": ">=2.0.111 <3"
-    ai: ">=7.0.179 <8"
-    "@json-render/core": ">=0.22.0 <1"
+    "@ai-sdk/harness": ">=1.0.192 <2"
+    "@ai-sdk/mcp": ">=2.0.104 <3"
+    "@ai-sdk/react": ">=4.0.186 <5"
+    "@ai-sdk/workflow": ">=2.0.113 <3"
+    ai: ">=7.0.181 <8"
+    "@json-render/core": ">=0.23.2 <1"
     "@modelcontextprotocol/server": ">=2.4.0 <3"
-    "@solidjs/start": ">=2.2.2 <3"
-    "@sveltejs/kit": ">=3.2.0 <4"
-    "@tanstack/react-start": ">=1.169.5 <2"
-    astro: ">=7.4.11 <8"
+    "@solidjs/start": ">=2.2.3 <3"
+    "@sveltejs/kit": ">=3.4.0 <4"
+    "@tanstack/react-start": ">=1.169.7 <2"
+    astro: ">=7.4.13 <8"
     # The Chat SDK packages release together.
     "@chat-adapter/catalog": ">=4.45.0 <5"
     "@chat-adapter/whatsapp": ">=4.45.0 <5"
     chat: ">=4.45.0 <5"
-    "@nestjs/common": ">=12.5.0 <13"
+    "@nestjs/common": ">=12.6.0 <13"
     "@next/playwright": ">=16.4.6 <17"
     # 1.10 is newer, but @supabase/lite 0.11 depends on @sentry/node 10, whose
     # @opentelemetry/core 2 caps the API below 1.10.
     "@opentelemetry/api": ">=1.9.1 <2"
     # A pre-release line (AGENTS.md "Pre-release pins"); <3 admits 2.0 stable.
-    "@orpc/server": ">=2.0.0-beta.50 <3"
+    "@orpc/server": ">=2.0.0-beta.53 <3"
     "@supabase/config": "^1.10.0"
     "@supabase/lite": ">=0.11.0 <0.12"
     # A floor with no upper bound: the MCP server runs as its own process.
@@ -320,7 +321,7 @@ catalogs:
     # The newest release, which reads what postgrest-typegen 0.8 writes into
     # database.types.ts.
     "@supabase/supabase-js": "^2.119.0"
-    "@tanstack/query-core": "^5.107.1"
+    "@tanstack/query-core": "^5.108.4"
     better-result: ">=3.0.1 <4"
     # A floor only: the CLI's symbol tier needs 7.1 and checks the installed
     # version itself, so an app on an older TypeScript sees no peer warning
@@ -329,42 +330,42 @@ catalogs:
     elysia: ">=1.4.32 <2"
     expo-server: ">=58.1.0 <59"
     # A pre-release line (AGENTS.md "Pre-release pins"); <2 admits 1.0 stable.
-    eve: ">=1.3.0 <2"
+    eve: ">=1.5.0 <2"
     express: ">=5.3.0 <6"
     fastify: ">=5.12.8 <6"
     # Two majors: H3 1 is the h3/v1 entry that Nitro 2 and Nuxt 4 run
     # (@nuxt/nitro-server 4.6.4 depends on h3 ^1.15.11), H3 2 the h3 entry.
     h3: ">=1.15.11 <3"
-    hono: ">=4.13.18 <5"
+    hono: ">=4.13.21 <5"
     jsonpath-rfc9535: ">=1.3.0 <2"
     koa: ">=3.3.0 <4"
     next: ">=16.4.6 <17"
     nuqs: ">=2.10.3 <3"
-    nuxt: ">=4.6.4 <5"
+    nuxt: ">=4.7.0 <5"
     # The version @supabase/postgrest-typegen 0.8.1 peers on exactly; the CLI
     # tests run on the newer oxfmt in the default catalog.
     oxfmt: ">=0.66.0 <1"
     pg: ">=8.23.1 <9"
     react: "^19.3.1"
-    react-router: ">=8.5.1 <9"
+    react-router: ">=8.5.2 <9"
     solid-js: "^1.9.19"
-    svelte: "^5.57.3"
-    vue: "^3.5.45"
-    redis: ">=6.3.1 <7"
+    svelte: "^5.59.1"
+    vue: "^3.5.46"
+    redis: ">=6.4.0 <7"
     resumable-stream: ">=2.2.13 <3"
-    stripe: ">=23.1.0 <24"
+    stripe: ">=23.2.0 <24"
     temporal-polyfill: ">=1.0.8"
     valibot: ">=1.5.0 <2"
-    workflow: ">=5.7.1 <6"
+    workflow: ">=5.8.0 <6"
     yjs: ">=13.6.33 <14"
     zod: ">=4.6.7 <5"
-    undici: ">=8.12.4 <9"
-    unpdf: ">=2.2.1 <3"
+    undici: ">=8.13.1 <9"
+    unpdf: ">=2.2.2 <3"
     mammoth: ">=1.13.0 <2"
-    fast-xml-parser: ">=5.12.0 <6"
-    # The Supabase World speaks the 5.3 world protocol; world-postgres moves with it.
-    "@workflow/world": ">=5.3.0 <5.4"
-    "@workflow/world-postgres": ">=5.4.1 <5.5"
+    fast-xml-parser: ">=5.12.1 <6"
+    # The Supabase World speaks the 5.4 world protocol; world-postgres moves with it.
+    "@workflow/world": ">=5.4.0 <5.5"
+    "@workflow/world-postgres": ">=5.5.0 <5.6"
     # The integrations below are typed structurally or loaded on first use, so
     # better-supabase imports none of them. The peer range still tells
     # package managers which releases the conformance tests cover (ADR 0036).
@@ -376,7 +377,7 @@ catalogs:
     "@vercel/queue": ">=0.11.0 <0.12"
     # 4.0 talks to api.vercel.com over undici 8 and needs Node 22.19 or later.
     "@vercel/sandbox": ">=4.1.0 <5"
-    "@ai-sdk/sandbox-vercel": ">=1.0.190 <2"
+    "@ai-sdk/sandbox-vercel": ">=1.0.192 <2"
     "@vercel/schedules": ">=0.0.3 <0.1"
     botid: ">=1.5.13 <2"
     "@vercel/firewall": ">=1.2.6 <2"
@@ -385,7 +386,7 @@ catalogs:
     "@vercel/functions": ">=3.11.3 <4"
     "@vercel/kms": ">=0.3.12 <0.4"
     "@vercel/blob": ">=2.9.0 <3"
-    flags: ">=4.5.0 <5"
+    flags: ">=4.5.1 <5"
 
 catalogMode: strict
 nodeLinker: isolated
@@ -398,6 +399,11 @@ blockExoticSubdeps: true
 engineStrict: true
 minimumReleaseAge: 1440
 minimumReleaseAgeExcludePrune: true
+# A maintainer-approved exception (ADR 1248): eve 1.5.0 is the release built on
+# Workflow 5.8. Remove the entry after 2026-11-26 00:43 UTC, when it passes the
+# release age.
+minimumReleaseAgeExclude:
+  - "eve@1.5.0"
 trustPolicy: no-downgrade
 # Releases older than 30 days are trusted as they are; several of the
 # transitive packages predate npm provenance.
@@ -410,7 +416,7 @@ trustPolicyExcludePrune: true
 trustPolicyExclude:
   # better-supabase's own dev pin; trusted after 2026-12-19 20:39 UTC.
   - "@vercel/connect@2.9.5"
-  # @workflow/core 5.7.1 depends on it; trusted after 2026-12-13 23:55 UTC.
+  # The @vercel/functions pin; trusted after 2026-12-13 23:55 UTC.
   - "@vercel/functions@3.11.3"
   # Pinned by @vercel/functions 3.11.3; trusted after 2026-12-12 15:58 UTC.
   - "@vercel/oidc@4.0.9"
@@ -500,19 +506,13 @@ peerDependencyRules:
     # postgrest-typegen pins its optional oxfmt peer exactly; it formats the
     # generated types with whichever oxfmt the CLI installs.
     "@supabase/postgrest-typegen>oxfmt": "0.74.0"
-    # @chat-adapter/tests peers on vitest 4; its mock adapters and state helpers
-    # use only the vi.fn() API that vitest 5 keeps.
-    "@chat-adapter/tests>vitest": "5.1.0"
     # workflow 5.5 depends on @workflow/nest, which brings NestJS 12;
     # @supabase/server lists NestJS 10 or 11 as an optional peer it never
     # loads on our paths.
-    "@supabase/server>@nestjs/common": "12.5.0"
-    # eve 1.3 peers optionally on Solid 2 for eve/solid, which better-supabase
-    # never loads; its own solid entry targets Solid 1.
+    "@supabase/server>@nestjs/common": "12.6.0"
+    # eve 1.3 and later peer optionally on Solid 2 for eve/solid, which
+    # better-supabase never loads; its own solid entry targets Solid 1.
     "eve>solid-js": "1.9.19"
-    # The World conformance suite peers on Vitest 4; it runs on the repo's
-    # Vitest 5 through the same describe and test API.
-    "@workflow/world-testing>vitest": "5.1.0"
     # @workflow/swc-plugin pins @swc/core 1.15.3; the Next.js example gets
     # 1.16.13 through @workflow/nest's @swc/cli, which it never runs, and Next
     # compiles with its own SWC.
@@ -525,8 +525,8 @@ peerDependencyRules:
     "@sveltejs/kit>typescript": "7.0.2"
     # apps/docs gets Nuxt only as an optional peer of @vercel/analytics and
     # @vercel/speed-insights, which it never loads; pnpm links that copy to the
-    # rolldown 1.3.0 the docs graph has. The library's Nuxt runs rolldown 1.2.
-    "nuxt>rolldown": "1.3.0"
+    # rolldown 1.3.3 the docs graph has. The library's Nuxt runs rolldown 1.2.
+    "nuxt>rolldown": "1.3.3"
     # The Expo example overrides React to 19.2.3 (see overrides); the global
     # React override rewrites every React peer range to the catalog version.
     react: 19.2.3

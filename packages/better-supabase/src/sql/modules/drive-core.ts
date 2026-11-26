@@ -13,7 +13,7 @@ import {
 import { driveDrivesSql } from "./drive-drives.ts";
 import { driveGrantsSql } from "./drive-grants.ts";
 import { driveHoldsSql } from "./drive-holds.ts";
-import { CONFLICTS, READ_ONLY_GUARD } from "./drive-kit.ts";
+import { CONFLICTS, deleteKey, READ_ONLY_GUARD } from "./drive-kit.ts";
 import {
   driveAccessSql,
   driveLocksSql,
@@ -988,7 +988,8 @@ end;
 $$;
 ${userGrant(`${fn("drive_move")}(uuid, uuid, text, text, uuid)`)}
 
--- Deletes a node and everything under it for good (the share role).
+-- Deletes a node and everything under it for good (the share role, and the
+-- delete key when the app sets one).
 create or replace function ${fn("drive_delete")}(node uuid)
 returns boolean
 language plpgsql
@@ -1003,7 +1004,7 @@ begin
   if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canShare(`v_node.${n("id")}`)}) then
+  if not (${SERVICE_CALLER} or (${canShare(`v_node.${n("id")}`)}${deleteKey(kit, `v_node.${n("tenant")}`)})) then
     ${forbidden("delete this item for good")}
   end if;
   if ${readOnly("v_node")} then

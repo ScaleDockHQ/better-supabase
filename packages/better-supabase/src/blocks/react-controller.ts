@@ -1,6 +1,12 @@
 import type { DependencyList } from "react";
 
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import type { Controller } from "./controller.ts";
 
@@ -50,8 +56,9 @@ const changed = (before: DependencyList, after: DependencyList): boolean =>
  */
 export function useLatest<T>(value: T): { readonly current: T } {
   const latest = useRef(value);
-  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
-  latest.current = value;
+  useLayoutEffect(() => {
+    latest.current = value;
+  });
 
   return latest;
 }

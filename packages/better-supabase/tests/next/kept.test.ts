@@ -96,6 +96,51 @@ describe("bsb.kept()", () => {
     expect(fill).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps one entry per organization of the same user", async () => {
+    await signIn(ALICE);
+
+    const shell = bsb.kept(
+      (ctx, org: string) =>
+        fill(ctx.auth.kind === "user" ? ctx.auth.user.id : null, org),
+      { name: "shell-by-org", tenant: (org) => org },
+    );
+
+    await shell("org-a");
+    await shell("org-b");
+    await shell("org-a");
+
+    // An organization switch reads another entry; going back finds the first.
+    expect(fill).toHaveBeenCalledTimes(2);
+  });
+
+  it("fills again for the member whose role changed, not for others", async () => {
+    const role = bsb.kept(
+      (ctx, id: string) =>
+        fill(ctx.auth.kind === "user" ? ctx.auth.user.id : null, id),
+      { name: "role-shell" },
+    );
+
+    await signIn(ALICE);
+    await role("r1");
+    await signIn(BOB);
+    await role("r1");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
+
+    // `memberChanged` evicts the member whose role changed.
+    await bsb.evictSession(BOB);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2);
+    });
+
+    await role("r1");
+    await signIn(ALICE);
+    await role("r1");
+
+    expect(fill).toHaveBeenCalledTimes(3);
+  });
+
   it("fills again once a table tag expires", async () => {
     await signIn(ALICE);
     await read("c4");
@@ -177,5 +222,54 @@ describe("bsb.kept()", () => {
     expect(skips).toEqual([
       expect.objectContaining({ name: "big", reason: "size" }),
     ]);
+  });
+});
+
+const waitTick = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 2);
+  });
+
+describe("bsb.expireTags()", () => {
+  const store = memoryKeptStore();
+
+  const make = () =>
+    createNext(createSupabase(schema), {
+      env,
+      cacheTags: false,
+      auth: { jwks: signer.jwks },
+      kept: { store },
+    });
+
+  const reader = make();
+  const writer = make();
+  const fill = vi.fn((id: string) => Promise.resolve({ id }));
+
+  const read = reader.kept((_ctx, id: string) => fill(id), {
+    name: "customer",
+    tables: ["customers"],
+  });
+
+  beforeEach(() => {
+    mocks.headers = new Headers();
+    fill.mockClear();
+  });
+
+  it("makes another instance's next read fill again", async () => {
+    await signIn(ALICE);
+    await read("c1");
+    await read("c1");
+    expect(fill).toHaveBeenCalledOnce();
+
+    await waitTick();
+    await writer.expireTags(["bsb:customers"]);
+    await waitTick();
+    await read("c1");
+
+    expect(fill).toHaveBeenCalledTimes(2);
+  });
+
+  it("resolves with no tags", async () => {
+    await expect(writer.expireTags([])).resolves.toBeUndefined();
   });
 });

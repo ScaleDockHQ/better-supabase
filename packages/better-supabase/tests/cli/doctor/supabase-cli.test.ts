@@ -62,23 +62,23 @@ describe("loadSupabaseCliCheck", () => {
     vi.mocked(supabaseCli).mockReset();
   });
 
-  it("validates with CLI 3.2.0 or newer", async () => {
+  it("validates with CLI 3.3.0 or newer", async () => {
     vi.mocked(supabaseCli)
-      .mockResolvedValueOnce(output("3.2.0\n"))
+      .mockResolvedValueOnce(output("3.3.0\n"))
       .mockResolvedValueOnce(output(REPORT, 1));
 
     const result = await loadSupabaseCliCheck("/p", {});
 
-    expect(result).toMatchObject({ version: "3.2.0" });
+    expect(result).toMatchObject({ version: "3.3.0" });
     expect("validation" in result && result.validation.file).toBe(
       "supabase/config.toml",
     );
   });
 
   it("does not run config validate on an older CLI", async () => {
-    vi.mocked(supabaseCli).mockResolvedValueOnce(output("3.1.9\n"));
+    vi.mocked(supabaseCli).mockResolvedValueOnce(output("3.2.9\n"));
 
-    expect(await loadSupabaseCliCheck("/p", {})).toEqual({ version: "3.1.9" });
+    expect(await loadSupabaseCliCheck("/p", {})).toEqual({ version: "3.2.9" });
     expect(supabaseCli).toHaveBeenCalledOnce();
   });
 
@@ -92,11 +92,11 @@ describe("loadSupabaseCliCheck", () => {
 });
 
 describe("BS710", () => {
-  it("flags a CLI below 3.2.0", async () => {
+  it("flags a CLI below 3.3.0", async () => {
     expect(
-      await check("BS710", { supabaseCli: { version: "3.1.0" } }),
+      await check("BS710", { supabaseCli: { version: "3.2.0" } }),
     ).toHaveLength(1);
-    expect(await check("BS710", { supabaseCli: { version: "3.2.0" } })).toEqual(
+    expect(await check("BS710", { supabaseCli: { version: "3.3.0" } })).toEqual(
       [],
     );
     expect(await check("BS710", { supabaseCli: { skipped: "x" } })).toEqual([]);

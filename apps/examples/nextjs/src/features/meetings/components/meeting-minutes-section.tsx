@@ -1,4 +1,5 @@
 import { io } from "next/cache";
+import { notFound } from "next/navigation";
 import * as v from "valibot";
 
 import { Frame, FrameHeader, FramePanel } from "@/components/reui/frame";
@@ -29,6 +30,24 @@ export async function MeetingMinutesSection({
   return (
     <MeetingMinutes
       state={await getMeetingMinutes(picked.output)}
+      canRun={can(permissions, "meetings.write")}
+    />
+  );
+}
+
+/** The meeting of `/meetings/[id]`, with its agenda, decisions and action items. */
+// skeleton: the page's Suspense fallback is MeetingMinutesSectionSkeleton
+export async function MeetingDetail({ id }: { id: string }) {
+  const [permissions] = await Promise.all([getPermissions(), io()]);
+  const parsed = v.safeParse(MeetingParam, id);
+
+  if (!parsed.success) {
+    notFound();
+  }
+
+  return (
+    <MeetingMinutes
+      state={await getMeetingMinutes(parsed.output)}
       canRun={can(permissions, "meetings.write")}
     />
   );

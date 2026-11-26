@@ -39,10 +39,10 @@ The app's own `blocks.<part>` settings win key by key ([Composite blocks](/docs/
 `publishWithVersion`: Keep a named version of the entry, then publish it. A failed snapshot leaves the entry unpublished.
 
 ```ts
-await blocks.cms.publishWithVersion({ entryId, subject, label: "Launch" });
+await blocks.cms.publishWithVersion({ entryId, label: "Launch" });
 ```
 
-The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
+The version is kept on `{ type: "content_entry", id: entryId }`; pass `subject` to snapshot another record. The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 
 ## Remove
 

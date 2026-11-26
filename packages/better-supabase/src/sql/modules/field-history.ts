@@ -151,6 +151,13 @@ for each row execute function better_supabase.${name}();`;
 }
 
 function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
+  const fieldHistoryReadable = registryReadable(
+    ctx,
+    layout,
+    "field-history",
+    "field_history_subject_readable",
+  );
+
   const bindings = historyBindings(ctx);
   const read = ctx.permission("read", moduleOperations("field-history").read);
   const fn = (name: string): string => ctx.fn(name);
@@ -190,7 +197,7 @@ create index if not exists ${ctx.naming.rename("field_changes_tenant_idx")} on $
       : ""
   }
 ${lockTable(t, { read: true })}
-${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${registryReadable(ctx, layout, "field-history", { type: `${t}.${c("subjectType")}`, id: `${t}.${c("subjectId")}`, tenant: `${t}.${c("tenant")}` })}` }), { target: t })}
+${fieldHistoryReadable.sql}${renderPolicy(makePolicy({ table: t, name: policy, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(c("tenant"), read)} and ${fieldHistoryReadable.using({ type: `${t}.${c("subjectType")}`, id: `${t}.${c("subjectId")}`, tenant: `${t}.${c("tenant")}` })}` }), { target: t })}
 ${partitioned ? `\n${MONTHLY_PARTITIONS}\n${registerPartitions(t)}\n` : ""}${bindings.map((binding) => bindingTrigger(ctx, binding, c)).join("\n")}
 
 -- A record's changes, newest first, optionally of one field. before is the id
@@ -250,6 +257,7 @@ export const FIELD_HISTORY: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed"],
   version: 1,
+  internal: ["field_history_subject_readable"],
   names: NAMES,
   contract,
   build,

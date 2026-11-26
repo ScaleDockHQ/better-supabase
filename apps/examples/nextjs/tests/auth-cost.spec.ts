@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 import type { BrowserContext, Page, Response } from "@playwright/test";
 
 import { expect, test } from "@playwright/test";
@@ -20,6 +18,25 @@ import { recordPerf, signIn, USERS } from "./support/example-session";
 interface SessionStats {
   readonly hits: number;
   readonly misses: number;
+}
+
+/** Request header bytes a role may send; many proxies refuse more than 8 KB. */
+const HEADER_LIMIT = 8192;
+
+interface StoredSession {
+  readonly access_token?: string;
+}
+
+/** @supabase/ssr stores the session as base64url JSON behind a prefix. */
+function sessionOf(joined: string): StoredSession {
+  if (!joined.startsWith("base64-")) {
+    return {};
+  }
+
+  // SAFETY: the cookie is the session JSON @supabase/ssr wrote.
+  return JSON.parse(
+    Buffer.from(joined.slice(7), "base64url").toString("utf-8"),
+  ) as StoredSession;
 }
 
 const PAGES = ["/", "/customers", "/finance/invoices"] as const;
@@ -50,8 +67,11 @@ function timings(response: Response | null) {
 async function measureLoad(
   page: Page,
   url: string,
+  taken?: SessionStats,
 ): Promise<Record<string, number>> {
-  const before = await sessionStats(page);
+  // A request before the load would already refresh an expired token, so the
+  // refresh scenario passes the counters it took while the token was valid.
+  const before = taken ?? (await sessionStats(page));
   let document: Response | null = null;
   const started = Date.now();
 
@@ -68,8 +88,14 @@ async function measureLoad(
   const wall = Date.now() - started;
   const after = await sessionStats(page);
 
+  const timing = (document as Response | null)?.request().timing();
+
   return {
     wallMs: wall,
+    // The document's own time to the last byte. `wallMs` includes the 500 ms
+    // the budget helper waits for late responses and the heading wait.
+    docMs:
+      timing && timing.responseEnd > 0 ? Math.round(timing.responseEnd) : 0,
     calls: renders.reduce((sum, render) => sum + render.stats.calls, 0),
     waves: Math.max(0, ...renders.map((render) => render.stats.waves)),
     verifications: renders.reduce(
@@ -174,6 +200,41 @@ for (const who of Object.keys(USERS) as Who[]) {
       });
     });
 
+    test(`token and cookie size as ${who}`, async ({ page, context }) => {
+      await signIn(page, who);
+      await page.goto("/customers");
+
+      const cookies = (await context.cookies()).filter((cookie) =>
+        /auth-token(\.\d+)?$/.test(cookie.name),
+      );
+
+      const header = (await context.cookies())
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join("; ");
+
+      const sessionBytes = cookies.reduce(
+        (sum, cookie) => sum + cookie.value.length,
+        0,
+      );
+
+      const joined = cookies
+        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .map((cookie) => decodeURIComponent(cookie.value))
+        .join("");
+
+      const session = sessionOf(joined);
+
+      recordPerf("auth-cost.json", `size ${who}`, {
+        tokenBytes: session.access_token?.length ?? 0,
+        cookieBytes: sessionBytes,
+        cookieChunks: cookies.length,
+        requestHeaderBytes: header.length,
+      });
+
+      // Node's default header limit is 16 KB and many proxies stop at 8 KB.
+      expect(header.length).toBeLessThan(HEADER_LIMIT);
+    });
+
     for (const url of PAGES) {
       test(`warm ${url} as ${who}`, async ({ page }) => {
         await signIn(page, who);
@@ -193,13 +254,14 @@ for (const who of Object.keys(USERS) as Who[]) {
       await signIn(page, who);
       await page.goto("/customers");
 
+      const counters = await sessionStats(page);
       const expired = await expireAccessToken(context);
       test.skip(!expired, "the session cookie has an unexpected shape");
 
       recordPerf(
         "auth-cost.json",
         `refresh /customers ${who}`,
-        await measureLoad(page, "/customers"),
+        await measureLoad(page, "/customers", counters),
       );
     });
   });

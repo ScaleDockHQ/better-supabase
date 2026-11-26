@@ -160,7 +160,7 @@ function main(): void {
           "stack",
           "destroy",
           "--yes",
-          "--stack-id",
+          "--stack",
           stack.id,
         ]);
       }
@@ -202,7 +202,7 @@ function main(): void {
       continue;
     }
 
-    run("pnpm", ["exec", "supabase", "stop", "--stack-id", stack.id]);
+    run("pnpm", ["exec", "supabase", "stack", "stop", "--stack", stack.id]);
 
     console.log(`Stopped ${branch} (${stack.project_root})`);
   }

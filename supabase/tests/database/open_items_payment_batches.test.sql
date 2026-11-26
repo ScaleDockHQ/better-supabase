@@ -6,7 +6,7 @@
 -- and matching the bank debit to it allocates the payments and closes the items.
 -- Run with `supabase test db`.
 begin;
-select plan(30);
+select plan(32);
 
 select set_config(
   'request.jwt.claims',
@@ -246,9 +246,30 @@ select is(
 );
 select better_supabase.cancel_payment_batch((select id from ids where name = 'batch1'));
 
+-- A supplier with a registered bank account is paid only to that account.
+reset role;
+insert into better_supabase.party_bank_accounts (tenant_id, party_id, iban, is_primary)
+values ('00000000-0000-4000-8000-000000000001', (select id from ids where name = 'supplier'), 'DE89370400440532013000', true);
+set local role authenticated;
+select throws_ok(
+  format($$select better_supabase.create_payment_batch('00000000-0000-4000-8000-000000000001', jsonb_build_object(
+    'accountId', %L, 'dueBy', '2026-10-31', 'executionOn', '2026-10-26',
+    'creditors', jsonb_build_object(%L, jsonb_build_object('name', 'Open item supplier', 'iban', 'NL02ABNA0123456789'))))$$,
+    (select id from ids where name = 'account'), (select id from ids where name = 'supplier')),
+  '22023',
+  null,
+  'an IBAN the supplier has not registered is refused'
+);
+
 insert into ids values ('batch2', (better_supabase.create_payment_batch('00000000-0000-4000-8000-000000000001', jsonb_build_object(
   'accountId', (select id from ids where name = 'account'), 'dueBy', '2026-10-31', 'executionOn', '2026-10-26',
-  'creditors', jsonb_build_object((select id::text from ids where name = 'supplier'), jsonb_build_object('name', 'Open item supplier', 'iban', 'NL02ABNA0123456789')))) ->> 'id')::uuid);
+  'creditors', jsonb_build_object((select id::text from ids where name = 'supplier'), jsonb_build_object('name', 'Open item supplier')))) ->> 'id')::uuid);
+select is(
+  (select jsonb_agg(distinct i ->> 'creditorIban')
+   from jsonb_array_elements(better_supabase.get_payment_batch((select id from ids where name = 'batch2')) -> 'items') i),
+  '["DE89370400440532013000"]'::jsonb,
+  'without an IBAN the batch pays the supplier''s registered account'
+);
 select is(
   (select jsonb_build_array(b ->> 'itemCount', b ->> 'total', b ->> 'status')
    from (select better_supabase.get_payment_batch((select id from ids where name = 'batch2')) b) x),

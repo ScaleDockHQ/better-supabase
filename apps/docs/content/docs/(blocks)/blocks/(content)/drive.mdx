@@ -565,7 +565,7 @@ A [saved view](/docs/blocks/saved-views) over `drive_node` then filters the driv
 
 ## The bin
 
-With trash installed, `trash(id)` moves a node and everything under it to the bin as one batch, and `bin(organizationId)` lists the batches. `restore(binId)` puts the batch back, applying the conflict policy if the name is taken again. A node whose folder is still in the bin can't come back until the folder does. `purge(binId)` deletes it for good and records `drive_node.purged` with the object paths. Run `prune()` from the service role to delete the purged objects from storage:
+With trash installed, `trash(id)` moves a node and everything under it to the bin as one batch, and `bin(organizationId)` lists the batches. `restore(binId)` puts the batch back, applying the conflict policy if the name is taken again. A node whose folder is still in the bin can't come back until the folder does. `purge(binId)` deletes it for good and records `drive_node.purged` with the object paths. `purge` and `delete(id)` (`drive_delete`, which skips the bin) need the share role on the node; when the share role is also your editing role (a `roles` list without `owner`), set `permissions.delete` to a tenant key, such as one only admins hold, and both also need that key. Run `prune()` from the service role to delete the purged objects from storage:
 
 ```ts
 const drive = createDrive({ transport: serviceTransport, storage });

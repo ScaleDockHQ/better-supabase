@@ -28,6 +28,19 @@
         "infos": { "type": "integer", "minimum": 0 }
       }
     },
+    "phases": {
+      "type": "array",
+      "description": "How long each doctor phase took, in milliseconds.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "ms"],
+        "properties": {
+          "name": { "type": "string" },
+          "ms": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
     "findings": {
       "type": "array",
       "items": {
@@ -275,6 +288,10 @@
               "BS644",
               "BS645",
               "BS646",
+              "BS647",
+              "BS648",
+              "BS649",
+              "BS650",
               "BS700",
               "BS701",
               "BS702",
@@ -302,7 +319,8 @@
               "BS728",
               "BS729",
               "BS730",
-              "BS731"
+              "BS731",
+              "BS732"
             ]
           },
           "severity": { "enum": ["error", "warning", "info"] },

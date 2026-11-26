@@ -40,12 +40,18 @@ Members with `banking.read` read every table. Writes go through the
 functions below. Bank accounts are subjects of type `bank_account`, so
 comments, attachments, tags and the other subject blocks work on them.
 
-| Permission          | Allows                                               | Default roles        |
-| ------------------- | ---------------------------------------------------- | -------------------- |
-| `banking.read`      | reading accounts, statements, transactions and rules | owner, admin, member |
-| `banking.import`    | importing statements and syncing a bank feed         | owner, admin         |
-| `banking.reconcile` | matching, unmatching, ignoring and applying rules    | owner, admin, member |
-| `banking.manage`    | changing bank accounts and bank rules                | owner, admin         |
+| Permission          | Allows                                                                                      | Default roles        |
+| ------------------- | ------------------------------------------------------------------------------------------- | -------------------- |
+| `banking.read`      | reading accounts, statements, transactions and rules                                        | owner, admin, member |
+| `banking.import`    | importing statements and syncing a bank feed                                                | owner, admin         |
+| `banking.reconcile` | matching, unmatching, ignoring and applying rules                                           | owner, admin, member |
+| `banking.manage`    | changing bank accounts and bank rules, and creating, posting and cancelling payment batches | owner, admin         |
+
+Payment batches move money, so they check `banking.manage`, not
+`banking.reconcile`. To grant them separately, set `permissions.createBatch`,
+`permissions.postBatch` and `permissions.cancelBatch` on the block to keys of
+your own, for example one that only a finance role holds; each falls back to
+the `manage` key.
 
 ## Accounts and statements
 
@@ -196,7 +202,11 @@ approved open supplier bills that fall due by `dueBy` (or whose discount date
 falls by then) into a draft batch of one bank account. A bill whose discount is
 still open on `executionOn` is paid less the discount. `creditors` maps each
 supplier party id to the `name`, `iban` and optional `bic` that receive the
-money. A bill that still waits for [approval](/docs/blocks/invoices#purchase-approval-levels)
+money. With the [contacts](/docs/blocks/contacts) block installed, a supplier
+that has a registered bank account (`party_bank_accounts`) is paid only to one
+of its registered IBANs: leave `iban` out to pay the primary account, and an
+IBAN the supplier didn't register fails with `PAYMENT_BATCH_CREDITOR_INVALID`.
+A bill that still waits for [approval](/docs/blocks/invoices#purchase-approval-levels)
 is skipped, and naming it in `invoiceIds` fails with
 `PAYMENT_BATCH_APPROVAL_REQUIRED`. Nothing qualifying fails with
 `PAYMENT_BATCH_EMPTY`.
@@ -295,9 +305,10 @@ returns.
 
 ## Events
 
-`bank_statement.imported`, `bank_transaction.matched` and
-`bank_transaction.unmatched`. The [events page](/docs/extending/events)
-lists their payloads.
+`bank_statement.imported`, `bank_transaction.matched`,
+`bank_transaction.unmatched`, `payment_batch.created`, `payment_batch.posted`
+and `payment_batch.cancelled`. The payment batch events also write an audit
+entry. The [events page](/docs/extending/events) lists their payloads.
 
 ## Berlin Group feed
 
@@ -345,7 +356,7 @@ const status = await banking.reconciliation(accountId).orThrow();
 
 ## Review queue
 
-`reviewQueue({ accountId, limit })` returns the unmatched transactions, each with its best invoice suggestion when there is one. It makes one `suggestMatches` call per transaction. `acceptBestMatch({ transactionId, minScore })` records the top invoice match, or fails with the hint `BANK_NO_MATCH` when no candidate reaches `minScore`.
+`reviewQueue({ accountId, limit })` returns the unmatched transactions, each with its best invoice suggestion when there is one. It makes one `suggestMatches` call per transaction. `acceptBestMatch({ transactionId, minScore })` records the top invoice match, or fails with the hint `BANK_NO_MATCH` when no candidate reaches `minScore`. `reconcile({ accountId, minScore, limit })` does both for every unmatched transaction of the account in one database call (`reconcile_bank_account`) and one transaction. It returns `matched`, `unmatched` (no suggestion scoring `minScore`) and `failed` (with the message); a failed match rolls back alone. The TypeScript hooks of `reviewQueue` and `acceptBestMatch` do not fire for it.
 
 `reconciliationBoard({ accountId, limit })` reads a whole reconciliation page in one call from the SQL function `bank_reconciliation_board`. The result holds the account `status` (statement balance, ledger balance and difference), the latest `limit` transactions (default 50) in `lines`, and the best open invoice for each unmatched one in `suggestions`, keyed by `transactionId`. It runs as the caller, so permissions and renamed columns apply as they do for `reconciliation` and `listTransactions`. Use it in a read set through `s.$fn.bank_reconciliation_board`, or call it from a Server Component.
 

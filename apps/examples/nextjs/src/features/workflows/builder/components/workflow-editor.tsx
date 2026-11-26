@@ -205,6 +205,7 @@ function EditorInner({ detail }: { detail: BuilderDetail }) {
 
   /** Remembers the canvas before a change, so undo can go back to it. */
   const checkpoint = () => {
+    // oxlint-disable-next-line react-doctor/no-side-effect-in-state-updater-function -- recordHistory is pure: it returns a new History.
     setHistory((current) => recordHistory(current, graph));
   };
 

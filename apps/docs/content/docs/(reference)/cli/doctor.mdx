@@ -44,6 +44,15 @@ Doctor never prints env values, only variable names and line numbers.
 
 Side effects: Reads the database, writes to the database with `--yes`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
+## Large projects
+
+Doctor checks `--out` before it reads anything: a path outside the project, or
+a directory, stops the run at once. It logs how long each phase took (reading
+the project, running the rules) while it works, prints them under the text
+report, and lists them as `phases` in the JSON report. A text report of 20
+findings or more starts with one line per rule and its count, worst severity
+first, then the largest count.
+
 ## Without a database
 
 When no database runs and none is configured, doctor reads the schema from
@@ -58,8 +67,8 @@ pnpm better-supabase doctor --only BS103,BS106,BS430
 
 Some checks need the database itself: the advisors (BS100 and BS200) and the
 checks that read statistics, plans, settings or live rows (BS208, BS209,
-BS212, BS225, BS236, BS238, BS241, BS242, BS245, BS363, BS399, BS638 and
-BS639). When a run includes one of them and no database answers, doctor stops
+BS212, BS225, BS236, BS238, BS241, BS242, BS245, BS363, BS399, BS638, BS639 and
+BS732). When a run includes one of them and no database answers, doctor stops
 and names them, so you can leave them out with `--ignore` or `--only`. The
 flags `--stats`, `--explain`, `--explain-write`, `--as` and `--yes` always
 need the database.
@@ -199,7 +208,7 @@ Where the findings come from depends on what doctor reads:
   shows.
 - **A database on this machine** (the local stack or a loopback URL): `supabase db advisors`
   when the Supabase CLI is 2.81.3 or later. Doctor passes the URL with
-  `--db-url`, `--type` and `--level info`, and reads the JSON output (a list, an
+  `--remote=<url>` (`--db-url` before CLI 3.0), `--type` and `--level info`, and reads the JSON output (a list, an
   object with `lints`, or one lint per line). A missing or older CLI, a remote
   database, a failed run or an output shape it doesn't know falls back to
   splinter.
@@ -2887,8 +2896,10 @@ awaits at least three repository, block client or `$rpc` calls in one
 PostgREST. A read set compiles the same reads into one stable database
 function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
-See [read sets](/docs/repository/read-sets). `tooling.doctor.parallelReads`
-sets the count (default 3).
+The finding prints the read set that replaces the reads: the same calls on the
+builder `s`, keyed by table, and the `db.$many` call. A value that comes from
+the page becomes a placeholder. See [read sets](/docs/repository/read-sets).
+`tooling.doctor.parallelReads` sets the count (default 3).
 
 ### BS634
 
@@ -3260,6 +3271,45 @@ migration, keep one cache handler per Supabase project, or use `bsb.kept()`
 with a `version`. See
 [durable use cache entries](/docs/frameworks/next-cache-components#durable-use-cache-entries).
 
+### BS647
+
+**Warning: `bsb.kept` runs on the memory store.** A source calls `bsb.kept()`
+and no source gives createNext a `kept: { store }`, or one sets it to
+`memoryKeptStore()`. The entries then live in each instance's memory: a second
+instance fills its own copy, and a write on one instance never expires the
+others. Pass `postgresKeptStore({ client })` or
+`vercelRuntimeCacheAdapter(getCache, { lease })` when the app runs more than one
+instance. Doctor can't see the instance count, so it reports every app that
+keeps entries without a durable store. See
+[Keep reads across requests and deploys](/docs/concepts/caching#keep-reads-across-requests-and-deploys).
+
+### BS648
+
+**Warning: `updateTag` or `revalidateTag` beside `bsb.kept`.** A source calls
+one of them from `next/cache` and the app keeps reads with `bsb.kept()`. The
+call expires Next's cache and leaves the kept entry, which the store keeps for
+every instance until its life ends. Call `await bsb.expireTags([...])`, which
+expires both and resolves once the store has the tags.
+`better-supabase codemod expire-tags` lists each call with its replacement.
+
+### BS649
+
+**Info: `refresh()` without expiring tags beside `bsb.kept`.** A file calls
+`refresh()` from `next/cache`, writes, expires no tags, and the app keeps reads with
+`bsb.kept()`. The re-render reads the kept entries again, so the page shows the
+data from before the write. Expire what the write changed with
+`bsb.expireTags()` (or name `invalidates` on `bsb.action`), then refresh.
+
+### BS650
+
+**Info: the proxy bundle is large.** The last `next build` traced more than
+400 KB of files for `proxy.ts`, read from `.next/server/proxy.js.nft.json` (or
+`middleware.js.nft.json`). The proxy runs before every request, so the app
+definition, the generated schema or a block set in its imports slows each one.
+Build it with `createProxy({ auth })`, which needs no definition, and read
+permissions from the generated `proxy-permissions.generated.ts`. Doctor skips
+the rule when the project has not been built.
+
 ### BS633
 
 **Info: an app row trigger has no `importing()` guard.** An import writes many
@@ -3422,16 +3472,17 @@ pnpm remove @supabase/pg-delta @supabase/pg-topo
 
 ### BS710
 
-**Warning: Supabase CLI older than 3.2.0.** The CLI the project runs
+**Warning: Supabase CLI older than 3.3.0.** The CLI the project runs
 (`$SUPABASE_BIN`, `node_modules/.bin/supabase`, then the `PATH`) is older than
-3.2.0, the release this version of better-supabase is built and tested on. It
-reads `config.json` and `config.jsonc`, runs `config validate` and `stack
-prune`, and expects the multi-file migrations 3.2.0 writes. Commands that need
-it fail with [`supabase_cli_too_old`](/docs/cli/errors#supabase_cli_too_old).
-Update it:
+3.3.0, the release this version of better-supabase is built on. It reads
+`config.json` and `config.jsonc`, runs `config validate` and `stack prune`,
+selects stacks with `--stack <id>` (3.3.0 removed `--stack-id`), and expects
+the multi-file migrations 3.3.0 writes. Commands that need it fail with
+[`supabase_cli_too_old`](/docs/cli/errors#supabase_cli_too_old). Update it to
+3.4.0, the release the repository tests:
 
 ```bash
-pnpm add -D supabase@3.2.0
+pnpm add -D supabase@3.4.0
 ```
 
 ### BS711
@@ -3607,3 +3658,18 @@ policies or functions skip it, and `gen` stops on it. Doctor names the file,
 the line and column, the parser's message and the Postgres version whose
 grammar rejected it. Fix the statement, or set `db.major_version` when the file
 uses syntax of another version.
+
+### BS732
+
+**Warning: a slow statement in `pg_stat_statements`.** A statement the API roles
+(`authenticated`, `anon`, `service_role`) ran at least five times has a mean
+execution time of 100 ms or more, or a function in the `public` or
+`better_supabase` schema has the same mean in `pg_stat_user_functions`, which
+needs `track_functions` set to `pl` or `all`. The planning and executor start-up
+of a SQL function body count toward the call that runs it, so an RPC that is
+slow here often has a policy or a function inside it that is. Run `explain
+(analyze, buffers)` as the signed-in role with its claims set, or use
+`better-supabase doctor --explain`. The check reads statistics from the running
+database, reports nothing when `pg_stat_statements` is not installed, and a
+saved snapshot skips it. Reset the statistics with `select
+pg_stat_statements_reset()` after a fix to see the new means.

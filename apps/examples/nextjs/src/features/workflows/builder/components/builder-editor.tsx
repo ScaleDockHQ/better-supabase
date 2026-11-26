@@ -14,7 +14,7 @@ export async function BuilderEditor({ definition }: { definition: string }) {
 
   return (
     <>
-      <h2 className="text-lg font-semibold">{detail.definition.name}</h2>
+      <h1 className="text-lg font-semibold">{detail.definition.name}</h1>
       <WorkflowEditorLazy detail={detail} />
     </>
   );

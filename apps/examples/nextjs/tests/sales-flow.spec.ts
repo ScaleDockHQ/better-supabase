@@ -1,5 +1,3 @@
-/* oxlint-disable vitest/prefer-importing-vitest-globals -- `test` and `expect`
-   come from @playwright/test, which the rule reads as Vitest globals (1 finding). */
 import { expect, test } from "@playwright/test";
 import { expectInstant } from "better-supabase/testing";
 
@@ -39,7 +37,6 @@ test("the sales hub shows its KPI band and opens the deals from it", async ({
 // A same-route search param change does not complete under the instant lock
 // (finding 2 in tmp/findings/sample-depth-findings.md), so the view switch is
 // checked on the result: the URL, the active link and the view's content.
-// oxlint-disable-next-line vitest/prefer-each -- Playwright has no `test.each` (1 finding).
 for (const [view, content] of [
   ["Board", "Negotiation"],
   ["Calendar", "Annual plan for Globex"],
@@ -56,6 +53,15 @@ for (const [view, content] of [
     await page.waitForURL(
       (url) => url.searchParams.get("view") === view.toLowerCase(),
     );
+
+    if (view === "Calendar") {
+      // The seed closes the deal 12 days after the reset, which can fall in
+      // the next month, and the grid opens on the current one.
+      const close = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000);
+      const month = close.toISOString().slice(0, 7);
+
+      await page.goto(`/crm/deals?view=calendar&month=${month}`);
+    }
 
     await expect(page.getByText(content).first()).toBeVisible();
   });

@@ -9,7 +9,12 @@ export default function DeadlinesLayout({ children }: { children: ReactNode }) {
 
   return (
     <NextIntlClientProvider
-      messages={pick(messages, [...APP_NAMESPACES, "work", "recordList"])}
+      messages={pick(messages, [
+        ...APP_NAMESPACES,
+        "work",
+        "recordList",
+        "recordDetail",
+      ])}
     >
       {children}
     </NextIntlClientProvider>

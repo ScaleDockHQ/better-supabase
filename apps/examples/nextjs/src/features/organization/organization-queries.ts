@@ -1,6 +1,7 @@
 import "server-only";
 import * as v from "valibot";
 
+import { getShell } from "@/features/shell/shell-queries";
 import { avatars, avatarSrc } from "@/lib/buckets";
 import { Role } from "@/lib/claims";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
@@ -60,28 +61,21 @@ export function toOrganizationSummaries(
 }
 
 /**
- * One page of the caller's organizations, most recently used first.
- * `public.my_organizations` takes `page_size` and a cursor of
- * `after_last_used_at`, `after_name` and `after_id`. The generated argument
- * type stays empty until `db gen` sees the new signature, so the page is passed
- * through a cast. The SQL default is the same page of 50.
+ * One page of the caller's organizations, most recently used first: the first
+ * 50 of `public.my_organizations`, read by the shell's one call
+ * (`public.shell_bootstrap`). It reads the shell's private entry, so it holds
+ * no cache scope of its own.
  */
 export async function getMyOrganizations(): Promise<
   readonly OrganizationSummary[]
 > {
-  "use cache: private";
-  const { db, session } = await bsb.cached();
+  const shell = await getShell();
 
-  if (session.kind !== "user") {
+  if (!shell.user) {
     return [];
   }
 
-  // SAFETY: the function arguments are page_size, after_last_used_at,
-  // after_name and after_id. Generated Args are still empty.
-  const page = { page_size: 50 } as never;
-  const rows = await db.$rpc("my_organizations", page).orThrow();
-
-  return toOrganizationSummaries(rows);
+  return toOrganizationSummaries(shell.data?.organizations ?? []);
 }
 
 interface MemberRow {

@@ -22,7 +22,7 @@ export type { Functions, Models } from "./app.ts";
  * that take app definitions (notification types, metrics, settings) and the
  * outbox's event source set here.
  */
-const blockSet = defineBlocks(blockConfig, {
+export const blockSet = defineBlocks(blockConfig, {
   ...blocks,
   ...providers,
   notifications: blocks.notifications.using((options) =>

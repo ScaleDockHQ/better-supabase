@@ -4,7 +4,7 @@ import type { Money } from "better-supabase/commerce";
 
 import { money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
-import { cacheLife, cacheTag } from "next/cache";
+import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
@@ -28,20 +28,23 @@ export interface PlanOption {
 
 /**
  * The plan catalog (`public.plans` and `public.plan_features`, which the
- * entitlements module reads). It is the same for every user, so it lives in the
- * shared cache: one user's first visit fills it for everyone, and writes to
- * `plans` expire it through the `plans` tag.
+ * entitlements module reads). Both tables are readable by `anon`, so it is read
+ * through `bsb.public()` under RLS instead of the service role: one visit fills
+ * the shared entry for everyone, and writes to `plans` expire it through the
+ * `plans` tag.
  */
 export async function getPlans(): Promise<readonly PlanOption[]> {
   "use cache";
+
   // Not "max": the plans change in the seed and the Stripe dashboard, outside
   // the app's actions, so no updateTag fires for them.
-  cacheLife("hours");
-  bsb.tag(PLANS_TABLE);
+  const { db } = await bsb.public({
+    tables: [PLANS_TABLE, "planFeatures"],
+    life: { stale: 300, revalidate: 3600, expire: 86_400 },
+  });
 
-  const plans = await bsb
-    .admin()
-    .plans.list({
+  const plans = await db.plans
+    .list({
       select: ["key", "name", "priceCents", "currency"],
       include: {
         planFeatures: { select: ["featureKey", "included", "value"] },

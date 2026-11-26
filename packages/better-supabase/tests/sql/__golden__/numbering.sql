@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:2ecfa6e74f6120e461ca4f8f05fe9d54d3d20f8835102a143cd9fe3d5cac9750
+-- @bsb-hash sha256:52f78d157a6886b7982b728c6fed4099f9dfcdab4e44ef54dac2df41fff756f1
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ begin
   v := replace(v, '{dd}', to_char(at at time zone 'utc', 'DD'));
   while v ~ '\{n:[0-9]+\}' loop
     width := regexp_match(v, '\{n:([0-9]+)\}');
-    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, width[1]::int, '0'));
+    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, greatest(width[1]::int, length(n::text)), '0'));
   end loop;
   return replace(v, '{n}', n::text);
 end;
@@ -374,7 +374,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:54b2f6d0311cb37f1a87a14486d80a538b6ebdc6012890331d83e89f72f279b7
+-- @bsb-hash sha256:19e304129397f1f15dd3987025869ed5ce87331e45c5d9b39c07659b52f5d2e3
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -414,7 +414,7 @@ begin
   v := replace(v, '{dd}', to_char(at at time zone 'utc', 'DD'));
   while v ~ '\{n:[0-9]+\}' loop
     width := regexp_match(v, '\{n:([0-9]+)\}');
-    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, width[1]::int, '0'));
+    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, greatest(width[1]::int, length(n::text)), '0'));
   end loop;
   return replace(v, '{n}', n::text);
 end;
@@ -800,7 +800,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:9266d06d570d068f7854ad041565a44f1e8148dcc0a5447a0044dae5f070a019
+-- @bsb-hash sha256:6b676b3d38ddcfa2a0efa3f25bbae39d162d65ed76e15c4bf86a95a62d76537a
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -845,7 +845,7 @@ begin
   v := replace(v, '{dd}', to_char(at at time zone 'utc', 'DD'));
   while v ~ '\{n:[0-9]+\}' loop
     width := regexp_match(v, '\{n:([0-9]+)\}');
-    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, width[1]::int, '0'));
+    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, greatest(width[1]::int, length(n::text)), '0'));
   end loop;
   return replace(v, '{n}', n::text);
 end;
@@ -1178,7 +1178,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:abc7c17118571bd768352fa1f979238c0a0ca025a326ec6562c8e3a8663cb4e3
+-- @bsb-hash sha256:18b95f3c9c04639d6d36799f8a47fc838a9abcff172f4cf35fd6d70cb35787c1
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1218,7 +1218,7 @@ begin
   v := replace(v, '{dd}', to_char(at at time zone 'utc', 'DD'));
   while v ~ '\{n:[0-9]+\}' loop
     width := regexp_match(v, '\{n:([0-9]+)\}');
-    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, width[1]::int, '0'));
+    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, greatest(width[1]::int, length(n::text)), '0'));
   end loop;
   return replace(v, '{n}', n::text);
 end;
@@ -1701,7 +1701,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:675c6369037c1f78f9b19b86f2106f4c1c86881180e0244d4c885a523d7db78d
+-- @bsb-hash sha256:b88c06c636f39e01e21bf7125372ba49580f9119cc96765c017ac4c856486ade
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1738,7 +1738,7 @@ begin
   v := replace(v, '{dd}', to_char(at at time zone 'utc', 'DD'));
   while v ~ '\{n:[0-9]+\}' loop
     width := regexp_match(v, '\{n:([0-9]+)\}');
-    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, width[1]::int, '0'));
+    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, greatest(width[1]::int, length(n::text)), '0'));
   end loop;
   return replace(v, '{n}', n::text);
 end;
@@ -2071,7 +2071,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_057_numbering.sql
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:025060084fa2d1f2af1263237643764d018a017d16717bdb876a1b6e32cf4b52
+-- @bsb-hash sha256:06b13bc5e8fb0ab72faaceab83aa20a7be8693f707a1bf2728e8d8106e948765
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2111,7 +2111,7 @@ begin
   v := replace(v, '{dd}', to_char(at at time zone 'utc', 'DD'));
   while v ~ '\{n:[0-9]+\}' loop
     width := regexp_match(v, '\{n:([0-9]+)\}');
-    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, width[1]::int, '0'));
+    v := regexp_replace(v, '\{n:[0-9]+\}', lpad(n::text, greatest(width[1]::int, length(n::text)), '0'));
   end loop;
   return replace(v, '{n}', n::text);
 end;

@@ -27,10 +27,10 @@ export interface Offboarded {
 /** The helpers `people` adds over its parts. */
 export interface People {
   /**
-   * Creates the employee, then enrolls them in the onboarding `program`
-   * (`enrollments.enroll` on `{ type: "employee", id }`). A failed enrollment
-   * returns its error and leaves the employee created, so retry it with
-   * `enrollments.enroll`, not `onboard`.
+   * Creates the employee and enrolls them in the onboarding `program` on `{
+   * type: "employee", id }`, in one database call and one transaction
+   * (`employees.onboardWithProgram`, ADR 1235). A failed enrollment rolls the
+   * employee back, so retry the whole `onboard`.
    */
   onboard(input: {
     organizationId: string;
@@ -39,10 +39,12 @@ export interface People {
     dates?: EnrollmentDates | undefined;
   }): AsyncResult<Onboarded>;
   /**
-   * Offboards the employee (`employees.offboard`), then cancels each of
-   * `enrollmentIds` and unassigns each of `assignmentIds` (the open ones the
-   * app lists for the employee). Each step is idempotent, so a retry finishes
-   * the rest.
+   * Offboards the employee, cancels their active enrollments and releases their
+   * assigned or requested shifts of the next `windowDays` days (30 by default),
+   * in one database call and one transaction (`employees.offboardWithWork`, ADR
+   * 1235). With `enrollmentIds` or `assignmentIds` it offboards the employee
+   * and then cancels and unassigns exactly those (the open ones the app lists),
+   * step by step; each step is idempotent, so a retry finishes the rest.
    */
   offboard(input: {
     employeeId: string;
@@ -50,6 +52,7 @@ export interface People {
     reason?: string | undefined;
     enrollmentIds?: readonly string[] | undefined;
     assignmentIds?: readonly string[] | undefined;
+    windowDays?: number | undefined;
   }): AsyncResult<Offboarded>;
 }
 
@@ -68,34 +71,30 @@ export function createPeople(options: PeopleOptions): People {
 
   const client: People = {
     onboard: ({ organizationId, employee, program, dates }) =>
-      Async.from(async () => {
-        const created = await employees.create({
-          organizationId,
-          input: employee,
-        });
-
-        if (!created.ok) {
-          return created;
-        }
-
-        const enrollment = await enrollments.enroll({
-          program,
-          subject: { type: "employee", id: created.data.id },
-          ...(dates === undefined ? {} : { dates }),
-        });
-
-        return enrollment.ok
-          ? ok({ employee: created.data, enrollment: enrollment.data })
-          : enrollment;
+      employees.onboardWithProgram({
+        organizationId,
+        input: employee,
+        program,
+        dates,
       }),
     offboard: ({
       employeeId,
       endDate,
       reason,
-      enrollmentIds = [],
-      assignmentIds = [],
+      enrollmentIds,
+      assignmentIds,
+      windowDays,
     }) =>
       Async.from(async () => {
+        if (enrollmentIds === undefined && assignmentIds === undefined) {
+          return employees.offboardWithWork({
+            employeeId,
+            ...(endDate === undefined ? {} : { endDate }),
+            ...(reason === undefined ? {} : { reason }),
+            ...(windowDays === undefined ? {} : { windowDays }),
+          });
+        }
+
         const employee = await employees.offboard({
           employeeId,
           ...(endDate === undefined ? {} : { endDate }),
@@ -106,7 +105,7 @@ export function createPeople(options: PeopleOptions): People {
           return employee;
         }
 
-        for (const enrollmentId of enrollmentIds) {
+        for (const enrollmentId of enrollmentIds ?? []) {
           const cancelled = await enrollments.cancel(enrollmentId);
 
           if (!cancelled.ok) {
@@ -114,7 +113,7 @@ export function createPeople(options: PeopleOptions): People {
           }
         }
 
-        for (const assignmentId of assignmentIds) {
+        for (const assignmentId of assignmentIds ?? []) {
           const removed = await shifts.unassign({
             assignmentId,
             ...(reason === undefined ? {} : { reason }),
@@ -127,8 +126,8 @@ export function createPeople(options: PeopleOptions): People {
 
         return ok({
           employee: employee.data,
-          enrollments: enrollmentIds.length,
-          assignments: assignmentIds.length,
+          enrollments: enrollmentIds?.length ?? 0,
+          assignments: assignmentIds?.length ?? 0,
         });
       }),
   };

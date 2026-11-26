@@ -41,11 +41,29 @@ export interface BankTransactionMatchedEventData extends BankTransactionEventDat
   readonly ruleId: string | null;
 }
 
+/** What every `payment_batch.*` event carries. */
+export interface PaymentBatchEventData {
+  readonly organizationId: string;
+  /** The payment batch. */
+  readonly id: string;
+  /** The bank account it pays from. */
+  readonly accountId: string;
+  /** Minor units of currency as decimal text. */
+  readonly total: string;
+  readonly currency: string;
+  readonly itemCount: number;
+  /** Its status after the change. */
+  readonly status: string;
+}
+
 /** The events of the `banking` block: type to data. */
 export type BankingEvents = {
   readonly "bank_statement.imported": BankStatementImportedEventData;
   readonly "bank_transaction.matched": BankTransactionMatchedEventData;
   readonly "bank_transaction.unmatched": BankTransactionEventData;
+  readonly "payment_batch.created": PaymentBatchEventData;
+  readonly "payment_batch.posted": PaymentBatchEventData;
+  readonly "payment_batch.cancelled": PaymentBatchEventData;
 };
 
 /** The `banking` block's event types, for its manifest and `onBlockEvent`. */
@@ -53,4 +71,7 @@ export const bankingEvents: Events<BankingEvents> = defineEvents({
   "bank_statement.imported": event<BankStatementImportedEventData>(),
   "bank_transaction.matched": event<BankTransactionMatchedEventData>(),
   "bank_transaction.unmatched": event<BankTransactionEventData>(),
+  "payment_batch.created": event<PaymentBatchEventData>(),
+  "payment_batch.posted": event<PaymentBatchEventData>(),
+  "payment_batch.cancelled": event<PaymentBatchEventData>(),
 });

@@ -406,6 +406,32 @@ describe("createBanking", () => {
     ]);
   });
 
+  it("reconciles an account with one reconcile_bank_account call", async () => {
+    const t = fieldsTransport({
+      reconcile_bank_account: () => ({
+        matched: [TRANSACTION],
+        unmatched: ["t2"],
+        failed: [{ transactionId: "t3", message: "no" }],
+      }),
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    const run = await banking
+      .reconcile({ accountId: "a1", minScore: 2 })
+      .orThrow();
+
+    expect(run.matched[0]?.id).toBe("t1");
+    expect(run.unmatched).toEqual(["t2"]);
+    expect(run.failed).toEqual([{ transactionId: "t3", message: "no" }]);
+    expect(t.calls).toEqual([
+      [
+        "reconcile_bank_account",
+        { account_id: "a1", min_score: 2, line_limit: 20 },
+      ],
+    ]);
+  });
+
   it("saves, lists, applies and deletes bank rules", async () => {
     const t = fieldsTransport({
       save_bank_rule: () => RULE,
@@ -607,6 +633,46 @@ describe("payment batches", () => {
     expect(xml).toContain('<InstdAmt Ccy="EUR">98.00</InstdAmt>');
   });
 
+  it("creates, posts and exports a batch in one call", async () => {
+    const t = fieldsTransport({
+      pay_payment_batch: () => ({
+        batch: { ...BATCH, status: "posted" },
+        accounts: [ACCOUNT],
+      }),
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+
+    const paid = await banking
+      .payBatch({
+        accountId: "a1",
+        dueBy: Temporal.PlainDate.from("2026-11-05"),
+        creditors: { c1: { name: "Bakker", iban: "NL02ABNA0123456789" } },
+        sepa: {},
+      })
+      .orThrow();
+
+    expect(paid.batch.status).toBe("posted");
+    expect(paid.sepa).toContain("<MsgId>BATCH-1</MsgId>");
+    expect(t.calls).toHaveLength(1);
+    expect(t.calls[0]?.[1]).toMatchObject({
+      tenant: "org-1",
+      with_accounts: true,
+      input: { accountId: "a1", dueBy: "2026-11-05" },
+    });
+
+    const without = await banking
+      .payBatch({
+        accountId: "a1",
+        dueBy: Temporal.PlainDate.from("2026-11-05"),
+        creditors: {},
+      })
+      .orThrow();
+
+    expect(without.sepa).toBeNull();
+    expect(t.calls[1]?.[1]).toMatchObject({ with_accounts: false });
+  });
+
   it("lists, posts and cancels batches and passes every option", async () => {
     const t = fieldsTransport({
       create_payment_batch: () => BATCH,
@@ -736,6 +802,9 @@ describe("bankingBlock", () => {
       "bank_statement.imported",
       "bank_transaction.matched",
       "bank_transaction.unmatched",
+      "payment_batch.created",
+      "payment_batch.posted",
+      "payment_batch.cancelled",
     ]);
     expect(
       validate(bankAccountInputSchema, { name: "Operating", currency: "EUR" })

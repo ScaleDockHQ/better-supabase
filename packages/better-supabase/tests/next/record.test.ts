@@ -196,6 +196,39 @@ describe("recordServer", () => {
     >().toEqualTypeOf<DbError>();
   });
 
+  it("takes the flags from heldPermissions without calling my_permissions", async () => {
+    permissionsCall.mockClear();
+
+    const held = recordServer(
+      {
+        ...host,
+        heldPermissions: () =>
+          Promise.resolve({ tenant: "org", keys: ["notes.read"] }),
+      },
+      feature,
+    );
+
+    const view = await held.load("7");
+
+    expect(permissionsCall).not.toHaveBeenCalled();
+    expect(view.can).toEqual({
+      notes: { read: true, add: false, remove: false },
+    });
+  });
+
+  it("asks my_permissions when heldPermissions has no answer", async () => {
+    permissionsCall.mockClear();
+
+    const held = recordServer(
+      { ...host, heldPermissions: () => Promise.resolve(null) },
+      feature,
+    );
+
+    await held.load("7");
+
+    expect(permissionsCall).toHaveBeenCalledOnce();
+  });
+
   it("settles a failed binding instead of throwing", async () => {
     const view = await customer.load("bad", { bindings: ["notes"] });
 

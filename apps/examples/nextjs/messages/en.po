@@ -410,6 +410,16 @@ msgctxt "cases.Lv0zJu"
 msgid "Details"
 msgstr "Details"
 
+#: src/app/[locale]/(app)/change-requests/page.tsx
+msgctxt "changeRequests.E03-aK"
+msgid "Change requests"
+msgstr "Change requests"
+
+#: src/app/[locale]/(app)/change-requests/page.tsx
+msgctxt "changeRequests.rYrZZ9"
+msgid "Changes to production systems, from the request through the change advisory board to the scheduled rollout. The stages come from the organization's change workflow."
+msgstr "Changes to production systems, from the request through the change advisory board to the scheduled rollout. The stages come from the organization's change workflow."
+
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
 msgid "Chat"
@@ -431,6 +441,7 @@ msgid "Post ideas and questions, and vote on the ones you want."
 msgstr "Post ideas and questions, and vote on the ones you want."
 
 #: src/app/[locale]/(app)/compliance/[framework]/page.tsx
+#: src/app/[locale]/(app)/compliance/controls/[id]/page.tsx
 msgctxt "compliance.jYMbbM"
 msgid "All frameworks"
 msgstr "All frameworks"
@@ -757,6 +768,11 @@ msgctxt "dam.NZSq_3"
 msgid "Who may use your files, where, and until when."
 msgstr "Who may use your files, where, and until when."
 
+#: src/app/[locale]/(app)/deadlines/[id]/page.tsx
+msgctxt "work.FPdA2f"
+msgid "All deadlines"
+msgstr "All deadlines"
+
 #: src/app/[locale]/(app)/deadlines/page.tsx
 msgctxt "work.SxEfhc"
 msgid "Deadlines"
@@ -774,6 +790,7 @@ msgid "All documents"
 msgstr "All documents"
 
 #: src/app/[locale]/(app)/documents/page.tsx
+#: src/features/documents/components/documents-overview.tsx
 msgctxt "documents.vBlT6y"
 msgid "Documents"
 msgstr "Documents"
@@ -880,6 +897,16 @@ msgstr "Shipments"
 msgctxt "field.7grP0Y"
 msgid "Track packages from label to delivery."
 msgstr "Track packages from label to delivery."
+
+#: src/app/[locale]/(app)/finance/invoices/page.tsx
+msgctxt "finance.ulh3kf"
+msgid "Collections"
+msgstr "Collections"
+
+#: src/app/[locale]/(app)/finance/invoices/page.tsx
+msgctxt "finance.VisrRr"
+msgid "How overdue sales invoices are reminded."
+msgstr "How overdue sales invoices are reminded."
 
 #: src/app/[locale]/(app)/finance/page.tsx
 msgctxt "accounting.Fm3M-y"
@@ -1161,6 +1188,11 @@ msgstr "Medications"
 msgctxt "medications.ydg6xP"
 msgid "Today's medication chart: what each order gives and which doses are given, refused or missed."
 msgstr "Today's medication chart: what each order gives and which doses are given, refused or missed."
+
+#: src/app/[locale]/(app)/meetings/[id]/page.tsx
+msgctxt "meetings.eIYVw5"
+msgid "All meetings"
+msgstr "All meetings"
 
 #: src/app/[locale]/(app)/meetings/page.tsx
 #: src/features/meetings/components/meeting-agenda.tsx
@@ -2115,6 +2147,7 @@ msgid "The list was cut off. Ask for a page instead."
 msgstr "The list was cut off. Ask for a page instead."
 
 #: src/components/finance-pages/finance-pages.tsx
+#: src/features/dunning/components/collections-section.tsx
 msgctxt "finance.6dqYnF"
 msgid "Invoices"
 msgstr "Invoices"
@@ -4905,6 +4938,8 @@ msgid "Person"
 msgstr "Person"
 
 #: src/features/appraisals/components/appraisal-list.tsx
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
 msgctxt "appraisals.ETRyBL"
 msgid "Rating"
 msgstr "Rating"
@@ -4948,6 +4983,57 @@ msgstr "Open a review cycle with the people to review, and each gets an appraisa
 msgctxt "appraisals.ZrWlbO"
 msgid "Read the appraisals guide"
 msgstr "Read the appraisals guide"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.H8PFXe"
+msgid "Appraisal calibrated"
+msgstr "Appraisal calibrated"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.0olBvz"
+msgid "Calibrate"
+msgstr "Calibrate"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.ILukLY"
+msgid "The calibrated rating replaces the review average; the reason stays with it."
+msgstr "The calibrated rating replaces the review average; the reason stays with it."
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+msgctxt "appraisals.AkCxS_"
+msgid "Reason"
+msgstr "Reason"
+
+#: src/features/appraisals/components/calibrate-dialog.tsx
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.Migr-m"
+msgid "Review submitted"
+msgstr "Review submitted"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.BC1G69"
+msgid "Write review"
+msgstr "Write review"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.iC6lit"
+msgid "Rate each competency from 1 to 5."
+msgstr "Rate each competency from 1 to 5."
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.wCgTu5"
+msgid "Comments"
+msgstr "Comments"
+
+#: src/features/appraisals/components/write-review-dialog.tsx
+msgctxt "appraisals.rJrHB6"
+msgid "Submit review"
+msgstr "Submit review"
 
 #: src/features/approvals/components/approval-decision.tsx
 msgctxt "approvals.GkMwHf"
@@ -8204,6 +8290,131 @@ msgctxt "cases._gd0g1"
 msgid "The case didn't load"
 msgstr "The case didn't load"
 
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.1d-6fI"
+msgid "The change requests didn't load"
+msgstr "The change requests didn't load"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.psnPLF"
+msgid "No change workflow yet"
+msgstr "No change workflow yet"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.URqLR6"
+msgid "Change requests move through the stages of the organization's change workflow. Publish the default one (submitted, CAB review, scheduled, done) and edit it in the workflow builder later."
+msgstr "Change requests move through the stages of the organization's change workflow. Publish the default one (submitted, CAB review, scheduled, done) and edit it in the workflow builder later."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.N9dCQN"
+msgid "Ask an admin to set up the change workflow."
+msgstr "Ask an admin to set up the change workflow."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.0KakGB"
+msgid "No change requests"
+msgstr "No change requests"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.p6eLQp"
+msgid "Submit a change before you make it, so the board can review and schedule it."
+msgstr "Submit a change before you make it, so the board can review and schedule it."
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.Ozu2_P"
+msgid "Workflow version {version}: {stages}"
+msgstr "Workflow version {version}: {stages}"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.BY343C"
+msgid "Change"
+msgstr "Change"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.uYAYib"
+msgid "Stage"
+msgstr "Stage"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.raexxM"
+msgid "Submitted"
+msgstr "Submitted"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/change-requests/components/change-request-list.tsx
+msgctxt "changeRequests.l0yR9a"
+msgid "No stage"
+msgstr "No stage"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.7McvJB"
+msgid "Change request moved"
+msgstr "Change request moved"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.VoDM1p"
+msgid "Move {title}"
+msgstr "Move {title}"
+
+#: src/features/change-requests/components/move-change-request-menu.tsx
+msgctxt "changeRequests.UMbBzo"
+msgid "Move"
+msgstr "Move"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.582jRQ"
+msgid "Change request submitted"
+msgstr "Change request submitted"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.9ELKXR"
+msgid "New change request"
+msgstr "New change request"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.OsMlMa"
+msgid "Say what changes. The request starts at the first stage of the change workflow."
+msgstr "Say what changes. The request starts at the first stage of the change workflow."
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.9a9-ww"
+msgid "Title"
+msgstr "Title"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/change-requests/components/new-change-request-dialog.tsx
+msgctxt "changeRequests.wSZR47"
+msgid "Submit"
+msgstr "Submit"
+
+#: src/features/change-requests/components/set-up-change-workflow-button.tsx
+msgctxt "changeRequests.-VRwf2"
+msgid "Change workflow published"
+msgstr "Change workflow published"
+
+#: src/features/change-requests/components/set-up-change-workflow-button.tsx
+msgctxt "changeRequests.fVoYoa"
+msgid "Set up the change workflow"
+msgstr "Set up the change workflow"
+
 #: src/features/chat/components/channel-sidebar.tsx
 msgctxt "chat.LUrJwE"
 msgid "Channels"
@@ -9009,6 +9220,42 @@ msgctxt "community.eKv7yX"
 msgid "Post"
 msgstr "Post"
 
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.KXQUKy"
+msgid "Evidence added"
+msgstr "Evidence added"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.kCPl0r"
+msgid "Collect"
+msgstr "Collect"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.KcIDna"
+msgid "Add evidence"
+msgstr "Add evidence"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.1EsE9r"
+msgid "The note answers this task and moves its due date."
+msgstr "The note answers this task and moves its due date."
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.NQbn_1"
+msgid "The note counts as evidence until it is removed."
+msgstr "The note counts as evidence until it is removed."
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.qMePPG"
+msgid "Note"
+msgstr "Note"
+
+#: src/features/compliance/components/add-evidence-dialog.tsx
+msgctxt "compliance.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
 #: src/features/compliance/components/consent-register.tsx
 msgctxt "compliance.GlRxTV"
 msgid "Consent"
@@ -9057,6 +9304,7 @@ msgstr "The consent purposes didn't load"
 
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-detail.tsx
 #: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.162kF7"
@@ -9065,6 +9313,7 @@ msgstr "Try again in a moment."
 
 #: src/features/compliance/components/consent-register.tsx
 #: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-detail.tsx
 #: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.62nsdy"
@@ -9107,6 +9356,7 @@ msgid "Lasts"
 msgstr "Lasts"
 
 #: src/features/compliance/components/consent-register.tsx
+#: src/features/compliance/components/control-detail.tsx
 msgctxt "compliance.6g7-6N"
 msgid "Evidence"
 msgstr "Evidence"
@@ -9216,6 +9466,109 @@ msgctxt "compliance.NRVEF5"
 msgid "Renewal"
 msgstr "Renewal"
 
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.s7eEy-"
+msgid "The control didn't load"
+msgstr "The control didn't load"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/framework-detail.tsx
+msgctxt "compliance.aH4De2"
+msgid "Source"
+msgstr "Source"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.eHi_1a"
+msgid "Jurisdiction"
+msgstr "Jurisdiction"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.ZwRlCF"
+msgid "Evidence tasks"
+msgstr "Evidence tasks"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.pum3VA"
+msgid "An overdue task fails the control until evidence answers it."
+msgstr "An overdue task fails the control until evidence answers it."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.KyVqPd"
+msgid "No task collects evidence for this control."
+msgstr "No task collects evidence for this control."
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0wJ7N-"
+msgid "Task"
+msgstr "Task"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.JE2YVb"
+msgid "Every"
+msgstr "Every"
+
+#: src/features/compliance/components/control-detail.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.g9pEhE"
+msgid "Due"
+msgstr "Due"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.wL7VAE"
+msgid "Actions"
+msgstr "Actions"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.UA5qaX"
+msgid "{days, plural, one {# day} other {# days}}"
+msgstr "{days, plural, one {# day} other {# days}}"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.M0vCGv"
+msgid "Overdue"
+msgstr "Overdue"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.pxvvd-"
+msgid "Valid evidence passes the control; expired evidence fails it."
+msgstr "Valid evidence passes the control; expired evidence fails it."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.RodRmI"
+msgid "No evidence yet."
+msgstr "No evidence yet."
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.DKZAKD"
+msgid "Collected"
+msgstr "Collected"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.C3Fz7P"
+msgid "Valid until"
+msgstr "Valid until"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.eLCAEP"
+msgid "Attachment"
+msgstr "Attachment"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.GwMpla"
+msgid "No end"
+msgstr "No end"
+
+#: src/features/compliance/components/control-detail.tsx
+msgctxt "compliance.RahCRH"
+msgid "Expired"
+msgstr "Expired"
+
 #: src/features/compliance/components/control-posture.tsx
 msgctxt "compliance.F1fkR9"
 msgid "The control posture didn't load"
@@ -9282,45 +9635,35 @@ msgid "Every evidence task is on schedule."
 msgstr "Every evidence task is on schedule."
 
 #: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.0wJ7N-"
-msgid "Task"
-msgstr "Task"
-
-#: src/features/compliance/components/control-posture.tsx
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.NZ9-vv"
 msgid "Control"
 msgstr "Control"
 
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.g9pEhE"
-msgid "Due"
-msgstr "Due"
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.rFsne8"
+msgid "Passing"
+msgstr "Passing"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.tKELc3"
+msgid "Failing"
+msgstr "Failing"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.xTTP0x"
+msgid "Not started"
+msgstr "Not started"
+
+#: src/features/compliance/components/control-status-badge.tsx
+msgctxt "compliance.61zy45"
+msgid "Not applicable"
+msgstr "Not applicable"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.x5gHeJ"
 msgid "The framework didn't load"
 msgstr "The framework didn't load"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.rFsne8"
-msgid "Passing"
-msgstr "Passing"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.tKELc3"
-msgid "Failing"
-msgstr "Failing"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.xTTP0x"
-msgid "Not started"
-msgstr "Not started"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.61zy45"
-msgid "Not applicable"
-msgstr "Not applicable"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.JW6TBv"
@@ -9341,11 +9684,6 @@ msgstr "This framework has no controls yet."
 msgctxt "compliance.h2vipu"
 msgid "Code"
 msgstr "Code"
-
-#: src/features/compliance/components/framework-detail.tsx
-msgctxt "compliance.aH4De2"
-msgid "Source"
-msgstr "Source"
 
 #: src/features/compliance/components/framework-detail.tsx
 msgctxt "compliance.tzMNF3"
@@ -11859,6 +12197,7 @@ msgid "Done"
 msgstr "Done"
 
 #: src/features/deadlines/components/deadline-badges.tsx
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.g9pEhE"
 msgid "Due"
@@ -11869,15 +12208,73 @@ msgctxt "work.5jeq8P"
 msgid "Unknown"
 msgstr "Unknown"
 
-#: src/features/deadlines/components/deadline-overview.tsx
-msgctxt "work.BsCAMY"
-msgid "Deadlines didn't load"
-msgstr "Deadlines didn't load"
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.ZnUPBp"
+msgid "{group} in {jurisdiction}"
+msgstr "{group} in {jurisdiction}"
 
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.Lv0zJu"
+msgid "Details"
+msgstr "Details"
+
+#: src/features/deadlines/components/deadline-detail.tsx
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.065UXh"
 msgid "No date"
 msgstr "No date"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.ZpQ6us"
+msgid "Result"
+msgstr "Result"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.RGfEbk"
+msgid "Evaluated on"
+msgstr "Evaluated on"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.XTdAcD"
+msgid "Rule"
+msgstr "Rule"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+#: src/features/deadlines/components/deadline-record-list.tsx
+msgctxt "work.7Y6Yvq"
+msgid "Record"
+msgstr "Record"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.wxw8HK"
+msgid "Citation"
+msgstr "Citation"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.7_uozC"
+msgid "Open questions"
+msgstr "Open questions"
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.B0H4HM"
+msgid "A missing answer could still change this date."
+msgstr "A missing answer could still change this date."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.u841Br"
+msgid "Nothing can change this date."
+msgstr "Nothing can change this date."
+
+#: src/features/deadlines/components/deadline-detail.tsx
+msgctxt "work.J2U3Ow"
+msgid "Every fact the rule asks is known."
+msgstr "Every fact the rule asks is known."
+
+#: src/features/deadlines/components/deadline-overview.tsx
+msgctxt "work.BsCAMY"
+msgid "Deadlines didn't load"
+msgstr "Deadlines didn't load"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 msgctxt "work.9BRK8k"
@@ -11885,11 +12282,13 @@ msgid "provisional"
 msgstr "provisional"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.yjcwJc"
 msgid "Deadline marked done"
 msgstr "Deadline marked done"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
+#: src/features/deadlines/components/mark-deadline-done.tsx
 msgctxt "work.tQpQon"
 msgid "Mark done"
 msgstr "Mark done"
@@ -11903,16 +12302,6 @@ msgstr "Deadline"
 msgctxt "work.HpoDwk"
 msgid "Group"
 msgstr "Group"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.7Y6Yvq"
-msgid "Record"
-msgstr "Record"
-
-#: src/features/deadlines/components/deadline-record-list.tsx
-msgctxt "work.ZpQ6us"
-msgid "Result"
-msgstr "Result"
 
 #: src/features/deadlines/components/deadline-record-list.tsx
 #: src/features/work/components/work-item-grid.tsx
@@ -12371,6 +12760,31 @@ msgstr "Go to customers"
 msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Customer updated"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.bhKIeh"
+msgid "One notes document per customer"
+msgstr "One notes document per customer"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.I3JeAb"
+msgid "Edited in the last week"
+msgstr "Edited in the last week"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.0a-4L_"
+msgid "Counted back from the latest edit"
+msgstr "Counted back from the latest edit"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.U7YmWe"
+msgid "Latest edit"
+msgstr "Latest edit"
+
+#: src/features/documents/components/documents-overview.tsx
+msgctxt "documents.FFUSSK"
+msgid "Of any document"
+msgstr "Of any document"
 
 #: src/features/domains/components/domain-controls.tsx
 msgctxt "domains.NBobyu"
@@ -12884,6 +13298,16 @@ msgid "Downloads of {name} are allowed"
 msgstr "Downloads of {name} are allowed"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.N5riU8"
+msgid "Public link for {name} copied (valid for 7 days)"
+msgstr "Public link for {name} copied (valid for 7 days)"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.PySD5Q"
+msgid "Shared {name} with {shared} roles, {failed} refused"
+msgstr "Shared {name} with {shared} roles, {failed} refused"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Actions for {name}"
@@ -12928,6 +13352,16 @@ msgstr "Rename"
 msgctxt "drive.OKhRC6"
 msgid "Share"
 msgstr "Share"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.nl3NW_"
+msgid "Share with members and admins"
+msgstr "Share with members and admins"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.kDdfK_"
+msgid "Copy public link"
+msgstr "Copy public link"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.7uRmpM"
@@ -13099,6 +13533,107 @@ msgstr "Share with"
 msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Access"
+
+#: src/features/dunning/components/apply-standard-levels.tsx
+msgctxt "finance.3PvOJp"
+msgid "Reminder levels saved"
+msgstr "Reminder levels saved"
+
+#: src/features/dunning/components/apply-standard-levels.tsx
+msgctxt "finance.HPPBYk"
+msgid "Use the standard levels"
+msgstr "Use the standard levels"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.uw2XV3"
+msgid "Collections didn't load"
+msgstr "Collections didn't load"
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+#: src/features/finance-records/components/finance-list.tsx
+msgctxt "finance.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.r82ITf"
+msgid "No reminder levels yet"
+msgstr "No reminder levels yet"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.u_KWLM"
+msgid "Reminder levels decide when an overdue invoice gets a reminder and what fee it adds."
+msgstr "Reminder levels decide when an overdue invoice gets a reminder and what fee it adds."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.VJKxru"
+msgid "No fee"
+msgstr "No fee"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.71Hm2s"
+msgid "Reminder levels"
+msgstr "Reminder levels"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.R8qHC3"
+msgid "An overdue sales invoice climbs a level at each step."
+msgstr "An overdue sales invoice climbs a level at each step."
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.y1Qr81"
+msgid "Level"
+msgstr "Level"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.nvzEMZ"
+msgid "Days after due"
+msgstr "Days after due"
+
+#: src/features/dunning/components/collections-section.tsx
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.uT4OlP"
+msgid "Fee"
+msgstr "Fee"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.0QBqgR"
+msgid "Final notice"
+msgstr "Final notice"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.4qFgpX"
+msgid "Reminder runs"
+msgstr "Reminder runs"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance._cyA8S"
+msgid "The daily job raises each overdue invoice to its level."
+msgstr "The daily job raises each overdue invoice to its level."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.kUBOGb"
+msgid "No run has picked an invoice yet."
+msgstr "No run has picked an invoice yet."
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.B8Zi2z"
+msgid "As of"
+msgstr "As of"
+
+#: src/features/dunning/components/collections-section.tsx
+msgctxt "finance.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
 
 #: src/features/e-prescribing/components/prescription-detail.tsx
 msgctxt "prescriptions.JNXKgf"
@@ -14392,18 +14927,6 @@ msgid "The record did not load"
 msgstr "The record did not load"
 
 #: src/features/finance-records/components/finance-detail.tsx
-#: src/features/finance-records/components/finance-list.tsx
-msgctxt "finance.162kF7"
-msgid "Try again in a moment."
-msgstr "Try again in a moment."
-
-#: src/features/finance-records/components/finance-detail.tsx
-#: src/features/finance-records/components/finance-list.tsx
-msgctxt "finance.62nsdy"
-msgid "Retry"
-msgstr "Retry"
-
-#: src/features/finance-records/components/finance-detail.tsx
 #: src/features/finance-records/components/finance-record-list.tsx
 msgctxt "finance.a5msuh"
 msgid "Yes"
@@ -14621,16 +15144,6 @@ msgstr "Reminders"
 msgctxt "finance.P7PLVj"
 msgid "Date"
 msgstr "Date"
-
-#: src/features/finance-records/components/finance-detail.tsx
-msgctxt "finance.y1Qr81"
-msgid "Level"
-msgstr "Level"
-
-#: src/features/finance-records/components/finance-detail.tsx
-msgctxt "finance.uT4OlP"
-msgid "Fee"
-msgstr "Fee"
 
 #: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.m4vW-f"
@@ -14898,6 +15411,26 @@ msgstr "Box"
 msgctxt "finance.MA_K-j"
 msgid "The return has no boxes."
 msgstr "The return has no boxes."
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.ot70TW"
+msgid "Close blockers"
+msgstr "Close blockers"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.mjXHSf"
+msgid "Blocker"
+msgstr "Blocker"
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.h2E9rN"
+msgid "The period is closed."
+msgstr "The period is closed."
+
+#: src/features/finance-records/components/finance-detail.tsx
+msgctxt "finance.qiDOWf"
+msgid "Nothing blocks the close."
+msgstr "Nothing blocks the close."
 
 #: src/features/finance-records/components/finance-detail.tsx
 msgctxt "finance.Gz0Fja"
@@ -22346,6 +22879,12 @@ msgstr "Incidents"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
+msgctxt "navigation.E03-aK"
+msgid "Change requests"
+msgstr "Change requests"
+
+#: src/features/navigation/components/nav-label-server.ts
+#: src/features/navigation/components/use-nav-label.ts
 msgctxt "navigation.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits and inspections"
@@ -25172,6 +25711,36 @@ msgctxt "projects.dxuPgK"
 msgid "{hours} h tracked, {billable} h billable"
 msgstr "{hours} h tracked, {billable} h billable"
 
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.5NRfCE"
+msgid "Time awaiting approval"
+msgstr "Time awaiting approval"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Pb0ZlE"
+msgid "Approve a submitted week and invoice the unbilled time in one step."
+msgstr "Approve a submitted week and invoice the unbilled time in one step."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.y67OJt"
+msgid "No submitted week is waiting for approval."
+msgstr "No submitted week is waiting for approval."
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.097bWr"
+msgid "Week of {week}"
+msgstr "Week of {week}"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.PuMdgs"
+msgid "Approve and invoice"
+msgstr "Approve and invoice"
+
+#: src/features/projects/components/project-portfolio.tsx
+msgctxt "projects.Rg9Z_g"
+msgid "Week approved and invoiced"
+msgstr "Week approved and invoiced"
+
 #: src/features/projects/components/project-time-card.tsx
 msgctxt "projects.CeHomx"
 msgid "Time and budget"
@@ -25367,14 +25936,14 @@ msgid "Delete view {name}"
 msgstr "Delete view {name}"
 
 #: src/features/projects/components/task-grid.tsx
-msgctxt "projects.JAYugF"
-msgid "Save view"
-msgstr "Save view"
-
-#: src/features/projects/components/task-grid.tsx
 msgctxt "projects.FrIr1g"
 msgid "View saved"
 msgstr "View saved"
+
+#: src/features/projects/components/task-grid.tsx
+msgctxt "projects.JAYugF"
+msgid "Save view"
+msgstr "Save view"
 
 #: src/features/projects/components/task-grid.tsx
 msgctxt "projects.WM0aGV"
@@ -30052,6 +30621,11 @@ msgid "Go to"
 msgstr "Go to"
 
 #: src/features/search/components/command-center.tsx
+msgctxt "search.L_QYEd"
+msgid "Areas"
+msgstr "Areas"
+
+#: src/features/search/components/command-center.tsx
 msgctxt "search.wSAvhu"
 msgid "Assistant"
 msgstr "Assistant"
@@ -32611,6 +33185,11 @@ msgstr "Active"
 msgctxt "signingKeys.JJNc3c"
 msgid "Previous"
 msgstr "Previous"
+
+#: src/features/signing-keys/components/signing-keys-rotation.tsx
+msgctxt "signingKeys.yIv4lB"
+msgid "Receivers read the public keys at"
+msgstr "Receivers read the public keys at"
 
 #: src/features/sso/components/sso-controls.tsx
 msgctxt "sso.VZTS3k"
@@ -36179,14 +36758,14 @@ msgid "Drop an item here."
 msgstr "Drop an item here."
 
 #: src/features/work/components/work-item-grid.tsx
-msgctxt "work.JAYugF"
-msgid "Save view"
-msgstr "Save view"
-
-#: src/features/work/components/work-item-grid.tsx
 msgctxt "work.FrIr1g"
 msgid "View saved"
 msgstr "View saved"
+
+#: src/features/work/components/work-item-grid.tsx
+msgctxt "work.JAYugF"
+msgid "Save view"
+msgstr "Save view"
 
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.heOG7H"

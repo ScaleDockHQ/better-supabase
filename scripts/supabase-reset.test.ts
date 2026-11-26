@@ -11,9 +11,9 @@ describe("resetSteps", () => {
   });
 
   it("passes its arguments to the reset", () => {
-    expect(resetSteps(["--linked"])[0]).toEqual([
+    expect(resetSteps(["--remote"])[0]).toEqual([
       "supabase",
-      ["db", "reset", "--linked"],
+      ["db", "reset", "--remote"],
     ]);
   });
 

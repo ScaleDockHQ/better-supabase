@@ -178,8 +178,15 @@ the owner's JWK Set, that both signatures verify with `verifyCompact`.
 import { signingKeys } from "@/lib/signing-keys";
 
 export const GET = () =>
-  signingKeys.jwksResponse({ type: "app", id: "default" }, { maxAge: 300 });
+  signingKeys.jwksResponse({
+    owner: { type: "app", id: "default" },
+    maxAge: 300,
+  });
 ```
+
+The Next.js example publishes one set per organization at
+`/.well-known/jwks/<organization id>` and excludes that path from the proxy
+matcher, so receivers fetch it without a session.
 
 The set has the active key and every retired key whose last `exp` plus the
 grace period is still ahead. The grace defaults to the `jwksGrace` option

@@ -44,3 +44,18 @@ export const remoteRead: () => Promise<Fill> = bsbCore.remote(
     return { filledBy: processId(), key };
   },
 );
+
+/**
+ * A `bsb.kept()` read in the durable kept store. Its key holds the schema hash
+ * and the library version, not the build, so a rebuild or an app code change
+ * reads the entry an earlier process filled.
+ */
+export const keptRead = bsbCore.kept(
+  (): Promise<Fill> => Promise.resolve({ filledBy: processId(), key: null }),
+  {
+    name: "durable-probe",
+    tables: ["plans"],
+    share: "public",
+    life: { revalidate: 3600, expire: 86_400 },
+  },
+);

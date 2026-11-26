@@ -2,6 +2,7 @@
 // (next.config.ts sets it when BSB_REMOTE_CACHE_DIR is set).
 import process from "node:process";
 
+import { countingCacheHandler } from "./counting.ts";
 import { createFileCacheHandler } from "./file-cache-handler.ts";
 
 const dir = process.env["BSB_REMOTE_CACHE_DIR"];
@@ -10,4 +11,4 @@ if (!dir) {
   throw new Error("BSB_REMOTE_CACHE_DIR must name the shared cache directory.");
 }
 
-export default createFileCacheHandler(dir);
+export default countingCacheHandler(createFileCacheHandler(dir));

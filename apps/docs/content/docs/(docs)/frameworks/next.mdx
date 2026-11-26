@@ -133,6 +133,25 @@ export const proxy = createProxy(betterSupabase, {
 });
 ```
 
+Without the definition at all, pass the options alone. The proxy then loads
+no schema, no block set and no repositories, which is what keeps it small:
+
+```ts title="src/proxy.ts"
+import { createProxy } from "better-supabase/next/proxy";
+import { Claims, Profile } from "@/lib/claims";
+
+export const proxy = createProxy({
+  auth: { claims: Claims, userMetadata: Profile },
+});
+```
+
+`gen` writes `proxy-permissions.generated.ts` next to `permission-scopes.ts`
+when `gen.permissionCatalog` is on. It holds the permission keys in bit
+order, so `permissionsOf(session, tenant, { catalog: proxyPermissions })` in
+`protect` reads the token's bitset without importing the catalog's source.
+`better-supabase doctor` reads the trace of the last `next build` and reports
+(BS650) when the proxy traces more than 400 KB.
+
 `createProxy(betterSupabase, options)` takes the `createNext` options (`env`,
 `auth`, `leeway`) and the proxy options (`before`, `protect`, `after`,
 `verifySession`, `serverTiming`) in one object. It also exports

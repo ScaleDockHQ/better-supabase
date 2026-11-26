@@ -13,6 +13,7 @@ import type { ProjectSymbols } from "../typescript-symbols/index.ts";
 import type { AdvisorSource } from "./advisors.ts";
 import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
+import type { ProxyTrace } from "./proxy-size.ts";
 import type { LocalStackCheck } from "./stacks.ts";
 import type { SupabaseCliCheck } from "./supabase-cli.ts";
 import type { VercelEnvFile } from "./vercel-env.ts";
@@ -230,6 +231,8 @@ export interface DoctorContext {
    * (BS513 to BS515). An empty list means nothing was pulled.
    */
   readonly vercelEnv?: readonly VercelEnvFile[];
+  /** The proxy's file trace from the last `next build` (BS650). */
+  readonly proxyTrace?: ProxyTrace;
 }
 
 export interface Rule {
@@ -872,7 +875,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Legacy migra diff engine",
     description:
-      "`supabase/config.toml` has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta. Setting `database.sql.workflow` to `migra` or `migrations` silences it.",
+      "The Supabase config (`config.toml`, `config.json` or `config.jsonc`) has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta. Setting `database.sql.workflow` to `migra` or `migrations` silences it.",
     check: (context) => {
       const toml = context.configToml;
 

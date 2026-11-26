@@ -313,6 +313,25 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     .map((column) => `, ${sqlString(column)}, ql.${l(column)}`)
     .join("");
 
+  // The cost, stock and billing columns, so a published version restores them.
+  const salesLine = [
+    "taxCodeId",
+    "unitCost",
+    "discountAmount",
+    "costSource",
+    "locationId",
+    "binId",
+    "billingParty",
+    "billingPartyId",
+    "billingAccountId",
+  ]
+    .filter(lineHas)
+    .map(
+      (column) =>
+        `, ${sqlString(column)}, ql.${l(column)}${column === "unitCost" || column === "discountAmount" ? "::text" : ""}`,
+    )
+    .join("");
+
   // A line's product; with only a product id column, its id without a type.
   const product =
     !lineHas("productType") && lineHas("productId")
@@ -320,7 +339,7 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
       : `case when ${lineValue("productType")} is null then null else jsonb_build_object('type', ${lineValue("productType")}, 'id', ${lineValue("productId")}) end`;
 
   const lines = (alias: string): string =>
-    `coalesce((select jsonb_agg(jsonb_build_object('position', ql.${l("position")}, 'description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineValue("discountBps")}, 'taxRateBps', ${lineValue("taxRateBps")}, 'taxCode', ${lineValue("taxCode")}${documentLine}, 'product', ${product}${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
+    `coalesce((select jsonb_agg(jsonb_build_object('position', ql.${l("position")}, 'description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineValue("discountBps")}, 'taxRateBps', ${lineValue("taxRateBps")}, 'taxCode', ${lineValue("taxCode")}${documentLine}${salesLine}, 'product', ${product}${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
 
   const tl = (column: string): string => c("taxLines", column);
 
@@ -383,6 +402,23 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
       left join ${t("versionLines")} vx on vx.${vl("version")} = ${version} and vx.${vl("position")} = (e.value ->> 'position')::integer)`
       : list;
 
+  // The customer sees no cost, stock location or billing account of a line.
+  const internal = [
+    "taxCodeId",
+    "unitCost",
+    "costSource",
+    "locationId",
+    "binId",
+    "billingParty",
+    "billingPartyId",
+    "billingAccountId",
+  ].filter(lineHas);
+
+  const customerLines = (list: string): string =>
+    internal.length === 0
+      ? list
+      : `(select coalesce(jsonb_agg(e.value - array[${internal.map(sqlString).join(", ")}] order by e.ordinality), '[]'::jsonb) from jsonb_array_elements(${list}) with ordinality e)`;
+
   const publicJson = (
     alias: string,
     version?: string,
@@ -395,7 +431,7 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     'depositDue', ${text(alias, "depositDue", "'0'")},
     'listTotal', ${text(alias, "listTotal", `${alias}.${q("subtotal")}::text`)}, 'subtotal', ${alias}.${q("subtotal")}::text, 'discountTotal', ${text(alias, "discountTotal", "'0'")},
     'taxTotal', ${alias}.${q("taxTotal")}::text, 'total', ${alias}.${q("total")}::text,
-    'lines', ${version === undefined ? withVersionLineIds(lines(alias), latestVersion(alias)) : withVersionLineIds(`coalesce(${version} -> 'lines', '[]'::jsonb)`, latestVersion(alias))},
+    'lines', ${customerLines(version === undefined ? withVersionLineIds(lines(alias), latestVersion(alias)) : withVersionLineIds(`coalesce(${version} -> 'lines', '[]'::jsonb)`, latestVersion(alias)))},
     'taxLines', ${version === undefined ? taxLines(alias) : `coalesce(${version} -> 'taxLines', '[]'::jsonb)`})`;
 
   const checkParty = (

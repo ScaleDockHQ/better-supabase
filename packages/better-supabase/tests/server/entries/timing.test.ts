@@ -37,6 +37,13 @@ describe("db stats header", () => {
       verifications: 0,
       adminCalls: 0,
     });
+    expect(parseDbStats("3;2;12;1;0;cold=evalEnd:4,claims:9")).toEqual({
+      calls: 3,
+      waves: 2,
+      ms: 12,
+      verifications: 1,
+      adminCalls: 0,
+    });
     expect(parseDbStats("x;1;2")).toBeUndefined();
     expect(parseDbStats("1;2")).toBeUndefined();
     expect(parseDbStats(null)).toBeUndefined();

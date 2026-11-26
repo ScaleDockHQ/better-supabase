@@ -42,8 +42,9 @@ export default defineConfig({
       tags: crud,
       customer_tags: crud,
       organizations: ["select"],
-      plans: ["select"],
-      plan_features: ["select"],
+      // The pricing page reads the plan catalog as a visitor.
+      plans: { anon: ["select"], authenticated: ["select"] },
+      plan_features: { anon: ["select"], authenticated: ["select"] },
       subscriptions: ["select"],
       // The bulk bar calls it over /rpc as the signed-in member.
       "work_bulk_state(uuid, text, text, jsonb)": {
@@ -557,7 +558,10 @@ export default defineConfig({
       // argument (BS235, four findings); the client sends the new form.
       // `projects.sql` carries the search tag's `bsb_search_project_index`
       // trigger, which the search module file creates too (BS722, one finding).
-      ignore: ["BS235", "BS243", "BS244", "BS722"],
+      // The Vercel tag probe calls updateTag and revalidateTag on purpose, to
+      // measure them, and the role actions expire a Next-only organization
+      // snapshot tag, not a kept entry (BS648, three findings).
+      ignore: ["BS235", "BS243", "BS244", "BS648", "BS722"],
     },
   },
   auth: {
@@ -793,6 +797,12 @@ export default defineConfig({
           islands: {
             function: "public.island_counts",
             tables: ["customers", "notes", "contacts", "tags", "tasks"],
+          },
+          // The page shell in one call: organizations, profile, the pending
+          // approvals count and the compact permissions (ADR 1232).
+          shell: {
+            function: "public.shell_bootstrap",
+            tables: ["organizations", "memberships", "profiles", "approvals"],
           },
         },
       },

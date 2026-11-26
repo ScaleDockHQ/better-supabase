@@ -21,7 +21,14 @@ describe("outbox module", () => {
     expect(sql).toContain('create table "better_supabase"."outbox_events" (');
     expect(sql).toContain('"xid" xid8 not null default pg_current_xact_id()');
     expect(sql).toContain("nulls not distinct");
-    expect(sql).toContain('"xid" < pg_snapshot_xmin(pg_current_snapshot())');
+    expect(sql).toContain(
+      "v_xmin xid8 := pg_snapshot_xmin(pg_current_snapshot());",
+    );
+    expect(sql).toContain('"xid" < v_xmin');
+    expect(sql).not.toContain(
+      '"xid" < pg_snapshot_xmin(pg_current_snapshot())',
+    );
+    expect(sql).toContain('new."xid" := pg_current_xact_id();');
     expect(sql).toContain(
       'grant execute on function "better_supabase"."emit_event"(text, jsonb, text, text, text, text) to service_role;',
     );

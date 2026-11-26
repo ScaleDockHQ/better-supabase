@@ -61,21 +61,25 @@ export function useRecordForm<T>(
     submit: async (event) => {
       event?.preventDefault();
       setPending(true);
-      const result = await form.validate(values);
 
-      if (!result.ok) {
-        setErrors(result.errors);
+      try {
+        const result = await form.validate(values);
+
+        if (result.ok) {
+          setErrors(NO_ERRORS);
+          await options.onSubmit({
+            input: result.input,
+            custom: result.custom,
+          });
+        } else {
+          setErrors(result.errors);
+        }
+      } catch (error) {
         setPending(false);
-
-        return;
+        throw error;
       }
 
-      setErrors(NO_ERRORS);
-      await Promise.resolve(
-        options.onSubmit({ input: result.input, custom: result.custom }),
-      ).finally(() => {
-        setPending(false);
-      });
+      setPending(false);
     },
     reset: () => {
       setValues(initial);

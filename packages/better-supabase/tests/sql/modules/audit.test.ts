@@ -194,6 +194,44 @@ describe("audit module", () => {
     );
   });
 
+  it("lets platform staff reveal only with a platform reveal key", () => {
+    const withPermissions = (config: BlockConfig): string =>
+      renderBlocks(["permissions", "audit"], { modules: { audit: config } })
+        .filter((file) => file.module === "audit")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const reveal = (sql: string): string =>
+      sql.slice(
+        sql.indexOf('"reveal_audit_entry"(entry text)'),
+        sql.indexOf("$$;", sql.indexOf('"reveal_audit_entry"(entry text)')),
+      );
+
+    const set = reveal(
+      withPermissions({
+        options: { restricted: true },
+        permissions: {
+          readAll: "platform.audit.read",
+          reveal: "audit.reveal",
+          revealPlatform: "platform.audit.reveal",
+        },
+      }),
+    );
+
+    expect(set).toContain("'platform.audit.reveal'");
+    expect(set).not.toContain("'platform.audit.read'");
+
+    const fallback = reveal(
+      withPermissions({
+        options: { restricted: true },
+        permissions: { readAll: "platform.audit.read", reveal: "audit.reveal" },
+      }),
+    );
+
+    expect(fallback).not.toContain("'platform.audit.read'");
+    expect(fallback).not.toContain("is_platform");
+  });
+
   it("reads the request and correlation ids from settings, then headers", () => {
     const sql = audit();
     expect(sql).toContain(

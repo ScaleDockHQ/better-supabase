@@ -37,7 +37,7 @@ Installing `saas` installs these blocks. Each stays an ordinary block in the con
 
 ## Helpers
 
-`inviteWithinSeats`: Invite a member only while the plan has a seat left. It counts the members, asks `entitlements` for the seats left and sends the invitation. With no seat left it returns an `invalid_request` error and sends nothing.
+`inviteWithinSeats`: Invite a member only while the plan has a seat left. It runs as one database call (`organizations.inviteWithinSeats`, the `invite_within_seats` function): the members are counted against the `seats` entitlement and the invitation is written in one transaction. With no seat left it returns an `invalid_request` error and sends nothing. The parts' TypeScript hooks do not fire inside it; the composite's own hook does (ADR 1235).
 
 ```ts
 await blocks.saas.inviteWithinSeats({

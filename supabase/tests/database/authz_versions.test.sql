@@ -158,8 +158,8 @@ select is(
       '{"user_id":"00000000-0000-4000-8000-0000000000a1","claims":{"sub":"00000000-0000-4000-8000-0000000000a1","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}}'
     ) -> 'claims' -> 'permissions' -> '00000000-0000-4000-8000-000000000001'
   ),
-  'array',
-  'the hook writes the keys for the active organization'
+  'object',
+  'the hook writes the key bitset ({ h, b }) for the active organization'
 );
 
 select is(

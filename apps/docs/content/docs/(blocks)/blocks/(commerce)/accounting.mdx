@@ -264,7 +264,7 @@ before a date without closing periods, and `null` clears it.
 
 `closeBlockers(periodId)` lists what keeps a period from closing (for now,
 `draft_entries`). `closePeriod(periodId)` closes a period without blockers,
-and `reopenPeriod(periodId, reason)` opens it again with a reason the event
+`closePeriodIfClear(periodId)` checks the blockers and closes in one database call, returning `{ closed: false, blockers }` for a blocked period, and `reopenPeriod(periodId, reason)` opens it again with a reason the event
 carries. `closeFiscalYear(organizationId, 2026)` posts one closing entry in
 the general journal that moves the year's income and expenses to the
 `retained_earnings` account, then closes every period of the year.

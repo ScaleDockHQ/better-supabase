@@ -4,9 +4,9 @@ import type { AuthResolution, VerifiedUser } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
 import type { SessionMemo } from "../auth/snapshot.ts";
 import type { AuthzVersionCache } from "../core/authorizer.ts";
-import type { BetterSupabase } from "../core/define.ts";
+import type { EventHub } from "../core/events.ts";
+import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv, EnvSource } from "../env/index.ts";
-import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { LiteBackend } from "./lite.ts";
 import type { ResolveRequestOptions, ServerOptions } from "./server-types.ts";
 
@@ -53,6 +53,17 @@ function isLoadedEnv(
  * the proxy keep one JWKS cache and one session memo (ADR 0116 and 0595), and
  * the proxy bundle carries no repository, query builder or account code.
  */
+/**
+ * What the session side reads from a definition: its event hub (the logger) and
+ * the schemas of its claims and user metadata. A `BetterSupabase` is one, and
+ * `createProxy(options)` builds one without a definition.
+ */
+export interface SessionsHost<C, P> {
+  readonly events: EventHub;
+  readonly claimsSchema?: StandardSchemaV1<unknown, C> | undefined;
+  readonly userMetadataSchema?: StandardSchemaV1<unknown, P> | undefined;
+}
+
 /** What `sessionsRuntime` returns. */
 export interface SessionsRuntime<C, P> {
   readonly env: () => BetterSupabaseEnv;
@@ -67,17 +78,8 @@ export interface SessionsRuntime<C, P> {
   ) => Promise<AuthResolution<C, P>>;
 }
 
-export function sessionsRuntime<
-  M extends AnyModels,
-  D,
-  F extends AnyFunctions,
-  E,
-  C,
-  P,
-  B,
-  V extends AuthzVersionCache,
->(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
+export function sessionsRuntime<C, P, V extends AuthzVersionCache>(
+  betterSupabase: SessionsHost<C, P>,
   options: ServerOptions<V>,
 ): SessionsRuntime<C, P> {
   let loaded: BetterSupabaseEnv | undefined;

@@ -2,6 +2,7 @@ import { posix } from "node:path";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
+import { permissionCatalog } from "../../claims/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   DEFAULT_ROLES,
@@ -196,11 +197,14 @@ function permissionScopesPath(config: Pick<ResolvedConfig, "output">): string {
 }
 
 /**
- * `permission-scopes.ts`: `apiKeyScopes` (every tenant key) and `oauthScopes`
- * (the same without the `manage` keys, which no OAuth client holds), for the
+ * `permission-scopes.ts`: `permissionKeys` (the whole catalog, which the bitset
+ * claim is read over), `apiKeyScopes` (every tenant key) and `oauthScopes` (the
+ * same without the `manage` keys, which no OAuth client holds), for the
  * `scopes` of `api-keys` and the scopes an `oauth-server` client may request.
  */
 export function emitPermissionScopes(config: CatalogConfig): GeneratedFile {
+  const all = permissionCatalogKeys(config).map((entry) => entry.key);
+
   const tenant = permissionCatalogKeys(config)
     .filter((entry) => entry.scope === "tenant")
     .map((entry) => entry.key);
@@ -214,6 +218,10 @@ export function emitPermissionScopes(config: CatalogConfig): GeneratedFile {
     path: permissionScopesPath(config),
     contents: [
       GENERATED_HEADER,
+      "/* oxlint-disable eslint/max-lines -- one key per line; a large catalog exceeds 1,000 lines. */",
+      "",
+      "/** Every key of the permission catalog, tenant and platform, as the migration writes them. */",
+      `export const permissionKeys = ${list(all)} as const;`,
       "",
       "/** The keys an API key may hold, from the permission catalog. */",
       `export const apiKeyScopes = ${list(tenant)} as const;`,
@@ -224,6 +232,37 @@ export function emitPermissionScopes(config: CatalogConfig): GeneratedFile {
       "export type ApiKeyScope = (typeof apiKeyScopes)[number];",
       "",
       "export type OauthScope = (typeof oauthScopes)[number];",
+      "",
+    ].join("\n"),
+  };
+}
+
+/**
+ * `proxy-permissions.generated.ts`: the catalog `permissionsOf` reads the
+ * `permissions` bitset over, with its hash computed here, so `proxy.ts` needs
+ * neither the app definition nor `permissionCatalog()` to read a token. A key
+ * the migrations hold that no block declares changes the hook's hash: build the
+ * catalog with `permissionCatalog()` and those keys then.
+ */
+export function emitProxyPermissions(config: CatalogConfig): GeneratedFile {
+  const catalog = permissionCatalog(
+    permissionCatalogKeys(config).map((entry) => entry.key),
+  );
+
+  return {
+    path: posix.join(
+      posix.dirname(config.output),
+      "proxy-permissions.generated.ts",
+    ),
+    contents: [
+      GENERATED_HEADER,
+      "/* oxlint-disable eslint/max-lines -- one key per line; a large catalog exceeds 1,000 lines. */",
+      "",
+      "/** The permission catalog in bit order, for `permissionsOf(session, tenant, { catalog })`. */",
+      "export const proxyPermissions = {",
+      `  hash: ${q(catalog.hash)},`,
+      `  keys: [\n${catalog.keys.map((key) => `    ${q(key)},`).join("\n")}\n  ],`,
+      "} as const;",
       "",
     ].join("\n"),
   };

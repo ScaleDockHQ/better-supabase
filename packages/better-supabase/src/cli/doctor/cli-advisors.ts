@@ -4,6 +4,9 @@ import type { AdvisorSource, Lint } from "./advisors.ts";
 /** The first Supabase CLI release with `supabase db advisors`. */
 const ADVISORS_CLI_VERSION = "2.81.3";
 
+/** The release that deprecated `--db-url` for `--remote=<url>`. */
+const REMOTE_FLAG_CLI_VERSION = "3.0.0";
+
 export type RunSupabase = (args: readonly string[]) => Promise<ExecResult>;
 
 const parts = (version: string): number[] =>
@@ -129,8 +132,9 @@ export async function cliAdvisors(
       const output = await options.run([
         "db",
         "advisors",
-        "--db-url",
-        options.dbUrl,
+        ...(versionAtLeast(version, REMOTE_FLAG_CLI_VERSION)
+          ? [`--remote=${options.dbUrl}`]
+          : ["--db-url", options.dbUrl]),
         "--type",
         category,
         "--level",

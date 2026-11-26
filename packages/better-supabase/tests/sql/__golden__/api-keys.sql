@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:5f088f87bd9b7f72fe46f1c5d63319295e623fd5ac93e3c65a84c3c92615e561
+-- @bsb-hash sha256:1a2c02e52b152108a584dfc369b6c9f696b101118e982e343a0fb57effd99796
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -817,6 +817,10 @@ begin
   if old."id" is null or not ((old."tenant_id" is not null and coalesce(better_supabase.can('tenant', old."tenant_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
+  -- The new secret acts as the key's user, so only that user rotates a personal key.
+  if old."user_id" is not null and old."user_id" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only its own user can rotate a personal key; revoke it instead' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
+  end if;
   if (auth.jwt() -> 'api_key' is not null
       or coalesce(auth.jwt() ->> 'client_id', '') <> ''
       or auth.jwt() -> 'act' is not null) and exists (
@@ -1013,7 +1017,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:4fc6923497494311cede3cf55c5e5ec317366241c0fc651a45e0648dbbb89daf
+-- @bsb-hash sha256:fd37b4eddff2266d342e2b303e2e7c2e68b06e880b5a71641b1eaba5611310a4
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1850,6 +1854,10 @@ begin
   if old."id" is null or not ((old."tenant_id" is not null and coalesce(better_supabase.can('tenant', old."tenant_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
+  -- The new secret acts as the key's user, so only that user rotates a personal key.
+  if old."user_id" is not null and old."user_id" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only its own user can rotate a personal key; revoke it instead' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
+  end if;
   if (auth.jwt() -> 'api_key' is not null
       or coalesce(auth.jwt() ->> 'client_id', '') <> ''
       or auth.jwt() -> 'act' is not null) and exists (
@@ -2058,7 +2066,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:a12c75bf59833bb9041574e213ff653810072c02cb6fd3599c698795493bccca
+-- @bsb-hash sha256:489a9cb129ad6cf6b79137edbcf20ef6a5776300f993fe55ae3ee0f9470f9a46
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2879,6 +2887,10 @@ begin
   if old."id" is null or not ((old."tenant_id" is not null and coalesce(better_supabase.can('tenant', old."tenant_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
+  -- The new secret acts as the key's user, so only that user rotates a personal key.
+  if old."user_id" is not null and old."user_id" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only its own user can rotate a personal key; revoke it instead' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
+  end if;
   if (auth.jwt() -> 'api_key' is not null
       or coalesce(auth.jwt() ->> 'client_id', '') <> ''
       or auth.jwt() -> 'act' is not null) and exists (
@@ -3075,7 +3087,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:fd33048ee3fd2ae45954d0977333bf18df8adec0fe6c9e65578ed7aaf59ab8b1
+-- @bsb-hash sha256:180f5130981cd90b292277b5e6c02c3923463986b544d8f37d3ea7c6dadf6412
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3891,6 +3903,10 @@ begin
   if old."id" is null or not ((old."tenant_id" is not null and coalesce(better_supabase.can('tenant', old."tenant_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
+  -- The new secret acts as the key's user, so only that user rotates a personal key.
+  if old."user_id" is not null and old."user_id" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only its own user can rotate a personal key; revoke it instead' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
+  end if;
   if (auth.jwt() -> 'api_key' is not null
       or coalesce(auth.jwt() ->> 'client_id', '') <> ''
       or auth.jwt() -> 'act' is not null) and exists (
@@ -4167,7 +4183,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:683558584bed8e2e6de81175925026caef9ab9ad51b560e6186055515c497c32
+-- @bsb-hash sha256:5bdb84e8f1c9301daa54729a47899a5c2d3c77695a91a0b99c371c14e0fe14a1
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4977,6 +4993,10 @@ begin
   if old."id" is null or not ((old."tenant_id" is not null and coalesce(better_supabase.can('tenant', old."tenant_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
+  -- The new secret acts as the key's user, so only that user rotates a personal key.
+  if old."user_id" is not null and old."user_id" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only its own user can rotate a personal key; revoke it instead' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
+  end if;
   if (auth.jwt() -> 'api_key' is not null
       or coalesce(auth.jwt() ->> 'client_id', '') <> ''
       or auth.jwt() -> 'act' is not null) and exists (
@@ -5173,7 +5193,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:eeef42d27975f446deee7a35fe2fb1bd930e4dfb26b4ba4e9bbda2f98cc6d076
+-- @bsb-hash sha256:f3c28f42f4cb97c6a98bc8668eddfe5ec113604b8c010d64863b61e899e781fb
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5988,6 +6008,10 @@ begin
   select * into old from "better_supabase"."api_keys" k where k."id" = rotate_api_key.key for update;
   if old."id" is null or not ((old."org_id" is not null and coalesce(better_supabase.can('tenant', old."org_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
+  end if;
+  -- The new secret acts as the key's user, so only that user rotates a personal key.
+  if old."user_id" is not null and old."user_id" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'Only its own user can rotate a personal key; revoke it instead' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
   end if;
   if (auth.jwt() -> 'api_key' is not null
       or coalesce(auth.jwt() ->> 'client_id', '') <> ''

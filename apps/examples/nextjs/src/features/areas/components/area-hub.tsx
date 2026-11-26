@@ -80,8 +80,8 @@ export async function AreaFlow({ id }: { id: string }) {
           {area.actions.length === 0 ? null : (
             <div className="flex flex-wrap items-center gap-1">
               {area.actions.map((action) => (
-                <Badge key={action} variant="outline">
-                  {action}
+                <Badge key={action.name} variant="outline">
+                  {action.label}
                 </Badge>
               ))}
             </div>

@@ -7,6 +7,8 @@ import {
   stringFromBase64URL,
 } from "@supabase/ssr";
 
+import { ambientStats } from "../core/stats.ts";
+
 export type { CookieOptions };
 
 /**
@@ -84,6 +86,39 @@ const sessions = new WeakMap<
   Map<string, Promise<StoredSession | null>>
 >();
 
+/**
+ * Parsed sessions by their raw cookie chunks. Every private cache scope builds
+ * its own `Request`, so the per-list memo above misses and a page decoded the
+ * same cookie dozens of times. The key is the whole raw value, so a changed
+ * cookie never hits. The map holds the most recent few: a request reads one or
+ * two sessions.
+ */
+const parsed = new Map<string, Promise<StoredSession | null>>();
+const PARSED_MAX = 32;
+
+function rawKey(cookies: readonly CookieRecord[], name: string): string {
+  let key = "";
+
+  for (const cookie of cookies) {
+    if (cookie.name === name || cookie.name.startsWith(`${name}.`)) {
+      key += `${cookie.name}=${cookie.value};`;
+    }
+  }
+
+  return key;
+}
+
+/** Counts a parse on the current request's stats, when debug records them. */
+function countDecode(): void {
+  ambientStats()?.()
+    .then((recorder) => {
+      recorder?.decode();
+    })
+    .catch(() => {
+      // Outside a request there is no recorder to count on.
+    });
+}
+
 async function readStored(
   cookies: readonly CookieRecord[],
   name: string,
@@ -138,7 +173,25 @@ export function ssrSession(
     return known;
   }
 
-  const read = readStored(cookies, cookieName);
+  const key = rawKey(cookies, cookieName);
+  let read = key === "" ? undefined : parsed.get(key);
+
+  if (read === undefined) {
+    read = readStored(cookies, cookieName);
+    countDecode();
+
+    if (key !== "") {
+      parsed.set(key, read);
+
+      if (parsed.size > PARSED_MAX) {
+        const [oldest] = parsed.keys();
+
+        if (oldest !== undefined) {
+          parsed.delete(oldest);
+        }
+      }
+    }
+  }
 
   if (!memo) {
     memo = new Map();

@@ -691,7 +691,7 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 9,
+  version: 10,
   upgrades: [
     {
       from: 1,
@@ -743,6 +743,12 @@ alter table workflow.workflow_runs alter column "wake_pending" set default false
       from: 8,
       description:
         "Follows @workflow/world-postgres 5.4.1, whose terminal write of a zero-retention run adds a purge backstop through Graphile Worker's add_job: workflow.add_job records it in workflow.workflow_purge_backstops, workflow_purge_backstops deletes the data of due runs whose purge did not complete (the World runs it while it polls; the pg_net and vercel-queue modes schedule it every minute under pg_cron), and workflow_purge_runs deletes a purged run's backstop.",
+      sql: () => "",
+    },
+    {
+      from: 9,
+      description:
+        "Follows @workflow/world-postgres 5.5: workflow.workflow_rate_limits is new (migration 0033), closed to the API roles like the other World tables. The World does not reserve rate limit slots (it mints spec 8 runs), so the table stays empty until it does.",
       sql: () => "",
     },
   ],

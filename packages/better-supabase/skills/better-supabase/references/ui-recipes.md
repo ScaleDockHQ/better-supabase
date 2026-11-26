@@ -399,6 +399,7 @@ import {
   FileTextIcon,
   HandshakeIcon,
   LanguagesIcon,
+  LayoutGridIcon,
   MonitorIcon,
   MoonIcon,
   PlusIcon,
@@ -407,10 +408,12 @@ import {
   StarIcon,
   SunIcon,
   UserPlusIcon,
+  ZapIcon,
 } from "lucide-react";
 import { hasLocale, useExtracted, useLocale } from "next-intl";
 import { useState } from "react";
 
+import type { AreaCommand } from "@/features/areas/area-commands";
 import type { CommandSearchItem } from "@/hooks/use-search";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
@@ -449,6 +452,15 @@ const API_SCHEMA = searchConfig.api;
 
 /** Pages listed before the user types; typing searches all of them. */
 const PAGES_WHEN_EMPTY = 6;
+
+/** Area entries listed for a query; the hub page lists the rest. */
+const AREA_ENTRIES_SHOWN = 8;
+
+const AREA_ICONS = {
+  area: LayoutGridIcon,
+  step: CompassIcon,
+  action: ZapIcon,
+} as const satisfies Record<AreaCommand["kind"], LucideIcon>;
 
 const LOCALE_NAMES = { en: "English", nl: "Nederlands" } as const;
 
@@ -491,9 +503,11 @@ interface CommandAction {
  */
 export function CommandCenter({
   pages,
+  areas,
   canCreate,
 }: {
   pages: readonly CommandPage[];
+  areas: readonly AreaCommand[];
   canCreate: CommandCreate;
 }) {
   const t = useExtracted("search");
@@ -644,6 +658,14 @@ export function CommandCenter({
     query === ""
       ? pages.slice(0, PAGES_WHEN_EMPTY)
       : pages.filter((page) => matches(query, page.label, page.href));
+
+  // Areas answer a query only, so the empty palette stays short.
+  const shownAreas =
+    query === ""
+      ? []
+      : areas
+          .filter((entry) => matches(query, entry.area, entry.label))
+          .slice(0, AREA_ENTRIES_SHOWN);
 
   const waiting = search.loading && search.results.length === 0;
   const noMatches = query !== "" && !search.loading;
@@ -822,6 +844,38 @@ export function CommandCenter({
               </>
             )}
 
+            {shownAreas.length === 0 ? null : (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading={t("Areas")}>
+                  {shownAreas.map((entry) => {
+                    const Icon = AREA_ICONS[entry.kind];
+
+                    return (
+                      <CommandItem
+                        key={entry.id}
+                        value={`area:${entry.id}`}
+                        onPointerEnter={() => {
+                          router.prefetch(toAppHref(entry.href));
+                        }}
+                        onSelect={() => {
+                          go(entry.href);
+                        }}
+                      >
+                        <Icon />
+                        <span className="truncate">
+                          {entry.kind === "area"
+                            ? entry.area
+                            : `${entry.area}: ${entry.label}`}
+                        </span>
+                        <ArrowRightIcon className="ml-auto opacity-50" />
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </>
+            )}
+
             {query === "" ? null : (
               <>
                 <CommandSeparator />
@@ -842,7 +896,8 @@ export function CommandCenter({
             {noMatches &&
             search.results.length === 0 &&
             shownActions.length === 0 &&
-            shownPages.length === 0 ? (
+            shownPages.length === 0 &&
+            shownAreas.length === 0 ? (
               <p className="px-3 py-4 text-center text-sm text-muted-foreground">
                 {t("No records match. Ask the assistant or see all results.")}
               </p>
@@ -1357,8 +1412,13 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
     setPending(true);
 
-    if ((await add({ body: text })).ok) {
-      setBody("");
+    try {
+      if ((await add({ body: text })).ok) {
+        setBody("");
+      }
+    } catch (error) {
+      setPending(false);
+      throw error;
     }
 
     setPending(false);
@@ -6227,21 +6287,26 @@ export function MessageComposer({
 
     setSending(true);
 
-    const result = await onSend({
-      body: text,
-      draft: {
-        attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
-      },
-    });
+    try {
+      const result = await onSend({
+        body: text,
+        draft: {
+          attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+        },
+      });
+
+      if (result.ok) {
+        setBody("");
+        setFiles([]);
+      } else {
+        toast.error(errorMessage(result.error));
+      }
+    } catch (error) {
+      setSending(false);
+      throw error;
+    }
 
     setSending(false);
-
-    if (result.ok) {
-      setBody("");
-      setFiles([]);
-    } else {
-      toast.error(errorMessage(result.error));
-    }
   };
 
   return (
@@ -6284,6 +6349,10 @@ export function MessageComposer({
           }
         }}
         onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) {
+            return;
+          }
+
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             void submit();
@@ -9692,7 +9761,9 @@ export function RuleBuilder({
     <EditorContext value={editor}>
       <Card data-recipe="rule-builder">
         <CardHeader>
-          <CardTitle>{t("When a lead is saved")}</CardTitle>
+          <CardTitle>
+            <h1>{t("When a lead is saved")}</h1>
+          </CardTitle>
           <CardDescription>
             {t(
               "The rule matches when its conditions hold for the saved customer.",
@@ -13097,7 +13168,9 @@ export async function ContactDetail({
       <div className="flex flex-col gap-6 lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>{contact.name}</CardTitle>
+            <CardTitle>
+              <h1>{contact.name}</h1>
+            </CardTitle>
             <CardDescription className="flex items-center gap-2">
               <Badge variant="outline">
                 {contact.kind === "company" ? t("Company") : t("Person")}
@@ -21770,7 +21843,7 @@ export async function CourseOutline({ courseId }: { courseId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">{course.title}</h2>
+            <h1 className="text-lg font-semibold">{course.title}</h1>
             <Badge variant={statusVariants[course.status]}>
               {statusLabels[course.status]}
             </Badge>
@@ -22047,7 +22120,9 @@ export async function LessonPlayer({
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>{lesson.title}</CardTitle>
+            <CardTitle>
+              <h1>{lesson.title}</h1>
+            </CardTitle>
             <Badge variant="outline">{kindLabels[lesson.kind]}</Badge>
             {lesson.done ? (
               <Badge variant="success-light">{t("Done")}</Badge>
@@ -23213,13 +23288,24 @@ function DocumentSession({
     }
 
     setSubmitting(true);
-    const stored = await session.current.provider.submitSuggestion();
-    setSubmitting(false);
 
-    if (stored.ok) {
-      setHasDraft(false);
-      await loadSuggestions();
+    try {
+      const stored = await session.current.provider.submitSuggestion();
+
+      if (stored.ok) {
+        setHasDraft(false);
+      } else {
+        setSubmitting(false);
+
+        return;
+      }
+    } catch (error) {
+      setSubmitting(false);
+      throw error;
     }
+
+    setSubmitting(false);
+    await loadSuggestions();
   };
 
   if (failed) {
@@ -24175,48 +24261,65 @@ export async function SigningKeysRotation() {
                 </form>
               </AlertAction>
             </Alert>
-          ) : rows.length === 0 ? (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <KeyRoundIcon />
-                </EmptyMedia>
-                <EmptyTitle>{t("No signing key yet")}</EmptyTitle>
-                <EmptyDescription>
-                  {t("Create one before the organization signs any tokens.")}
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <RotateSigningKeyButton first />
-              </EmptyContent>
-            </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("Key ID")}</TableHead>
-                  <TableHead>{t("Algorithm")}</TableHead>
-                  <TableHead>{t("Status")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((key) => (
-                  <TableRow key={key.kid}>
-                    <TableCell className="font-mono text-xs">
-                      {key.kid}
-                    </TableCell>
-                    <TableCell className="text-sm">{key.algorithm}</TableCell>
-                    <TableCell>
-                      {key.active ? (
-                        <Badge variant="success-light">{t("Active")}</Badge>
-                      ) : (
-                        <Badge variant="secondary">{t("Previous")}</Badge>
+            <div className="flex flex-col gap-3">
+              {rows.length === 0 ? (
+                <Empty className="border">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <KeyRoundIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>{t("No signing key yet")}</EmptyTitle>
+                    <EmptyDescription>
+                      {t(
+                        "Create one before the organization signs any tokens.",
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <RotateSigningKeyButton first />
+                  </EmptyContent>
+                </Empty>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("Key ID")}</TableHead>
+                      <TableHead>{t("Algorithm")}</TableHead>
+                      <TableHead>{t("Status")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((key) => (
+                      <TableRow key={key.kid}>
+                        <TableCell className="font-mono text-xs">
+                          {key.kid}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {key.algorithm}
+                        </TableCell>
+                        <TableCell>
+                          {key.active ? (
+                            <Badge variant="success-light">{t("Active")}</Badge>
+                          ) : (
+                            <Badge variant="secondary">{t("Previous")}</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {t("Receivers read the public keys at")}{" "}
+                <a
+                  href={state.overview.jwksPath}
+                  className="font-mono underline underline-offset-4 transition-colors hover:text-foreground"
+                >
+                  {state.overview.jwksPath}
+                </a>
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -26623,6 +26726,16 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
   const save = useAction(saveTaskView);
   const error = save.error === undefined ? null : errorMessage(save.error);
 
+  const saveView = async () => {
+    const result = await save.run({ name, ...query });
+
+    if (result.ok) {
+      toast.success(t("View saved"));
+      setName("");
+      setOpen(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" variant="outline" />}>
@@ -26634,15 +26747,7 @@ function SaveTaskViewDialog({ query }: { query: TaskQuery }) {
           className="grid gap-6"
           onSubmit={(event) => {
             event.preventDefault();
-            void save.run({ name, ...query }).then((result) => {
-              if (result.ok) {
-                toast.success(t("View saved"));
-                setName("");
-                setOpen(false);
-              }
-
-              return result;
-            });
+            void saveView();
           }}
         >
           <DialogHeader>
@@ -29221,10 +29326,12 @@ export function CaseDetail({
     <Frame spacing="sm" data-recipe="case-detail">
       <FrameHeader className="gap-0.5">
         <FrameTitle>
-          {t("{number}: {title}", {
-            number: detail.number,
-            title: detail.title,
-          })}
+          <h1>
+            {t("{number}: {title}", {
+              number: detail.number,
+              title: detail.title,
+            })}
+          </h1>
         </FrameTitle>
         <FrameDescription>
           {detail.stage === null
@@ -29873,7 +29980,7 @@ function StartsCell({ row }: MeetingCell) {
 function TitleCell({ row }: MeetingCell) {
   return (
     <Link
-      href={`/meetings?meeting=${row.original.id}`}
+      href={`/meetings/${row.original.id}`}
       className="font-medium underline-offset-4 transition-colors hover:underline"
     >
       {row.original.title}
@@ -30114,7 +30221,9 @@ export function MeetingMinutes({
   return (
     <Frame spacing="sm" data-recipe="meeting-minutes">
       <FrameHeader className="gap-0.5">
-        <FrameTitle>{meeting.title}</FrameTitle>
+        <FrameTitle>
+          <h1>{meeting.title}</h1>
+        </FrameTitle>
         <FrameDescription>
           {t(
             "{count, plural, =0 {No attendees yet} one {# attendee} other {# attendees}}",

@@ -68,10 +68,12 @@ export function CaseDetail({
     <Frame spacing="sm" data-recipe="case-detail">
       <FrameHeader className="gap-0.5">
         <FrameTitle>
-          {t("{number}: {title}", {
-            number: detail.number,
-            title: detail.title,
-          })}
+          <h1>
+            {t("{number}: {title}", {
+              number: detail.number,
+              title: detail.title,
+            })}
+          </h1>
         </FrameTitle>
         <FrameDescription>
           {detail.stage === null

@@ -113,7 +113,14 @@ export function verifyQuery(schemas: readonly string[] = ["public"]): string {
             'grantee', case when a.grantee = 0 then 'public' else (select rolname from pg_roles where oid = a.grantee) end,
             'privilege', a.privilege_type
           )), '[]'::json)
-          from aclexplode(c.relacl) a) as grants
+          from (
+            select x.grantee, x.privilege_type from aclexplode(c.relacl) x
+            union
+            -- A grant on some columns lets the role run the command too.
+            select x.grantee, x.privilege_type
+            from pg_attribute att, aclexplode(att.attacl) x
+            where att.attrelid = c.oid and att.attnum > 0 and not att.attisdropped
+          ) a) as grants
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
       where n.nspname in (${list}) and c.relkind in ('r', 'p')

@@ -1,7 +1,6 @@
 "use server";
 
 import { ok } from "better-supabase";
-import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
@@ -9,6 +8,7 @@ import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { refreshCaller } from "@/lib/refresh-caller";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import { toMembers, toOrganizationSummaries } from "./organization-queries";
@@ -82,7 +82,7 @@ export const updateOrganization = bsb.action(
     requireTenant: true,
     permission: "organization.update",
   },
-  async ({ name, slug }, { tenant: organizationId, db }) => {
+  async ({ name, slug }, { tenant: organizationId, db, auth }) => {
     const updated = await db.$blocks.organizations.update({
       organizationId,
       attributes: { name, slug },
@@ -102,7 +102,7 @@ export const updateOrganization = bsb.action(
         targetLabel: name,
       }),
     );
-    refresh();
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -115,13 +115,13 @@ export const updateOrganization = bsb.action(
  */
 export const invitationSent = bsb.action(
   { requireTenant: true, permission: "members.invite" },
-  async (_input, { tenant: organizationId, db }) => {
+  async (_input, { tenant: organizationId, db, auth }) => {
     await db.onboarding.complete({
       checklist: gettingStarted,
       step: "invite",
       organizationId,
     });
-    refresh();
+    await refreshCaller(auth);
 
     return ok(true);
   },
@@ -145,7 +145,7 @@ export const revokeInvitation = bsb.action(
     requireTenant: true,
     permission: "members.invite",
   },
-  async ({ invitationId }, { tenant: organizationId, db }) => {
+  async ({ invitationId }, { tenant: organizationId, db, auth }) => {
     const revoked =
       await db.$blocks.organizations.revokeInvitation(invitationId);
 
@@ -162,7 +162,7 @@ export const revokeInvitation = bsb.action(
         record: invitationId,
       }),
     );
-    refresh();
+    await refreshCaller(auth);
 
     return ok(revoked.data);
   },
@@ -178,7 +178,7 @@ export const resendInvitation = bsb.action(
     requireTenant: true,
     permission: "members.invite",
   },
-  async ({ invitationId }, { tenant: organizationId, db }) => {
+  async ({ invitationId }, { tenant: organizationId, db, auth }) => {
     const sent = await db.$blocks.organizations.resendInvitation({
       invitationId,
     });
@@ -196,7 +196,7 @@ export const resendInvitation = bsb.action(
         record: invitationId,
       }),
     );
-    refresh();
+    await refreshCaller(auth);
 
     return ok(true);
   },
