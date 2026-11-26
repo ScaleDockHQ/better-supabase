@@ -105,6 +105,7 @@ import { remoteKeyOf } from "./remote-key.ts";
 import { requestRecording } from "./request-recording.ts";
 import { adminForRequest, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
+import { scopeMembers } from "./scope.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
 import { authFlows } from "./sign-in.ts";
@@ -643,6 +644,8 @@ export function createNext<
     waitUntil,
   });
 
+  const scoped = scopeMembers(() => next, current, options, base.authorizer);
+
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
   >(withAccounts, {
@@ -840,7 +843,7 @@ export function createNext<
 
     locale: () => rootParam(options.rootParams?.locale),
     brand: () => rootParam(options.rootParams?.brand),
-    tenant: () => rootParam(options.rootParams?.tenant),
+    ...scoped,
     heldPermissions: options.heldPermissions,
 
     async liveCount(spec, db) {

@@ -94,6 +94,23 @@ export interface NextOptions extends ServerOptions {
    */
   readonly rootParams?: NextRootParams;
   /**
+   * How `bsb.tenant(ref)` and `bsb.activeTenant()` find the tenant record: `by`
+   * is the kind a plain string ref is read as (default `id`), and `resolve` has
+   * one function per kind. A resolver returns the record (it needs an `id`) or
+   * `null` for an unknown tenant, which ends the render with `notFound()`.
+   *
+   * ```ts
+   * createNext(betterSupabase, {
+   *   rootParams,
+   *   tenants: {
+   *     by: "slug",
+   *     resolve: { slug: (slug) => getOrganizationBySlug(slug) },
+   *   },
+   * });
+   * ```
+   */
+  readonly tenants?: NextTenants;
+  /**
    * The caller's keys in the active tenant from a source that costs no database
    * call, such as the token's `permissions` claim or the shell's bootstrap
    * entry. `bsb.record(...).get()` and `recordListServer` use it for their
@@ -659,8 +676,50 @@ export interface BetterNext<
   locale(): Promise<string | undefined>;
   /** `rootParams.brand()`, or `undefined` without one or outside a render. */
   brand(): Promise<string | undefined>;
-  /** `rootParams.tenant()`, or `undefined` without one or outside a render. */
+  /**
+   * Without arguments: `rootParams.tenant()`, or `undefined` without one or
+   * outside a render.
+   *
+   * With a ref: the scope for a cached read, for a signed-in member of that
+   * tenant. The ref is resolved through `NextOptions.tenants`, the caller's
+   * membership and `permission` are checked, and a refusal ends the render with
+   * `unauthorized()`, `notFound()` or `forbidden()` (ADR 1252), so the read has
+   * no `null` ladder. `options` are those of `bsb.cached()`.
+   *
+   * ```ts
+   * export const getAgendaItem = cache(async (org: string, id: string) => {
+   *   "use cache: private";
+   *   const { db } = await bsb.tenant(org, permissions.agenda.read, {
+   *     tables: ["agenda_items"],
+   *   });
+   *   return await db.agendaItems.get(id).orNull();
+   * });
+   * ```
+   */
   tenant(): Promise<string | undefined>;
+  tenant(
+    ref: TenantRef,
+    permission?: Ref,
+    options?: ScopeCallOptions<Extract<keyof M, string>>,
+  ): Promise<TenantScope<M, F, E, C, P, B, D, Ref>>;
+  /**
+   * `bsb.tenant(ref, ...)` for the tenant `rootParams.tenant` names. Pass the
+   * tenant as an argument of your cached function when the root param is not
+   * readable there (a Server Action, a cache key).
+   */
+  activeTenant(
+    permission?: Ref,
+    options?: ScopeCallOptions<Extract<keyof M, string>>,
+  ): Promise<TenantScope<M, F, E, C, P, B, D, Ref>>;
+  /**
+   * The cached context for a signed-in caller without a tenant: `db`,
+   * `session`, `user` and `can`. A caller without a session ends the render
+   * with `unauthorized()`, one without `permission` with `forbidden()`.
+   */
+  auth(
+    permission?: Ref,
+    options?: ScopeCallOptions<Extract<keyof M, string>>,
+  ): Promise<AuthScope<M, F, E, C, P, B, D, Ref>>;
   /**
    * `NextOptions.heldPermissions`, which record servers read before they ask
    * the database for the caller's keys.
@@ -1416,6 +1475,69 @@ export type BootstrapOptions<
   };
 
 export type { Access, Bootstrap } from "../server/bootstrap.ts";
+
+/** A tenant record: what a resolver returns, and what `scope.tenant` is. */
+export interface TenantRecord {
+  readonly id: string;
+}
+
+export interface NextTenants {
+  /** The kind a string `TenantRef` is read as. Defaults to `"id"`. */
+  readonly by?: string;
+  /** One resolver per kind; `id` needs none and reads the id as given. */
+  readonly resolve: Readonly<
+    Record<
+      string,
+      (value: string) => Promise<TenantRecord | null> | TenantRecord | null
+    >
+  >;
+}
+
+/**
+ * Names a tenant: a string read as `NextTenants.by`, `{ id }`, or `{ <kind>:
+ * string }` for a resolver kind.
+ */
+export type TenantRef = string | { readonly [kind: string]: string };
+
+/** `PrivateCachedOptions` minus what the helpers fill in. */
+export type ScopeCallOptions<T extends string = string> = Omit<
+  PrivateCachedOptions<T>,
+  "scope" | "tenant"
+>;
+
+/** What `bsb.auth()` returns: the cached context plus the caller. */
+export type AuthScope<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+  D,
+  Ref,
+> = CachedContext<M, F, E, C, P, B, D> & {
+  /** The signed-in user. */
+  readonly user: Extract<AuthSession<C, P>, { kind: "user" }>["user"];
+  /** Whether the caller holds `permission` in the scope's tenant. */
+  can(permission: Ref): Promise<boolean>;
+};
+
+/** What `bsb.tenant(ref)` and `bsb.activeTenant()` return. */
+export type TenantScope<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+  D,
+  Ref,
+> = AuthScope<M, F, E, C, P, B, D, Ref> & {
+  /** The record the app's resolver returned. */
+  readonly tenant: TenantRecord;
+  /** Whether the permission check passed; `true` when none was asked for. */
+  readonly granted: true;
+};
 
 export interface NextRootParams {
   /** `locale` from `next/root-params`. */

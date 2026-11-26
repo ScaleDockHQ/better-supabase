@@ -614,6 +614,58 @@ With `rootParams: { locale, brand, tenant }` from `next/root-params` in
 and contexts fall back to the `tenant` root param when `tenant` resolves
 none. Outside the root layout's segment they return `undefined`.
 
+### Tenant scopes for cached reads
+
+`bsb.auth()`, `bsb.tenant(ref)` and `bsb.activeTenant()` are the first
+statement of a `"use cache: private"` function. Each returns the context of
+`bsb.cached()` with the caller, and ends the render when the caller is refused,
+so the function has no `null` ladder.
+
+```ts title="lib/queries.ts"
+export const getAgendaItem = cache(async (org: string, id: string) => {
+  "use cache: private";
+  const { db } = await bsb.tenant(org, permissions.agenda.read, {
+    tables: ["agenda_items"],
+  });
+
+  return await db.agendaItems.get(id).orNull();
+});
+```
+
+Tell `createNext()` how to find the tenant record:
+
+```ts title="lib/bsb.ts"
+export const bsb = createNext(betterSupabase, {
+  rootParams,
+  tenants: {
+    by: "slug",
+    resolve: { slug: (slug) => getOrganizationBySlug(slug) },
+  },
+});
+```
+
+A tenant ref is a string read as `by` (default `id`), `{ id }`, or `{ slug }`
+for any resolver kind. The resolver returns the record, which becomes
+`scope.tenant`, or `null` for an unknown tenant. The scope has `db`,
+`session`, `user`, `can(permission)`, and for a tenant `tenant` and `granted`.
+
+| Caller                         | Result           |
+| ------------------------------ | ---------------- |
+| No session                     | `unauthorized()` |
+| Unknown tenant or not a member | `notFound()`     |
+| Permission refused             | `forbidden()`    |
+
+`unauthorized()` and `forbidden()` need `experimental.authInterrupts`, which
+`createNextConfig` sets; without it both end in `notFound()`. Next.js ends the
+render with these inside `"use cache: private"`, on a render and on a prefetch
+(ADR 1252). Pass the tenant as an argument of the cached function: a Server
+Action cannot read a root param, and Next.js keys the cache on the arguments.
+`bsb.activeTenant(permission)` does the same for the tenant of
+`rootParams.tenant`.
+
+`.orNull()` on a read returns `null` for a `not_found` error and throws any
+other error. `.or(fallback)` returns the fallback in the same case.
+
 ### Permission snapshots
 
 Read the caller's permissions once, in the compact form, and pass that one
