@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.92.0 (2026-11-27)
+
+- The `projects` composite now installs comments, files, tags, the timeline, relations, saved views and record teams, and it ships a glue module for project updates and initiatives. `overview` reads one project for a page, `cards` reads the counts on a task list, and `dependencies` flags a blocking project whose target date is after the dependent's start.
+
+  Tasks treats a project as a subject, with archive, restore and remove, milestones, a triage accept, decline, duplicate and snooze, and optional per-project identifiers (`WEB-130` when `identifiers` is `"project"`). Iterations gain a cadence, a daily snapshot and a burnup. A notification can be snoozed, and a favorite can sit in a folder.
+
+  An existing `projects` install gains the new parts and the glue module on `upgrade`. Run `better-supabase upgrade` and generate a migration. The tasks module moves from version 9 to 10, notifications from 11 to 12, and collections from 2 to 3.
+
 ## 0.91.1 (2026-11-27)
 
 - With `createNext()` debug on, a query inside a `"use cache"` or `unstable_cache` scope no longer reads `headers()` to find the request's stats recorder, so a remote cache entry is no longer marked as request-bound and its set no longer fails on every navigation. Queries there are not counted on the request; remote entries still count through their handed-off request id.
