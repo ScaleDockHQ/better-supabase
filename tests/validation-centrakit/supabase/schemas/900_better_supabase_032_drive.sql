@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:c68d0bafcf7e63c1d00306c2ad9916e1f38f80d660b6cf95d7d9e0e7f6684569
+-- @bsb-hash sha256:e59f39788b7ad47d89fa5b8ddc396cd3b06fb75e008998fe5b0527a9645c428c
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1012,7 +1012,9 @@ grant select on "better_supabase"."file_node_search" to service_role;
 
 -- Hands every item one member holds at editor in an organization to
 -- another member: their editor grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
