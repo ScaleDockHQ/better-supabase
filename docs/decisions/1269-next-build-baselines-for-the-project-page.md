@@ -22,7 +22,12 @@ or slack changes.
 | Server chunks (raw) | 402    | +1415 to +10787 bytes per route |
 
 The server growth clusters around 4 KB, with 51 shop and workflow routes near
-10 KB. Gzip and brotli stayed inside their slack. Every other baseline stays
+10 KB. A later build of the same branch put 21 assistant, workflow and job
+routes 13 or 15 bytes past the 512 byte server slack, and those baselines move
+to that measurement. Gzip and brotli stayed inside their slack.
+
+The `./create` bundle grew to 2,959,688 B gzip, past the 5 percent room around
+2,817,738. That baseline moves to the measurement. Every other baseline stays
 as it is.
 
 ## Consequences

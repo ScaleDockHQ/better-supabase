@@ -230,7 +230,9 @@ describe.skipIf(!live)(
             "tasks",
           ],
           {
-            subjects: withBlockSubjects({}, ["tasks"], {}),
+            subjects: withBlockSubjects({}, ["tasks"], {
+              tasks: { tables: { projects: "work_projects" } },
+            }),
             modules: {
               tasks: {
                 tables: { projects: "work_projects" },

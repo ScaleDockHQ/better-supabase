@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:44f896f8dc862bff4f30e5765f5988ca519c7dfcac60eff2486ef63c8415ad17
+-- @bsb-hash sha256:c6f74f7d95dd1e5b6a984f71a3506dbada03125d8eecf87f3720606f51b07c70
 -- @bsb-names tasks task=work_item/work_items project=work_project/work_projects
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1665,6 +1665,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."milestones";
+  v_project "better_supabase"."work_projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1675,6 +1676,8 @@ begin
   if v_row."id" is null then
     return false;
   end if;
+  select * into v_project from "better_supabase"."work_projects" p
+  where p."id" = v_row."work_project_id";
   perform "better_supabase".emit_event('work_project_milestone.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'workProjectId', v_row."work_project_id", 'milestoneId', v_row."id", 'subjectType', 'project_milestone', 'subjectId', v_row."id"::text, 'key', v_project."key", 'name', v_row."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'milestones/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return true;
 end;

@@ -32,7 +32,9 @@ const layout = (
   maxAssignees = 0,
   options: Readonly<Record<string, unknown>> = {},
 ): BlockSqlLayout => ({
-  subjects: withBlockSubjects({}, ["tasks"], {}),
+  subjects: withBlockSubjects({}, ["tasks"], {
+    tasks: { tables: { projects: "work_projects" } },
+  }),
   modules: {
     tasks: {
       tables: { projects: "work_projects" },

@@ -30,6 +30,10 @@ const ROAD_RUNNER = "00000000-0000-4000-8000-00000000a001";
 const ANVIL = "00000000-0000-4000-8000-00000000a002";
 const INITECH = "00000000-0000-4000-8000-00000000a003";
 
+// The example seed adds more customers in these organizations. These
+// assertions cover the three customers seed.sql inserts.
+const FIXTURE_CUSTOMERS = [ROAD_RUNNER, ANVIL, INITECH];
+
 async function reachable(): Promise<boolean> {
   try {
     const response = await fetch(`${url}/rest/v1/`, {
@@ -151,7 +155,10 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const withoutMeetings = await admin.customers
       .list({
         select: ["id"],
-        where: { notes: { none: { kind: "meeting" } } },
+        where: {
+          id: { in: FIXTURE_CUSTOMERS },
+          notes: { none: { kind: "meeting" } },
+        },
         orderBy: { name: "asc" },
       })
       .orThrow();
@@ -200,7 +207,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const noContact = await admin.customers
       .list({
         select: ["id"],
-        where: { primaryContact: null },
+        where: { id: { in: FIXTURE_CUSTOMERS }, primaryContact: null },
         orderBy: { name: "asc" },
       })
       .orThrow();
@@ -694,9 +701,12 @@ describe.skipIf(!live)("PostgREST integration", () => {
     ] as const;
 
     const [customers, notes, initech] = await acme.$many(specs).orThrow();
-    expect(customers.map((row) => row.id).toSorted()).toEqual(
-      [ROAD_RUNNER, ANVIL].toSorted(),
-    );
+    expect(
+      customers
+        .map((row) => row.id)
+        .filter((id) => FIXTURE_CUSTOMERS.includes(id))
+        .toSorted(),
+    ).toEqual([ROAD_RUNNER, ANVIL].toSorted());
     expect(notes).toBeGreaterThan(0);
     expect(initech).toBe(0);
     expect(acme.$stats()).toMatchObject({ calls: 3, waves: 1 });

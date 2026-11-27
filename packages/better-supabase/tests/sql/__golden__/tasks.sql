@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:54c3de510b085739c463d23cfede5993da8d96eb2c9574d153445250922a1d99
+-- @bsb-hash sha256:2ddd7390ae4fe68ca9637cf575d7bddacda283897eb659bd9eb2868fc1241b49
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1603,6 +1603,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."milestones";
+  v_project "better_supabase"."projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1613,6 +1614,8 @@ begin
   if v_row."id" is null then
     return false;
   end if;
+  select * into v_project from "better_supabase"."projects" p
+  where p."id" = v_row."project_id";
   null;
   return true;
 end;
@@ -3387,7 +3390,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:0c69aea809afbca7109965c25a6da88cdb9b309304b16509782749cbfbfd7c44
+-- @bsb-hash sha256:d1a706cb19a970ad36c7d27a22fe3bd71b1ecf89adf9a95300efb8bb45dd4c2f
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5051,6 +5054,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."milestones";
+  v_project "better_supabase"."projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5061,6 +5065,8 @@ begin
   if v_row."id" is null then
     return false;
   end if;
+  select * into v_project from "better_supabase"."projects" p
+  where p."id" = v_row."project_id";
   perform "better_supabase".emit_event('project_milestone.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'projectId', v_row."project_id", 'milestoneId', v_row."id", 'subjectType', 'project_milestone', 'subjectId', v_row."id"::text, 'key', v_project."key", 'name', v_row."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."task_actor"(null) ->> 'kind', 'actorName', "better_supabase"."task_actor"(null) ->> 'name'), 'milestones/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return true;
 end;
@@ -7240,7 +7246,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:dbea3ee22059e30d12d662ab7910ed3a823fc3c5ea33d6501593a2f2d7419789
+-- @bsb-hash sha256:eb8f540b101e26ab1dde507b5c46bb4296722034653ae73bf89391ac8e313e70
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8847,6 +8853,7 @@ set search_path = ''
 as $$
 declare
   v_row "app_private"."milestones";
+  v_project "app_private"."projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -8857,6 +8864,8 @@ begin
   if v_row."id" is null then
     return false;
   end if;
+  select * into v_project from "app_private"."projects" p
+  where p."id" = v_row."project_id";
   null;
   return true;
 end;
@@ -10631,7 +10640,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:42e85937663541d9bef6f710b9e1be4db7c0400536a9b860368472aff2e71b06
+-- @bsb-hash sha256:3820f2d57d0a6f53ba29c8908869c4d5e94bbc4cf61644960b41a3cc50a9af13
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12233,6 +12242,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."milestones";
+  v_project "better_supabase"."projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -12243,6 +12253,8 @@ begin
   if v_row."id" is null then
     return false;
   end if;
+  select * into v_project from "better_supabase"."projects" p
+  where p."id" = v_row."project_id";
   null;
   return true;
 end;
@@ -14514,7 +14526,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:84d9d33688475d001a1d96f2b8a30272b19f1e519a84488ac3c44bc19ed317d8
+-- @bsb-hash sha256:d2a51fa58bc6b519c34848177117fa4c9e2804db4b312c2642f6c81c72f4e56e
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16094,6 +16106,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."milestones";
+  v_project "better_supabase"."projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -16104,6 +16117,8 @@ begin
   if v_row."id" is null then
     return false;
   end if;
+  select * into v_project from "better_supabase"."projects" p
+  where p."id" = v_row."project_id";
   null;
   return true;
 end;
@@ -17878,7 +17893,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:7be592622f3eb02424dd1c12daab15cb8be61bc55b91ef9c23163cb8a84b9fea
+-- @bsb-hash sha256:c3ad67f633501c6caee1c9435fe52ac99f06c4acde896211944b829d14511ae2
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19480,6 +19495,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."milestones";
+  v_project "better_supabase"."projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -19490,6 +19506,8 @@ begin
   if v_row."id" is null then
     return false;
   end if;
+  select * into v_project from "better_supabase"."projects" p
+  where p."id" = v_row."project_id";
   null;
   return true;
 end;

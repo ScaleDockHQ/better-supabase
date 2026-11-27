@@ -256,6 +256,7 @@ set search_path = ''
 as $$
 declare
   v_row ${t("milestones")};
+  v_project ${t("projects")};
 begin
   delete from ${t("milestones")} x
   where x.${m("id")} = remove_milestone.milestone and (${can(`x.${m("tenant")}`)})
@@ -263,6 +264,8 @@ begin
   if v_row.${m("id")} is null then
     return false;
   end if;
+  select * into v_project from ${t("projects")} p
+  where p.${c("projects", "id")} = v_row.${m("project")};
   ${recorded("project_milestone.deleted")}
   return true;
 end;

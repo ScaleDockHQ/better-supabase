@@ -205,52 +205,29 @@ export class BlockSession {
       end
     $$`);
 
-    // The example stack renames the project entity to work_project, so the
-    // milestones table it already has is keyed by work_project_id. A render
-    // that still says project_id cannot index that table.
-    const tasksBlock = layout.modules?.["tasks"];
-
-    const entities =
-      tasksBlock !== undefined && "entities" in tasksBlock
-        ? tasksBlock.entities
-        : undefined;
-
-    const projectEntity =
-      entities !== undefined && typeof entities !== "string"
-        ? entities["project"]
-        : undefined;
-
-    const exampleLayout: BlockSqlLayout =
-      names.includes("tasks") && projectEntity === undefined
-        ? {
-            ...layout,
-            modules: {
-              ...layout.modules,
-              tasks: {
-                ...tasksBlock,
-                entities: {
-                  ...(typeof entities === "object" ? entities : {}),
-                  project: { name: "work_project" },
-                },
-              },
-            },
-          }
-        : layout;
+    // The example keys these tables by work_project_id. create table if not
+    // exists would keep that column, and a default render indexes project_id.
+    // The drop sits in the test transaction, so rollback restores the example.
+    if (names.includes("tasks")) {
+      await this.client.query(`
+        drop table if exists better_supabase.task_identifiers cascade;
+        drop table if exists better_supabase.iteration_snapshots cascade;
+        drop table if exists better_supabase.iteration_cadences cascade;
+        drop table if exists better_supabase.milestones cascade;
+      `);
+    }
 
     // The stack already holds the declarative schemas, so the render reruns.
     // The fixture keeps the audit read policy, which depends on the functions
     // a render without it would drop.
     const rerun: BlockSqlLayout = {
-      ...exampleLayout,
+      ...layout,
       rerunnable: true,
       modules: {
-        ...exampleLayout.modules,
+        ...layout.modules,
         audit: {
-          ...exampleLayout.modules?.["audit"],
-          options: {
-            readPolicy: true,
-            ...exampleLayout.modules?.["audit"]?.options,
-          },
+          ...layout.modules?.["audit"],
+          options: { readPolicy: true, ...layout.modules?.["audit"]?.options },
         },
       },
     };

@@ -197,6 +197,16 @@ begin
 end;
 $$`);
 
+    // The example keys these tables by work_project_id. A default render
+    // indexes project_id, and create table if not exists would keep the
+    // example column. This install commits the default shape.
+    await client.query(`
+      drop table if exists better_supabase.task_identifiers cascade;
+      drop table if exists better_supabase.iteration_snapshots cascade;
+      drop table if exists better_supabase.iteration_cadences cascade;
+      drop table if exists better_supabase.milestones cascade;
+    `);
+
     // The stack already holds the declarative schemas, so the render has to
     // be rerunnable.
     for (const file of renderBlocks(names, {

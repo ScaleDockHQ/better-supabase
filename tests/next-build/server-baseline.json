@@ -57,28 +57,28 @@
     "raw": 3881758
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 5461537
+    "raw": 5462064
   },
   "/[locale]/(app)/assistant/agents/[id]/page": {
-    "raw": 5488944
+    "raw": 5489471
   },
   "/[locale]/(app)/assistant/agents/approvals/page": {
-    "raw": 5472991
+    "raw": 5473518
   },
   "/[locale]/(app)/assistant/agents/memory/page": {
-    "raw": 5463566
+    "raw": 5464093
   },
   "/[locale]/(app)/assistant/agents/page": {
-    "raw": 5474267
+    "raw": 5474794
   },
   "/[locale]/(app)/assistant/agents/runs/[id]/page": {
-    "raw": 5475815
+    "raw": 5476342
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
     "raw": 3900126
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
-    "raw": 5465496
+    "raw": 5466023
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
     "raw": 3890827
@@ -159,7 +159,7 @@
     "raw": 3951135
   },
   "/[locale]/(app)/change-requests/page": {
-    "raw": 5421940
+    "raw": 5422467
   },
   "/[locale]/(app)/chat/page": {
     "raw": 3879432
@@ -816,22 +816,22 @@
     "raw": 3895926
   },
   "/[locale]/(app)/workflows/[definition]/page": {
-    "raw": 5422280
+    "raw": 5422807
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5420020
+    "raw": 5420547
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5424367
+    "raw": 5424894
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5425489
+    "raw": 5426016
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5423050
+    "raw": 5423577
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5417835
+    "raw": 5418362
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 3108635
@@ -951,13 +951,13 @@
     "raw": 3448042
   },
   "/api/chat/durable/[id]/stop/route": {
-    "raw": 5036283
+    "raw": 5036808
   },
   "/api/chat/durable/[id]/stream/route": {
-    "raw": 5036431
+    "raw": 5036956
   },
   "/api/chat/durable/route": {
-    "raw": 5036392
+    "raw": 5036917
   },
   "/api/chat/route": {
     "raw": 3448458
@@ -1083,7 +1083,7 @@
     "raw": 2871858
   },
   "/api/jobs/drain/route": {
-    "raw": 4993307
+    "raw": 4993832
   },
   "/api/jobs/list/route": {
     "raw": 1514779
@@ -1131,7 +1131,7 @@
     "raw": 2870513
   },
   "/api/outbox/route": {
-    "raw": 4966312
+    "raw": 4966837
   },
   "/api/passes/list/route": {
     "raw": 2868864
@@ -1173,7 +1173,7 @@
     "raw": 642361
   },
   "/api/queues/block-ticks/route": {
-    "raw": 4992484
+    "raw": 4993009
   },
   "/api/queues/schedules/route": {
     "raw": 332974
@@ -1266,7 +1266,7 @@
     "raw": 4989927
   },
   "/api/workflows/tick/route": {
-    "raw": 4983781
+    "raw": 4984306
   },
   "/manifest.webmanifest/route": {
     "raw": 182522
