@@ -129,6 +129,27 @@ local stack the first request of a fresh process paid 86 to 90 ms for the JWKS,
 PostgREST and the pool, and the second request about 25 ms.
 [Warm up in `register()`](/docs/auth/server#warm-up-in-register) lists the options.
 
+The PostgREST step sends `OPTIONS` to `/rest/v1/`. A `GET` there makes
+PostgREST build the OpenAPI description of every exposed schema, which a cold
+start should not wait for.
+
+`register()` runs before the request that started the instance. When that
+request should not wait for the warm-up round trips, start it with
+`warmInBackground` instead. The steps then open while the request renders, and
+a failed one is still logged:
+
+```ts title="src/instrumentation.ts"
+import { warmInBackground } from "better-supabase/next/instrumentation";
+
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { bsb } = await import("./lib/supabase/server");
+
+    warmInBackground(bsb);
+  }
+}
+```
+
 ## Keep reads in the Runtime Cache
 
 `bsb.kept()` keeps a read across requests and deploys. On Vercel, pass the
