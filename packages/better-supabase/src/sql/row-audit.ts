@@ -147,7 +147,7 @@ export function auditTrigger(
  * The three statement triggers `audit(statement => true)` creates, in order.
  * `referencing` names the transition tables the function reads.
  */
-export const AUDIT_STATEMENT_TRIGGERS = [
+const AUDIT_STATEMENT_TRIGGERS = [
   ["bsb_audit_stmt_insert", "insert", "referencing new table as new_rows"],
   [
     "bsb_audit_stmt_update",
@@ -158,7 +158,7 @@ export const AUDIT_STATEMENT_TRIGGERS = [
 ] as const;
 
 /** One statement trigger. `settings` is the SQL literal of its argument. */
-export function auditStatementTrigger(
+function auditStatementTrigger(
   name: string,
   event: string,
   referencing: string,

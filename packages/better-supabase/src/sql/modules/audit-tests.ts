@@ -217,7 +217,8 @@ function statementSection(
   if (records.length > 0) {
     checks.push(
       `select extensions.is((select count(*)::int ${entries} and (${records.map((record) => `coalesce(${record} ? 'seen_at', false)`).join(" or ")})), 0, ${sqlString("statement entries leave out the ignored column")});`,
-      `select extensions.is((select count(*)::int ${entries} and l.${c("op")} <> 'delete' and (${records.map((record) => `coalesce(${record} ->> 'secret', '') <> '[redacted]'`).join(" or ")})), 0, ${sqlString("statement entries mask the redacted column")});`,
+      // An insert stores no old record, so a missing secret is not an unmasked value.
+      `select extensions.is((select count(*)::int ${entries} and l.${c("op")} <> 'delete' and (${records.map((record) => `${record} ? 'secret' and ${record} ->> 'secret' is distinct from '[redacted]'`).join(" or ")})), 0, ${sqlString("statement entries mask the redacted column")});`,
     );
   }
 
