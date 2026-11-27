@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block-test audit
--- @bsb-hash sha256:aee42a09d30024dd692166298b552b27d3352a82097fbb0a58ad31486c42c1ba
+-- @bsb-hash sha256:18a53f29ebba50ffabe46af54ef97c5072dae033bb5b0522c17ae6b958ef9c30
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -12560,7 +12560,7 @@ select extensions.results_eq($$select l."op"::text, count(*)::int from "better_s
 select extensions.is((select count(*)::int from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_stmt_probe' and (coalesce(l."old_record" ? 'seen_at', false) or coalesce(l."new_record" ? 'seen_at', false))), 0, 'statement entries leave out the ignored column');
 select extensions.is((select count(*)::int from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_stmt_probe' and l."op" <> 'delete' and (coalesce(l."old_record" ->> 'secret', '') <> '[redacted]' or coalesce(l."new_record" ->> 'secret', '') <> '[redacted]')), 0, 'statement entries mask the redacted column');
 select extensions.is((select count(*)::int from "better_supabase"."audit_events" l where l."table_name" = (select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_stmt_probe'), 6, 'a summary import adds no statement entry');
-drop table pg_temp.bsb_audit_probe_261;
+drop table pg_temp.bsb_audit_stmt_probe;
 
 select * from extensions.finish();
 rollback;

@@ -4290,7 +4290,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
 
       expect(passing.filter((line) => /^not ok/m.test(line))).toEqual([]);
-      expect(passing.filter((line) => line.startsWith("ok "))).toHaveLength(7);
+      // Seven checks for the registered table, then four for the statement probe.
+      expect(passing.filter((line) => line.startsWith("ok "))).toHaveLength(11);
 
       const drifted = await tap(
         file({

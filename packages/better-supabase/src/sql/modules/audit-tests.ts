@@ -284,15 +284,19 @@ export function auditTests(
   const total = sections.reduce((sum, each) => sum + each.checks.length, 0);
 
   const body = sections
-    .map(({ setup, checks }, index) =>
-      [
-        setup,
-        ...checks,
-        ...(setup === "" ? [] : [`drop table pg_temp.${probeTable(index)};`]),
-      ]
-        .filter((part) => part !== "")
-        .join("\n"),
-    )
+    .map(({ setup, checks }, index) => {
+      // The statement probe is appended after the numbered row probes, and it
+      // creates its own table. Dropping probeTable(index) there names a table
+      // the section never created.
+      const drop =
+        setup === ""
+          ? ""
+          : `drop table pg_temp.${
+              index < audited.length ? probeTable(index) : STATEMENT_PROBE
+            };`;
+
+      return [setup, ...checks, drop].filter((part) => part !== "").join("\n");
+    })
     .join("\n\n");
 
   return [
