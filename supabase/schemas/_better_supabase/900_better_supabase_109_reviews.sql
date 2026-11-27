@@ -1,6 +1,6 @@
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:fbab235971c1a7a1576e3d19d5304411ce1f5081b346d57ce17238dd32d22379
+-- @bsb-hash sha256:e059222ba564d64b57ee281a8d38d359d8fa5ff19eb89fc9c8741e465f8514e6
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,6 +73,7 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'tasks.read'), false)
+    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (review_subject_readable.subject_id)::uuid and s."tenant_id" = review_subject_readable.tenant) and coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'invoices.read'), false)

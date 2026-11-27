@@ -432,6 +432,7 @@ ${reminder}`;
 
 export const PROJECTS: BlockSqlDefinition = {
   name: "projects",
+  scopes: ["tenant"],
   title: "Projects",
   description:
     "Project updates with a health snapshot, and initiatives that group projects. Tasks owns the project, milestone and iteration rows.",

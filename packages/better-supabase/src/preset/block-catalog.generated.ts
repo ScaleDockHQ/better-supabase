@@ -7756,6 +7756,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ai-evals",
         "ai-guardrails",
         "option-sets",
+        "projects",
         "rls-guard"
       ]
     }

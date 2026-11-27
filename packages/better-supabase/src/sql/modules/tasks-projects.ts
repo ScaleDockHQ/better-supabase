@@ -548,8 +548,8 @@ begin
   insert into ${t("snapshots")} (${c("snapshots", "tenant")}, ${c("snapshots", "iteration")}, ${c("snapshots", "day")}, ${c("snapshots", "scope")}, ${c("snapshots", "started")}, ${c("snapshots", "completed")})
   select i.${c("iterations", "tenant")}, i.${c("iterations", "id")}, current_date,
     count(t.*)::integer,
-    count(t.*) filter (where t.${w("state")} = 'started')::integer,
-    count(t.*) filter (where t.${w("state")} = 'completed')::integer
+    count(t.*) filter (where ${ctx.is("items", "state", `t.${w("state")}`, ["started"])})::integer,
+    count(t.*) filter (where ${ctx.is("items", "state", `t.${w("state")}`, ["completed"])})::integer
   from ${t("iterations")} i
   left join ${t("items")} t on t.${w("iteration")} = i.${c("iterations", "id")}
   where current_date between i.${c("iterations", "startsOn")} and i.${c("iterations", "endsOn")}
@@ -572,7 +572,7 @@ begin
   ) nxt on true
   where ended.${c("iterations", "endsOn")} = current_date - 1
     and task.${w("iteration")} = ended.${c("iterations", "id")}
-    and task.${w("state")} not in ('completed', 'canceled');`
+    and ${ctx.is("items", "state", `task.${w("state")}`, ["completed", "canceled"], true)};`
       : ""
   }
   for v_iteration in select * from ${t("iterations")} i where i.${c("iterations", "startsOn")} = current_date loop

@@ -12642,6 +12642,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox"
       ],
       "manifest": "projects",
+      "scopes": [
+        "tenant"
+      ],
       "entities": {
         "specs": {
           "project_update": {

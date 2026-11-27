@@ -501,6 +501,7 @@ const NAMES: BlockSqlNames = {
     milestones: {
       name: "milestones",
       optionalTable: true,
+      omitWithout: "projects",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -518,6 +519,7 @@ const NAMES: BlockSqlNames = {
     cadences: {
       name: "iteration_cadences",
       optionalTable: true,
+      omitWithout: "iterations",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -535,6 +537,7 @@ const NAMES: BlockSqlNames = {
     snapshots: {
       name: "iteration_snapshots",
       optionalTable: true,
+      omitWithout: "iterations",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -550,6 +553,7 @@ const NAMES: BlockSqlNames = {
     identifiers: {
       name: "task_identifiers",
       optionalTable: true,
+      omitUnless: { option: "identifiers", value: "project" },
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {

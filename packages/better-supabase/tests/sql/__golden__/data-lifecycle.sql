@@ -1784,7 +1784,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:09bed5990cbc3939f6ea3db91f6967f829c64e25277bb78199d00017346e6cfb
+-- @bsb-hash sha256:7fd30e4aca75bf6d86b426ca9e5f68adda33474b025d97e69773c12dcd902183
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3414,7 +3414,6 @@ as $$
     ('organization', 'better_supabase.milestones', '"better_supabase"."milestones"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.iteration_cadences', '"better_supabase"."iteration_cadences"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.iteration_snapshots', '"better_supabase"."iteration_snapshots"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.task_identifiers', '"better_supabase"."task_identifiers"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipelines', '"better_supabase"."pipelines"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_stages', '"better_supabase"."pipeline_stages"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_transitions', '"better_supabase"."pipeline_transitions"', 'tenant_id', true, '{}'::text[], true),

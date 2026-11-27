@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@10 managed tasks
--- @bsb-hash sha256:9f323991a251141e0f76951d10e6922609d9ea620307b20257a651c10912f94b
+-- @bsb-hash sha256:e777cc24a5bcee0b359b7c22a8a23bd6ed69cc9935584294c95406f1a636749a
 -- @bsb-names facilities task=maintenance_request/maintenance_requests project=maintenance_project/maintenance_projects
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1597,21 +1597,6 @@ $$;
 revoke execute on function "better_supabase"."facilities_mark_duplicate"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."facilities_mark_duplicate"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."resolve_maintenance_request_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "better_supabase"."maintenance_requests" x where x."tenant_id" = resolve_maintenance_request_identifier.tenant and x."identifier" = resolve_maintenance_request_identifier.identifier),
-    (select k."maintenance_request_id" from "better_supabase"."maintenance_request_identifiers" k where k."tenant_id" = resolve_maintenance_request_identifier.tenant and k."identifier" = resolve_maintenance_request_identifier.identifier)
-  )
-$$;
-revoke execute on function "better_supabase"."resolve_maintenance_request_identifier"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."resolve_maintenance_request_identifier"(uuid, text) to authenticated, service_role;
-
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."upsert_maintenance_request_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
@@ -2811,7 +2796,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_request_
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_requests deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_request","event_prefix":"maintenance_request","archive_column":"archived_at"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.facilities_milestones deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_project_milestone","event_prefix":"maintenance_project_milestone"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_request_checklist_items deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
 
 -- Realtime for the module's entities (subject.realtime)
@@ -3008,16 +2992,6 @@ set search_path = ''
 as $$ select "better_supabase"."facilities_mark_duplicate"($1, $2) $$;
 revoke execute on function "api"."facilities_mark_duplicate"(uuid, uuid) from public, anon;
 grant execute on function "api"."facilities_mark_duplicate"(uuid, uuid) to authenticated, service_role;
-
-create or replace function "api"."resolve_maintenance_request_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."resolve_maintenance_request_identifier"($1, $2) $$;
-revoke execute on function "api"."resolve_maintenance_request_identifier"(uuid, text) from public, anon;
-grant execute on function "api"."resolve_maintenance_request_identifier"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."upsert_maintenance_request_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb

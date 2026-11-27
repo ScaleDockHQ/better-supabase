@@ -33,7 +33,7 @@ function dateAfter(
   return (
     target !== undefined &&
     start !== undefined &&
-    Temporal.PlainDate.compare(target, start) > 0
+    target.toString() > start.toString()
   );
 }
 

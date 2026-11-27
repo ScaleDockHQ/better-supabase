@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:3fea4fb62432ff26c17f433ae0e4ecfa668e186ac353851a88f5ced42eab3801
+-- @bsb-hash sha256:0d769d5196ab0f03d7d468e831c00af2cb3ede8ca1fd07c065553a09ffaa55b7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1910,21 +1910,6 @@ $$;
 revoke execute on function "better_supabase"."roll_iterations"() from public, anon;
 grant execute on function "better_supabase"."roll_iterations"() to authenticated, service_role;
 
-create or replace function "better_supabase"."resolve_task_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "better_supabase"."tasks" x where x."tenant_id" = resolve_task_identifier.tenant and x."identifier" = resolve_task_identifier.identifier),
-    (select k."task_id" from "better_supabase"."task_identifiers" k where k."tenant_id" = resolve_task_identifier.tenant and k."identifier" = resolve_task_identifier.identifier)
-  )
-$$;
-revoke execute on function "better_supabase"."resolve_task_identifier"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."resolve_task_identifier"(uuid, text) to authenticated, service_role;
-
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."upsert_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
@@ -3399,7 +3384,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:3b072be8b2b385c6c04ba9bbc62450c2a3b46c0f99a139ee34df106fc0bc5ef4
+-- @bsb-hash sha256:0fb2616e69db3bd210779317b6aae90adb549088e5baf40f8af6e79644a06a01
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5381,21 +5366,6 @@ $$;
 revoke execute on function "better_supabase"."roll_iterations"() from public, anon;
 grant execute on function "better_supabase"."roll_iterations"() to authenticated, service_role;
 
-create or replace function "better_supabase"."resolve_task_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "better_supabase"."tasks" x where x."tenant_id" = resolve_task_identifier.tenant and x."identifier" = resolve_task_identifier.identifier),
-    (select k."task_id" from "better_supabase"."task_identifiers" k where k."tenant_id" = resolve_task_identifier.tenant and k."identifier" = resolve_task_identifier.identifier)
-  )
-$$;
-revoke execute on function "better_supabase"."resolve_task_identifier"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."resolve_task_identifier"(uuid, text) to authenticated, service_role;
-
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."upsert_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
@@ -7264,7 +7234,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:840ff3f2c3874209e0d2a893296b67552d397b50aed84c80c64186d5252a0966
+-- @bsb-hash sha256:999606ad7463551f00dfd99151659448beb034d53395aed867f3f4ce8d6d0719
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9178,21 +9148,6 @@ $$;
 revoke execute on function "app_private"."roll_iterations"() from public, anon;
 grant execute on function "app_private"."roll_iterations"() to authenticated, service_role;
 
-create or replace function "app_private"."resolve_task_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "app_private"."tasks" x where x."tenant_id" = resolve_task_identifier.tenant and x."identifier" = resolve_task_identifier.identifier),
-    (select k."task_id" from "app_private"."task_identifiers" k where k."tenant_id" = resolve_task_identifier.tenant and k."identifier" = resolve_task_identifier.identifier)
-  )
-$$;
-revoke execute on function "app_private"."resolve_task_identifier"(uuid, text) from public, anon;
-grant execute on function "app_private"."resolve_task_identifier"(uuid, text) to authenticated, service_role;
-
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "app_private"."upsert_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
@@ -10667,7 +10622,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:b4bbe912b57a5c5463e8867f02bf29822b46d86708927e55534b67988ed6bba2
+-- @bsb-hash sha256:05f5544ad1715bbacd0e676ee8965491ddc8d4848bbb4889b7eb3bbf57ee1b92
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12576,21 +12531,6 @@ $$;
 revoke execute on function "better_supabase"."roll_iterations"() from public, anon;
 grant execute on function "better_supabase"."roll_iterations"() to authenticated, service_role;
 
-create or replace function "better_supabase"."resolve_task_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "better_supabase"."tasks" x where x."tenant_id" = resolve_task_identifier.tenant and x."identifier" = resolve_task_identifier.identifier),
-    (select k."task_id" from "better_supabase"."task_identifiers" k where k."tenant_id" = resolve_task_identifier.tenant and k."identifier" = resolve_task_identifier.identifier)
-  )
-$$;
-revoke execute on function "better_supabase"."resolve_task_identifier"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."resolve_task_identifier"(uuid, text) to authenticated, service_role;
-
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."upsert_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
@@ -14312,16 +14252,6 @@ as $$ select "better_supabase"."roll_iterations"() $$;
 revoke execute on function "api"."roll_iterations"() from public, anon;
 grant execute on function "api"."roll_iterations"() to authenticated, service_role;
 
-create or replace function "api"."resolve_task_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."resolve_task_identifier"($1, $2) $$;
-revoke execute on function "api"."resolve_task_identifier"(uuid, text) from public, anon;
-grant execute on function "api"."resolve_task_identifier"(uuid, text) to authenticated, service_role;
-
 create or replace function "api"."upsert_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language sql
@@ -14572,7 +14502,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:1e0ca76ba5a0ea52a7b312f4b83f13250e8b564bc68d9ee1308055b982f5da19
+-- @bsb-hash sha256:afd1471ae467de097db46cd72eeb3fa5cc3c4e366d41aa8962f52bf44d51a35a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16457,21 +16387,6 @@ $$;
 revoke execute on function "better_supabase"."roll_iterations"() from public, anon;
 grant execute on function "better_supabase"."roll_iterations"() to authenticated, service_role;
 
-create or replace function "better_supabase"."resolve_task_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "better_supabase"."tasks" x where x."tenant_id" = resolve_task_identifier.tenant and x."identifier" = resolve_task_identifier.identifier),
-    (select k."task_id" from "better_supabase"."task_identifiers" k where k."tenant_id" = resolve_task_identifier.tenant and k."identifier" = resolve_task_identifier.identifier)
-  )
-$$;
-revoke execute on function "better_supabase"."resolve_task_identifier"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."resolve_task_identifier"(uuid, text) to authenticated, service_role;
-
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
 create or replace function "better_supabase"."upsert_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
@@ -17946,7 +17861,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:2bd99d0aa68ccfa7bebdf6b4a5816f33f58d85348c20b4cf2ad2610934e8113b
+-- @bsb-hash sha256:5801986eb11a19cfb98169d1e0a3d7d974613e97cab91e097341df1754587ebc
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19854,21 +19769,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."roll_iterations"() from public, anon;
 grant execute on function "better_supabase"."roll_iterations"() to authenticated, service_role;
-
-create or replace function "better_supabase"."resolve_task_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "better_supabase"."tasks" x where x."org_id" = resolve_task_identifier.tenant and x."identifier" = resolve_task_identifier.identifier),
-    (select k."task_id" from "better_supabase"."task_identifiers" k where k."org_id" = resolve_task_identifier.tenant and k."identifier" = resolve_task_identifier.identifier)
-  )
-$$;
-revoke execute on function "better_supabase"."resolve_task_identifier"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."resolve_task_identifier"(uuid, text) to authenticated, service_role;
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.

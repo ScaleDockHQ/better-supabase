@@ -50,12 +50,6 @@ export const supportConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
-/** The `projects` instance's config slice. */
-export const projectsConfig = {
-  schema: "better_supabase",
-  options: {},
-} as const satisfies GeneratedBlock;
-
 /** The `service` instance's config slice. */
 export const serviceConfig = {
   schema: "better_supabase",
@@ -1486,7 +1480,6 @@ export const facilitiesConfig = {
       remove_iteration: "facilities_remove_iteration",
       remove_milestone: "facilities_remove_milestone",
       remove_project: "remove_maintenance_project",
-      resolve_task_identifier: "resolve_maintenance_request_identifier",
       roll_iterations: "facilities_roll_iterations",
       save_iteration_cadence: "facilities_save_iteration_cadence",
       save_milestone: "facilities_save_milestone",

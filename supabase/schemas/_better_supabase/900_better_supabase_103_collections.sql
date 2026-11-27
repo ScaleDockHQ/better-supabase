@@ -1,6 +1,6 @@
 -- better-supabase module: collections
 -- @bsb-block collections@3 managed
--- @bsb-hash sha256:ac6e4c6c9dd4493801b32fd024026847ccc76c0eb471cc036a2caf9a9f44809e
+-- @bsb-hash sha256:852d398c895d9e2bc7813bcc49c9f2df5bcbcb9acfd4d7d6865c77dc0562d357
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -217,7 +217,7 @@ begin
   if v_scope not in ('user', 'team', 'tenant') then
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
-  if create_collection.subject_type is null or not (create_collection.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])) then
+  if create_collection.subject_type is null or not (create_collection.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,work_project,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])) then
     raise exception 'not a subject type in config.recordTypes' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
@@ -806,6 +806,7 @@ begin
       when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -1103,6 +1104,7 @@ begin
       when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
+      when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
@@ -1285,6 +1287,7 @@ begin
       when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)

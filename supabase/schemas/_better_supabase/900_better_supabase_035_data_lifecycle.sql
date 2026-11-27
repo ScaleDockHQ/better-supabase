@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:1f22f3d92fdfbdae5e36d080e2f9efc435235d9d6cb4ed19b9ed8e2afadfca9c
+-- @bsb-hash sha256:26d994e8b4b36f03c5bb161c16b6483dcd73ff1d80e5ca9afa43f7b3b458c906
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1643,7 +1643,6 @@ as $$
     ('organization', 'better_supabase.milestones', '"better_supabase"."milestones"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.iteration_cadences', '"better_supabase"."iteration_cadences"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.iteration_snapshots', '"better_supabase"."iteration_snapshots"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.work_item_identifiers', '"better_supabase"."work_item_identifiers"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipelines', '"better_supabase"."pipelines"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_stages', '"better_supabase"."pipeline_stages"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_transitions', '"better_supabase"."pipeline_transitions"', 'tenant_id', true, '{}'::text[], true),
@@ -2211,6 +2210,12 @@ begin
       from "better_supabase"."work_items" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.work_items';
       v_reveal := 'work_items_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'work_project' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."work_projects" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.work_projects';
+      v_reveal := 'work_projects_reveal';
       v_reveal_schema := 'better_supabase';
     when 'employee' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant

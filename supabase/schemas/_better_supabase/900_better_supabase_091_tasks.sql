@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:afcfb7b716688474937f24da38eb37ec6f084ae520edef9c983a3833bd490e6d
+-- @bsb-hash sha256:9da235dbd752b1b3d075a645961544ab3bbdb8f038d67f5d9314d833479fe8f3
 -- @bsb-names tasks task=work_item/work_items project=work_project/work_projects
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1926,6 +1926,25 @@ begin
   end if;
   update "better_supabase"."work_items" x set "snoozed_until" = null, "updated_at" = now()
   where x."snoozed_until" is not null and x."snoozed_until" <= now();
+  insert into "better_supabase"."iterations" ("tenant_id", "team_id", "name", "number", "starts_on", "ends_on")
+  select cadence."tenant_id", cadence."team_id",
+    'Cycle ' || (coalesce(last.number, 0) + 1),
+    coalesce(last.number, 0) + 1,
+    coalesce(last.ends_on, current_date) + cadence."cooldown_days" + 1,
+    coalesce(last.ends_on, current_date) + cadence."cooldown_days" + cadence."weeks" * 7
+  from "better_supabase"."iteration_cadences" cadence
+  left join lateral (
+    select i."number" as number, i."ends_on" as ends_on
+    from "better_supabase"."iterations" i
+    where i."team_id" = cadence."team_id"
+    order by i."ends_on" desc
+    limit 1
+  ) last on true
+  where (
+    select count(*) from "better_supabase"."iterations" i
+    where i."team_id" = cadence."team_id"
+      and i."starts_on" > current_date
+  ) < cadence."upcoming";
   insert into "better_supabase"."iteration_snapshots" ("tenant_id", "iteration_id", "day", "scope", "started", "completed")
   select i."tenant_id", i."id", current_date,
     count(t.*)::integer,
@@ -1963,21 +1982,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."roll_iterations"() from public, anon;
 grant execute on function "better_supabase"."roll_iterations"() to authenticated, service_role;
-
-create or replace function "better_supabase"."resolve_work_item_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select coalesce(
-    (select x."id" from "better_supabase"."work_items" x where x."tenant_id" = resolve_work_item_identifier.tenant and x."identifier" = resolve_work_item_identifier.identifier),
-    (select k."work_item_id" from "better_supabase"."work_item_identifiers" k where k."tenant_id" = resolve_work_item_identifier.tenant and k."identifier" = resolve_work_item_identifier.identifier)
-  )
-$$;
-revoke execute on function "better_supabase"."resolve_work_item_identifier"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."resolve_work_item_identifier"(uuid, text) to authenticated, service_role;
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
@@ -3816,6 +3820,13 @@ create trigger "bsb_search_work_item_index_u"
   after update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
   for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."title" is distinct from new."title" or old."identifier" is distinct from new."identifier" or old."body" is distinct from new."body" or old."archived_at" is distinct from new."archived_at")
   execute function "better_supabase"."search_index_row"('work_item', 'id');
+create trigger "bsb_search_work_project_index"
+  after insert or delete on "better_supabase"."work_projects"
+  for each row execute function "better_supabase"."search_index_row"('work_project', 'id');
+create trigger "bsb_search_work_project_index_u"
+  after update of "id", "tenant_id", "name", "key", "description", "archived_at" on "better_supabase"."work_projects"
+  for each row when (old."id" is distinct from new."id" or old."tenant_id" is distinct from new."tenant_id" or old."name" is distinct from new."name" or old."key" is distinct from new."key" or old."description" is distinct from new."description" or old."archived_at" is distinct from new."archived_at")
+  execute function "better_supabase"."search_index_row"('work_project', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_items deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_item","event_prefix":"work_item","archive_column":"archived_at"}');
@@ -4095,16 +4106,6 @@ set search_path = ''
 as $$ select "better_supabase"."roll_iterations"() $$;
 revoke execute on function "api"."roll_iterations"() from public, anon;
 grant execute on function "api"."roll_iterations"() to authenticated, service_role;
-
-create or replace function "api"."resolve_work_item_identifier"(tenant uuid, identifier text)
-returns uuid
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."resolve_work_item_identifier"($1, $2) $$;
-revoke execute on function "api"."resolve_work_item_identifier"(uuid, text) from public, anon;
-grant execute on function "api"."resolve_work_item_identifier"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."upsert_work_item_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb

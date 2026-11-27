@@ -95,6 +95,19 @@ export interface BlockSqlTableSpec {
    */
   readonly omitWhen?: { readonly option: string; readonly value: string };
   /**
+   * This table is absent when `tables.<omitWithout>` is null, as if the app had
+   * mapped it to null. A table that references another table of this module
+   * uses it, so turning the parent off does not leave a trigger on a table the
+   * module never creates.
+   */
+  readonly omitWithout?: string;
+  /**
+   * This table is absent unless `options.<option>` equals `value`. An unset
+   * option is not that value, so the table stays off until the app turns the
+   * option on.
+   */
+  readonly omitUnless?: { readonly option: string; readonly value: string };
+  /**
    * How the table can be a table the app already has (ADR 0098). Without it the
    * module always creates the table.
    */
@@ -796,26 +809,60 @@ function checkIdent(where: string, value: string): string {
   return value;
 }
 
-/** `config` with every table whose `omitWhen` option is set mapped to `null`. */
+/**
+ * `config` with every table whose `omitWhen` or `omitWithout` is set mapped to
+ * `null`.
+ */
 function omitTables(
   config: ResolvedBlock,
   names: BlockSqlNames,
   where: string,
 ): ResolvedBlock {
-  const omitted = Object.entries(names.tables).filter(
+  const byOption = Object.entries(names.tables).filter(
     ([, spec]) =>
       spec.omitWhen !== undefined &&
       config.options[spec.omitWhen.option] === spec.omitWhen.value,
   );
 
-  if (omitted.length === 0) {
+  const byTable = Object.entries(names.tables).filter(
+    ([table, spec]) =>
+      spec.omitWithout !== undefined &&
+      config.tables[spec.omitWithout] === null &&
+      !byOption.some(([each]) => each === table),
+  );
+
+  const byUnless = Object.entries(names.tables).filter(
+    ([table, spec]) =>
+      spec.omitUnless !== undefined &&
+      config.options[spec.omitUnless.option] !== spec.omitUnless.value &&
+      !byOption.some(([each]) => each === table) &&
+      !byTable.some(([each]) => each === table),
+  );
+
+  if (byOption.length === 0 && byTable.length === 0 && byUnless.length === 0) {
     return config;
   }
 
-  for (const [table, spec] of omitted) {
+  for (const [table, spec] of byOption) {
     if (typeof config.tables[table] === "string") {
       throw new TypeError(
         `${where}.tables.${table} can't be mapped with options.${spec.omitWhen?.option} "${spec.omitWhen?.value}", which has no ${table} table`,
+      );
+    }
+  }
+
+  for (const [table, spec] of byTable) {
+    if (typeof config.tables[table] === "string") {
+      throw new TypeError(
+        `${where}.tables.${table} can't be mapped while tables.${spec.omitWithout} is null`,
+      );
+    }
+  }
+
+  for (const [table, spec] of byUnless) {
+    if (typeof config.tables[table] === "string") {
+      throw new TypeError(
+        `${where}.tables.${table} can't be mapped unless options.${spec.omitUnless?.option} is "${spec.omitUnless?.value}"`,
       );
     }
   }
@@ -824,7 +871,9 @@ function omitTables(
     ...config,
     tables: {
       ...config.tables,
-      ...Object.fromEntries(omitted.map(([table]) => [table, null])),
+      ...Object.fromEntries(
+        [...byOption, ...byTable, ...byUnless].map(([table]) => [table, null]),
+      ),
     },
   };
 }
