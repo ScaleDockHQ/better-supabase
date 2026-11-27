@@ -355,9 +355,9 @@ create policy notes_read on public.notes for select using (true);
     expect(renameMigrationSql([])).toBeUndefined();
   });
 
-  it("leaves a policy the app's schema files create, such as PermDock's", () => {
+  it("leaves a policy the app's schema files create, such as a provider's", () => {
     const own =
-      'create policy better_supabase_attachments_delete_read_only_actors on "better_supabase"."attachments" as restrictive for delete to authenticated using (true);';
+      'create policy app_attachments_delete_guard on "better_supabase"."attachments" as restrictive for delete to authenticated using (true);';
 
     const migration = renameMigrationSql([], `${sql}\n${own}`, {
       configLoaded: true,
@@ -366,7 +366,7 @@ create policy notes_read on public.notes for select using (true);
     });
 
     expect(migration).toContain('rename to "bsb_tasks_read"');
-    expect(migration).not.toContain("read_only_actors");
+    expect(migration).not.toContain("app_attachments_delete_guard");
   });
 });
 

@@ -300,7 +300,7 @@ function generatedPolicyRenames(
     const key = policyKey(policy.table, policy.name);
 
     // A policy the app's schema files create is the app's (or a library's it
-    // installs, such as PermDock's read-only actor policies): the block never
+    // installs, such as an authorization provider's): the block never
     // wrote it, so a rename only makes the schema diff drop and create it.
     if (
       schema !== "better_supabase" ||
