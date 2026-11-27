@@ -42,7 +42,14 @@ describe("upgrade steps over an adopter's layout", { timeout: 60_000 }, () => {
 
     expect(plan?.steps[0]?.from).toBe(6);
     expect(sql.join("\n")).not.toContain("delegate_profile");
-    await expect(run([TASKS, ...sql])).resolves.toBeUndefined();
+
+    // Later steps alter the managed projects table, which a version 6 install
+    // already has. This case only has the adopted tasks table.
+    const adopted = (plan?.steps ?? [])
+      .filter((step) => step.from === 6)
+      .map((step) => step.sql);
+
+    await expect(run([TASKS, ...adopted])).resolves.toBeUndefined();
   });
 
   it("clears delegate_profile when the adopted tasks table has it", () => {

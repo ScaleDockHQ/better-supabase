@@ -23,7 +23,8 @@ for (const file of ENV_FILES) {
   const jwks = /^SUPABASE_JWKS=(.*)$/m.exec(readFileSync(file, "utf-8"))?.[1];
 
   if (jwks) {
-    process.env.SUPABASE_JWKS = jwks;
+    // oxlint-disable-next-line typescript/dot-notation -- SUPABASE_JWKS is only on the index signature, so bracket access is what tsc accepts (TS4111). 1 finding.
+    process.env["SUPABASE_JWKS"] = jwks;
     break;
   }
 }

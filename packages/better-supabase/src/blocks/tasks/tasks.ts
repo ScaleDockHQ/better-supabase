@@ -560,20 +560,20 @@ export interface Tasks<
   /** Closes a triaged task with the reason `not_planned`. */
   declineTask(taskId: string): AsyncResult<Readonly<Record<string, unknown>>>;
   /** Closes a task as a duplicate and copies its watchers to the original. */
-  markDuplicate(
-    taskId: string,
-    originalId: string,
-  ): AsyncResult<Readonly<Record<string, unknown>>>;
+  markDuplicate(input: {
+    taskId: string;
+    originalId: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
   /** Hides a task until `until`. Housekeeping clears it. */
-  snoozeTask(
-    taskId: string,
-    until: string,
-  ): AsyncResult<Readonly<Record<string, unknown>>>;
+  snoozeTask(input: {
+    taskId: string;
+    until: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
   /** Copies a project, its milestones and its root tasks. */
-  cloneProject(
-    sourceId: string,
-    shiftDays?: number,
-  ): AsyncResult<Readonly<Record<string, unknown>>>;
+  cloneProject(input: {
+    sourceId: string;
+    shiftDays?: number;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
   /** The cycle length, cooldown and rollover of one team. */
   saveIterationCadence(input: {
     organizationId: string;
@@ -596,10 +596,10 @@ export interface Tasks<
     }[]
   >;
   /** The task id behind an identifier, including one a move retired. */
-  resolveIdentifier(
-    organizationId: string,
-    identifier: string,
-  ): AsyncResult<string | undefined>;
+  resolveIdentifier(input: {
+    organizationId: string;
+    identifier: string;
+  }): AsyncResult<string | undefined>;
   /**
    * Moves the item to `stageId`, a stage of the `completed` category, and
    * checks that the item is completed afterwards. A stage of another category
@@ -1394,15 +1394,15 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     acceptTask: (taskId) => call("accept_task", { task: taskId }, jsonObject),
     declineTask: (taskId) => call("decline_task", { task: taskId }, jsonObject),
-    markDuplicate: (taskId, originalId) =>
+    markDuplicate: ({ taskId, originalId }) =>
       call(
         "mark_duplicate",
         { task: taskId, original: originalId },
         jsonObject,
       ),
-    snoozeTask: (taskId, until) =>
+    snoozeTask: ({ taskId, until }) =>
       call("snooze_task", { task: taskId, until }, jsonObject),
-    cloneProject: (sourceId, shiftDays = 0) =>
+    cloneProject: ({ sourceId, shiftDays = 0 }) =>
       call(
         "clone_project",
         { source: sourceId, shift_days: shiftDays },
@@ -1442,7 +1442,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           ];
         }),
       ),
-    resolveIdentifier: (organizationId, identifier) =>
+    resolveIdentifier: ({ organizationId, identifier }) =>
       call(
         "resolve_task_identifier",
         { tenant: organizationId, identifier },

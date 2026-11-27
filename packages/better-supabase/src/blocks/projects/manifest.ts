@@ -16,6 +16,7 @@ import { tasksBlock } from "../tasks/manifest.ts";
 import { timeEntriesBlock } from "../time-entries/manifest.ts";
 import { timelineBlock } from "../timeline/manifest.ts";
 import { projectsEvents } from "./events.ts";
+import { projectsSqlOptions } from "./options.ts";
 import { createProjects } from "./projects.ts";
 
 /** The blocks `projects` is made of, by block name. */
@@ -65,10 +66,12 @@ export const projectsBlock: BlockOf<
 > = defineBlock({
   name: "projects",
   sql: ["projects"],
+  options: { projects: projectsSqlOptions },
   events: projectsEvents,
   composes: projectsParts,
   create: createProjects,
   category: "work",
+  concerns: ["lifecycle", "realtime", "search"],
   entities: {
     project: { mutability: "read-only" },
     project_update: {

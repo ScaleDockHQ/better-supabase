@@ -81,10 +81,10 @@ export function projectPage(
     pageInitiatives(
       organizationId: string,
     ): AsyncResult<readonly Record<string, unknown>[]>;
-    linkInitiative(
-      initiativeId: string,
-      projectId: string,
-    ): AsyncResult<boolean>;
+    linkInitiative(input: {
+      initiativeId: string;
+      projectId: string;
+    }): AsyncResult<boolean>;
   },
   | "overview"
   | "cards"
@@ -201,7 +201,7 @@ export function projectPage(
           isRecord(row) ? [row] : [],
         ),
       ),
-    linkInitiative: (initiativeId, projectId) =>
+    linkInitiative: ({ initiativeId, projectId }) =>
       call(
         "link_initiative_project",
         { initiative: initiativeId, project: projectId },

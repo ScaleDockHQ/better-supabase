@@ -56,9 +56,9 @@ create table if not exists ${ctx.table("cadences")} (
   ${d("startWeekday")} smallint not null default 1 check (${d("startWeekday")} between 1 and 7),
   ${d("upcoming")} smallint not null default 2 check (${d("upcoming")} between 0 and 12),
   ${d("rollover")} boolean not null default true,
-  ${d("createdAt")} timestamptz not null default now(),
-  unique (${d("tenant")}, ${d("team")})
-);`);
+  ${d("createdAt")} timestamptz not null default now()
+);
+create unique index if not exists ${ctx.tableName("cadences").name}_team_idx on ${ctx.table("cadences")} (${d("tenant")}, ${d("team")});`);
   }
 
   if (ctx.hasTable("iterations") && ctx.hasTable("snapshots")) {
@@ -72,9 +72,9 @@ create table if not exists ${ctx.table("snapshots")} (
   ${s("day")} date not null,
   ${s("scope")} integer not null,
   ${s("started")} integer not null,
-  ${s("completed")} integer not null,
-  unique (${s("iteration")}, ${s("day")})
-);`);
+  ${s("completed")} integer not null
+);
+create unique index if not exists ${ctx.tableName("snapshots").name}_day_idx on ${ctx.table("snapshots")} (${s("iteration")}, ${s("day")});`);
   }
 
   if (
@@ -547,11 +547,15 @@ begin
   }
   insert into ${t("snapshots")} (${c("snapshots", "tenant")}, ${c("snapshots", "iteration")}, ${c("snapshots", "day")}, ${c("snapshots", "scope")}, ${c("snapshots", "started")}, ${c("snapshots", "completed")})
   select i.${c("iterations", "tenant")}, i.${c("iterations", "id")}, current_date,
-    count(t.*)::integer,
+    ${
+      ctx.has("items", "iteration")
+        ? `count(t.*)::integer,
     count(t.*) filter (where ${ctx.is("items", "state", `t.${w("state")}`, ["started"])})::integer,
-    count(t.*) filter (where ${ctx.is("items", "state", `t.${w("state")}`, ["completed"])})::integer
+    count(t.*) filter (where ${ctx.is("items", "state", `t.${w("state")}`, ["completed"])})::integer`
+        : "0, 0, 0"
+    }
   from ${t("iterations")} i
-  left join ${t("items")} t on t.${w("iteration")} = i.${c("iterations", "id")}
+  ${ctx.has("items", "iteration") ? `left join ${t("items")} t on t.${w("iteration")} = i.${c("iterations", "id")}` : ""}
   where current_date between i.${c("iterations", "startsOn")} and i.${c("iterations", "endsOn")}
   group by i.${c("iterations", "tenant")}, i.${c("iterations", "id")}
   on conflict (${c("snapshots", "iteration")}, ${c("snapshots", "day")}) do update set

@@ -133,6 +133,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   contacts: declared("contacts"),
   activities: at("/crm/contacts/[id]"),
   deals: declared("deals", "/crm/deals/[id]"),
+  projects: none("The example installs tasks, and the project page is those work screens."),
   tasks: at("/work"),
   quotes: declared("quotes"),
   invoices: at("/finance"),

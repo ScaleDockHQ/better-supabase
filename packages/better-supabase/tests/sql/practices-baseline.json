@@ -112,7 +112,7 @@
     "security-definer-functions": 66
   },
   "collections": {
-    "security-definer-functions": 78
+    "security-definer-functions": 96
   },
   "comments": {
     "security-definer-functions": 25
@@ -353,7 +353,7 @@
     "security-definer-functions": 121
   },
   "notifications": {
-    "security-definer-functions": 169,
+    "security-definer-functions": 175,
     "row-triggers": 24
   },
   "numbering": {
@@ -410,6 +410,9 @@
   "profiles": {
     "security-definer-functions": 30,
     "row-triggers": 5
+  },
+  "projects": {
+    "security-definer-functions": 30
   },
   "promotions": {
     "security-definer-functions": 66
@@ -540,7 +543,7 @@
     "security-definer-functions": 66
   },
   "tasks": {
-    "security-definer-functions": 207,
+    "security-definer-functions": 285,
     "row-triggers": 32
   },
   "tax": {

@@ -865,7 +865,7 @@ export function createNotifications<
     dismiss(ids) {
       return run("dismiss_notifications", { ids }, updateOf);
     },
-    snooze(id, until) {
+    snooze({ id, until }) {
       return run(
         "snooze_notification",
         { id, until },

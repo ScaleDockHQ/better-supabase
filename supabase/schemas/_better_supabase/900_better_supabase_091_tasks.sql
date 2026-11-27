@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:9da235dbd752b1b3d075a645961544ab3bbdb8f038d67f5d9314d833479fe8f3
+-- @bsb-hash sha256:a1b954f4507d21504ee1b8794bb579f426ba5f59b2c28b69bdff733c664111b2
 -- @bsb-names tasks task=work_item/work_items project=work_project/work_projects
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -356,9 +356,9 @@ create table "better_supabase"."iteration_cadences" (
   "start_weekday" smallint not null default 1 constraint bsb_iteration_cadences_start_weekday_check check ("start_weekday" >= 1 and "start_weekday" <= 7),
   "upcoming" smallint not null default 2 constraint bsb_iteration_cadences_upcoming_check check ("upcoming" >= 0 and "upcoming" <= 12),
   "rollover" boolean not null default true,
-  "created_at" timestamptz not null default now(),
-  unique ("tenant_id", "team_id")
+  "created_at" timestamptz not null default now()
 );
+create unique index iteration_cadences_team_idx on "better_supabase"."iteration_cadences" ("tenant_id", "team_id");
 
 create table "better_supabase"."iteration_snapshots" (
   "id" uuid primary key default gen_random_uuid(),
@@ -367,9 +367,9 @@ create table "better_supabase"."iteration_snapshots" (
   "day" date not null,
   "scope" integer not null,
   "started" integer not null,
-  "completed" integer not null,
-  unique ("iteration_id", "day")
+  "completed" integer not null
 );
+create unique index iteration_snapshots_day_idx on "better_supabase"."iteration_snapshots" ("iteration_id", "day");
 alter table "better_supabase"."work_items" add column "waiting_on" integer not null default 0 constraint bsb_work_items_waiting_on_check check ("waiting_on" >= 0);
 alter table "better_supabase"."work_items" add column "held_at" timestamptz;
 alter table "better_supabase"."work_items" add column "hold_kind" text;

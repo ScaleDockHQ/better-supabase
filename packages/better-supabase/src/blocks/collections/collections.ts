@@ -292,10 +292,10 @@ export interface Collections<F extends object = Record<never, never>> {
   /** Deletes a folder. Its stars stay, with no folder. */
   removeStarFolder(folderId: string): AsyncResult<boolean>;
   /** Moves a star into a folder. `folderId` null takes it out. */
-  moveStar(
-    subject: CollectionSubject,
-    folderId: string | null,
-  ): AsyncResult<boolean>;
+  moveStar(input: {
+    subject: CollectionSubject;
+    folderId: string | null;
+  }): AsyncResult<boolean>;
   /** Moves a star between its neighbours' rank keys. Resolves to its new key. */
   reorderStar(input: {
     subject: CollectionSubject;
@@ -710,7 +710,7 @@ export function createCollections<
       ),
     removeStarFolder: (folderId) =>
       call("remove_star_folder", { id: folderId }, (value) => value === true),
-    moveStar: (subject, folderId) =>
+    moveStar: ({ subject, folderId }) =>
       call(
         "move_star",
         {

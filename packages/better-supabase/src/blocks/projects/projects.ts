@@ -160,7 +160,10 @@ export interface Projects {
   pageInitiatives(
     organizationId: string,
   ): AsyncResult<readonly Record<string, unknown>[]>;
-  linkInitiative(initiativeId: string, projectId: string): AsyncResult<boolean>;
+  linkInitiative(input: {
+    initiativeId: string;
+    projectId: string;
+  }): AsyncResult<boolean>;
 }
 
 const HOUR_SECONDS = 3600n;

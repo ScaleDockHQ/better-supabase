@@ -164,6 +164,9 @@ const NO_FIELDS: readonly string[] = [
   "periods",
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
+  // Updates and initiatives are fixed records the module's functions write.
+  // App data lives on the project.
+  "projects",
   // Versions are immutable templates; nothing for an app to extend.
   "prompts",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.

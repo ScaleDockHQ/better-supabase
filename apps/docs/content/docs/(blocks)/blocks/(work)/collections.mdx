@@ -57,7 +57,7 @@ const rows = useCollections({ limit: 50 });
 | ------------------------------------------ | ---------------------------------------------------------------------------- |
 | `star(organizationId, subject)`            | Stars a record at the end of the caller's favorites; a starred one stays put |
 | `saveStarFolder({ organizationId, name })` | Creates or renames a folder of stars                                         |
-| `moveStar(subject, folderId)`              | Moves a star into a folder, or out of one when `folderId` is null            |
+| `moveStar({ subject, folderId })`          | Moves a star into a folder, or out of one when `folderId` is null            |
 | `unstar(subject)`                          | Removes the star; `false` when there was none                                |
 | `starred(organizationId, { type })`        | The caller's stars in rank order, with each record's `title` and `url`       |
 | `reorderStar(subject, { previous, next })` | Moves a star between its neighbours' rank keys                               |

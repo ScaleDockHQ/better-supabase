@@ -130,8 +130,8 @@ function build(ctx: BlockSqlContext): string {
   const updateType = sqlString(entityType(ctx.resolved, "project_update"));
   const initiativeType = sqlString(entityType(ctx.resolved, "initiative"));
 
-  const can = (tenant: string): string =>
-    ctx.scope.can(tenant, "initiatives.manage");
+  const manage = ctx.permissionKey("manage", "initiatives.manage");
+  const can = (tenant: string): string => ctx.scope.can(tenant, manage);
 
   const every = ctx.text("updateEvery", "");
 
