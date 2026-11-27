@@ -1,5 +1,40 @@
 # better-supabase
 
+## 0.89.0
+
+### Minor Changes
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`f5ec6e1`](https://github.com/ScaleDockHQ/better-supabase/commit/f5ec6e12fb50bef06c8d6927e741477ac657376e) Thanks [@martijn00](https://github.com/martijn00)! - `shares.tables` and `shares.functions` declare tables and functions the app shares per tenant, merged with the authorization provider's. An identical entry is a restated default. A disagreeing entry keeps the provider's settings, and doctor reports it as BS652.
+
+- [#1175](https://github.com/ScaleDockHQ/better-supabase/pull/1175) [`427a306`](https://github.com/ScaleDockHQ/better-supabase/commit/427a3067dc9b4f7344d52807b24061a1649789f5) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.blockAction` takes a fourth argument that maps the data of a success, as
+  the third argument of `bsb.action` does, so a block action can answer with
+  `{ id }` and not the whole row. `tags` still receives the method's own data.
+  The Next.js example moves 171 single-call actions to `bsb.blockAction`.
+
+- [#1177](https://github.com/ScaleDockHQ/better-supabase/pull/1177) [`9063f6d`](https://github.com/ScaleDockHQ/better-supabase/commit/9063f6dc420efb800905d233fbe18b71a53989d2) Thanks [@martijn00](https://github.com/martijn00)! - `gen` no longer turns a column type it does not know into `string`. The column stays `unknown`, and `gen` prints one notice naming those columns. Composite types become nested objects in the zod, valibot, JSON Schema and Standard Schema output, a domain column uses its base type (including `not null` and simple `VALUE` checks), and `geometry` and `geography` validate as JSON. A `returns table` function gets a result schema from its columns.
+  
+  `better-supabase/result-schema` exports `resultSchema(readSet)` and `specResultSchema(meta, spec)`. Each returns a Standard Schema of the composed read, built from the columns the query selects. Unknown keys are dropped unless you pass `unknownKeys: "reject"`. A record binding stays unchecked until `registerRpcReturn` names a schema for it.
+
+- [#1175](https://github.com/ScaleDockHQ/better-supabase/pull/1175) [`e997eb6`](https://github.com/ScaleDockHQ/better-supabase/commit/e997eb618f456826a7ae6a385efc8dee759d1511) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.record(type).get` and `timeline` read a page's bindings in one request. The `read-sets` block now writes `read_batch(calls jsonb)`, a `stable`, `security invoker` function that runs up to 50 `stable` JSON reads of the exposed schema as the caller and returns one result per call. The first read of every binding goes into one `read_batch` call, and each binding gets the same data or `DbError` a direct call returns. Reads that write, and every read in a project without the function, run on their own as before.
+  
+  Run `better-supabase upgrade` and generate a migration (`supabase db diff`) to add the function. Ask for every binding a page shows in one `get` to get the saving.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`165aa16`](https://github.com/ScaleDockHQ/better-supabase/commit/165aa16aedd9eb745570342825487c142e4e1837) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase codemod audit-statement` rewrites a table's row audit trigger, or its `audit()` call, into static statement triggers that a schema diff keeps. Doctor BS651 reports a table that has both, which would write every change twice.
+
+### Patch Changes
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`fe1d034`](https://github.com/ScaleDockHQ/better-supabase/commit/fe1d034292322d0d2843b7c1dab7d423a9d8ac17) Thanks [@martijn00](https://github.com/martijn00)! - `chain_link()` no longer throws when a row trigger runs without the statement-audit temp table. The owner check reads the table oid from `to_regclass`, which returns null when the table is absent, instead of casting a name that Postgres resolves while planning the statement.
+  
+  The published config schema no longer lists `blocks.tasks.options.identifiers`. The tasks options have no such property, and the default of `tenant` was not one the config reads.
+  
+  The audit pgTAP file drops the statement probe it creates.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`ee00e67`](https://github.com/ScaleDockHQ/better-supabase/commit/ee00e67c08bca54a83a8c8d221960bb959415711) Thanks [@martijn00](https://github.com/martijn00)! - Doctor reads the schema of a schema-qualified `authorization.tables` name even when `schemas` does not list it, so BS428 can check that table instead of reporting it missing.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`ee00e67`](https://github.com/ScaleDockHQ/better-supabase/commit/ee00e67c08bca54a83a8c8d221960bb959415711) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.cached({ keep: { tables } })` keeps a stable function call and a `db.$many()` batch as one entry, tagged with those tables. A volatile function still reaches the database, and a failed call is not stored. A function the schema does not name is kept when the tables are listed, so a block read and `read_batch` can be kept too. Doctor rule BS609 also names `read_batch` and `bsb.record(type).get` next to the read set.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`2ff9a5f`](https://github.com/ScaleDockHQ/better-supabase/commit/2ff9a5fe7c37bcb2eaa1fd9b569709e2ccefe36c) Thanks [@martijn00](https://github.com/martijn00)! - Doctor BS204 checks every table in `schemas`, including private schemas, and uses each table's own tenant column. A partial index and an index that contains the column further along each get their own message, with the `create index` statement to add.
+
 ## 0.88.0
 
 ### Minor Changes
