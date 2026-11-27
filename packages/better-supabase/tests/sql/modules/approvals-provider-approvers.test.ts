@@ -279,6 +279,77 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("keeps the requester's own, excluded and foreign ids out when isApproverMany returns them", async () => {
+    const files = renderBlocks(["approvals"], {
+      modules: {
+        permissions: { model: "provider" },
+        approvals: {
+          options: { policies: { named: steps([BEN]), other: steps([CARL]) } },
+        },
+      },
+      accessProvider: {
+        ...PROVIDER,
+        functions: {
+          ...PROVIDER.functions,
+          isApproverMany: "authz.is_approver_many({requests})",
+        },
+      },
+    });
+
+    await expect(
+      run(
+        files,
+        `${COVERS}
+create function authz.is_approver_many(requests jsonb) returns setof text
+  language plpgsql stable security definer as $$
+  begin
+    return query select r.id::text from better_supabase.approval_requests r
+      union all select gen_random_uuid()::text;
+  end;
+  $$;
+`,
+        `do $$
+declare
+  v_named uuid;
+  v_other uuid;
+begin
+  ${SERVICE}
+  v_named := (better_supabase.request_approval('${TENANT}', 'named', 'n-1', 'approve') ->> 'id')::uuid;
+  v_other := (better_supabase.request_approval('${TENANT}', 'other', 'o-1', 'approve') ->> 'id')::uuid;
+  update better_supabase.approval_requests set requested_by = '${REQUESTER}' where id = v_named;
+  update better_supabase.approval_requests set requested_by = '${ANA}',
+    policy = policy || jsonb_build_object('excludedUserIds', jsonb_build_array('${REQUESTER}'))
+  where id = v_other;
+  ${as(REQUESTER)}
+  if cardinality(array(select better_supabase.approval_eligible_ids())) <> 0 then
+    raise exception 'the requester or an excluded user decides through isApproverMany: %', array(select better_supabase.approval_eligible_ids());
+  end if;
+  ${as(ANA)}
+  if array(select better_supabase.approval_eligible_ids()) <> array[v_named] then
+    raise exception 'isApproverMany lets the requester decide their own request: %', array(select better_supabase.approval_eligible_ids());
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses isApproverMany without isApprover", () => {
+    expect(() =>
+      renderBlocks(["approvals"], {
+        modules: { permissions: { model: "provider" } },
+        accessProvider: {
+          ...PROVIDER,
+          functions: {
+            idsWith: PROVIDER.functions.idsWith,
+            isPlatform: PROVIDER.functions.isPlatform,
+            isApproverMany: "authz.is_approver_many({requests})",
+          },
+        },
+      }),
+    ).toThrow(/isApproverMany is the set form of isApprover/u);
+  });
+
   it("lets a cover decide for an approver the current step names, and nowhere else", async () => {
     await expect(
       run(

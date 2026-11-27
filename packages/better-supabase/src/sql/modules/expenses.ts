@@ -32,11 +32,13 @@ import {
 } from "./expenses-functions.ts";
 import { standaloneContract } from "./expenses-standalone-contract.ts";
 import {
-  EXPENSE_CREATOR_BACKFILL,
   EXPENSE_SUBJECT,
-  EXPENSE_TABLE,
   expensesStandalone,
   standaloneApprovals,
+} from "./expenses-standalone-policy.ts";
+import {
+  EXPENSE_CREATOR_BACKFILL,
+  EXPENSE_TABLE,
 } from "./expenses-standalone.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";

@@ -1,7 +1,5 @@
-/* oxlint-disable eslint/max-lines -- options.deciderMany, the set form of the decider, adds lines past the limit. 1 finding. */
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 import type { BlockSqlUpgrade } from "../module-types.ts";
-import type { ApprovalPolicy } from "./approvals-policies.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -23,11 +21,6 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
-import {
-  assertCountedApprovers,
-  policyOf,
-  policySnapshot,
-} from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
 import {
   appFunction,
@@ -41,9 +34,15 @@ import {
   EXPENSE_RESERVED,
   invoicedCheck,
 } from "./expenses-standalone-contract.ts";
+import {
+  EXPENSE_SUBJECT,
+  expensesStandalone,
+  standaloneApprovals,
+  standalonePolicy,
+} from "./expenses-standalone-policy.ts";
 import { expenseGuardSql } from "./expenses-write-guard.ts";
 import { lockModuleTable } from "./over-app.ts";
-import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
 
 export const expenseKey = (ctx: BlockSqlContext, action: string): string =>
@@ -104,90 +103,6 @@ export const EXPENSE_TABLE: BlockSqlTableSpec = {
   ],
   typed: ["status"],
 };
-
-/** The subject type of an expense the approvals block decides. */
-export const EXPENSE_SUBJECT = "expense";
-
-/**
- * Whether each standalone expense goes through the approvals block:
- * `options.standaloneApprovals`, which needs `tables.reports: null`.
- */
-export function standaloneApprovals(ctx: BlockSqlContext): boolean {
-  const on = ctx.flag("standaloneApprovals", false);
-
-  if (on && !expensesStandalone(ctx)) {
-    throw new TypeError(
-      "blocks.expenses.options.standaloneApprovals needs tables.reports: null; reports go through approvals already",
-    );
-  }
-
-  if (!on && ctx.flag("selfDecideWhenTopOfChain", false)) {
-    throw new TypeError(
-      "blocks.expenses.options.selfDecideWhenTopOfChain needs standaloneApprovals; decideExpense already lets the owner decide when nobody else can",
-    );
-  }
-
-  return on;
-}
-
-/**
- * `options.policy`, or one step for holders of the approve permission and, with
- * `options.decider`, whoever the app's decider accepts.
- */
-function standalonePolicy(ctx: BlockSqlContext): string {
-  const policy = standalonePolicyOf(ctx);
-
-  if (ctx.flag("selfDecideWhenTopOfChain", false)) {
-    assertCountedApprovers(
-      policy,
-      ctx.permissionKey("approve", OPERATIONS["expenses.approve"]),
-      "blocks.expenses.options.selfDecideWhenTopOfChain",
-    );
-  }
-
-  return policySnapshot(policy);
-}
-
-function standalonePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
-  const policy = policyOf(
-    EXPENSE_SUBJECT,
-    "approve",
-    ctx.option("policy") ?? {
-      steps: [
-        {
-          approvers: {
-            permission: ctx.permissionKey(
-              "approve",
-              OPERATIONS["expenses.approve"],
-            ),
-            ...(hasDecider(ctx) ? { decider: true } : {}),
-          },
-        },
-      ],
-    },
-    "blocks.expenses.options.policy",
-  );
-
-  if (policy.run !== undefined) {
-    throw new TypeError(
-      "blocks.expenses.options.policy.run is not allowed; the final approval approves the expense",
-    );
-  }
-
-  return policy;
-}
-
-export function expensesStandalone(ctx: BlockSqlContext): boolean {
-  const reports = ctx.config.tables["reports"] === null;
-
-  if (reports !== (ctx.config.tables["lines"] === null)) {
-    throw new TypeError(
-      "blocks.expenses.tables.reports and lines map to null together: without reports, each expense is one row of tables.expenses",
-    );
-  }
-
-  return reports;
-}
 
 export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const owner = recordOwner(ctx, {
