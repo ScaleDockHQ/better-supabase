@@ -154,7 +154,25 @@ order, so `permissionsOf(session, tenant, { catalog: proxyPermissions })` in
 
 `createProxy(betterSupabase, options)` takes the `createNext` options (`env`,
 `auth`, `leeway`) and the proxy options (`before`, `protect`, `after`,
-`verifySession`, `serverTiming`) in one object. It also exports
+`verifySession`, `serverTiming`) in one object. It leaves out the options that
+only configure the server side (`support`, `postgres`, `kept`, `authorizer`,
+`authorization`, `versions`, `credentials`, `audit` and `approval`): the proxy
+never reads them, and passing them pulls their stores and drivers into its
+bundle and its cold start. `CreateProxyOptions` is that type, and a JavaScript
+caller that passes one gets a warning.
+
+For a JWKS shared through the Vercel Runtime Cache, import `vercelRuntimeCache`
+from `better-supabase/next/proxy` instead of `better-supabase/server`, so the
+proxy does not load the server entry:
+
+````ts title="src/proxy.ts"
+import { getCache } from "@vercel/functions";
+import { createProxy, vercelRuntimeCache } from "better-supabase/next/proxy";
+
+export const proxy = createProxy({
+  auth: { jwksStore: vercelRuntimeCache(getCache) },
+});
+``` It also exports
 `mutableResponse`, `overrideRequestHeaders`, `syncMiddlewareSetCookie` and
 `serverTimingValue` for a proxy that composes other middleware, and the
 helpers a `protect` function reads: `toSession(auth)`, `permissionsOf(session)`
@@ -185,7 +203,7 @@ export const proxy = (request: NextRequest) =>
     verifySession: { redirect: "/login", paths: ["/"] },
     protect,
   });
-```
+````
 
 | Option     | Default                            | Meaning                                                                    |
 | ---------- | ---------------------------------- | -------------------------------------------------------------------------- |
