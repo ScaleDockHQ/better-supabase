@@ -48,6 +48,12 @@ vi.mock("next/headers.js", () => ({
     }),
 }));
 
+// The tests run as one request, so the request recording may read headers().
+vi.mock(
+  "next/dist/server/app-render/work-unit-async-storage.external.js",
+  () => ({ workUnitAsyncStorage: { getStore: () => ({ type: "request" }) } }),
+);
+
 vi.mock("next/server.js", async (original) => ({
   ...(await original<Record<string, unknown>>()),
   after: mocks.after,

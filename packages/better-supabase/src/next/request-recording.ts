@@ -1,3 +1,4 @@
+import { workUnitAsyncStorage } from "next/dist/server/app-render/work-unit-async-storage.external.js";
 import { headers } from "next/headers.js";
 
 import type {
@@ -67,11 +68,23 @@ interface EntryOptions {
 
 const roundMs = (ms: number): number => Math.round(ms * 100) / 100;
 
+/** Whether the current work unit may read request headers. */
+function readsHeaders(): boolean {
+  const type = workUnitAsyncStorage.getStore()?.type;
+
+  return type === "request" || type === "private-cache";
+}
+
 export function requestRecording(
   collector: CollectorView | undefined,
 ): RequestRecording {
+  // Inside a "use cache" or unstable_cache scope, reading headers() marks the
+  // entry as request-bound and its remote set fails, so only a request (or a
+  // private cache, which may read them) looks the id up.
   const currentId = async (): Promise<string | undefined> =>
-    collector ? headers().then(requestIdOf, () => undefined) : undefined;
+    collector && readsHeaders()
+      ? headers().then(requestIdOf, () => undefined)
+      : undefined;
 
   // A service that calls `connect()` itself has no recorder to pass; it finds
   // the current request's through this.
