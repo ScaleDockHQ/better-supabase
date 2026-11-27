@@ -451,6 +451,24 @@ create trigger bsb_same_tenant_team_id before update on public.jobs
     expect(sql).toContain('"bsb_same_tenant_team_id"');
   });
 
+  it("reads a marker on its own line only", async () => {
+    const layout = await sameTenantLayoutOf(
+      [
+        {
+          text: schema.replace(
+            "-- @bsb same-tenant-guard column=customer_id\n",
+            "-- @bsb same-tenant-guard column=customer_id,\nteam_id := 1;\n",
+          ),
+        },
+      ],
+      ["public"],
+    );
+
+    expect(layout.appTriggerColumns).toStrictEqual({
+      "public.jobs": ["customer_id"],
+    });
+  });
+
   it("keeps the check for a column another column's marker doesn't name", async () => {
     const sql = await render(
       schema.replace("column=customer_id", "column=team_id"),

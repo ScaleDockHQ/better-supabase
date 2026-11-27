@@ -1139,7 +1139,9 @@ $$;
 ${userGrant(`${fn("approval_eligible_ids_in")}(${ctx.idType}[])`)}
 
 -- approval_eligible_ids_in for one tenant, or every tenant when null. It runs
--- as the caller; approval_eligible_ids_in reads the requests as the owner.
+-- as the caller; approval_eligible_ids_in reads the requests as the owner. It
+-- stays PL/pgSQL: a schema diff drops and recreates a function whose language
+-- changes, and app policies that call this one depend on it.
 create or replace function ${fn("approval_eligible_ids")}(tenant ${ctx.idType} default null)
 returns setof uuid
 language plpgsql

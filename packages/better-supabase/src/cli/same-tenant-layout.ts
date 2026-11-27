@@ -15,7 +15,7 @@ const ROW_COLUMN = /\b(?:new|old)\s*\.\s*"?([a-z_][\w$]*)"?/gi;
  * checks the tenant of those foreign key columns itself (ADR 1268).
  */
 const GUARD_MARKER =
-  /@bsb\s+same-tenant-guard\s+columns?\s*=\s*([a-z_][\w$]*(?:\s*,\s*[a-z_][\w$]*)*)/gi;
+  /@bsb[ \t]+same-tenant-guard[ \t]+columns?[ \t]*=[ \t]*([a-z_][\w$]*(?:[ \t]*,[ \t]*[a-z_][\w$]*)*)/gi;
 
 const inSchemas = (table: string, schemas: readonly string[]): boolean =>
   schemas.includes(table.slice(0, table.indexOf(".")));

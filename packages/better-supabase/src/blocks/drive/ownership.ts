@@ -5,7 +5,7 @@ import type {
   RecordRequestListOptions,
 } from "../access-requests/access-requests.ts";
 
-import { recordOf } from "../../core/block-helpers.ts";
+import { recordOf, stringsOf } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 
@@ -28,6 +28,12 @@ export interface DriveTransfer {
   readonly nodes: number;
   /** The drives the new owner now owns or holds the top role on. */
   readonly drives: number;
+  /**
+   * The drives that stay with the old owner, grants included, because the new
+   * owner can't own them (an app's unique index or check over the owner, such
+   * as one personal drive per member).
+   */
+  readonly keptDriveIds?: readonly string[];
 }
 
 /** Access requests on nodes and handing a member's items to another. */
@@ -112,6 +118,7 @@ export function driveAccess(options: DriveAccessOptions): DriveAccess {
           return {
             nodes: countOf(row, "nodes"),
             drives: countOf(row, "drives"),
+            keptDriveIds: stringsOf(row["keptDriveIds"]),
           };
         },
       ),

@@ -73,8 +73,18 @@ do $$
 declare
   v jsonb;
 begin
+  -- A file in Ann's personal drive and one in her shared drive, each owned by her.
+  insert into better_supabase.drive_nodes (tenant_id, drive_id, kind, name)
+  select '${TENANT}', id, 'file', name || '.txt' from better_supabase.drive_drives where name in ('Ann', 'Ann shared');
+  insert into better_supabase.drive_grants (tenant_id, node_id, principal_type, principal_id, role)
+  select '${TENANT}', n.id, 'user', '${ANN}', 'owner' from better_supabase.drive_nodes n where n.name in ('Ann.txt', 'Ann shared.txt');
   -- Ben already has a personal drive: Ann's stays with her, her shared one moves.
   v := better_supabase.drive_transfer_ownership('${TENANT}', '${ANN}', '${BEN}');
+  if (v ->> 'nodes')::integer <> 1
+    or (select g.principal_id from better_supabase.drive_grants g join better_supabase.drive_nodes n on n.id = g.node_id where n.name = 'Ann.txt') <> '${ANN}'
+    or (select g.principal_id from better_supabase.drive_grants g join better_supabase.drive_nodes n on n.id = g.node_id where n.name = 'Ann shared.txt') <> '${BEN}' then
+    raise exception 'the node grants moved wrongly: %', v;
+  end if;
   if (v ->> 'drives')::integer <> 1
     or v -> 'keptDriveIds' <> to_jsonb(array(select id from better_supabase.drive_drives where name = 'Ann')) then
     raise exception 'the transfer to Ben returned %', v;
@@ -83,13 +93,31 @@ begin
     or (select owner_id from better_supabase.drive_drives where name = 'Ann shared') <> '${BEN}' then
     raise exception 'the drives moved wrongly';
   end if;
-  -- Ann has no other personal drive once Cal's is gone: Cal's moves to her.
+  -- Ann has no other personal drive once hers is gone: Cal's moves to her.
+  delete from better_supabase.drive_nodes where name = 'Ann.txt';
   delete from better_supabase.drive_drives where name = 'Ann';
   v := better_supabase.drive_transfer_ownership('${TENANT}', '${CAL}', '${ANN}');
   if (v ->> 'drives')::integer <> 2 or v -> 'keptDriveIds' <> '[]'::jsonb
     or (select owner_id from better_supabase.drive_drives where name = 'Cal') <> '${ANN}' then
     raise exception 'the transfer to Ann returned %', v;
   end if;
+end;
+$$;
+-- A refusal that is not about the owner column still fails the transfer.
+create function public.refuse_shared() returns trigger language plpgsql as $$
+begin
+  raise exception 'refused' using errcode = 'unique_violation', constraint = 'drive_drives_name_idx';
+end;
+$$;
+create trigger refuse_shared before update on better_supabase.drive_drives
+  for each row when (new.kind = 'shared') execute function public.refuse_shared();
+insert into better_supabase.drive_drives (tenant_id, name, kind, owner_id) values ('${TENANT}', 'Cal again', 'shared', '${CAL}');
+do $$
+begin
+  perform better_supabase.drive_transfer_ownership('${TENANT}', '${CAL}', '${BEN}');
+  raise exception 'the transfer kept a drive another constraint refused';
+exception when unique_violation then
+  null;
 end;
 $$;`,
       ],

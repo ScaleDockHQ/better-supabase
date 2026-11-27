@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@7 managed
--- @bsb-hash sha256:9ac482419c6f721968563b228ba35c6cf521b5dd8d80b10b94fdbd2b879ef6b0
+-- @bsb-hash sha256:882cd73cab696c4f598f486d2614b3998a9b4b774f783efd0715ae2b156b674d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -345,7 +345,9 @@ revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) 
 grant execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) to authenticated, service_role;
 
 -- approval_eligible_ids_in for one tenant, or every tenant when null. It runs
--- as the caller; approval_eligible_ids_in reads the requests as the owner.
+-- as the caller; approval_eligible_ids_in reads the requests as the owner. It
+-- stays PL/pgSQL: a schema diff drops and recreates a function whose language
+-- changes, and app policies that call this one depend on it.
 create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid
 language plpgsql
