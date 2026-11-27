@@ -250,6 +250,7 @@ create table if not exists ${t("folders")} (
   ${names.c("folders", "name")} text not null check (length(${names.c("folders", "name")}) between 1 and 120),
   ${names.c("folders", "rank")} text collate "C" not null default 'V'
 );
+alter table ${t("folders")} enable row level security;
 alter table ${t("favorites")} add column if not exists ${fa("folder")} uuid references ${t("folders")} (${names.c("folders", "id")}) on delete set null;
 
 create or replace function ${ctx.fn("save_star_folder")}(tenant ${ctx.idType}, id uuid, name text)
@@ -591,6 +592,7 @@ export const COLLECTIONS: BlockSqlDefinition = {
   ${ctx.col("folders", "name")} text not null check (length(${ctx.col("folders", "name")}) between 1 and 120),
   ${ctx.col("folders", "rank")} text collate "C" not null default 'V'
 );
+alter table ${ctx.table("folders")} enable row level security;
 alter table ${ctx.table("favorites")} add column if not exists ${ctx.col("favorites", "folder")} uuid references ${ctx.table("folders")} (${ctx.col("folders", "id")}) on delete set null;`
           : "",
     },

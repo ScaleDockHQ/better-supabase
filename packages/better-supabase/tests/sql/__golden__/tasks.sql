@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:c8582531a2f0e2df4b839a97fe89813fb58d4b47105f1cc25fe4a8952c6662a9
+-- @bsb-hash sha256:54c3de510b085739c463d23cfede5993da8d96eb2c9574d153445250922a1d99
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -346,6 +346,7 @@ create table "better_supabase"."milestones" (
   "updated_at" timestamptz not null default now()
 );
 create index milestones_project_idx on "better_supabase"."milestones" ("project_id", "rank");
+alter table "better_supabase"."milestones" enable row level security;
 
 create table "better_supabase"."iteration_cadences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -359,6 +360,7 @@ create table "better_supabase"."iteration_cadences" (
   "created_at" timestamptz not null default now()
 );
 create unique index iteration_cadences_team_idx on "better_supabase"."iteration_cadences" ("tenant_id", "team_id");
+alter table "better_supabase"."iteration_cadences" enable row level security;
 
 create table "better_supabase"."iteration_snapshots" (
   "id" uuid primary key default gen_random_uuid(),
@@ -370,6 +372,7 @@ create table "better_supabase"."iteration_snapshots" (
   "completed" integer not null
 );
 create unique index iteration_snapshots_day_idx on "better_supabase"."iteration_snapshots" ("iteration_id", "day");
+alter table "better_supabase"."iteration_snapshots" enable row level security;
 alter table "better_supabase"."tasks" add column "waiting_on" integer not null default 0 constraint bsb_tasks_waiting_on_check check ("waiting_on" >= 0);
 alter table "better_supabase"."tasks" add column "held_at" timestamptz;
 alter table "better_supabase"."tasks" add column "hold_kind" text;
@@ -3384,7 +3387,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:46367cc039633e659d0c102b4e2f867f5e8d34aefa1ecb7b32246a533843a2d4
+-- @bsb-hash sha256:0c69aea809afbca7109965c25a6da88cdb9b309304b16509782749cbfbfd7c44
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3729,6 +3732,7 @@ create table "better_supabase"."milestones" (
   "updated_at" timestamptz not null default now()
 );
 create index milestones_project_idx on "better_supabase"."milestones" ("project_id", "rank");
+alter table "better_supabase"."milestones" enable row level security;
 
 create table "better_supabase"."iteration_cadences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3742,6 +3746,7 @@ create table "better_supabase"."iteration_cadences" (
   "created_at" timestamptz not null default now()
 );
 create unique index iteration_cadences_team_idx on "better_supabase"."iteration_cadences" ("tenant_id", "team_id");
+alter table "better_supabase"."iteration_cadences" enable row level security;
 
 create table "better_supabase"."iteration_snapshots" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3753,6 +3758,7 @@ create table "better_supabase"."iteration_snapshots" (
   "completed" integer not null
 );
 create unique index iteration_snapshots_day_idx on "better_supabase"."iteration_snapshots" ("iteration_id", "day");
+alter table "better_supabase"."iteration_snapshots" enable row level security;
 alter table "better_supabase"."tasks" add column "waiting_on" integer not null default 0 constraint bsb_tasks_waiting_on_check check ("waiting_on" >= 0);
 alter table "better_supabase"."tasks" add column "held_at" timestamptz;
 alter table "better_supabase"."tasks" add column "hold_kind" text;
@@ -7234,7 +7240,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:c6d00253f5af7ef3bcfe47e2ef4f2f737af7ac03808cf26230b8508849e1c9ba
+-- @bsb-hash sha256:dbea3ee22059e30d12d662ab7910ed3a823fc3c5ea33d6501593a2f2d7419789
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7584,6 +7590,7 @@ create table "app_private"."milestones" (
   "updated_at" timestamptz not null default now()
 );
 create index milestones_project_idx on "app_private"."milestones" ("project_id", "rank");
+alter table "app_private"."milestones" enable row level security;
 
 create table "app_private"."iteration_cadences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -7597,6 +7604,7 @@ create table "app_private"."iteration_cadences" (
   "created_at" timestamptz not null default now()
 );
 create unique index iteration_cadences_team_idx on "app_private"."iteration_cadences" ("tenant_id", "team_id");
+alter table "app_private"."iteration_cadences" enable row level security;
 
 create table "app_private"."iteration_snapshots" (
   "id" uuid primary key default gen_random_uuid(),
@@ -7608,6 +7616,7 @@ create table "app_private"."iteration_snapshots" (
   "completed" integer not null
 );
 create unique index iteration_snapshots_day_idx on "app_private"."iteration_snapshots" ("iteration_id", "day");
+alter table "app_private"."iteration_snapshots" enable row level security;
 alter table "app_private"."tasks" add column "waiting_on" integer not null default 0 constraint bsb_tasks_waiting_on_check check ("waiting_on" >= 0);
 alter table "app_private"."tasks" add column "held_at" timestamptz;
 alter table "app_private"."tasks" add column "hold_kind" text;
@@ -10622,7 +10631,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:0487c91b7d14244ad023f10411e0974c15581fd3311dd6538549b2ba17ded840
+-- @bsb-hash sha256:42e85937663541d9bef6f710b9e1be4db7c0400536a9b860368472aff2e71b06
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10967,6 +10976,7 @@ create table "better_supabase"."milestones" (
   "updated_at" timestamptz not null default now()
 );
 create index milestones_project_idx on "better_supabase"."milestones" ("project_id", "rank");
+alter table "better_supabase"."milestones" enable row level security;
 
 create table "better_supabase"."iteration_cadences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -10980,6 +10990,7 @@ create table "better_supabase"."iteration_cadences" (
   "created_at" timestamptz not null default now()
 );
 create unique index iteration_cadences_team_idx on "better_supabase"."iteration_cadences" ("tenant_id", "team_id");
+alter table "better_supabase"."iteration_cadences" enable row level security;
 
 create table "better_supabase"."iteration_snapshots" (
   "id" uuid primary key default gen_random_uuid(),
@@ -10991,6 +11002,7 @@ create table "better_supabase"."iteration_snapshots" (
   "completed" integer not null
 );
 create unique index iteration_snapshots_day_idx on "better_supabase"."iteration_snapshots" ("iteration_id", "day");
+alter table "better_supabase"."iteration_snapshots" enable row level security;
 alter table "better_supabase"."tasks" add column "waiting_on" integer not null default 0 constraint bsb_tasks_waiting_on_check check ("waiting_on" >= 0);
 alter table "better_supabase"."tasks" add column "held_at" timestamptz;
 alter table "better_supabase"."tasks" add column "hold_kind" text;
@@ -14502,7 +14514,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:dff73c1d3ababb555b930fa6333a7bda4e7f261d56548de004a716ffc1e3b4b3
+-- @bsb-hash sha256:84d9d33688475d001a1d96f2b8a30272b19f1e519a84488ac3c44bc19ed317d8
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14829,6 +14841,7 @@ alter table "better_supabase"."milestones" add column if not exists "rank" text 
 alter table "better_supabase"."milestones" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."milestones" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists milestones_project_idx on "better_supabase"."milestones" ("project_id", "rank");
+alter table "better_supabase"."milestones" enable row level security;
 
 -- better_supabase.iteration_cadences is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."iteration_cadences" add column if not exists "id" uuid default gen_random_uuid();
@@ -14841,6 +14854,7 @@ alter table "better_supabase"."iteration_cadences" add column if not exists "upc
 alter table "better_supabase"."iteration_cadences" add column if not exists "rollover" boolean not null default true;
 alter table "better_supabase"."iteration_cadences" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists iteration_cadences_team_idx on "better_supabase"."iteration_cadences" ("tenant_id", "team_id");
+alter table "better_supabase"."iteration_cadences" enable row level security;
 
 -- better_supabase.iteration_snapshots is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."iteration_snapshots" add column if not exists "id" uuid default gen_random_uuid();
@@ -14851,6 +14865,7 @@ alter table "better_supabase"."iteration_snapshots" add column if not exists "sc
 alter table "better_supabase"."iteration_snapshots" add column if not exists "started" integer;
 alter table "better_supabase"."iteration_snapshots" add column if not exists "completed" integer;
 create unique index if not exists iteration_snapshots_day_idx on "better_supabase"."iteration_snapshots" ("iteration_id", "day");
+alter table "better_supabase"."iteration_snapshots" enable row level security;
 alter table "better_supabase"."tasks" add column if not exists "waiting_on" integer not null default 0 constraint bsb_tasks_waiting_on_check check ("waiting_on" >= 0);
 alter table "better_supabase"."tasks" add column if not exists "held_at" timestamptz;
 alter table "better_supabase"."tasks" add column if not exists "hold_kind" text;
@@ -17863,7 +17878,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@10 managed
--- @bsb-hash sha256:078557cdc2de8da091a2f4fc6e3cf15c567663cb5751656555098bcad99517be
+-- @bsb-hash sha256:7be592622f3eb02424dd1c12daab15cb8be61bc55b91ef9c23163cb8a84b9fea
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18208,6 +18223,7 @@ create table "better_supabase"."milestones" (
   "updated_at" timestamptz not null default now()
 );
 create index milestones_project_idx on "better_supabase"."milestones" ("project_id", "rank");
+alter table "better_supabase"."milestones" enable row level security;
 
 create table "better_supabase"."iteration_cadences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -18221,6 +18237,7 @@ create table "better_supabase"."iteration_cadences" (
   "created_at" timestamptz not null default now()
 );
 create unique index iteration_cadences_team_idx on "better_supabase"."iteration_cadences" ("org_id", "team_id");
+alter table "better_supabase"."iteration_cadences" enable row level security;
 
 create table "better_supabase"."iteration_snapshots" (
   "id" uuid primary key default gen_random_uuid(),
@@ -18232,6 +18249,7 @@ create table "better_supabase"."iteration_snapshots" (
   "completed" integer not null
 );
 create unique index iteration_snapshots_day_idx on "better_supabase"."iteration_snapshots" ("iteration_id", "day");
+alter table "better_supabase"."iteration_snapshots" enable row level security;
 alter table "better_supabase"."tasks" add column "waiting_on" integer not null default 0 constraint bsb_tasks_waiting_on_check check ("waiting_on" >= 0);
 alter table "better_supabase"."tasks" add column "held_at" timestamptz;
 alter table "better_supabase"."tasks" add column "hold_kind" text;

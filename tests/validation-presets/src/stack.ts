@@ -83,6 +83,14 @@ export async function installAndRollBack(
         await client.query(`do $$ begin
           if to_regclass('better_supabase.team_members') is not null then delete from better_supabase.team_members; end if;
           if to_regclass('better_supabase.invitations') is not null then delete from better_supabase.invitations; end if;
+          -- The example already created these with its own project column
+          -- names. Drop them so this preset creates the tables it renders.
+          -- The rollback restores the example's tables.
+          drop table if exists better_supabase.task_identifiers cascade;
+          drop table if exists better_supabase.iteration_snapshots cascade;
+          drop table if exists better_supabase.iteration_cadences cascade;
+          drop table if exists better_supabase.milestones cascade;
+          drop table if exists better_supabase.maintenance_requests cascade;
         end $$`);
         await client.query(sql);
         break;

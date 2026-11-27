@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@12 managed
--- @bsb-hash sha256:d1d3e9c74a4b0a2d7039729255d60127ab09c18cdf5a527a861df5d880310096
+-- @bsb-hash sha256:fffa0524aed1cf38adc974d9c72ec5aaa5e60196d8841262a428f666e91f0913
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,7 +548,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -655,7 +655,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -770,7 +770,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
-          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -1762,7 +1762,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@12 managed
--- @bsb-hash sha256:3dbc995043c1821186965ac6d67419de427b5ee3d99201987bf25ae18175f2dd
+-- @bsb-hash sha256:510046ee1d559ee4099baa0106590a99e8a2ca501d23a99868851c690dcf24c8
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2337,7 +2337,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -2444,7 +2444,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -2559,7 +2559,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
-          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -3601,7 +3601,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@12 managed
--- @bsb-hash sha256:c10c1e2b0424557572956b8f13c389a5b0c610574175514e6ca4afada41763c8
+-- @bsb-hash sha256:3ca100ad6eec032d9a34cfbe2bb975ddc16f37df96335063cad885361aafc2be
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4153,7 +4153,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -4260,7 +4260,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -4375,7 +4375,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
-          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -5367,7 +5367,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@12 managed
--- @bsb-hash sha256:ab121c822549c13db2c99dac4cf5fbe07ce6f0fd19b0cd359f035d044695f454
+-- @bsb-hash sha256:07c0eb1aedb6e26e71bc5acc55d07902aff726225c3dd13918c000aac3b11994
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5914,7 +5914,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -6021,7 +6021,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -6136,7 +6136,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
-          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -7425,7 +7425,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@12 managed
--- @bsb-hash sha256:8fb3033b81b87848b1cc0b3e376259bac89a59973dc6492e9d08a507fb63af7d
+-- @bsb-hash sha256:7e18d3fb79e6f85f0b1836a82e4098e09d16a06053fd16ad392ad04e9adbef50
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7958,7 +7958,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -8065,7 +8065,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -8180,7 +8180,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
-          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -9172,7 +9172,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@12 managed
--- @bsb-hash sha256:4c7498771ee08c14128c3d99186a483a7ba64ba00330be6b9cbe44eba179b621
+-- @bsb-hash sha256:d823356586ccb27fc61bf31c7be7ea0ca22370747b22b5ba1539202e4e5b2ce7
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9719,7 +9719,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -9826,7 +9826,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -9941,7 +9941,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
-          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."org_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u

@@ -51,10 +51,10 @@ select extensions.is(
   (select coalesce(string_agg(table_name || '.' || column_name, ', ' order by table_name, column_name), '')
     from information_schema.columns
     where table_schema = 'better_supabase' and data_type = 'timestamp with time zone'
-      and column_name !~ '_at$'
+      and column_name !~ '(_at|_until)$'
       and column_name <> 'dtstart'),
   '',
-  'timestamp columns end in _at (dtstart stays: RFC 5545 names it)'
+  'timestamp columns end in _at or _until (dtstart stays: RFC 5545 names it)'
 );
 
 select extensions.is(

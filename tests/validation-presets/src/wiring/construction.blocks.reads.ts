@@ -8,6 +8,12 @@ export type AttachmentsListArgs = { readonly tenant: string; readonly subjectTyp
 /** What `reads.attachments.list` returns. @public */
 export type AttachmentsListResult = readonly unknown[];
 
+/** The arguments of `reads.attachments.counts`. @public */
+export type AttachmentsCountsArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectIds: readonly string[] };
+
+/** What `reads.attachments.counts` returns. @public */
+export type AttachmentsCountsResult = unknown;
+
 /** The arguments of `reads.billing.overview`. @public */
 export type BillingOverviewArgs = { readonly organizationId: string; readonly invoiceLimit?: number };
 
@@ -72,6 +78,18 @@ export type OrganizationsOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.tasks.project`. @public */
+export type TasksProjectArgs = { readonly projectId: string };
+
+/** What `reads.tasks.project` returns. @public */
+export type TasksProjectResult = unknown;
+
+/** The arguments of `reads.tasks.board`. @public */
+export type TasksBoardArgs = { readonly organizationId: string };
+
+/** What `reads.tasks.board` returns. @public */
+export type TasksBoardResult = unknown;
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -80,6 +98,7 @@ export type OrganizationsOverviewResult = {
 export const reads = {
   attachments: {
     list: blockRead<AttachmentsListArgs, AttachmentsListResult>("list_attachments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id" }, ["attachments"], "better_supabase"),
+    counts: blockRead<AttachmentsCountsArgs, AttachmentsCountsResult>("attachment_counts", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["attachments"], "better_supabase"),
   },
   billing: {
     overview: blockRead<BillingOverviewArgs, BillingOverviewResult>("billing_overview", { organizationId: "tenant", invoiceLimit: "invoice_limit" }, ["customers", "subscriptions"], "better_supabase"),
@@ -94,5 +113,9 @@ export const reads = {
   },
   organizations: {
     overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "better_supabase"),
+  },
+  tasks: {
+    project: blockRead<TasksProjectArgs, TasksProjectResult>("get_project", { projectId: "project" }, ["projects", "items"], "better_supabase"),
+    board: blockRead<TasksBoardArgs, TasksBoardResult>("page_tasks", { organizationId: "tenant" }, ["items", "assignees"], "better_supabase"),
   },
 } as const;

@@ -561,7 +561,7 @@ function inbox(ctx: BlockSqlContext, n: NotifyNames): string {
 
     const haystackSql = [...haystack, `ev.${e("type")}`].join(", ");
 
-    return `  v_where := $q$rc.${r("user")} = $1 and (rc.${r("snoozedUntil")} is null or rc.${r("snoozedUntil")} <= now())$q$;
+    return `  v_where := $q$rc.${r("user")} = $1 and (rc.${r("snoozedUntil")} <= now() or rc.${r("snoozedUntil")} is null)$q$;
   if coalesce(${fn}.status, 'all') = 'settled' then
     v_where := v_where || $q$ and ${settled}$q$;
   elsif ${fn}.dismissed is not null then
@@ -707,7 +707,7 @@ as $$
         where rc.${r("user")} = auth.uid()
           and rc.${r("readAt")} is null
           and rc.${r("dismissedAt")} is null
-          and (rc.${r("snoozedUntil")} is null or rc.${r("snoozedUntil")} <= now())
+          and (rc.${r("snoozedUntil")} <= now() or rc.${r("snoozedUntil")} is null)
           ${tenantFilter("notification_counts")}
         limit notification_counts.cap
       ) u

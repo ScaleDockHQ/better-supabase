@@ -216,6 +216,11 @@ export const permissions = {
     moderate: "posts.moderate",
     manage: "posts.manage",
   },
+  project: {
+    read: "tasks.read",
+    write: "tasks.manage",
+    upload: "tasks.manage",
+  },
   reactions: {
     read: "reactions.read",
     create: "reactions.create",

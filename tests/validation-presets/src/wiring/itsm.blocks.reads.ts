@@ -54,6 +54,18 @@ export type OrganizationsOverviewResult = {
   }[];
 };
 
+/** The arguments of `reads.tasks.project`. @public */
+export type TasksProjectArgs = { readonly projectId: string };
+
+/** What `reads.tasks.project` returns. @public */
+export type TasksProjectResult = unknown;
+
+/** The arguments of `reads.tasks.board`. @public */
+export type TasksBoardArgs = { readonly organizationId: string };
+
+/** What `reads.tasks.board` returns. @public */
+export type TasksBoardResult = unknown;
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -69,5 +81,9 @@ export const reads = {
   },
   organizations: {
     overview: blockRead<OrganizationsOverviewArgs, OrganizationsOverviewResult>("organization_overview", { organizationId: "organization" }, ["organizations", "memberships", "invitations"], "better_supabase"),
+  },
+  tasks: {
+    project: blockRead<TasksProjectArgs, TasksProjectResult>("get_issue", { projectId: "project" }, ["projects", "items"], "better_supabase"),
+    board: blockRead<TasksBoardArgs, TasksBoardResult>("page_tickets", { organizationId: "tenant" }, ["items", "assignees"], "better_supabase"),
   },
 } as const;

@@ -90,6 +90,12 @@ export interface Task<F extends object = Record<never, never>> {
   readonly teamId?: string;
   readonly projectId?: string;
   readonly iterationId?: string;
+  /** The milestone this item belongs to. */
+  readonly milestoneId?: string;
+  /** The earlier item this one duplicates. */
+  readonly duplicateOfId?: string;
+  /** Hidden from triage until this instant. */
+  readonly snoozedUntil?: Temporal.Instant;
   /** 0 none, 1 low, 2 medium, 3 high, 4 urgent. */
   readonly priority: number;
   readonly estimate?: number;
@@ -693,6 +699,9 @@ const KNOWN = new Set([
   "team_id",
   "project_id",
   "iteration_id",
+  "milestone_id",
+  "duplicate_of",
+  "snoozed_until",
   "priority",
   "estimate",
   "progress",
@@ -749,6 +758,9 @@ function itemOf(value: unknown): Task {
     teamId: optionalText(row["team_id"]),
     projectId: optionalText(row["project_id"]),
     iterationId: optionalText(row["iteration_id"]),
+    milestoneId: optionalText(row["milestone_id"]),
+    duplicateOfId: optionalText(row["duplicate_of"]),
+    snoozedUntil: optionalInstant(row["snoozed_until"]),
     priority: num(row["priority"]) ?? 0,
     estimate: num(row["estimate"]),
     progress: num(row["progress"]),

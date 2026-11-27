@@ -255,4 +255,43 @@ describe("tasks module", () => {
     expect(watch).toContain("watch_task");
     expect(watch).not.toContain('and s."organization_id" = x.');
   });
+
+  it("numbers a task inside its project when identifiers are per project", () => {
+    const sql = body("tasks", {
+      modules: { tasks: { options: { identifiers: "project" } } },
+    });
+
+    expect(sql).toContain("task_identifiers");
+    expect(sql).toContain("remember_task_identifier");
+    expect(sql).toContain("resolve_task_identifier");
+    expect(sql).toContain("enable row level security");
+  });
+
+  it("skips project tables a second instance maps to null", () => {
+    const sql = body("tasks", {
+      modules: { tasks: { tables: { projects: null, iterations: null } } },
+    });
+
+    expect(sql).not.toContain("milestones");
+    expect(sql).not.toContain("iteration_cadences");
+    expect(sql).not.toContain("iteration_snapshots");
+    expect(sql).not.toContain("task_identifiers");
+  });
+
+  it("leaves optional project columns out of the clone when they are unmapped", () => {
+    const sql = body("tasks", {
+      modules: {
+        tasks: {
+          columns: {
+            projects: { description: null, startOn: null, targetOn: null },
+            items: { startAt: null, endAt: null },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain("clone_project");
+    expect(sql).not.toContain('v_src."description"');
+    expect(sql).not.toContain("clone_project.shift_days <> 0");
+  });
 });

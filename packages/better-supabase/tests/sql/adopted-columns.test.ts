@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { adoptedColumnProblems } from "../../src/cli/adopted-columns.ts";
+import {
+  adoptedColumnProblems,
+  adoptedTables,
+  primeAdoption,
+} from "../../src/cli/adopted-columns.ts";
+import { ownTablesOf } from "../fixtures/own-tables.ts";
 import { adoptedTablesOf } from "../helpers/facts.ts";
 
 describe("adoptedColumnProblems", () => {
@@ -307,5 +312,16 @@ create table public.app_events (
       "userAgent",
       "reason",
     ]);
+  });
+
+  it("skips a tasks table the install leaves out", async () => {
+    const modules = { tasks: { tables: { items: "public.work_items" } } };
+    const own = ownTablesOf(modules);
+
+    await primeAdoption(modules, own);
+
+    const tables = adoptedTables(modules, own);
+
+    expect(tables.map((table) => table.logical)).toContain("items");
   });
 });

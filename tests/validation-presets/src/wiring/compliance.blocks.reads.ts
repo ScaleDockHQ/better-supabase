@@ -8,6 +8,12 @@ export type AttachmentsListArgs = { readonly tenant: string; readonly subjectTyp
 /** What `reads.attachments.list` returns. @public */
 export type AttachmentsListResult = readonly unknown[];
 
+/** The arguments of `reads.attachments.counts`. @public */
+export type AttachmentsCountsArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectIds: readonly string[] };
+
+/** What `reads.attachments.counts` returns. @public */
+export type AttachmentsCountsResult = unknown;
+
 /** The arguments of `reads.billing.overview`. @public */
 export type BillingOverviewArgs = { readonly organizationId: string; readonly invoiceLimit?: number };
 
@@ -68,6 +74,7 @@ export type OrganizationsOverviewResult = {
 export const reads = {
   attachments: {
     list: blockRead<AttachmentsListArgs, AttachmentsListResult>("list_attachments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id" }, ["attachments"], "better_supabase"),
+    counts: blockRead<AttachmentsCountsArgs, AttachmentsCountsResult>("attachment_counts", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["attachments"], "better_supabase"),
   },
   billing: {
     overview: blockRead<BillingOverviewArgs, BillingOverviewResult>("billing_overview", { organizationId: "tenant", invoiceLimit: "invoice_limit" }, ["customers", "subscriptions"], "better_supabase"),

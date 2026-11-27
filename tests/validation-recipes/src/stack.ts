@@ -319,6 +319,13 @@ async function install(client: PoolClient, sql: string): Promise<void> {
           drop index better_supabase.bsb_field_values_entity_key_idx;
           create unique index bsb_field_values_entity_key_idx on better_supabase.field_values (tenant_id, subject_type, subject_id, definition_id);
         end if;
+        -- The example already created these with its own project column
+        -- names. Drop them so this recipe creates the tables it renders.
+        drop table if exists better_supabase.task_identifiers cascade;
+        drop table if exists better_supabase.iteration_snapshots cascade;
+        drop table if exists better_supabase.iteration_cadences cascade;
+        drop table if exists better_supabase.milestones cascade;
+        drop table if exists better_supabase.maintenance_requests cascade;
       end $$`);
       await client.query(sql);
 

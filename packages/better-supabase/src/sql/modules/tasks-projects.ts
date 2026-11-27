@@ -40,7 +40,8 @@ create table if not exists ${ctx.table("milestones")} (
   ${m("createdAt")} timestamptz not null default now(),
   ${m("updatedAt")} timestamptz not null default now()
 );
-create index if not exists ${ctx.naming.rename("milestones_project_idx")} on ${ctx.table("milestones")} (${m("project")}, ${m("rank")});`);
+create index if not exists ${ctx.naming.rename("milestones_project_idx")} on ${ctx.table("milestones")} (${m("project")}, ${m("rank")});
+alter table ${ctx.table("milestones")} enable row level security;`);
   }
 
   if (ctx.hasTable("iterations") && ctx.hasTable("cadences")) {
@@ -58,7 +59,8 @@ create table if not exists ${ctx.table("cadences")} (
   ${d("rollover")} boolean not null default true,
   ${d("createdAt")} timestamptz not null default now()
 );
-create unique index if not exists ${ctx.tableName("cadences").name}_team_idx on ${ctx.table("cadences")} (${d("tenant")}, ${d("team")});`);
+create unique index if not exists ${ctx.tableName("cadences").name}_team_idx on ${ctx.table("cadences")} (${d("tenant")}, ${d("team")});
+alter table ${ctx.table("cadences")} enable row level security;`);
   }
 
   if (ctx.hasTable("iterations") && ctx.hasTable("snapshots")) {
@@ -74,7 +76,8 @@ create table if not exists ${ctx.table("snapshots")} (
   ${s("started")} integer not null,
   ${s("completed")} integer not null
 );
-create unique index if not exists ${ctx.tableName("snapshots").name}_day_idx on ${ctx.table("snapshots")} (${s("iteration")}, ${s("day")});`);
+create unique index if not exists ${ctx.tableName("snapshots").name}_day_idx on ${ctx.table("snapshots")} (${s("iteration")}, ${s("day")});
+alter table ${ctx.table("snapshots")} enable row level security;`);
   }
 
   if (
@@ -92,6 +95,7 @@ create table if not exists ${ctx.table("identifiers")} (
   ${k("createdAt")} timestamptz not null default now(),
   primary key (${k("tenant")}, ${k("identifier")})
 );
+alter table ${ctx.table("identifiers")} enable row level security;
 alter table ${ctx.table("items")} drop constraint if exists ${ctx.naming.rename(`${items.name}_tenant_id_number_key`)};
 
 create or replace function ${ctx.fn("remember_task_identifier")}()

@@ -752,4 +752,133 @@ describe("tasks.create with custom values", () => {
       "TASKS_CUSTOM_FIELDS_MISSING",
     );
   });
+
+  it("reads and writes milestones, cycles and retired identifiers", async () => {
+    const iteration = { id: "i1", name: "Cycle" };
+
+    const t = transport({
+      page_iterations: () => [iteration],
+      get_iteration: (args) => {
+        if (args["iteration"] === "none") {
+          return null;
+        }
+
+        if (args["iteration"] === "missing") {
+          return;
+        }
+
+        return iteration;
+      },
+      save_milestone: () => ({ id: "m" }),
+      page_milestones: (args) =>
+        args["project"] === "empty"
+          ? { id: "nope" }
+          : [{ id: "m", name: "Launch" }, { id: 1 }, "skip", { id: "n" }],
+      remove_milestone: () => true,
+      accept_task: () => ({ id: "w" }),
+      decline_task: () => null,
+      mark_duplicate: () => ({ id: "w" }),
+      snooze_task: () => ({ id: "w" }),
+      clone_project: () => ({ id: "p" }),
+      save_iteration_cadence: () => ({ id: "c" }),
+      iteration_burnup: (args) =>
+        args["iteration"] === "empty"
+          ? { day: "nope" }
+          : [
+              { day: "2026-11-01", scope: 3, started: 1, completed: 0 },
+              { day: 1 },
+              "skip",
+              { day: "2026-11-02" },
+            ],
+      resolve_task_identifier: (args) =>
+        args["identifier"] === "GONE" ? null : "w1",
+    });
+
+    const tasks = createTasks({ transport: t });
+
+    expect(
+      await tasks.pageIterations({ organizationId: "o" }).orThrow(),
+    ).toMatchObject([{ id: "i1" }]);
+    await tasks
+      .pageIterations({ organizationId: "o", teamId: "t", limit: 5 })
+      .orThrow();
+    expect((await tasks.getIteration("none")).ok).toBe(false);
+    expect((await tasks.getIteration("missing")).ok).toBe(false);
+    expect(await tasks.getIteration("i1").orThrow()).toMatchObject({
+      id: "i1",
+    });
+
+    await tasks
+      .saveMilestone({ organizationId: "o", projectId: "p", name: "Launch" })
+      .orThrow();
+    expect(
+      await tasks
+        .saveMilestone({
+          organizationId: "o",
+          milestoneId: "m",
+          projectId: "p",
+          name: "Launch",
+          description: "Ship",
+          targetOn: "2026-12-01",
+          rank: "a",
+        })
+        .orThrow(),
+    ).toEqual({ id: "m" });
+    expect(await tasks.pageMilestones("p").orThrow()).toEqual([
+      { id: "m", name: "Launch" },
+      { id: "n", name: "" },
+    ]);
+    expect(await tasks.pageMilestones("empty").orThrow()).toEqual([]);
+    expect(await tasks.removeMilestone("m").orThrow()).toBe(true);
+    expect(await tasks.acceptTask("w").orThrow()).toEqual({ id: "w" });
+    expect(await tasks.declineTask("w").orThrow()).toEqual({});
+    await tasks.markDuplicate({ taskId: "w", originalId: "w0" }).orThrow();
+    await tasks
+      .snoozeTask({ taskId: "w", until: "2026-12-01T00:00:00Z" })
+      .orThrow();
+    await tasks.cloneProject({ sourceId: "p" }).orThrow();
+    await tasks.cloneProject({ sourceId: "p", shiftDays: 7 }).orThrow();
+
+    await tasks
+      .saveIterationCadence({ organizationId: "o", teamId: "t" })
+      .orThrow();
+    expect(
+      t.calls.find(([fn]) => fn === "save_iteration_cadence")?.[1],
+    ).toMatchObject({
+      attrs: {
+        weeks: null,
+        cooldownDays: null,
+        startWeekday: null,
+        upcoming: null,
+        rollover: null,
+      },
+    });
+    await tasks
+      .saveIterationCadence({
+        organizationId: "o",
+        teamId: "t",
+        weeks: 2,
+        cooldownDays: 1,
+        startWeekday: 1,
+        upcoming: 3,
+        rollover: true,
+      })
+      .orThrow();
+
+    expect(await tasks.iterationBurnup("i").orThrow()).toEqual([
+      { day: "2026-11-01", scope: 3, started: 1, completed: 0 },
+      { day: "2026-11-02", scope: 0, started: 0, completed: 0 },
+    ]);
+    expect(await tasks.iterationBurnup("empty").orThrow()).toEqual([]);
+    expect(
+      await tasks
+        .resolveIdentifier({ organizationId: "o", identifier: "WEB-1" })
+        .orThrow(),
+    ).toBe("w1");
+    expect(
+      await tasks
+        .resolveIdentifier({ organizationId: "o", identifier: "GONE" })
+        .orThrow(),
+    ).toBeUndefined();
+  });
 });

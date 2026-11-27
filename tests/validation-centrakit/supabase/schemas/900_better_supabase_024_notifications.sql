@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@12 managed
--- @bsb-hash sha256:cffaf5bc8895386c15de46f94188b5565c6dc199d3ffa17b571eaddc2da26c49
+-- @bsb-hash sha256:d99680b83d8a822499b9623b0d1fef76cde00224d12466e08c925b601f84ca26
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -487,7 +487,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."recipient_user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."recipient_user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -594,7 +594,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."recipient_user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
+  v_where := $q$rc."recipient_user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -709,7 +709,7 @@ as $$
         where rc."recipient_user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
-          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u

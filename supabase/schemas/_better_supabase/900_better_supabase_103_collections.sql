@@ -1,6 +1,6 @@
 -- better-supabase module: collections
 -- @bsb-block collections@3 managed
--- @bsb-hash sha256:852d398c895d9e2bc7813bcc49c9f2df5bcbcb9acfd4d7d6865c77dc0562d357
+-- @bsb-hash sha256:1e5c38501758f107e9b178ee86e4738b4b1f19406e63a8e05ab96297b0985492
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,6 +72,7 @@ create table "better_supabase"."collection_star_folders" (
   "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
   "rank" text collate "C" not null default 'V'
 );
+alter table "better_supabase"."collection_star_folders" enable row level security;
 alter table "better_supabase"."collection_favorites" add column "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
 
 create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)

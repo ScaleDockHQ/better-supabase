@@ -46,7 +46,7 @@ select throws_ok(
   'a disposed asset cannot come back'
 );
 select throws_ok(
-  $$select api.upsert_project('00000000-0000-4000-8000-000000000001', null, '{"key":"BGT","name":"Budget","budgetAmount":"100"}')$$,
+  $$select api.upsert_work_project('00000000-0000-4000-8000-000000000001', null, '{"key":"BGT","name":"Budget","budgetAmount":"100"}')$$,
   '22023',
   null,
   'a budget amount needs a currency'
