@@ -345,22 +345,22 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       create function ${HOOKS}.bad(event jsonb) returns jsonb
         language plpgsql
         as $$ begin return event; end $$;
-      -- A provider-shaped token: about 1.5 KB of token, memberships and attrs within 1024.
+      -- A provider-shaped token: about 1.35 KB of token, so one cookie chunk, memberships and attrs within 1024.
       create function ${HOOKS}.provider_fits(event jsonb) returns jsonb
         language plpgsql stable set search_path = ''
         as $$ begin
           event := jsonb_set(event, '{claims,memberships}', jsonb_build_array(
             jsonb_build_object('scope', 'organization', 'id', repeat('a', 300), 'roles', jsonb_build_array('admin'))));
           event := jsonb_set(event, '{claims,attrs}', jsonb_build_object('plan', repeat('p', 200)));
-          return jsonb_set(event, '{claims,profile}', to_jsonb(repeat('x', 500)));
+          return jsonb_set(event, '{claims,profile}', to_jsonb(repeat('x', 300)));
         end $$;
-      -- Memberships and attrs over 1024, the whole token under 2048.
+      -- Memberships and attrs just over 1024, the whole token still one cookie chunk (about 1.5 KB).
       create function ${HOOKS}.provider_over(event jsonb) returns jsonb
         language plpgsql stable set search_path = ''
         as $$ begin
           event := jsonb_set(event, '{claims,memberships}', jsonb_build_array(
-            jsonb_build_object('scope', 'organization', 'id', repeat('a', 800), 'roles', jsonb_build_array('admin'))));
-          return jsonb_set(event, '{claims,attrs}', jsonb_build_object('plan', repeat('p', 300)));
+            jsonb_build_object('scope', 'organization', 'id', repeat('a', 690), 'roles', jsonb_build_array('admin'))));
+          return jsonb_set(event, '{claims,attrs}', jsonb_build_object('plan', repeat('p', 280)));
         end $$;
       grant usage on schema ${HOOKS} to supabase_auth_admin;
       grant execute on function ${HOOKS}.provider_fits(jsonb), ${HOOKS}.provider_over(jsonb) to supabase_auth_admin;
