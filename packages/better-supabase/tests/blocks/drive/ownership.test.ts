@@ -96,7 +96,11 @@ describe("drive access requests", () => {
 describe("drive ownership transfer", () => {
   it("moves a member's items and counts them", async () => {
     const fake = transport({
-      drive_transfer_ownership: () => ({ nodes: 3, drives: 1 }),
+      drive_transfer_ownership: () => ({
+        nodes: 3,
+        drives: 1,
+        keptDriveIds: ["d2"],
+      }),
     });
 
     const drive = createDrive({ transport: fake });
@@ -109,7 +113,7 @@ describe("drive ownership transfer", () => {
           toUserId: "u2",
         })
         .orThrow(),
-    ).toEqual({ nodes: 3, drives: 1 });
+    ).toEqual({ nodes: 3, drives: 1, keptDriveIds: ["d2"] });
     expect(fake.calls).toEqual([
       [
         "drive_transfer_ownership",

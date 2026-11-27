@@ -28,6 +28,11 @@ export interface DriveTransfer {
   readonly nodes: number;
   /** The drives the new owner now owns or holds the top role on. */
   readonly drives: number;
+  /**
+   * The drives that stay with the old owner because the new owner can't own
+   * them, such as a second personal drive. Empty without drive owners.
+   */
+  readonly keptDriveIds?: readonly string[];
 }
 
 /** Access requests on nodes and handing a member's items to another. */
@@ -109,9 +114,14 @@ export function driveAccess(options: DriveAccessOptions): DriveAccess {
         (value) => {
           const row = recordOf(value, "drive_transfer_ownership");
 
+          const kept = row["keptDriveIds"];
+
           return {
             nodes: countOf(row, "nodes"),
             drives: countOf(row, "drives"),
+            keptDriveIds: Array.isArray(kept)
+              ? kept.filter((id): id is string => typeof id === "string")
+              : [],
           };
         },
       ),

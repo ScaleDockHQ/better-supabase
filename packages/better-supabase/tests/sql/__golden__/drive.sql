@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:aa9a441ddce21c597bd82e7a8231673312593b0700d0704ef006343498c2f690
+-- @bsb-hash sha256:4707980c691702e613de069b7fd1290aa7bf79890ef2ca7dfc679c5534614cac
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1404,7 +1404,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -1509,7 +1511,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:75001fbae7fe0af87d5c867586959f4c7440094ec65d53a64cf476a4e0118405
+-- @bsb-hash sha256:347dcc44b68344a88e70ab034513d42970a7b65b023e84fd830929c2259744e1
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3035,7 +3037,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -3166,7 +3170,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:d8c0782d6defadf4c250337da73a6077be36c08b213e9498c43cd6876ef485ef
+-- @bsb-hash sha256:96ee1af5fea64ce6d6f1726ae2665a2c6875ae12f3f90070c31aaede1adaab4b
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4574,7 +4578,9 @@ revoke execute on function "app_private"."drive_access_approvers"(text) from pub
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "app_private"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -4679,7 +4685,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:745e07ce13a23051608296579a301ec4154b8d42360b537f30ec3d82beceb8eb
+-- @bsb-hash sha256:ed9bc6bdddd4f8abdeb628a077621f53ebef469b531460363cb74142a5cefb06
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6082,7 +6088,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -6479,7 +6487,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:6cf0b3d74b8baa1c8232a8811037a2be492c3dcbc24f3c604ea73ca785d877c6
+-- @bsb-hash sha256:f2b4d5b3cccbfea41e5dbb4cd4368f56833e227c19868d906d523a46b147ddd6
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7813,7 +7821,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -7902,7 +7912,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:c0c11e2f41b102f9d2fb0c0c4a09b9f1d557f2c42333ee32067c106af9f7f250
+-- @bsb-hash sha256:27c354f37bf6616ec4a1649c3e89b573ce1cc88077b89980ecebbfdfeaf97523
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9305,7 +9315,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb

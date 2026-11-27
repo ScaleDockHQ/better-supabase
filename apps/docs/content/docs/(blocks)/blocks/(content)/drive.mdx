@@ -221,7 +221,7 @@ An approved request changes the node's grants, not its record team. Adding someo
 
 ## Ownership and offboarding
 
-`transferOwnership` hands everything one member holds at the top role to another member: their top-role grants on nodes, and with `drives` on, their drive grants and the drives they own. It needs `drive.manage` or the service role, and the new owner must be a member (`DRIVE_PRINCIPAL_NOT_FOUND`). Each moved node records `drive_node.ownership_transferred` and each drive `drive.ownership_transferred`.
+`transferOwnership` hands everything one member holds at the top role to another member: their top-role grants on nodes, and with `drives` on, their drive grants and the drives they own. It needs `drive.manage` or the service role, and the new owner must be a member (`DRIVE_PRINCIPAL_NOT_FOUND`). Each moved node records `drive_node.ownership_transferred` and each drive `drive.ownership_transferred`. A drive the new owner can't own stays with the old owner, together with its grants: when your table keeps one drive of a kind per owner, such as a personal drive, with a unique index or a check, the transfer skips that drive instead of failing and returns its id in `keptDriveIds`.
 
 ```ts
 const moved = await db.drive
