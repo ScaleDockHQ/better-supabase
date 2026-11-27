@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:aa9a441ddce21c597bd82e7a8231673312593b0700d0704ef006343498c2f690
+-- @bsb-hash sha256:17c834b3201fd07bdba85adc899b9da46cd0d4fce10ea2123d972645bb347a21
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -349,6 +349,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -374,7 +375,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -1404,7 +1405,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -1509,7 +1512,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:75001fbae7fe0af87d5c867586959f4c7440094ec65d53a64cf476a4e0118405
+-- @bsb-hash sha256:b7a264312ab82e9e65efdb31c7cea25a73a407e264c8f85047f9ce59b9c1bfc0
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1860,6 +1863,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -1885,7 +1889,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -3035,7 +3039,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -3166,7 +3172,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:d8c0782d6defadf4c250337da73a6077be36c08b213e9498c43cd6876ef485ef
+-- @bsb-hash sha256:b794117ca8b1e883543fbe697b1edef623f2884c75e3fc1578c728b09d83c0ad
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3519,6 +3525,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -3544,7 +3551,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "app_private"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "app_private"."drive_nodes"
   for each row execute function "app_private"."drive_node_path"();
 
 create or replace function "app_private"."drive_node_moved"()
@@ -4574,7 +4581,9 @@ revoke execute on function "app_private"."drive_access_approvers"(text) from pub
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "app_private"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -4679,7 +4688,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:745e07ce13a23051608296579a301ec4154b8d42360b537f30ec3d82beceb8eb
+-- @bsb-hash sha256:2c9c9bee09e1f5b232565c08eff2f4020f2d5f0747a1c71d6596b51c5b56f086
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5027,6 +5036,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -5052,7 +5062,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -6082,7 +6092,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -6479,7 +6491,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:6cf0b3d74b8baa1c8232a8811037a2be492c3dcbc24f3c604ea73ca785d877c6
+-- @bsb-hash sha256:67e3099fbfacde96a10576ba55df21a2a7e19d2818171c397b8858c63f6626f9
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6770,6 +6782,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -6795,7 +6808,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -7813,7 +7826,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb
@@ -7902,7 +7917,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:c0c11e2f41b102f9d2fb0c0c4a09b9f1d557f2c42333ee32067c106af9f7f250
+-- @bsb-hash sha256:e4adab83ecc379d27692be726405b64e187680959d7c9a614518380e036a180d
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8250,6 +8265,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -8275,7 +8291,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "org_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -9305,7 +9321,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb

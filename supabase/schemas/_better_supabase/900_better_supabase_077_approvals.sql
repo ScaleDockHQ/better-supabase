@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
--- @bsb-block approvals@6 managed
--- @bsb-hash sha256:2844cfaeadfc7c119bc60331d2d24460f20c790bf61c31632f88ba6e9aa473d6
+-- @bsb-block approvals@7 managed
+-- @bsb-hash sha256:2b3474a2968bc5f24dc0b80796e9d18f4c2d0f36c8782a6e54ef14e4a5351be6
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -267,25 +267,36 @@ $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
 
--- The pending requests the caller may decide, as a set, for a policy or a list
--- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
--- statement, not once per row. It applies the rules of approval_eligible as
--- joins over the pending requests (a permission is checked once per tenant and
--- permission pair), and a parity test keeps the two
--- in step. Pass a tenant to read one tenant's.
-create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+-- The pending requests the caller may decide, as a set, for a policy or a list.
+-- tenants defaults to the caller's member tenants; outside => true answers the
+-- requests outside them instead, tenantless ones included, where only a named
+-- user, a delegation or platform staff can make the
+-- caller an approver. A policy asks for the member tenants once and for the
+-- rest only on rows outside them:
+--   id in (select "better_supabase"."approval_eligible_ids_in"())
+--   or (("tenant_id" is null or "tenant_id" not in (select better_supabase.member_organization_ids()))
+--     and id in (select "better_supabase"."approval_eligible_ids_in"(outside => true)))
+-- Postgres evaluates each set once per statement, not once per row. It applies
+-- the rules of approval_eligible as joins over the pending requests (each
+-- permission is checked once through the tenants the caller holds it in),
+-- and a parity test keeps the two in step. It is PL/pgSQL so the body may name
+-- tables a later module creates.
+create or replace function "better_supabase"."approval_eligible_ids_in"(tenants uuid[] default null, outside boolean default false)
 returns setof uuid
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_tenants uuid[] := coalesce(approval_eligible_ids_in.tenants, array(select better_supabase.member_organization_ids()));
 begin
-  return query
-  with base as (
+  if coalesce(approval_eligible_ids_in.outside, false) then
+    return query
+    with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
-      and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+      and (r."tenant_id" is null or r."tenant_id" <> all (v_tenants))
   ),
   q as (
     select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
@@ -296,8 +307,8 @@ begin
     where s.ap ->> 'permission' is not null
   ),
   granted as materialized (
-    select n.t, n.p from needs n
-    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+    select g.t, k.p from (select distinct n.p from needs n where n.t is not null) k
+    cross join lateral better_supabase.tenant_ids_with(k.p) as g(t)
   )
   select q."id" from q
   where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
@@ -337,6 +348,89 @@ begin
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me
     )))))
     or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end)));
+  else
+    return query
+    with base as (
+    select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
+    where r."status" = 'pending' and (select auth.uid()) is not null
+      and r."tenant_id" = any (v_tenants)
+  ),
+  q as (
+    select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
+  ),
+  needs as materialized (
+    select distinct q."tenant_id" as t, s.ap ->> 'permission' as p
+    from q, lateral (values ((q.bsb_step -> 'approvers'), (case when coalesce((q.bsb_step ->> 'escalated')::boolean, false) then (q.bsb_step -> 'escalateTo') end))) as s(ap)
+    where s.ap ->> 'permission' is not null
+  ),
+  granted as materialized (
+    select g.t, k.p from (select distinct n.p from needs n where n.t is not null) k
+    cross join lateral better_supabase.tenant_ids_with(k.p) as g(t)
+  )
+  select q."id" from q
+  where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and not (coalesce(q."policy" -> 'excludedUserIds', '[]'::jsonb) ? q.bsb_me::text)
+    and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
+      or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
+        and (case when q."subject_type" = 'support_request' then ("better_supabase"."support_request_approvable"(q."subject_id"::uuid))
+          when q."subject_type" = 'ai_tool_approval' then ("better_supabase"."ai_tool_approval_approvable"(q."subject_id"))
+          else (((coalesce((q.bsb_step -> 'approvers') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'approvers') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'approvers') ->> 'permission'))
+    or ((q.bsb_step -> 'approvers') ->> 'role' is not null and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = ((q.bsb_step -> 'approvers') ->> 'role')::text or r."key" = ((q.bsb_step -> 'approvers') ->> 'role')::text) order by (r."id"::text = ((q.bsb_step -> 'approvers') ->> 'role')::text) desc limit 1)
+    ))
+    or ((q.bsb_step -> 'approvers') ->> 'team' is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = (q.bsb_step -> 'approvers') ->> 'team' and tm."user_id" = q.bsb_me))
+    or (coalesce(((q.bsb_step -> 'approvers') ->> 'manager')::boolean, false) and (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = q."tenant_id" and (case when (q."policy" ->> 'managerOf') is not null then me."id"::text = (q."policy" ->> 'managerOf') else me."user_id" = q."requested_by" end)
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
+      limit 1) = q.bsb_me, false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me
+    ))))
+    or (coalesce((q.bsb_step ->> 'escalated')::boolean, false) and ((coalesce((q.bsb_step -> 'escalateTo') -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+    or ((q.bsb_step -> 'escalateTo') ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q."tenant_id" and g.p = (q.bsb_step -> 'escalateTo') ->> 'permission'))
+    or ((q.bsb_step -> 'escalateTo') ->> 'role' is not null and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = ((q.bsb_step -> 'escalateTo') ->> 'role')::text or r."key" = ((q.bsb_step -> 'escalateTo') ->> 'role')::text) order by (r."id"::text = ((q.bsb_step -> 'escalateTo') ->> 'role')::text) desc limit 1)
+    ))
+    or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = (q.bsb_step -> 'escalateTo') ->> 'team' and tm."user_id" = q.bsb_me))
+    or (coalesce(((q.bsb_step -> 'escalateTo') ->> 'manager')::boolean, false) and (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = q."tenant_id" and (case when (q."policy" ->> 'managerOf') is not null then me."id"::text = (q."policy" ->> 'managerOf') else me."user_id" = q."requested_by" end)
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
+      limit 1) = q.bsb_me, false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me
+    )))))
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end)));
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids_in"(uuid[], boolean) to authenticated, service_role;
+
+-- approval_eligible_ids_in for one tenant, or every tenant when null. It runs
+-- as the caller; approval_eligible_ids_in reads the requests as the owner. It
+-- stays PL/pgSQL: a schema diff drops and recreates a function whose language
+-- changes, and app policies that call this one depend on it.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  if approval_eligible_ids.tenant is not null then
+    return query select x from "better_supabase"."approval_eligible_ids_in"(array[approval_eligible_ids.tenant]) as x;
+    return;
+  end if;
+  return query
+  select x from "better_supabase"."approval_eligible_ids_in"() as x
+  union all
+  select x from "better_supabase"."approval_eligible_ids_in"(outside => true) as x;
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
@@ -1130,7 +1224,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (request_approval.subject_id)::uuid and s."tenant_id" = request_approval.tenant) and coalesce(better_supabase.can('tenant', request_approval.tenant, 'invoices.read'), false)
@@ -1880,7 +1973,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_req."subject_id")::uuid and s."tenant_id" = v_req."tenant_id") and coalesce(better_supabase.can('tenant', v_req."tenant_id", 'invoices.read'), false)
@@ -1991,7 +2083,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (r."subject_id")::uuid and s."tenant_id" = r."tenant_id") and coalesce(better_supabase.can('tenant', r."tenant_id", 'invoices.read'), false)
@@ -2087,7 +2178,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2214,7 +2304,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2300,7 +2389,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2395,7 +2483,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2485,7 +2572,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2575,7 +2661,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2665,7 +2750,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2755,7 +2839,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2845,7 +2928,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -2930,7 +3012,6 @@ begin
     when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
-    when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
@@ -3273,6 +3354,16 @@ set search_path = ''
 as $$ select "better_supabase"."approval_eligible"($1) $$;
 revoke execute on function "api"."approval_eligible"(uuid) from public, anon;
 grant execute on function "api"."approval_eligible"(uuid) to authenticated, service_role;
+
+create or replace function "api"."approval_eligible_ids_in"(tenants uuid[] default null, outside boolean default false)
+returns setof uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."approval_eligible_ids_in"($1, $2) $$;
+revoke execute on function "api"."approval_eligible_ids_in"(uuid[], boolean) from public, anon;
+grant execute on function "api"."approval_eligible_ids_in"(uuid[], boolean) to authenticated, service_role;
 
 create or replace function "api"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid

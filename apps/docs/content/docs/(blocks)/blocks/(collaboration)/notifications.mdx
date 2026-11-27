@@ -1076,6 +1076,30 @@ value the block writes: `pending`, `sent`, `failed`, `skipped`, `held` and
 or folded delivery and the send fails. Doctor reports such a check as
 [BS361](/docs/cli/doctor#bs361).
 
+The block adds no audit trigger to the notification tables, managed or yours,
+and its writes record no audit entry. Marking a notification read, dismissing
+it or retrying a delivery updates the recipient and delivery rows often, so an
+app that audits its own tables registers them with the state columns ignored.
+`better_supabase.audit` then writes the update trigger with a `when` clause, and
+an update that only changes those columns never calls the audit function:
+
+```sql
+select better_supabase.audit(
+  'public.notification_recipients',
+  ignore => '{updated_at,read_at,dismissed_at}'
+);
+select better_supabase.audit(
+  'public.notification_deliveries',
+  ignore => '{updated_at,status,attempts,attempted_at,next_attempt_at,error}'
+);
+```
+
+A hand-written `create trigger ... execute function
+better_supabase.audit_row_change('{"ignore": [...]}')` without the `when`
+clause still writes nothing for such an update, but it runs the function for
+every row first. Leave the tables out of the audit log instead when their state
+changes are not worth keeping.
+
 ## Digests
 
 A member picks how often a type reaches them on a channel with a `cadence` on

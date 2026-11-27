@@ -464,6 +464,8 @@ const CONTRIBUTES: BlockContributes = {
               ? {
                   selfDecides: ({ subjectId }) =>
                     `${own.fn("expense_self_decides")}(${subjectId}::uuid)`,
+                  selfDecidesMany: (subjectIds: string) =>
+                    `${own.fn("expense_self_decides_many")}(${subjectIds})`,
                 }
               : {}),
             ...(hasDecider(own)

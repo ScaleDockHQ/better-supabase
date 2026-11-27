@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:f042b44ee3de31a4f964f32f7c324df64c846d025c82d71983ca19d42c6058d1
+-- @bsb-hash sha256:b7ccb220d9bc810e266c6e49500c95312a4c7d98d9a094637b1f4de27a110feb
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -391,6 +391,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -416,7 +417,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -1569,7 +1570,9 @@ revoke execute on function "better_supabase"."drive_access_approvers"(text) from
 
 -- Hands every item one member holds at owner in an organization to
 -- another member: their owner grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs drive.manage; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs drive.manage; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
 returns jsonb

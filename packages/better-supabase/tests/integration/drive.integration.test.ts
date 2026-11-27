@@ -685,7 +685,7 @@ describe.skipIf(!live)("drive", () => {
             toUserId: member.id,
           })
           .orThrow(),
-      ).toEqual({ nodes: 1, drives: 0 });
+      ).toEqual({ nodes: 1, drives: 0, keptDriveIds: [] });
 
       await s.as(member);
       expect(await drive.get(folder.id).orThrow()).toMatchObject({

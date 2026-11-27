@@ -239,13 +239,20 @@ function transferSql(kit: DriveKit): string {
     ? `${dg("principalId")} = drive_transfer_ownership.to_user::text`
     : `${dg("user")} = drive_transfer_ownership.to_user`;
 
+  const movesOwners = drives && D !== undefined && ctx.has("drives", "owner");
+
   const driveGrants =
     drives && DG !== undefined && (driveTyped || driveUserColumn)
       ? `
   for v_drive_grant in
     select dgr.* from ${DG} dgr
     where dgr.${dg("tenant")} = drive_transfer_ownership.tenant and dgr.${dg("role")}::text = ${top}
-      and ${driveHeld("dgr", "drive_transfer_ownership.from_user")}
+      and ${driveHeld("dgr", "drive_transfer_ownership.from_user")}${
+        movesOwners
+          ? `
+      and dgr.${dg("drive")} <> all (v_kept)`
+          : ""
+      }
   loop
     delete from ${DG} dgr where dgr.${dg("drive")} = v_drive_grant.${dg("drive")} and ${driveHeld("dgr", "drive_transfer_ownership.to_user")};
     update ${DG} set ${driveRepoint} where ${dg("id")} = v_drive_grant.${dg("id")};
@@ -253,16 +260,43 @@ function transferSql(kit: DriveKit): string {
   end loop;`
       : "";
 
-  const driveOwners =
-    drives && D !== undefined && ctx.has("drives", "owner")
-      ? `
-  with moved as (
-    update ${D} set ${d("owner")} = drive_transfer_ownership.to_user
-    where ${d("tenant")} = drive_transfer_ownership.tenant and ${d("owner")} = drive_transfer_ownership.from_user
-    returning ${d("id")}
-  )
-  select v_drive_ids || coalesce(array_agg(moved.${d("id")}), '{}') into v_drive_ids from moved;`
-      : "";
+  // A drive the new owner can't take stays with the old one: an app that
+  // keeps one drive of a kind per owner (a personal drive) refuses a second
+  // with a unique index or a check, so each drive moves on its own.
+  const driveOwners = movesOwners
+    ? `
+  v_owner_att := (
+    select a.attnum from pg_catalog.pg_attribute a
+    where a.attrelid = ${sqlString(D)}::regclass and a.attname = ${sqlString(ctx.col("drives", "owner").replaceAll('"', ""))}
+  );
+  for v_drive_id in
+    select dd.${d("id")} from ${D} dd
+    where dd.${d("tenant")} = drive_transfer_ownership.tenant and dd.${d("owner")} = drive_transfer_ownership.from_user
+    order by dd.${d("id")}
+  loop
+    begin
+      update ${D} set ${d("owner")} = drive_transfer_ownership.to_user where ${d("id")} = v_drive_id;
+      v_drive_ids := array_append(v_drive_ids, v_drive_id);
+    exception when unique_violation or check_violation then
+      get stacked diagnostics v_constraint = constraint_name;
+      -- Only a unique index or check over the owner column keeps the drive;
+      -- any other refusal still fails the transfer.
+      if not exists (
+        select 1 from pg_catalog.pg_constraint k
+        where k.conrelid = ${sqlString(D)}::regclass and k.conname = v_constraint
+          and k.contype in ('u', 'c') and v_owner_att = any (k.conkey)
+        union all
+        select 1 from pg_catalog.pg_index i
+        join pg_catalog.pg_class ic on ic.oid = i.indexrelid
+        where i.indrelid = ${sqlString(D)}::regclass and ic.relname = v_constraint
+          and i.indisunique and v_owner_att = any (i.indkey::smallint[])
+      ) then
+        raise;
+      end if;
+      v_kept := array_append(v_kept, v_drive_id);
+    end;
+  end loop;`
+    : "";
 
   const driveEvents =
     drives && D !== undefined
@@ -278,7 +312,9 @@ function transferSql(kit: DriveKit): string {
   return `
 -- Hands every item one member holds at ${roles.top} in an organization to
 -- another member: their ${roles.top} grants on nodes and drives, and the drives they
--- own. The new holder keeps one grant per item. Needs ${OPERATIONS["drive.manage"]}; a
+-- own. The new holder keeps one grant per item. A drive the new owner can't own
+-- (a unique index or check refuses it, such as a second personal drive) stays
+-- with the old owner, grants included, and comes back in keptDriveIds. Needs ${OPERATIONS["drive.manage"]}; a
 -- member hands over only their own items, and the service role anyone's.
 create or replace function ${fn("drive_transfer_ownership")}(tenant ${ctx.idType}, from_user uuid, to_user uuid)
 returns jsonb
@@ -304,7 +340,7 @@ declare
   v_drive_grant ${DG}%rowtype;`
       : ""
   }
-  v_drive_ids uuid[] := '{}';
+  v_drive_ids uuid[] := '{}';${movesOwners ? "\n  v_drive_id uuid;\n  v_kept uuid[] := '{}';\n  v_constraint text;\n  v_owner_att smallint;" : ""}
   v_nodes integer := 0;
   v_drives integer := 0;
 begin
@@ -323,13 +359,18 @@ begin
     where mu.${m("tenant")} = drive_transfer_ownership.tenant and mu.${m("user")} = drive_transfer_ownership.to_user${activeMembership(ctx, "mu")}
   ) then
     ${fail("DRIVE_PRINCIPAL_NOT_FOUND", "the new owner is not an active member of this organization", "P0002")}
-  end if;
+  end if;${driveOwners}
 ${
   grantRows
     ? `  for v_grant in
     select gr.* from ${G} gr
     where gr.${g("tenant")} = drive_transfer_ownership.tenant and gr.${g("role")}::text = ${top}
-      and ${held("gr", "drive_transfer_ownership.from_user")}
+      and ${held("gr", "drive_transfer_ownership.from_user")}${
+        movesOwners && ctx.has("nodes", "drive")
+          ? `
+      and not exists (select 1 from ${T} kn where kn.${n("id")} = gr.${g("node")} and kn.${n("drive")} = any (v_kept))`
+          : ""
+      }
   loop
     delete from ${G} gr where gr.${g("node")} = v_grant.${g("node")} and ${held("gr", "drive_transfer_ownership.to_user")};
     update ${G} set ${repoint} where ${g("id")} = v_grant.${g("id")};
@@ -338,8 +379,8 @@ ${
     ${record("drive_node.ownership_transferred", "v_node", users, accessAudit("v_node", "ownership transferred"))}
   end loop;`
     : ""
-}${driveGrants}${driveOwners}${driveEvents}
-  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+}${driveGrants}${driveEvents}
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives${movesOwners ? ", 'keptDriveIds', to_jsonb(v_kept)" : ""});
 end;
 $$;
 ${userGrant(`${fn("drive_transfer_ownership")}(${ctx.idType}, uuid, uuid)`)}

@@ -11,7 +11,7 @@ import type { Paint } from "../style.ts";
 import type { ProjectSymbols } from "../typescript-symbols/index.ts";
 
 import { SQL_MODULES } from "../../sql/index.ts";
-import { appCheckNames } from "../codemod-naming.ts";
+import { appCheckNames, appPolicyKeys } from "../codemod-naming.ts";
 import {
   applySplices,
   followReexports,
@@ -525,6 +525,7 @@ async function runWithSymbols(
     configLoaded: configError === undefined,
     tenantColumns: tenantColumnsOf(config),
     appChecks: appCheckNames(ownSql.map((file) => file.text).join("\n")),
+    appPolicies: appPolicyKeys(ownSql.map((file) => file.text).join("\n")),
   };
 
   if (codemod.sql !== undefined) {

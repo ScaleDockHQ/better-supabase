@@ -1,6 +1,6 @@
 {
   "name": "better-supabase",
-  "version": "0.88.0",
+  "version": "0.90.0",
   "description": "A typed data layer for Supabase: generated repositories that return Results and run under RLS, auth helpers, framework adapters and a CLI.",
   "keywords": [
     "auth",
@@ -2863,6 +2863,7 @@
   },
   "scripts": {
     "bench": "node tests/next/next.bench.ts && node tests/core/plugins.bench.ts && node tests/core/compile.bench.ts && node tests/server/context.bench.ts && node tests/cli/spec/spec.bench.ts",
+    "bench:approvals": "node tests/bench/approval-eligible-payload.ts",
     "bench:cache": "node tests/bench/cache-tier.ts",
     "bench:cli": "node tests/bench/cli-wall.ts",
     "bench:doctor-heap": "node --expose-gc tests/bench/doctor-heap.ts",

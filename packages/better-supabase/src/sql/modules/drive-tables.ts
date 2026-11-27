@@ -6,6 +6,9 @@ import { RANK_KEY_PATTERN } from "../rank-sql.ts";
 import { ensureCheck, fail, lockTable } from "../shared.ts";
 import { documentColumnsSql } from "./drive-documents.ts";
 
+/** A quoted column name as the same-tenant guard marker lists it. */
+const bare = (column: string): string => column.replaceAll('"', "");
+
 /** The drive tables and the triggers that keep paths and drives in step. */
 export function driveTablesSql(kit: DriveKit): string {
   const {
@@ -285,6 +288,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=${bare(n("parent"))}
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -311,7 +315,7 @@ end;
 $$;
 drop trigger if exists ${ctx.trigger("drive_node_path")} on ${T};
 create trigger ${ctx.trigger("drive_node_path")}
-  before insert or update of ${n("parent")} on ${T}
+  before insert or update of ${n("parent")}, ${n("tenant")} on ${T}
   for each row execute function ${fn("drive_node_path")}();
 
 create or replace function ${fn("drive_node_moved")}()
@@ -342,6 +346,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=${bare(n("parent"))},${bare(n("drive"))}
 declare
   v_parent_drive uuid;
   v_parent_tenant text;
@@ -368,7 +373,7 @@ end;
 $$;
 drop trigger if exists ${ctx.trigger("drive_node_drive")} on ${T};
 create trigger ${ctx.trigger("drive_node_drive")}
-  before insert or update of ${n("parent")}, ${n("drive")} on ${T}
+  before insert or update of ${n("parent")}, ${n("drive")}, ${n("tenant")} on ${T}
   for each row execute function ${fn("drive_node_drive")}();
 
 create or replace function ${fn("drive_node_drive_cascade")}()

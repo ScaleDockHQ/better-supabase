@@ -1,5 +1,54 @@
 # better-supabase
 
+## 0.90.0
+
+### Minor Changes
+
+- [#1180](https://github.com/ScaleDockHQ/better-supabase/pull/1180) [`3821bee`](https://github.com/ScaleDockHQ/better-supabase/commit/3821bee80d083648aa2b7c01e80393183599f7bd) Thanks [@mick340](https://github.com/mick340)! - The approvals block adds `approval_eligible_ids_in(tenants, outside)`, the pending requests the caller may decide in their member tenants (or the tenants passed) from one call, and with `outside => true` the ones outside them, tenantless requests included. Each permission is checked once through `tenant_ids_with` instead of one `can` call per tenant and permission, and a block's `selfDecides` rule runs only for the caller's own requests (the expenses block answers them with one `expense_self_decides_many` call). The function stays `stable` and writes no settings. `approval_eligible_ids(tenant)` calls it and keeps its signature. The approvals page recommends a two-part policy: the member tenants in one call, and the outside set only for rows outside them. With 60 tenants, 2,400 pending requests and a caller who owns 14, three scans in one statement went from 38 ms (filtered to one tenant) and 122 ms (every tenant) with one call per member tenant plus one without a tenant to 6.3 ms and 18 ms. Run `better-supabase upgrade` and generate a migration, then move the policy to the two-part shape. Approvals module version 7, no data step.
+
+- [#1180](https://github.com/ScaleDockHQ/better-supabase/pull/1180) [`3821bee`](https://github.com/ScaleDockHQ/better-supabase/commit/3821bee80d083648aa2b7c01e80393183599f7bd) Thanks [@mick340](https://github.com/mick340)! - Security fix: `sameTenant.auto` no longer drops a generated `bsb_same_tenant_<column>` check because an app trigger merely reads `new.<column>` or `old.<column>`. Such a trigger silently removed the cross-tenant check on that foreign key. A trigger now turns the check off only when its function declares `@bsb same-tenant-guard column=<column>`. Doctor BS398 warns when a marked trigger never mentions the tenant column, and the new info finding BS733 lists every column a marker turns the check off for. Run `better-supabase upgrade` and generate a migration: columns that lost their check get it back. Add the marker to an app trigger that really compares the tenant if you want only one check (ADR 1268). A block's own trigger counts as a guard only with the marker; the drive block's node triggers carry it for `parent_id` and `drive_id` and now also run when the tenant column changes, so they replace the generated checks on those columns.
+
+### Patch Changes
+
+- [#1180](https://github.com/ScaleDockHQ/better-supabase/pull/1180) [`3821bee`](https://github.com/ScaleDockHQ/better-supabase/commit/3821bee80d083648aa2b7c01e80393183599f7bd) Thanks [@mick340](https://github.com/mick340)! - `codemod naming` no longer renames objects the library does not own. Its migration leaves alone a policy that your schema files create, such as the policies an authorization provider installs on block tables, and the unnamed check of a column that your files add to a block table, such as `flags_kind_check`. Before, renaming those made the next schema diff drop and recreate them. The codemod also rewrites calls to renamed SQL functions through `api.<name>(` in SQL and pgTAP files, and through `rpc/<name>` paths in TypeScript.
+
+- [#1180](https://github.com/ScaleDockHQ/better-supabase/pull/1180) [`3821bee`](https://github.com/ScaleDockHQ/better-supabase/commit/3821bee80d083648aa2b7c01e80393183599f7bd) Thanks [@mick340](https://github.com/mick340)! - `drive_transfer_ownership` no longer fails when the new owner can't own one of the drives, such as a second personal drive that the app's unique index or check over the owner column refuses. That drive stays with the old owner together with its drive grants and the top-role grants on its files, the other drives move, and the result lists it in `keptDriveIds` (`DriveTransfer.keptDriveIds` in the client). Any other unique or check violation still fails the transfer. `driveOffboardingSink` passes kept drives to a new `onKept` option, or logs a warning without it.
+
+## 0.89.0
+
+### Minor Changes
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`f5ec6e1`](https://github.com/ScaleDockHQ/better-supabase/commit/f5ec6e12fb50bef06c8d6927e741477ac657376e) Thanks [@martijn00](https://github.com/martijn00)! - `shares.tables` and `shares.functions` declare tables and functions the app shares per tenant, merged with the authorization provider's. An identical entry is a restated default. A disagreeing entry keeps the provider's settings, and doctor reports it as BS652.
+
+- [#1175](https://github.com/ScaleDockHQ/better-supabase/pull/1175) [`427a306`](https://github.com/ScaleDockHQ/better-supabase/commit/427a3067dc9b4f7344d52807b24061a1649789f5) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.blockAction` takes a fourth argument that maps the data of a success, as
+  the third argument of `bsb.action` does, so a block action can answer with
+  `{ id }` and not the whole row. `tags` still receives the method's own data.
+  The Next.js example moves 171 single-call actions to `bsb.blockAction`.
+
+- [#1177](https://github.com/ScaleDockHQ/better-supabase/pull/1177) [`9063f6d`](https://github.com/ScaleDockHQ/better-supabase/commit/9063f6dc420efb800905d233fbe18b71a53989d2) Thanks [@martijn00](https://github.com/martijn00)! - `gen` no longer turns a column type it does not know into `string`. The column stays `unknown`, and `gen` prints one notice naming those columns. Composite types become nested objects in the zod, valibot, JSON Schema and Standard Schema output, a domain column uses its base type (including `not null` and simple `VALUE` checks), and `geometry` and `geography` validate as JSON. A `returns table` function gets a result schema from its columns.
+  
+  `better-supabase/result-schema` exports `resultSchema(readSet)` and `specResultSchema(meta, spec)`. Each returns a Standard Schema of the composed read, built from the columns the query selects. Unknown keys are dropped unless you pass `unknownKeys: "reject"`. A record binding stays unchecked until `registerRpcReturn` names a schema for it.
+
+- [#1175](https://github.com/ScaleDockHQ/better-supabase/pull/1175) [`e997eb6`](https://github.com/ScaleDockHQ/better-supabase/commit/e997eb618f456826a7ae6a385efc8dee759d1511) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.record(type).get` and `timeline` read a page's bindings in one request. The `read-sets` block now writes `read_batch(calls jsonb)`, a `stable`, `security invoker` function that runs up to 50 `stable` JSON reads of the exposed schema as the caller and returns one result per call. The first read of every binding goes into one `read_batch` call, and each binding gets the same data or `DbError` a direct call returns. Reads that write, and every read in a project without the function, run on their own as before.
+  
+  Run `better-supabase upgrade` and generate a migration (`supabase db diff`) to add the function. Ask for every binding a page shows in one `get` to get the saving.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`165aa16`](https://github.com/ScaleDockHQ/better-supabase/commit/165aa16aedd9eb745570342825487c142e4e1837) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase codemod audit-statement` rewrites a table's row audit trigger, or its `audit()` call, into static statement triggers that a schema diff keeps. Doctor BS651 reports a table that has both, which would write every change twice.
+
+### Patch Changes
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`fe1d034`](https://github.com/ScaleDockHQ/better-supabase/commit/fe1d034292322d0d2843b7c1dab7d423a9d8ac17) Thanks [@martijn00](https://github.com/martijn00)! - `chain_link()` no longer throws when a row trigger runs without the statement-audit temp table. The owner check reads the table oid from `to_regclass`, which returns null when the table is absent, instead of casting a name that Postgres resolves while planning the statement.
+  
+  The published config schema no longer lists `blocks.tasks.options.identifiers`. The tasks options have no such property, and the default of `tenant` was not one the config reads.
+  
+  The audit pgTAP file drops the statement probe it creates.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`ee00e67`](https://github.com/ScaleDockHQ/better-supabase/commit/ee00e67c08bca54a83a8c8d221960bb959415711) Thanks [@martijn00](https://github.com/martijn00)! - Doctor reads the schema of a schema-qualified `authorization.tables` name even when `schemas` does not list it, so BS428 can check that table instead of reporting it missing.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`ee00e67`](https://github.com/ScaleDockHQ/better-supabase/commit/ee00e67c08bca54a83a8c8d221960bb959415711) Thanks [@martijn00](https://github.com/martijn00)! - `bsb.cached({ keep: { tables } })` keeps a stable function call and a `db.$many()` batch as one entry, tagged with those tables. A volatile function still reaches the database, and a failed call is not stored. A function the schema does not name is kept when the tables are listed, so a block read and `read_batch` can be kept too. Doctor rule BS609 also names `read_batch` and `bsb.record(type).get` next to the read set.
+
+- [#1178](https://github.com/ScaleDockHQ/better-supabase/pull/1178) [`2ff9a5f`](https://github.com/ScaleDockHQ/better-supabase/commit/2ff9a5fe7c37bcb2eaa1fd9b569709e2ccefe36c) Thanks [@martijn00](https://github.com/martijn00)! - Doctor BS204 checks every table in `schemas`, including private schemas, and uses each table's own tenant column. A partial index and an index that contains the column further along each get their own message, with the `create index` statement to add.
+
 ## 0.88.0
 
 ### Minor Changes

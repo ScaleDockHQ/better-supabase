@@ -145,12 +145,13 @@ describe("upgrade on an app that owns its tables", () => {
 
       expect(generated).toContain('"bsb_same_tenant_owner_membership_id"');
 
-      // An app trigger that already guards the column replaces it.
+      // An app trigger that declares it guards the column replaces it.
       await writeFile(
         join(dir, "supabase/schemas/030_tasks.sql"),
         `${after.get("supabase/schemas/030_tasks.sql")}
 create function public.tasks_owner_same_organization() returns trigger
 language plpgsql as $$
+-- @bsb same-tenant-guard column=owner_membership_id
 begin
   if not exists (select 1 from public.memberships m where m.id = new.owner_membership_id and m.organization_id = new.organization_id) then
     raise exception 'owner must belong to the organization';

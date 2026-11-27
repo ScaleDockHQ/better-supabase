@@ -15,11 +15,11 @@ const event = (type: string, data: unknown) => ({
 });
 
 describe("driveOffboardingSink", () => {
-  function stub(fails = false) {
+  function stub(fails = false, keptDriveIds: readonly string[] = []) {
     const transferOwnership = vi.fn<DriveAccess["transferOwnership"]>(() =>
       fails
         ? AsyncResult.err(dbError("forbidden", "no"))
-        : AsyncResult.ok({ nodes: 1, drives: 0 }),
+        : AsyncResult.ok({ nodes: 1, drives: 0, keptDriveIds }),
     );
 
     return { transferOwnership };
@@ -77,5 +77,33 @@ describe("driveOffboardingSink", () => {
         event("employee.offboarded", { organizationId: "o", userId: "u1" }),
       ]),
     ).rejects.toThrow("driveOffboardingSink: moving u1's items failed: no");
+  });
+
+  it("reports the drives the new owner can't take", async () => {
+    const onKept = vi.fn();
+
+    const leaving = event("employee.offboarded", {
+      organizationId: "o",
+      userId: "u1",
+    });
+
+    await driveOffboardingSink(stub(false, ["d1"]), {
+      transferTo: () => "u2",
+      onKept,
+    }).send([leaving]);
+
+    expect(onKept).toHaveBeenCalledWith({
+      event: leaving,
+      keptDriveIds: ["d1"],
+    });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await driveOffboardingSink(stub(false, ["d1"]), {
+      transferTo: () => "u2",
+    }).send([leaving]);
+
+    expect(warn).toHaveBeenCalledWith("driveOffboardingSink: u1 keeps d1");
+    warn.mockRestore();
   });
 });

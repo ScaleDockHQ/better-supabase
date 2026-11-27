@@ -126,8 +126,28 @@ describe("drive ownership transfer", () => {
     expect(sql).toContain(
       "drive_transfer_ownership.from_user is distinct from auth.uid()",
     );
-    expect(sql).toContain("'nodes', v_nodes, 'drives', v_drives");
-    expect(sql).toContain("with moved as (");
+    expect(sql).toContain(
+      "'nodes', v_nodes, 'drives', v_drives, 'keptDriveIds', to_jsonb(v_kept)",
+    );
+    expect(sql).toContain(
+      "exception when unique_violation or check_violation then",
+    );
+  });
+});
+
+describe("drive node triggers", () => {
+  it("mark the parent and drive columns they check the tenant of", () => {
+    const sql = sqlOf(["drive"], "drive", {
+      modules: { drive: { options: { drives: true } } },
+    });
+
+    expect(sql).toContain(
+      "-- @bsb same-tenant-guard column=parent_id,drive_id",
+    );
+    expect(sql).toContain("-- @bsb same-tenant-guard column=parent_id\n");
+    expect(sql).toContain(
+      'before insert or update of "parent_id", "drive_id", "tenant_id" on',
+    );
   });
 });
 

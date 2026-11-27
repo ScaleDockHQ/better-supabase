@@ -228,6 +228,13 @@ export interface ApprovalContribution {
    * else can. The step's approvers must still match them.
    */
   readonly selfDecides?: (request: ApprovalRequestSql) => string;
+  /**
+   * The set form of `selfDecides`: a `uuid[]` expression of the subject ids in
+   * `subjectIds` (a `uuid[]` expression) the caller decides as their requester.
+   * `approval_eligible_ids_in` asks it once for all of the caller's own pending
+   * requests of the subject type instead of once per request.
+   */
+  readonly selfDecidesMany?: (subjectIds: string) => string;
 }
 
 /**

@@ -185,7 +185,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "info",
     title: "Tenant foreign key without a same-tenant trigger",
     description:
-      "A foreign key checks that the referenced row exists, not that it belongs to the row's tenant. Doctor lists each single-column key between two tables that both have the tenant column, when the key doesn't include that column and the table has neither a `bsb_same_tenant_<column>` trigger nor an app trigger that reads or writes the column (BS398 checks that such a trigger looks at the tenant). List the reference in `blocks.memberships.options.sameTenant`, or set `sameTenant: { auto: true }` to derive every one from the schema files.",
+      "A foreign key checks that the referenced row exists, not that it belongs to the row's tenant. Doctor lists each single-column key between two tables that both have the tenant column, when the key doesn't include that column and the table has neither a `bsb_same_tenant_<column>` trigger nor an app trigger that declares it guards the column with `@bsb same-tenant-guard column=<column>` (BS398 checks that such a trigger looks at the tenant). List the reference in `blocks.memberships.options.sameTenant`, or set `sameTenant: { auto: true }` to derive every one from the schema files.",
     check: (context) => {
       if (!context.config.blockNames.includes("memberships")) {
         return [];

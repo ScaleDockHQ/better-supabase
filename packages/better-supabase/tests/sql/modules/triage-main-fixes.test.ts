@@ -45,12 +45,32 @@ describe("audit statement triggers", () => {
 
 describe("approval_eligible_ids", () => {
   it("answers with one set-based query and asks the authorizer once per permission", () => {
-    const body = functionBody(sqlOf("approvals"), "approval_eligible_ids");
+    const sql = sqlOf("approvals");
+    const body = functionBody(sql, "approval_eligible_ids_in");
 
     expect(body).toContain("returns setof uuid");
     expect(body).toContain("needs as materialized");
     expect(body).toContain("granted as materialized");
+    expect(body).toContain(
+      "cross join lateral better_supabase.tenant_ids_with(k.p)",
+    );
+    expect(body).not.toContain("better_supabase.can(");
     expect(body).not.toMatch(/\bfor\s+\w+\s+in\b|\bloop\b/iu);
+    expect(functionBody(sql, "approval_eligible_ids")).toContain(
+      '"better_supabase"."approval_eligible_ids_in"(outside => true)',
+    );
+    expect(body).toContain('r."tenant_id" = any (v_tenants)');
+    expect(body).toContain(
+      '(r."tenant_id" is null or r."tenant_id" <> all (v_tenants))',
+    );
+  });
+
+  it("is one stable query that writes no setting", () => {
+    const body = functionBody(sqlOf("approvals"), "approval_eligible_ids_in");
+
+    expect(body).toMatch(/language plpgsql\s+stable/u);
+    expect(body).not.toContain("set_config");
+    expect(body).not.toContain("memo_slot");
   });
 });
 
