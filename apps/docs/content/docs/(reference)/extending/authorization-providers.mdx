@@ -861,11 +861,31 @@ tenant still gets `subject`.
 ### Permissions in the bootstrap
 
 A provider that sets `functions.bootstrapPermissions` gets the caller's
-permissions returned by every sessions bootstrap wrapper, in the query that
-checks the session, as `Bootstrap.permissions`. The wrapper calls only your
-template (`{tenant}` is the page's tenant, or `null` for every tenant the
-caller belongs to); it never names a provider function. Set `permissions:
-false` on a bootstrap entry to leave them out.
+permissions returned by a sessions bootstrap wrapper, in the query that checks
+the session, as `Bootstrap.permissions`. The wrapper calls only your template
+(`{tenant}` is the page's tenant, or `null` for every tenant the caller belongs
+to); it never names a provider function.
+
+Each bootstrap entry picks when the wrapper computes them with `permissions`:
+
+| `permissions`        | A call with a tenant | A call without a tenant            |
+| -------------------- | -------------------- | ---------------------------------- |
+| `"tenant"` (default) | that tenant's        | none (`null`)                      |
+| `"all"`              | that tenant's        | every tenant the caller belongs to |
+| `false`              | none                 | none                               |
+
+The default keeps a shell bootstrap from computing a bitset for each of the
+caller's tenants on every cache miss, which grows with the number of
+memberships. Pass the tenant of the page (`bsb.bootstrap({ rpc, tenant })`) to
+get its permissions, and set `permissions: "all"` only for a screen that shows
+every tenant's permissions at once.
+
+#### Why
+
+A bootstrap is on the path of every page. Before 0.91 a call without a tenant
+computed every tenant's permissions, so an app that bootstrapped its shell once
+per user paid for one permission evaluation per membership, and most pages read
+only the active tenant's.
 
 The value is versioned (`apiVersion: 1`) and has two forms:
 

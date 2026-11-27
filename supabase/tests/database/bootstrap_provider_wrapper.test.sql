@@ -1,5 +1,6 @@
 -- The sessions bootstrap wrapper with an authorization provider that sets
--- `subject`, `subjectForTenant` and `bootstrapPermissions` (ADR 0520, 0524).
+-- `subject`, `subjectForTenant` and `bootstrapPermissions` (ADR 0520, 0524), with
+-- the default `permissions: "tenant"`.
 -- The wrapper below is the exact output of
 -- `moduleBody("sessions", ...)`; packages/better-supabase/tests/sql/modules/
 -- sessions-pgtap-drift.test.ts fails when the generator's text differs.
@@ -60,7 +61,7 @@ begin
     'data', to_jsonb(stubapp.page_data(args)),
     'subject', case when nullif(args ->> 'tenant', '') is null then to_jsonb(stubauthz.subject_for_caller()) else to_jsonb(stubauthz.subject_for(auth.uid(), (args ->> 'tenant'))) end,
     'subject_tenant', nullif(args ->> 'tenant', ''),
-    'permissions', to_jsonb(stubauthz.bootstrap_permissions(nullif(args ->> 'tenant', '')))
+    'permissions', case when nullif(args ->> 'tenant', '') is null then null else to_jsonb(stubauthz.bootstrap_permissions(nullif(args ->> 'tenant', ''))) end
   );
 end;
 $$;
@@ -109,9 +110,9 @@ select is(
 );
 
 select is(
-  better_supabase.bootstrap_wrapper('{}') -> 'permissions' -> 'tenants' -> 't2',
-  '["b.read"]'::jsonb,
-  'permissions for every tenant without a tenant'
+  better_supabase.bootstrap_wrapper('{}') -> 'permissions',
+  'null'::jsonb,
+  'no permissions for a call without a tenant (permissions: "tenant")'
 );
 
 select is(
@@ -127,7 +128,7 @@ select is(
 );
 
 select is(
-  better_supabase.bootstrap_wrapper('{}') -> 'permissions' -> 'apiVersion',
+  better_supabase.bootstrap_wrapper('{"tenant":"t1"}') -> 'permissions' -> 'apiVersion',
   '1'::jsonb,
   'the permissions carry apiVersion 1'
 );

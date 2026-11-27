@@ -24,8 +24,10 @@ export type SessionsSqlOptions = {
    * cache entry with them, and without `tables` `gen` derives them from the
    * function body. Renders `better_supabase.bootstrap_<name>`. With the
    * provider's `functions.bootstrapPermissions` the wrapper also returns the
-   * caller's permissions (`Bootstrap.permissions`); `permissions: false` on an
-   * entry leaves them out.
+   * caller's permissions (`Bootstrap.permissions`) for a call that names a
+   * tenant (`permissions: "tenant"`, the default). `permissions: "all"` also
+   * returns them for a call without a tenant, covering every tenant the caller
+   * belongs to, and `permissions: false` leaves them out.
    */
   readonly bootstrap?: Readonly<
     Record<
@@ -35,20 +37,20 @@ export type SessionsSqlOptions = {
           readonly function: string;
           readonly tables?: readonly string[];
           readonly subject?: string | false;
-          readonly permissions?: false;
+          readonly permissions?: "tenant" | "all" | false;
         }
       | {
           readonly readSet: string;
           readonly tables?: readonly string[];
           readonly subject?: string | false;
-          readonly permissions?: false;
+          readonly permissions?: "tenant" | "all" | false;
         }
       | {
           readonly readSets: readonly string[];
           readonly shell?: string;
           readonly tables?: readonly string[];
           readonly subject?: string | false;
-          readonly permissions?: false;
+          readonly permissions?: "tenant" | "all" | false;
         }
     >
   >;
