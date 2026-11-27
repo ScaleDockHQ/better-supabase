@@ -295,6 +295,7 @@ async function prune(
       sqlTenantColumn: config.sql.tenantColumn,
       subjects: config.subjects,
       restatedDefaults: config.restatedDefaults,
+      shares: config.shares,
       genFunctions: config.functions,
       blockNotNull: (name) =>
         Object.entries(config.blocks).flatMap(([key, entry]) => {

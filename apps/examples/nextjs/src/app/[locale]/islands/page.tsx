@@ -18,6 +18,7 @@ import {
   SessionIslandSkeleton,
 } from "@/features/islands/components/session-island";
 import { islandScope } from "@/features/islands/islands-cache";
+import { liveCoreAuthzVersion } from "@/features/islands/live-version";
 import { Link } from "@/i18n/navigation";
 import { bsbCore } from "@/lib/supabase/server-core";
 
@@ -27,13 +28,17 @@ export const ensureStatic = "shell";
 
 /**
  * Ten islands, one query. The page sits outside the `(app)` layout, whose
- * sidebar and menus make calls of their own, so a page load here is exactly one
- * token verification and one `bootstrap_islands` call. `?scope=remote` reads
- * the same data through `"use cache: remote"`.
+ * sidebar and menus make calls of their own. A cold load is one token
+ * verification and one `bootstrap_islands` call; a warm kept entry makes no
+ * bootstrap call. The page still reads the live authorization version once, so
+ * the client can skip its catch-up call. `?scope=remote` reads the same data
+ * through `"use cache: remote"`.
  */
 export default function IslandsPage({
   searchParams,
-}: PageProps<"/[locale]/islands">) {
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = useExtracted("islands");
   // oxlint-disable-next-line react-doctor/nextjs-async-dynamic-api-not-awaited -- mapped with then and passed on unawaited, so the page renders without waiting for the request.
   const scope = searchParams.then((params) => islandScope(params["scope"]));
@@ -109,10 +114,13 @@ export default function IslandsPage({
 }
 
 /** Starts the session read inside its boundary, so the shell never waits for it. */
-function IslandsAuthzRefresh() {
+async function IslandsAuthzRefresh() {
+  const session = bsbCore.claims();
+  const liveVersion = await liveCoreAuthzVersion();
+
   return (
     <DataProviders>
-      <AuthzRefresh session={bsbCore.claims()} />
+      <AuthzRefresh session={session} liveVersion={liveVersion} />
     </DataProviders>
   );
 }

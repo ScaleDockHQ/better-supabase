@@ -235,19 +235,25 @@ export async function getCustomer(id: string) {
 Each read gets its own entry, keyed on the user, the tenant, the operation and
 the schema version, and tagged with the table it reads, so a write to the table
 expires it like any other kept entry. Parallel renders of one page share a
-single fill. Writes, `db.$many()` batches, function sources and `$rpc()` calls
-always reach the database, and so does a read of a support session or of a
-token that failed to verify. Request stats count only the reads that miss, and
-`keptHits` counts the rest.
+single fill. A stable `$rpc()` or `db.$many()` batch is kept too when
+`keep.tables` names the tables it reads: one entry for the call, tagged with
+those tables. `read_batch`, which `bsb.record(type).get` uses for a record
+page, is that kind of call. A function the schema does not name is kept the
+same way. A volatile function, a function call with no `keep.tables`, a
+function source and raw SQL always reach the database, and so does a read of a
+support session or of a token that failed to verify. A failed call is not
+stored. Request stats count only the reads that miss, and `keptHits` counts
+the rest.
 
 ### Keep a bootstrap answer
 
 `bsb.bootstrap({ rpc, kept: true })` keeps the wrapper's answer (data, reads,
 subject and permissions) per user, session and tenant. A write to a table the
-wrapper reads expires it. A session that ended is served from the store for at
-most `kept.life.revalidate` seconds (default 30), unless `bsb.evictSession()`
-ran for the user, which expires the entry at once. Leave `kept` off where a
-revoked session must stop on the next request.
+wrapper reads expires it. A signed-out caller makes no call and nothing is
+stored, including under `require: "user"`. A session that ended is served from
+the store for at most `kept.life.revalidate` seconds (default 30), unless
+`bsb.evictSession()` ran for the user, which expires the entry at once. Leave
+`kept` off where a revoked session must stop on the next request.
 
 ### Expire kept entries from your own writes
 
@@ -277,10 +283,11 @@ one entry instead of one each. The entry is still filled through the first
 caller's own client, under RLS; nothing reads with the service role. Three
 things must agree before an entry is shared:
 
-- the authorization provider lists every table in `tables` under its
-  `tables` field with `share: "tenant"`, and the permissions its select
-  policies check (doctor BS428 reports a table whose policies filter by the
-  caller);
+- every table in `tables` is listed with `share: "tenant"`, either by the
+  authorization provider's `tables` or by the app's `shares.tables`, and the
+  permissions its select policies check (doctor BS428 reports a table whose
+  policies filter by the caller, and names `shares.tables.<name>` for an app
+  entry);
 - the authorization hooks set `shareKey`, which names the caller's grant on
   those permissions. `permissionsShareKey()` from
   `better-supabase/blocks/permissions` reads it from the token's permissions
@@ -299,7 +306,8 @@ export const customerList = bsb.kept(
 ```
 
 A page that loads in one RPC lists the function in `functions` instead. The
-provider declares it in `sharedFunctions` with the tables it reads, which
+provider's `sharedFunctions`, or the app's `shares.functions`, declares it
+with the tables it reads, which
 join the entry's tables and tags, and inside the fill `$rpc` passes only the
 listed functions. Doctor [BS430](/docs/cli/doctor#bs430) checks that the
 function is security invoker, `language sql` and not volatile, reads only
@@ -318,6 +326,28 @@ export const customerPage = bsb.kept(
   { name: "customer-page", functions: ["customer_payload"], share: "tenant" },
 );
 ```
+
+An app table the provider does not know about is declared next to it:
+
+```ts
+defineConfig({
+  shares: {
+    tables: {
+      "public.notes": { share: "tenant", permissions: ["notes.read"] },
+    },
+    functions: {
+      "api.note_payload": {
+        tables: ["public.notes"],
+        permissions: ["notes.read"],
+      },
+    },
+  },
+});
+```
+
+An entry that repeats the provider's is a restated default. One that names
+the same table or function with different settings is an error (BS652). Gen
+keeps the provider's entry.
 
 When any of the three doesn't hold, the entry falls back to one per user,
 `kept.onSkip` gets the reason `"share"`, and the logger warns once.

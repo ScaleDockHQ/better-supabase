@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { sqlString } from "../../src/core/template.ts";
 import { renderBlocks } from "../../src/sql/index.ts";
+import {
+  AUDIT_NOT_IMPORT_SUMMARY,
+  auditStatementExecute,
+  auditStatementTriggers,
+} from "../../src/sql/row-audit.ts";
 
 const schemaOf = (
   names: string[],
@@ -86,5 +92,38 @@ describe("row audit of block tables", () => {
 
     expect(sql).toContain("current_setting('better_supabase.recorded', true)");
     expect(sql).toContain("set_config('better_supabase.recorded'");
+  });
+});
+
+describe("statement audit triggers", () => {
+  it("prints the same statements audit() creates", () => {
+    const target = "public.customers";
+
+    const settings = JSON.stringify({
+      ignore: [],
+      redact: [],
+      category: "data",
+    });
+
+    const printed = auditStatementTriggers(target, { category: "data" });
+
+    const fromAudit = [
+      ...auditStatementExecute().matchAll(/'([^']*(?:''[^']*)*)'/g),
+    ]
+      .map((match) =>
+        match[1]!
+          .replaceAll("''", "'")
+          .replace("%s", target)
+          .replace("%L", sqlString(settings)),
+      )
+      .map((statement) => `${statement};`)
+      .join("\n");
+
+    expect(printed).toBe(fromAudit);
+    expect(printed).toContain(AUDIT_NOT_IMPORT_SUMMARY);
+    expect(printed).toContain(
+      "referencing old table as old_rows new table as new_rows",
+    );
+    expect(printed).toContain("bsb_audit_stmt_delete");
   });
 });

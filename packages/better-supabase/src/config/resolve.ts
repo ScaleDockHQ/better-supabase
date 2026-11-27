@@ -525,6 +525,7 @@ export function resolveConfig(
     ...(config.authorization === undefined
       ? {}
       : { authorization: authorizationOf(config.authorization) }),
+    ...(config.shares === undefined ? {} : { shares: config.shares }),
     vectorSearch: vectorSearchOf(config.vectorSearch),
     subjects: withBlockSubjects(
       withAppTableSubjects(

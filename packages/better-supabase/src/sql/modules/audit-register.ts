@@ -1,6 +1,9 @@
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 
-import { AUDIT_NOT_IMPORT_SUMMARY } from "../row-audit.ts";
+import {
+  AUDIT_NOT_IMPORT_SUMMARY,
+  auditStatementExecute,
+} from "../row-audit.ts";
 
 // Inside a format() string literal, so its quotes are doubled.
 const WHEN_NOT_IMPORT = AUDIT_NOT_IMPORT_SUMMARY.replaceAll("'", "''");
@@ -204,18 +207,7 @@ ${statementChecks()}
   execute format('drop trigger if exists bsb_audit_stmt_update on %s', target);
   execute format('drop trigger if exists bsb_audit_stmt_delete on %s', target);
   if audit.statement then
-    execute format(
-      'create trigger bsb_audit_stmt_insert after insert on %s referencing new table as new_rows for each statement when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_statement_change(%L)',
-      target, base_settings::text
-    );
-    execute format(
-      'create trigger bsb_audit_stmt_update after update on %s referencing old table as old_rows new table as new_rows for each statement when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_statement_change(%L)',
-      target, base_settings::text
-    );
-    execute format(
-      'create trigger bsb_audit_stmt_delete after delete on %s referencing old table as old_rows for each statement when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_statement_change(%L)',
-      target, base_settings::text
-    );
+${auditStatementExecute()}
   elsif cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
       'create %strigger bsb_audit after insert or delete on %s %sfor each row when (${WHEN_NOT_IMPORT}) execute function better_supabase.audit_row_change(%L)',

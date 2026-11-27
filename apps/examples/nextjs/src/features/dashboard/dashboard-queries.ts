@@ -13,7 +13,11 @@ import { bsb } from "@/lib/supabase/server";
  */
 export async function getWorkspaceSummary() {
   "use cache: private";
-  const { db, session } = await bsb.cached();
+
+  const { db, session } = await bsb.cached({
+    keep: { name: "workspace-summary", tables: ["customers", "notes"] },
+  });
+
   cacheTag(tags.customers());
   bsb.tags(workspaceSummary);
 

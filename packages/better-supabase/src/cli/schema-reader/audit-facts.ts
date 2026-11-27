@@ -129,9 +129,12 @@ export function auditCalls(select: Obj, index: number): readonly AuditFact[] {
   });
 }
 
+const STATEMENT_TRIGGER = /^bsb_audit_stmt_(?:insert|update|delete)$/;
+
 /**
- * The registration a `bsb_audit` row trigger that runs
- * `better_supabase.audit_row_change('{...}')` makes, for `table`.
+ * The registration a `bsb_audit` row trigger or a `bsb_audit_stmt_*` statement
+ * trigger makes, for `table`. The three statement triggers carry the same
+ * settings, so a later one replaces the earlier registration.
  */
 export function auditTrigger(
   trigger: Obj,
@@ -139,12 +142,18 @@ export function auditTrigger(
   index: number,
 ): AuditFact | undefined {
   const name = str(trigger["trigname"]);
+  const fn = strings(trigger["funcname"]).join(".");
 
-  if (
-    (name !== "bsb_audit" && name !== "bs_audit") ||
-    strings(trigger["funcname"]).join(".") !==
-      "better_supabase.audit_row_change"
-  ) {
+  const row =
+    (name === "bsb_audit" || name === "bs_audit") &&
+    fn === "better_supabase.audit_row_change";
+
+  const statement =
+    name !== undefined &&
+    STATEMENT_TRIGGER.test(name) &&
+    fn === "better_supabase.audit_statement_change";
+
+  if (!row && !statement) {
     return undefined;
   }
 

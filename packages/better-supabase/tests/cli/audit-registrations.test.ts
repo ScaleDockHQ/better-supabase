@@ -216,4 +216,28 @@ create trigger bsb_audit after insert on public.broken
       { target: "public.invoices", ignore: ["seen_at"], redact: [] },
     ]);
   });
+
+  it("reads the settings of a bsb_audit_stmt trigger", async () => {
+    expect(
+      await auditRegistrationsOf([
+        {
+          text: `create trigger bsb_audit_stmt_insert after insert on public.orders
+  referencing new table as new_rows
+  for each statement
+  when (better_supabase.import_run() is null)
+  execute function better_supabase.audit_statement_change('{"ignore": ["updated_at"], "redact": ["token"]}');
+create trigger bsb_audit_stmt_update after update on public.orders
+  referencing old table as old_rows new table as new_rows
+  for each statement
+  execute function better_supabase.audit_statement_change('{"ignore": ["updated_at"], "redact": ["token"]}');
+create trigger bsb_audit_stmt_delete after delete on public.orders
+  referencing old table as old_rows
+  for each statement
+  execute function better_supabase.audit_statement_change('{"ignore": ["updated_at"], "redact": ["token"]}');`,
+        },
+      ]),
+    ).toEqual([
+      { target: "public.orders", ignore: ["updated_at"], redact: ["token"] },
+    ]);
+  });
 });

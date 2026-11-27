@@ -1,16 +1,30 @@
 import { defineConfig, devices } from "@playwright/test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 // The local stack's keys, with the repo root's per-branch ports first; `next
 // build` would otherwise read .env.production. Earlier files win.
-for (const file of [
-  "../../../.env.development.local",
-  ".env.development.local",
-]) {
+const ENV_FILES = ["../../../.env.development.local", ".env.development.local"];
+
+for (const file of ENV_FILES) {
   if (existsSync(file)) {
     process.loadEnvFile(file);
+  }
+}
+
+// The env loader strips the quotes inside an unquoted JSON value, so getEnv
+// rejects the signing keys. The file keeps the JSON; put that line back.
+for (const file of ENV_FILES) {
+  if (!existsSync(file)) {
+    continue;
+  }
+
+  const jwks = /^SUPABASE_JWKS=(.*)$/m.exec(readFileSync(file, "utf-8"))?.[1];
+
+  if (jwks) {
+    process.env.SUPABASE_JWKS = jwks;
+    break;
   }
 }
 

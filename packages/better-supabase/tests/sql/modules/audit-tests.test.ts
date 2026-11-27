@@ -19,7 +19,7 @@ describe("audit pgTAP files", () => {
     const customers = tests[0]!.contents;
     const deals = customers;
     expect(customers).toContain("-- @bsb-block-test audit");
-    expect(customers).toContain("select extensions.plan(12);");
+    expect(customers).toContain("select extensions.plan(16);");
     expect(customers).toContain(`like "public"."customers" including defaults`);
     expect(customers).toContain(
       `ignore => '{"updated_at"}'::text[], redact => '{"kvk"}'::text[]`,

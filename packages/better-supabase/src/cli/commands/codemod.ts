@@ -373,6 +373,14 @@ async function runWithSymbols(
   symbols: ProjectSymbols | undefined,
 ): Promise<CommandResult> {
   const [name, ...paths] = args._ ?? [];
+  const auditTables = name === "audit-statement" ? paths : undefined;
+
+  if (auditTables?.length === 0) {
+    throw new CliError(
+      "usage",
+      "Name at least one table: better-supabase codemod audit-statement <schema.table>...",
+    );
+  }
 
   const names = Object.entries(CODEMODS)
     .map(([key, codemod]) => `  ${key.padEnd(5)} ${codemod.description}`)
@@ -409,8 +417,8 @@ async function runWithSymbols(
     });
   }
 
-  const roots = (paths.length > 0 ? paths : ["."]).map((path) =>
-    resolve(config.root, path),
+  const roots = (auditTables ? [] : paths.length > 0 ? paths : ["."]).map(
+    (path) => resolve(config.root, path),
   );
 
   const files = [
@@ -436,6 +444,7 @@ async function runWithSymbols(
     ...(args.prune === true ? { prune: true } : {}),
     ...(args.explain === true ? { explain: true } : {}),
     ...(args.table === undefined ? {} : { table: args.table }),
+    ...(auditTables === undefined ? {} : { tables: auditTables }),
     sql: await projectSqlFiles(config.root),
     ...(env === undefined
       ? {}

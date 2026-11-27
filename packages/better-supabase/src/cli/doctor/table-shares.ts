@@ -1,6 +1,7 @@
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import { tenantNameOf } from "../../config/index.ts";
+import { resolveShares } from "../../config/shares.ts";
 import { providerLabel } from "../authorization.ts";
 import { providerCalls } from "./provider-calls.ts";
 import {
@@ -21,9 +22,9 @@ const CALLER_ROW =
  */
 export function tableShares(context: DoctorContext): FindingInput[] {
   const provider = context.config.authorization;
-  const declared = Object.entries(provider?.tables ?? {});
+  const declared = Object.entries(resolveShares(context.config).tables);
 
-  if (!provider || declared.length === 0) {
+  if (declared.length === 0) {
     return [];
   }
 
@@ -36,8 +37,18 @@ export function tableShares(context: DoctorContext): FindingInput[] {
 
   const tables = catalogOf(context).tables;
 
-  for (const [name, entry] of declared) {
-    const target = `authorization.tables.${name}`;
+  for (const [name, declaredShare] of declared) {
+    const entry = declaredShare.share;
+
+    const target =
+      declaredShare.source === "app"
+        ? `shares.tables.${name}`
+        : `authorization.tables.${name}`;
+
+    const label =
+      declaredShare.source === "app" || provider === undefined
+        ? "shares.tables"
+        : providerLabel(provider);
 
     const table = tables.find(
       (candidate) => candidate.name === name || qualified(candidate) === name,
@@ -45,7 +56,7 @@ export function tableShares(context: DoctorContext): FindingInput[] {
 
     if (!table) {
       findings.push({
-        message: `${providerLabel(provider)} declares ${name} in tables, but the database has no such table.`,
+        message: `${label} declares ${name}, but the database has no such table.`,
         target,
       });
       continue;
@@ -59,11 +70,13 @@ export function tableShares(context: DoctorContext): FindingInput[] {
     );
 
     const checked = new Set(
-      selects.flatMap((policy) =>
-        providerCalls(provider, policy.using ?? "")
-          .filter((call) => call.scope !== "platform")
-          .map((call) => call.key),
-      ),
+      provider === undefined
+        ? []
+        : selects.flatMap((policy) =>
+            providerCalls(provider, policy.using ?? "")
+              .filter((call) => call.scope !== "platform")
+              .map((call) => call.key),
+          ),
     );
 
     const listed = new Set<string>(entry.permissions);
@@ -72,9 +85,9 @@ export function tableShares(context: DoctorContext): FindingInput[] {
       checked.size !== listed.size ||
       [...checked].some((key) => !listed.has(key));
 
-    if (differs) {
+    if (provider !== undefined && differs) {
       findings.push({
-        message: `${providerLabel(provider)} declares ${qualified(table)} with permissions [${[...listed].join(", ")}], but its select policies check [${[...checked].join(", ")}]. A shared entry would be keyed on the wrong grant; make the two lists match.`,
+        message: `${label} declares ${qualified(table)} with permissions [${[...listed].join(", ")}], but its select policies check [${[...checked].join(", ")}]. A shared entry would be keyed on the wrong grant; make the two lists match.`,
         target,
       });
     }
@@ -99,7 +112,7 @@ export function tableShares(context: DoctorContext): FindingInput[] {
       const policy = rowLevel[0] ?? selects[0];
 
       findings.push({
-        message: `${providerLabel(provider)} declares ${qualified(table)} as share: "tenant", but ${named}. Two callers with the same grant could read different rows, so a shared cache entry would leak one caller's rows to the other. Declare it share: "row".`,
+        message: `${label} declares ${qualified(table)} as share: "tenant", but ${named}. Two callers with the same grant could read different rows, so a shared cache entry would leak one caller's rows to the other. Declare it share: "row".`,
         target,
         ...(policy ? { object: policyObject(table, policy) } : {}),
       });
@@ -107,4 +120,18 @@ export function tableShares(context: DoctorContext): FindingInput[] {
   }
 
   return findings;
+}
+
+/** An app share entry the provider already declares with different settings. */
+export function shareConflicts(context: DoctorContext): FindingInput[] {
+  return resolveShares(context.config).conflicts.map((conflict) => ({
+    message:
+      conflict.kind === "table"
+        ? `shares.tables.${conflict.name} disagrees with the authorization provider's tables entry. Use the same share and permissions, or declare the table in only one place.`
+        : `shares.functions.${conflict.name} disagrees with the authorization provider's sharedFunctions entry. Use the same tables and permissions, or declare the function in only one place.`,
+    target:
+      conflict.kind === "table"
+        ? `shares.tables.${conflict.name}`
+        : `shares.functions.${conflict.name}`,
+  }));
 }

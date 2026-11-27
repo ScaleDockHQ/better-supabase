@@ -7,6 +7,7 @@ import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
+import { resolveShares } from "../../config/shares.ts";
 import { databaseUrl } from "../config.ts";
 import { accessToken } from "../core/credentials.ts";
 import { CliError, errorText } from "../core/errors.ts";
@@ -32,6 +33,26 @@ export const DEFAULT_SNAPSHOT_PATH = "supabase/snapshot.json";
 /** Schemas that are always read, for doctor checks on helper functions. */
 const EXTRA_SCHEMAS = ["better_supabase"];
 
+/**
+ * Schemas of schema-qualified `authorization.tables` names. An unqualified name
+ * uses `config.schemas`, so it adds nothing here.
+ */
+export function declaredTableSchemas(
+  config: ResolvedConfig,
+): readonly string[] {
+  const schemas = new Set<string>();
+
+  for (const name of Object.keys(resolveShares(config).tables)) {
+    const dot = name.indexOf(".");
+
+    if (dot > 0) {
+      schemas.add(name.slice(0, dot));
+    }
+  }
+
+  return [...schemas];
+}
+
 export interface SnapshotSource {
   readonly snapshotPath?: string;
   readonly dbUrl?: string;
@@ -42,6 +63,11 @@ export interface SnapshotSource {
   readonly signal?: AbortSignal;
   /** Reuses the snapshot cached for an unchanged catalog fingerprint. */
   readonly cache?: boolean;
+  /**
+   * Schemas to read on top of the config. Doctor passes the schemas named by
+   * `authorization.tables`, which may sit outside `schemas`.
+   */
+  readonly extraSchemas?: readonly string[];
 }
 
 type Env = CliEnv;
@@ -182,9 +208,12 @@ export async function getSnapshot(
   const shareable = config.authorization !== undefined;
 
   const schemas = [
-    ...config.schemas,
-    ...apiTypeSchemas(config),
-    ...EXTRA_SCHEMAS,
+    ...new Set([
+      ...config.schemas,
+      ...apiTypeSchemas(config),
+      ...EXTRA_SCHEMAS,
+      ...(source.extraSchemas ?? []),
+    ]),
   ];
 
   try {

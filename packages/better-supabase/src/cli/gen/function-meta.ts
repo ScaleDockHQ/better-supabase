@@ -2,19 +2,28 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { SchemaMeta } from "../../index.ts";
 import type { TableModel } from "./model-types.ts";
 
+import { resolveShares } from "../../config/shares.ts";
 import { resolveBlock } from "../../sql/index.ts";
 import { bootstrapTables } from "./bootstrap-tables.ts";
 
 /**
- * The provider's `sharedFunctions`, keyed by the function's database name, with
- * each table resolved to its app key. A table gen doesn't know keeps its name,
- * so the share check refuses it at run time.
+ * The provider's `sharedFunctions` and the app's `shares.functions`, keyed by
+ * the function's database name, with each table resolved to its app key. A
+ * table gen doesn't know keeps its name, so the share check refuses it at run
+ * time.
  */
+/** The provider's tables and `shares.tables`, keyed by the config's name. */
+export function declaredTableShares(
+  config: ResolvedConfig,
+): ReturnType<typeof resolveShares>["tables"] {
+  return resolveShares(config).tables;
+}
+
 export function functionSharesMeta(
   config: ResolvedConfig,
   tables: readonly TableModel[],
 ): Pick<SchemaMeta, "functionShares"> {
-  const declared = Object.entries(config.authorization?.sharedFunctions ?? {});
+  const declared = Object.entries(resolveShares(config).functions);
 
   if (declared.length === 0) {
     return {};
@@ -38,8 +47,8 @@ export function functionSharesMeta(
           name,
           {
             schema,
-            tables: [...new Set(entry.tables.map(keyOf))].toSorted(),
-            permissions: [...entry.permissions].toSorted(),
+            tables: [...new Set(entry.share.tables.map(keyOf))].toSorted(),
+            permissions: [...entry.share.permissions].toSorted(),
           },
         ];
       }),

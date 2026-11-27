@@ -2,7 +2,10 @@ import type { FrameworkBinding } from "../../plugins/frameworks.ts";
 import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
-import type { AuthorizationProvider } from ".././authorization.ts";
+import type {
+  AuthorizationProvider,
+  SharesConfig,
+} from ".././authorization.ts";
 import type { BlockApi } from "../api-default.ts";
 import type { AnyBlocksConfig, BlocksConfig } from "../blocks.ts";
 import type { ExposeConfig, ExposeRole, ResolvedExpose } from "../expose.ts";
@@ -181,6 +184,12 @@ export interface FlatConfig {
    */
   readonly authorization?: AuthorizationProvider;
   /**
+   * Tables and functions the app shares per tenant, next to the authorization
+   * provider's. `share: "tenant"` is a read RLS still checks, so `bsb.kept` and
+   * `bsb.remote` may share one entry between the tenant's members.
+   */
+  readonly shares?: SharesConfig;
+  /**
    * Embedding columns, keyed by `table` or `schema.table`. The `vector-search`
    * SQL module writes `search_<table>(query, k)` for each, which
    * `db.$search(table, { vector, k })` calls.
@@ -285,6 +294,7 @@ export interface ResolvedConfig {
     readonly claim?: NonNullable<EntitlementsConfig["claim"]>;
   };
   readonly authorization?: AuthorizationProvider;
+  readonly shares?: SharesConfig;
   readonly vectorSearch: readonly ({
     readonly table: string;
     readonly column: string;

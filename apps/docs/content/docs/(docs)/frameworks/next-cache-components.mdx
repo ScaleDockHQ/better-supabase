@@ -702,6 +702,11 @@ export const getRoles = (org: string) =>
   bsb.shared(org, permissions.roles.read, (tenant) => readRoles(tenant.id));
 ```
 
+`bsb.shared` does not pass the read through RLS. For a read that RLS still
+checks, and that every holder of the same grant in the tenant may share,
+declare the table in `shares.tables` with `share: "tenant"` and read it with
+`bsb.kept` or `bsb.remote`.
+
 Fill `TenantProvider` from `better-supabase/react` in the layout with
 `scope.tenant`, and client components read it with `useTenant()` instead of
 taking `orgSlug` or `organizationId` props.

@@ -1,7 +1,11 @@
-import type { AuthorizationProvider } from "../config/authorization.ts";
+import type {
+  AuthorizationProvider,
+  SharesConfig,
+} from "../config/authorization.ts";
 import type { DisabledRow } from "../config/blocks.ts";
 import type { Check, ConformanceReport } from "./conformance.ts";
 
+import { resolveShares } from "../config/shares.ts";
 import {
   isScopeName,
   sameTemplateFunction,
@@ -105,6 +109,11 @@ export interface AuthorizationProviderKitOptions {
    * policy for `authz:<uid>`.
    */
   readonly postgres?: ProviderPostgres;
+  /**
+   * The app's `shares` entries, checked with the provider's. A function may
+   * read a table only the app declares.
+   */
+  readonly shares?: SharesConfig;
 }
 
 const VERSION_FUNCTION = /^[a-z_][a-z0-9_$]*\.[a-z_][a-z0-9_$]*$/;
@@ -540,14 +549,20 @@ export function testAuthorizationProvider(
         );
       },
     ],
-    provider.tables && [
+    (provider.tables ?? options.shares?.tables) && [
       "shares tables per tenant only on listed permissions",
       () => {
         const listed = new Set(
           (provider.permissions ?? []).map((entry) => entry.key),
         );
 
-        for (const [table, entry] of Object.entries(provider.tables ?? {})) {
+        const tables = resolveShares({
+          authorization: provider,
+          ...(options.shares === undefined ? {} : { shares: options.shares }),
+        }).tables;
+
+        for (const [table, declared] of Object.entries(tables)) {
+          const entry = declared.share;
           expect(
             /^(?:[a-z_][a-z0-9_$]*\.)?[a-z_][a-z0-9_$]*$/.test(table),
             `tables key "${table}" is not a table or schema.table name`,
@@ -566,16 +581,20 @@ export function testAuthorizationProvider(
         }
       },
     ],
-    provider.sharedFunctions && [
+    (provider.sharedFunctions ?? options.shares?.functions) && [
       "shares functions only over tables it shares per tenant",
       () => {
         const listed = new Set(
           (provider.permissions ?? []).map((entry) => entry.key),
         );
 
-        for (const [name, entry] of Object.entries(
-          provider.sharedFunctions ?? {},
-        )) {
+        const resolved = resolveShares({
+          authorization: provider,
+          ...(options.shares === undefined ? {} : { shares: options.shares }),
+        });
+
+        for (const [name, declared] of Object.entries(resolved.functions)) {
+          const entry = declared.share;
           expect(
             /^(?:[a-z_][a-z0-9_$]*\.)?[a-z_][a-z0-9_$]*$/.test(name),
             `sharedFunctions key "${name}" is not a function or schema.function name`,
@@ -587,8 +606,8 @@ export function testAuthorizationProvider(
 
           for (const table of entry.tables) {
             expect(
-              provider.tables?.[table]?.share === "tenant",
-              `sharedFunctions.${name} reads "${table}", which tables doesn't share per tenant`,
+              resolved.tables[table]?.share.share === "tenant",
+              `sharedFunctions.${name} reads "${table}", which the provider's tables and shares.tables don't share per tenant`,
             );
           }
 

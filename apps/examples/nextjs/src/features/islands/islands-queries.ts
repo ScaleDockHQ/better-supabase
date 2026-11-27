@@ -38,8 +38,9 @@ export interface Islands {
 }
 
 /**
- * Every island calls this. The `bootstrap_islands` call runs once per request:
- * React's `cache()` inside `bsbCore.bootstrap` dedupes it, and the token
+ * Every island calls this. The `bootstrap_islands` call runs once per request
+ * on a miss: React's `cache()` inside `bsbCore.bootstrap` dedupes it, and a
+ * kept entry answers the next load without calling the database. The token
  * verifies once because the session memo keys on its hash.
  */
 async function getIslands(): Promise<Islands> {
@@ -48,6 +49,7 @@ async function getIslands(): Promise<Islands> {
   const boot = await bsbCore.bootstrap<IslandCounts>({
     rpc: "islands",
     tables: ISLAND_TABLES,
+    kept: true,
   });
 
   const access = await bsbCore.getAccess(boot);
@@ -68,6 +70,7 @@ const getRemoteIslands = bsbCore.remote(async (key): Promise<Islands> => {
     scope: "remote",
     key,
     tables: ISLAND_TABLES,
+    kept: true,
   });
 
   const access = await bsbCore.getAccess(boot, { key });

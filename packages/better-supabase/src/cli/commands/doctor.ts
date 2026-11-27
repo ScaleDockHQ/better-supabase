@@ -80,7 +80,11 @@ import {
 } from "../supabase-config.ts";
 import { openSymbolTier } from "../typescript-symbols/index.ts";
 import { VERSION } from "../version.ts";
-import { DEFAULT_SNAPSHOT_PATH, getSnapshot } from "./snapshot.ts";
+import {
+  DEFAULT_SNAPSHOT_PATH,
+  declaredTableSchemas,
+  getSnapshot,
+} from "./snapshot.ts";
 import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
 
 const ARGS = {
@@ -514,6 +518,7 @@ export async function runDoctor(
     ...(dbUrl ? { dbUrl } : {}),
     ...(projectRef ? { projectRef } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
+    extraSchemas: declaredTableSchemas(config),
   };
 
   const pg = options.connect ?? connect;

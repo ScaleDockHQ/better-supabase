@@ -1248,4 +1248,16 @@ export default defineConfig({
     "option-sets",
     "billing",
   ],
+
+  // A table the provider does not declare. The select policy returns the
+  // organizations a member belongs to, so two holders of the same grant do not
+  // read the same rows. Share it per row. RLS still checks the read (ADR 1267).
+  shares: {
+    tables: {
+      "public.organizations": {
+        share: "row",
+        permissions: ["organizations.read"],
+      },
+    },
+  },
 });

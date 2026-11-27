@@ -895,6 +895,7 @@ describe("config JSON Schema", () => {
       api: true,
       tooling: true,
       recordTypes: true,
+      shares: true,
       blocks: true,
       adapters: true,
       $env: true,

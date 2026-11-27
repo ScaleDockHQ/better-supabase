@@ -425,6 +425,7 @@
       "SeedDefaultsConfig",
       "SeedSampleConfig",
       "SeedSampleSize",
+      "SharesConfig",
       "SkillsAgent",
       "SkillsConfig",
       "SourceConfig",

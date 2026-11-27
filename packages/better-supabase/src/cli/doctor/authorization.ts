@@ -39,7 +39,7 @@ import { functionShares } from "./function-shares.ts";
 import { providerCalls } from "./provider-calls.ts";
 import { withoutStrings } from "./rls.ts";
 import { catalogOf, policyObject, qualified } from "./shared.ts";
-import { tableShares } from "./table-shares.ts";
+import { shareConflicts, tableShares } from "./table-shares.ts";
 
 const TEMPLATE_EFFECT: Readonly<
   Partial<Record<keyof AuthorizationProvider["functions"], string>>
@@ -407,6 +407,7 @@ async function restatedDefaults(
       sqlTenantColumn: context.config.sql.tenantColumn,
       subjects: context.config.subjects,
       restatedDefaults: context.config.restatedDefaults,
+      shares: context.config.shares,
       genFunctions: context.config.functions,
       blockNotNull: (name) =>
         Object.entries(context.config.blocks).flatMap(([key, entry]) => {
@@ -489,6 +490,14 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       'An authorization provider\'s `tables` says which tables every caller with the same permissions in a tenant reads alike (`share: "tenant"`), so `bsb.kept` and `bsb.remote` with `share: "tenant"` key one entry on the tenant and the grant instead of the user. Doctor reads each table\'s select policies for `authenticated` and reports a `tenant` table whose policies filter by the caller (`auth.uid()`, `auth.jwt()`, `current_user_id()`) or don\'t pin the tenant column to a tenant the caller acts in, a table whose policies check other provider keys than its `permissions`, and a name the database lacks.',
     check: tableShares,
+  },
+  {
+    code: "BS652",
+    severity: "error",
+    title: "App share disagrees with the provider",
+    description:
+      "An entry of `shares.tables` or `shares.functions` names a table or function the authorization provider already declares, with a different `share` or `permissions`. The two would tell gen different keys for one shared entry. Make them match, or remove one. An identical entry is a restated default (BS427).",
+    check: shareConflicts,
   },
   {
     code: "BS427",

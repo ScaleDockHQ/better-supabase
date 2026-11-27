@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- resolved table shares add lines past the limit. 1 finding. */
 import type {
   GeneratorBlock,
   GeneratorModel,
@@ -43,7 +44,11 @@ import {
   domainIndex,
   recordUnmapped,
 } from "./composites.ts";
-import { bootstrapMeta, functionSharesMeta } from "./function-meta.ts";
+import {
+  bootstrapMeta,
+  declaredTableShares,
+  functionSharesMeta,
+} from "./function-meta.ts";
 import { buildFunctions } from "./model-functions.ts";
 import {
   buildRelations,
@@ -839,10 +844,11 @@ function toTableModels(
         relationMeta[relation.name] = relation.meta;
       }
 
-      const shares = config.authorization?.tables;
+      const shares = declaredTableShares(config);
 
-      const share =
-        shares?.[`${table.schema}.${table.name}`] ?? shares?.[table.name];
+      const share = (
+        shares[`${table.schema}.${table.name}`] ?? shares[table.name]
+      )?.share;
 
       return {
         key,
