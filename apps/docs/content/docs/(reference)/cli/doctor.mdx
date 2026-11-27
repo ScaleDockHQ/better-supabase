@@ -2284,7 +2284,18 @@ claims, in a transaction that is rolled back. Two limits apply:
 | The provider's hook budget | `octet_length` of each of `tokenHook.budget.claims` | `tokenHook.budget.bytes`, or `tooling.doctor.claimsLimit`         |
 
 Each one is a separate warning, so a token of 1.5 KB whose budget claims fit
-the budget passes. When the hook sets `tokenHook.budget.truncatedClaim`,
+the budget passes.
+
+A third warning covers the session cookie. `@supabase/ssr` splits it into
+chunks of 3,180 characters, and the claims are base64-encoded twice: once in
+the access token, then again with the whole session in the cookie. One byte of
+claims costs about 1.78 characters, and the header, signature and session
+fields add about 430. With `tokens-only` cookies a payload above about 1,540
+bytes needs a second chunk, well below the 2048-byte token limit, so doctor
+reports it separately (target `:cookie`). `user-and-tokens` cookies add about
+1 KB more for the user object.
+
+When the hook sets `tokenHook.budget.truncatedClaim`,
 doctor also reports that the token lists only some entries, so server checks
 for that user need a database lookup. Keep ids and roles in the token and
 look everything else up. This needs a direct connection (local stack,

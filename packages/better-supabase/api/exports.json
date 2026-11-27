@@ -2085,11 +2085,15 @@
       "postAuthPath",
       "serverTimingValue",
       "syncMiddlewareSetCookie",
-      "toSession"
+      "toSession",
+      "vercelRuntimeCache"
     ],
     "types": [
+      "CreateProxyOptions",
       "NextOptions",
-      "ProxyOptions"
+      "ProxyOptions",
+      "VercelRuntimeCache",
+      "VercelRuntimeCacheOptions"
     ]
   },
   "./next/image": {
@@ -2162,7 +2166,8 @@
     "values": [
       "createOnRequestError",
       "requestEvents",
-      "warm"
+      "warm",
+      "warmInBackground"
     ],
     "types": [
       "OnRequestError",
@@ -2176,7 +2181,8 @@
       "WarmPool",
       "WarmReport",
       "WarmStep",
-      "WarmStepName"
+      "WarmStepName",
+      "WarmTarget"
     ]
   },
   "./hono": {

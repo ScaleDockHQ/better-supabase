@@ -371,13 +371,28 @@ describe("sessions bootstrap permissions", () => {
       },
     })!;
 
-  it("returns the provider's permissions for the call's tenant", () => {
+  it("returns the provider's permissions only for a call that names a tenant", () => {
     const sql = render("app.home_data");
 
     expect(sql).toContain(
-      "'permissions', to_jsonb(acme.permissions_for(nullif(args ->> 'tenant', '')))",
+      "'permissions', case when nullif(args ->> 'tenant', '') is null then null else to_jsonb(acme.permissions_for(nullif(args ->> 'tenant', ''))) end",
     );
     expect(sql).not.toContain("my_permissions");
+    expect(render({ function: "app.home_data", permissions: "tenant" })).toBe(
+      sql,
+    );
+  });
+
+  it("returns every tenant's permissions for a call without one under permissions: all", () => {
+    expect(render({ function: "app.home_data", permissions: "all" })).toContain(
+      "'permissions', to_jsonb(acme.permissions_for(nullif(args ->> 'tenant', '')))",
+    );
+  });
+
+  it("rejects an unknown permissions value", () => {
+    expect(() =>
+      render({ function: "app.home_data", permissions: "some" }),
+    ).toThrow(/permissions must be "tenant", "all" or false/);
   });
 
   it("leaves them out of an entry that sets permissions: false", () => {

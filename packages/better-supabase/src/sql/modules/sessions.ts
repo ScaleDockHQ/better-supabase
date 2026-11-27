@@ -70,7 +70,7 @@ function isFunctionRef(
 ): value is {
   readonly function: string;
   readonly subject?: string | false;
-  readonly permissions?: false;
+  readonly permissions?: BootstrapPermissionsMode;
 } {
   return (
     typeof value === "object" &&
@@ -105,7 +105,7 @@ function isReadSetRef(
 ): value is {
   readonly readSet: string;
   readonly subject?: string | false;
-  readonly permissions?: false;
+  readonly permissions?: BootstrapPermissionsMode;
 } {
   return (
     typeof value === "object" &&
@@ -121,7 +121,7 @@ function isReadSetsRef(
   readonly readSets: readonly string[];
   readonly shell?: string;
   readonly subject?: string | false;
-  readonly permissions?: false;
+  readonly permissions?: BootstrapPermissionsMode;
 } {
   return (
     typeof value === "object" &&
@@ -139,8 +139,12 @@ interface BootstrapTarget {
   readonly readSets: readonly string[];
   /** A no-argument function whose jsonb result is the authorizer subject. */
   readonly subject?: string | undefined;
-  /** The entry sets `permissions: false`. */
-  readonly noPermissions?: boolean;
+  /**
+   * When the wrapper returns the provider's permissions: `"tenant"` (the
+   * default) only for a call that names a tenant, `"all"` for every call, so a
+   * call without a tenant gets every tenant's, and `false` never.
+   */
+  readonly permissionsMode: BootstrapPermissionsMode;
   /**
    * `authorization.functions.subjectForTenant` with the call's tenant filled
    * in, for a target that uses the provider's `subject`. `null` for an unknown
@@ -152,6 +156,27 @@ interface BootstrapTarget {
    * filled in; absent when the entry sets `permissions: false`.
    */
   readonly permissions?: string | undefined;
+}
+
+/** `blocks['sessions'].options.bootstrap[name].permissions`. */
+type BootstrapPermissionsMode = "tenant" | "all" | false;
+
+/** The entry's `permissions`, checked; `"tenant"` when it has none. */
+function permissionsModeOf(
+  name: string,
+  value: unknown,
+): BootstrapPermissionsMode {
+  if (value === undefined) {
+    return "tenant";
+  }
+
+  if (value === false || value === "tenant" || value === "all") {
+    return value;
+  }
+
+  throw new TypeError(
+    `${WHERE}.${name}.permissions must be "tenant", "all" or false`,
+  );
 }
 
 /**
@@ -206,7 +231,7 @@ function bootstrapFunctions(
       : {}),
     ...(permissions !== undefined &&
     provider !== undefined &&
-    !target.noPermissions
+    target.permissionsMode !== false
       ? {
           permissions: fillTemplate(
             "authorization.functions.bootstrapPermissions",
@@ -261,7 +286,7 @@ function bootstrapTargets(
         fn: fn.function,
         readSets: [],
         subject: subjectOf(name, fn.subject, fallback),
-        ...(fn.permissions === false ? { noPermissions: true } : {}),
+        permissionsMode: permissionsModeOf(name, fn.permissions),
       };
     }
 
@@ -288,7 +313,7 @@ function bootstrapTargets(
         fn: fn.shell,
         readSets: fn.readSets,
         subject: subjectOf(name, fn.subject, fallback),
-        ...(fn.permissions === false ? { noPermissions: true } : {}),
+        permissionsMode: permissionsModeOf(name, fn.permissions),
       };
     }
 
@@ -304,7 +329,7 @@ function bootstrapTargets(
         fn: `public.rs_${fn.readSet}`,
         readSets: [],
         subject: subjectOf(name, fn.subject, fallback),
-        ...(fn.permissions === false ? { noPermissions: true } : {}),
+        permissionsMode: permissionsModeOf(name, fn.permissions),
       };
     }
 
@@ -314,7 +339,13 @@ function bootstrapTargets(
       );
     }
 
-    return { name, fn, readSets: [], subject: fallback };
+    return {
+      name,
+      fn,
+      readSets: [],
+      subject: fallback,
+      permissionsMode: "tenant",
+    };
   });
 }
 
@@ -352,6 +383,25 @@ function subjectSql(
 }
 
 /**
+ * The `'permissions'` pair of a wrapper. In `"tenant"` mode a call without a
+ * tenant gets none, so a shell bootstrap never computes every tenant's
+ * permission bitsets; `"all"` keeps them for apps that render every tenant's
+ * permissions at once.
+ */
+function permissionsSql(
+  permissions: string | undefined,
+  mode: BootstrapPermissionsMode,
+): string {
+  if (permissions === undefined || mode === false) {
+    return "";
+  }
+
+  return mode === "all"
+    ? `,\n    'permissions', to_jsonb(${permissions})`
+    : `,\n    'permissions', case when nullif(args ->> 'tenant', '') is null then null else to_jsonb(${permissions}) end`;
+}
+
+/**
  * One wrapper per `bootstrap` entry: the session check, the authorization
  * version and the app function's data in one jsonb, so a page's first query
  * carries all three. It runs as the caller, so the app function's policies
@@ -374,7 +424,15 @@ function bootstrapWrappers(
     : "auth.jwt() -> 'authz_ver'";
 
   const wrappers = functions.map(
-    ({ name, fn, readSets, subject, subjectForTenant, permissions }) => {
+    ({
+      name,
+      fn,
+      readSets,
+      subject,
+      subjectForTenant,
+      permissions,
+      permissionsMode,
+    }) => {
       const wrapper = `better_supabase.bootstrap_${name}`;
       const picks = readSets.length > 0;
       const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
@@ -434,7 +492,7 @@ begin${guard}
     'authz_version', ${live},
     'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
-    'data', ${dataSql}${readsSql}${subjectSql(subject, subjectForTenant)}${permissions === undefined ? "" : `,\n    'permissions', to_jsonb(${permissions})`}
+    'data', ${dataSql}${readsSql}${subjectSql(subject, subjectForTenant)}${permissionsSql(permissions, permissionsMode)}
   );
 end;
 $$;

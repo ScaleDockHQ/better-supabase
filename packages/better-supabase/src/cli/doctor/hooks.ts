@@ -28,18 +28,53 @@ const HOOK_CLAIMS_LIMIT = 2048;
 const COOKIE_CHUNK_BYTES = 3180;
 
 /**
- * What the session cookie carries besides the claims: the signature, the
- * header, the refresh token and the user object (measured in ADR 0523).
+ * The parts of an access token besides its claims: the base64url header (an
+ * ES256 header with a `kid` is about 100 characters), the two dots and the
+ * ES256 signature (86 characters).
  */
-const COOKIE_OVERHEAD_BYTES = 1700;
+const TOKEN_OVERHEAD_CHARS = 188;
 
 /**
- * The cookie chunks a token with `claimsBytes` of claims needs, base64
- * included.
+ * The session JSON besides the access token, with `tokens-only` cookies:
+ * `token_type`, `expires_in`, `expires_at` and the refresh token.
  */
-function cookieChunks(claimsBytes: number): number {
+const SESSION_OVERHEAD_BYTES = 140;
+
+/** What `user-and-tokens` cookies add: the user object (ADR 0523). */
+const USER_OBJECT_BYTES = 1000;
+
+/** The `base64-` prefix `@supabase/ssr` writes before an encoded cookie. */
+const COOKIE_PREFIX_CHARS = 7;
+
+const base64Length = (bytes: number): number => Math.ceil(bytes / 3) * 4;
+
+/**
+ * The session cookie a token with `claimsBytes` of claims needs, in characters.
+ * The claims are base64url-encoded twice: once in the access token, then again
+ * with the whole session in the cookie, so one byte of claims costs about 1.78
+ * characters of cookie.
+ */
+function sessionCookieChars(
+  claimsBytes: number,
+  encode: "tokens-only" | "user-and-tokens" = "tokens-only",
+): number {
+  const token = base64Length(claimsBytes) + TOKEN_OVERHEAD_CHARS;
+
+  const session =
+    token +
+    SESSION_OVERHEAD_BYTES +
+    (encode === "user-and-tokens" ? USER_OBJECT_BYTES : 0);
+
+  return COOKIE_PREFIX_CHARS + base64Length(session);
+}
+
+/** The cookie chunks a token with `claimsBytes` of claims needs. */
+function cookieChunks(
+  claimsBytes: number,
+  encode: "tokens-only" | "user-and-tokens" = "tokens-only",
+): number {
   return Math.ceil(
-    ((claimsBytes * 4) / 3 + COOKIE_OVERHEAD_BYTES) / COOKIE_CHUNK_BYTES,
+    sessionCookieChars(claimsBytes, encode) / COOKIE_CHUNK_BYTES,
   );
 }
 
@@ -866,10 +901,18 @@ export const HOOK_RULES: readonly Rule[] = [
               });
             }
 
+            const chunks = cookieChunks(size.bytes);
+
             if (size.bytes > limits.token) {
               findings.push({
-                message: `${signatureOf(fn)} returns ${size.bytes} bytes of claims for ${context.hookUser} (limit ${limits.token}, memberships ${size.memberships}), about ${cookieChunks(size.bytes)} cookie chunks of ${COOKIE_CHUNK_BYTES} bytes. Every request carries them twice (cookie and header); keep ids and roles in the token and look up the rest.`,
+                message: `${signatureOf(fn)} returns ${size.bytes} bytes of claims for ${context.hookUser} (limit ${limits.token}, memberships ${size.memberships}), about ${chunks} cookie chunks of ${COOKIE_CHUNK_BYTES} bytes with \`tokens-only\` cookies. Every request carries them twice (cookie and header); keep ids and roles in the token and look up the rest.`,
                 target: `${signatureOf(fn)}:claims`,
+                object,
+              });
+            } else if (chunks > 1) {
+              findings.push({
+                message: `${signatureOf(fn)} returns ${size.bytes} bytes of claims for ${context.hookUser}: the session cookie is about ${sessionCookieChars(size.bytes)} characters with \`tokens-only\` cookies, so it splits into ${chunks} chunks of ${COOKIE_CHUNK_BYTES}. The claims are base64-encoded twice (in the token, then in the cookie), so keep the whole payload under about 1,540 bytes for one chunk: lower the hook's budget or move claims out of the token.`,
+                target: `${signatureOf(fn)}:cookie`,
                 object,
               });
             }
