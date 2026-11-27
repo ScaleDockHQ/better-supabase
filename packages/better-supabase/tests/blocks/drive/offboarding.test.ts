@@ -92,7 +92,10 @@ describe("driveOffboardingSink", () => {
       onKept,
     }).send([leaving]);
 
-    expect(onKept).toHaveBeenCalledWith(leaving, ["d1"]);
+    expect(onKept).toHaveBeenCalledWith({
+      event: leaving,
+      keptDriveIds: ["d1"],
+    });
 
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -100,9 +103,7 @@ describe("driveOffboardingSink", () => {
       transferTo: () => "u2",
     }).send([leaving]);
 
-    expect(warn).toHaveBeenCalledWith(
-      "driveOffboardingSink: u1 keeps drives d1 that u2 can't own",
-    );
+    expect(warn).toHaveBeenCalledWith("driveOffboardingSink: u1 keeps d1");
     warn.mockRestore();
   });
 });

@@ -25,10 +25,10 @@ export interface DriveOffboardingSinkOptions {
    * owner can't own them, such as a second personal drive. Archive or reassign
    * them here. Without it the sink logs a warning.
    */
-  readonly onKept?: (
-    event: CloudEvent,
-    keptDriveIds: readonly string[],
-  ) => void | PromiseLike<void>;
+  readonly onKept?: (kept: {
+    readonly event: CloudEvent;
+    readonly keptDriveIds: readonly string[];
+  }) => void | PromiseLike<void>;
 }
 
 /**
@@ -77,13 +77,17 @@ export function driveOffboardingSink(
           );
         }
 
-        const kept = moved.data.keptDriveIds ?? [];
+        const keptDriveIds = moved.data.keptDriveIds ?? [];
 
-        if (kept.length > 0 && options.onKept !== undefined) {
-          await options.onKept(event, kept);
-        } else if (kept.length > 0) {
+        if (keptDriveIds.length === 0) {
+          continue;
+        }
+
+        if (options.onKept) {
+          await options.onKept({ event, keptDriveIds });
+        } else {
           console.warn(
-            `driveOffboardingSink: ${userId} keeps drives ${kept.join(", ")} that ${toUserId} can't own`,
+            `driveOffboardingSink: ${userId} keeps ${keptDriveIds.join(",")}`,
           );
         }
       }
