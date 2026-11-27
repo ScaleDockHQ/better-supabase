@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.91.1
+
+### Patch Changes
+
+- [#1187](https://github.com/ScaleDockHQ/better-supabase/pull/1187) [`c218006`](https://github.com/ScaleDockHQ/better-supabase/commit/c218006a74da5033cc6eb5112226b09a2c5a2056) Thanks [@mick340](https://github.com/mick340)! - With `createNext()` debug on, a query inside a `"use cache"` or `unstable_cache` scope no longer reads `headers()` to find the request's stats recorder, so a remote cache entry is no longer marked as request-bound and its set no longer fails on every navigation. Queries there are not counted on the request; remote entries still count through their handed-off request id.
+
 ## 0.91.0
 
 ### Minor Changes

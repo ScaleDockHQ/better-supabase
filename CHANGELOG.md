@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.91.1 (2026-11-27)
+
+- With `createNext()` debug on, a query inside a `"use cache"` or `unstable_cache` scope no longer reads `headers()` to find the request's stats recorder, so a remote cache entry is no longer marked as request-bound and its set no longer fails on every navigation. Queries there are not counted on the request; remote entries still count through their handed-off request id.
+
 ## 0.91.0 (2026-11-27)
 
 - The approvals block's `approval_eligible_ids_in` no longer runs the approver hooks once per pending request. A block's `decides` rule runs once per subject type through the new `options.deciderMany` of leave, expenses and time entries, the set form of `options.decider`. The provider's `isApprover` runs once per distinct kind, tenant, requester and approvers, and only for requests nothing else lets the caller decide, or once in all through the new `authorization.functions.isApproverMany` template. Approvals module version 8.
