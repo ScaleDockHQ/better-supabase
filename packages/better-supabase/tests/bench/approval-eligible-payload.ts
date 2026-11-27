@@ -1,9 +1,11 @@
-// approval_eligible_ids the way a multi-tenant page payload reads it, against the
-// local stack: the caller owns 14 of 60 tenants with 2,400 pending requests in
-// all. A policy that asks per member tenant plus once without a tenant runs 15
-// sets per scan, and a payload scans the requests table three times in one
-// read-only transaction. The fixture is committed so the reads run without a
-// transaction id, as PostgREST reads do, and removed at the end.
+// approval_eligible_ids the way a multi-tenant page payload reads it through a
+// policy, against the local stack: the caller owns 14 of 60 tenants with 2,400
+// pending requests in all, and one statement scans the requests three times,
+// filtered to one owned tenant (a page) or over every tenant. It compares the
+// policy that asks once per member tenant and once without a tenant with the
+// two-part shape the approvals docs recommend. The fixture is committed so the
+// reads run without a transaction id, as PostgREST reads do, and removed at the
+// end. The scans run as the table owner, so only the policy expression counts.
 //   pnpm env:local && node tests/bench/approval-eligible-payload.ts [--runs 7] [--json]
 import { Client } from "pg";
 
@@ -49,14 +51,6 @@ const cleanup = async (): Promise<void> => {
 
 const claims = JSON.stringify({ sub: ME, role: "authenticated" });
 
-const hasSetForm = async (): Promise<boolean> => {
-  const { rows } = await client.query<{ found: boolean }>(
-    "select to_regprocedure('better_supabase.approval_eligible_ids_in(uuid[])') is not null as found",
-  );
-
-  return rows[0]?.found === true;
-};
-
 /**
  * Runs `body` in one read-only transaction as the caller and returns its
  * milliseconds and calls.
@@ -70,7 +64,6 @@ const timed = async (
     "select set_config('request.jwt.claims', $1, true), set_config('request.jwt.claim.sub', $2, true)",
     [claims, ME],
   );
-  await client.query("set local role authenticated");
 
   const before = await client.query<{ funcname: string; calls: string }>(
     "select funcname, calls from pg_stat_xact_user_functions where schemaname = 'better_supabase'",
@@ -105,11 +98,24 @@ const timed = async (
   return { ms, calls };
 };
 
-const perTenantPolicy = `select count(*) from (
-  select better_supabase.approval_eligible_ids(m) from unnest($1::uuid[]) m
-  union all
-  select better_supabase.approval_eligible_ids()
-) x`;
+// The policy an app wrote before the set form: one call per member tenant, and
+// one without a tenant for the rows outside them.
+const perTenantPolicy = `(r.id in (
+    select x from unnest($1::uuid[]) m cross join lateral better_supabase.approval_eligible_ids(m) x
+  ) or ((r.tenant_id is null or r.tenant_id <> all ($1::uuid[]))
+    and r.id in (select better_supabase.approval_eligible_ids())))`;
+
+// The recommended shape: the member tenants in one call, the rest only for the
+// rows outside them.
+const setPolicy = `(r.id in (select better_supabase.approval_eligible_ids_in())
+  or ((r.tenant_id is null or r.tenant_id not in (select better_supabase.member_organization_ids()))
+    and r.id in (select better_supabase.approval_eligible_ids_in(outside => true))))`;
+
+const scans = (policy: string, page?: string): string => {
+  const scan = `(select count(*) from better_supabase.approval_requests r where r.status = 'pending'${page === undefined ? "" : ` and r.tenant_id = ${page}::uuid`} and ${policy})`;
+
+  return `select ${Array.from({ length: SCANS }, () => scan).join(", ")}`;
+};
 
 try {
   await cleanup();
@@ -152,57 +158,25 @@ try {
   );
   await client.query("analyze better_supabase.approval_requests");
 
-  const setForm = await hasSetForm();
+  const page = owned[0]!;
 
   const scenarios: [string, () => Promise<unknown>][] = [
     [
-      "all tenants, one call",
-      () =>
-        client.query(
-          "select count(*) from better_supabase.approval_eligible_ids()",
-        ),
+      `per-tenant policy, one tenant, ${SCANS} scans`,
+      () => client.query(scans(perTenantPolicy, "$2"), [owned, page]),
     ],
     [
-      "one tenant, one call",
-      () =>
-        client.query(
-          "select count(*) from better_supabase.approval_eligible_ids($1)",
-          [owned[0]],
-        ),
+      `two-part set policy, one tenant, ${SCANS} scans`,
+      () => client.query(scans(setPolicy, "$1"), [page]),
     ],
     [
-      `per-tenant policy (${OWNED} + 1 calls), ${SCANS} scans`,
-      async () => {
-        for (let scan = 0; scan < SCANS; scan += 1) {
-          await client.query(perTenantPolicy, [owned]);
-        }
-      },
+      `per-tenant policy, every tenant, ${SCANS} scans`,
+      () => client.query(scans(perTenantPolicy), [owned]),
     ],
-    ...(setForm
-      ? ([
-          [
-            `set form, ${SCANS} scans`,
-            async () => {
-              for (let scan = 0; scan < SCANS; scan += 1) {
-                await client.query(
-                  "select count(*) from better_supabase.approval_eligible_ids_in()",
-                );
-              }
-            },
-          ],
-          [
-            `set form for the ${OWNED} owned tenants, ${SCANS} scans`,
-            async () => {
-              for (let scan = 0; scan < SCANS; scan += 1) {
-                await client.query(
-                  "select count(*) from better_supabase.approval_eligible_ids_in($1::uuid[])",
-                  [owned],
-                );
-              }
-            },
-          ],
-        ] as [string, () => Promise<unknown>][])
-      : []),
+    [
+      `two-part set policy, every tenant, ${SCANS} scans`,
+      () => client.query(scans(setPolicy)),
+    ],
   ];
 
   const { rows: counted } = await client.query<{ all: string; mine: string }>(
@@ -234,7 +208,7 @@ try {
       p95: Number(stats.p95.toFixed(1)),
       calls: Object.fromEntries(
         Object.entries(calls).filter(([name]) =>
-          /^(can|member_can|tenant_ids_with|approval_eligible_ids(_in)?)$/u.test(
+          /^(can|member_can|tenant_ids_with|approval_eligible_ids(_in)?|member_organization_ids)$/u.test(
             name,
           ),
         ),

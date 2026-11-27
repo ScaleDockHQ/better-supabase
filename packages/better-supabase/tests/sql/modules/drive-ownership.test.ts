@@ -135,6 +135,22 @@ describe("drive ownership transfer", () => {
   });
 });
 
+describe("drive node triggers", () => {
+  it("mark the parent and drive columns they check the tenant of", () => {
+    const sql = sqlOf(["drive"], "drive", {
+      modules: { drive: { options: { drives: true } } },
+    });
+
+    expect(sql).toContain(
+      "-- @bsb same-tenant-guard column=parent_id,drive_id",
+    );
+    expect(sql).toContain("-- @bsb same-tenant-guard column=parent_id\n");
+    expect(sql).toContain(
+      'before insert or update of "parent_id", "drive_id", "tenant_id" on',
+    );
+  });
+});
+
 describe("drive sharing policy", () => {
   it("renders nothing without the settings block", () => {
     const blocks = ["drive", "share-links", "guests"];

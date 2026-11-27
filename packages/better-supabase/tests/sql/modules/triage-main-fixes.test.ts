@@ -57,7 +57,11 @@ describe("approval_eligible_ids", () => {
     expect(body).not.toContain("better_supabase.can(");
     expect(body).not.toMatch(/\bfor\s+\w+\s+in\b|\bloop\b/iu);
     expect(functionBody(sql, "approval_eligible_ids")).toContain(
-      '"better_supabase"."approval_eligible_ids_in"(case when approval_eligible_ids.tenant is null then null else array[approval_eligible_ids.tenant] end)',
+      '"better_supabase"."approval_eligible_ids_in"(outside => true)',
+    );
+    expect(body).toContain('r."tenant_id" = any (v_tenants)');
+    expect(body).toContain(
+      '(r."tenant_id" is null or r."tenant_id" <> all (v_tenants))',
     );
   });
 

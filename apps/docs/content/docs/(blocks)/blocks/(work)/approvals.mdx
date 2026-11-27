@@ -523,11 +523,11 @@ approvals: {
 
 ## Policies over the requests you may decide
 
-`better_supabase.approval_eligible_ids_in(tenants)` returns the pending requests the caller may decide, as a set. It takes an array of tenant ids, or null (the default) for every tenant, tenantless requests included, so one call answers for all of the caller's organizations. It applies the rules of `approval_eligible` as one query over the pending requests: users, roles, teams, managers and delegations are joins, and each permission is checked once through `tenant_ids_with`, the tenants the caller holds it in, instead of once per tenant. A block's `selfDecides` rule runs only for the caller's own requests, and the expenses block answers all of them in one `expense_self_decides_many` call. A parity test keeps the set and `approval_eligible` in step. Only an access provider's `isApprover` and a block's `decides` or `approvable` check still run once per request.
+`better_supabase.approval_eligible_ids_in(tenants, outside)` returns the pending requests the caller may decide, as a set. `tenants` defaults to the tenants the caller is a member of (`member_organization_ids()`); pass an array for others. With `outside => true` it answers the requests outside those tenants instead, tenantless ones included: there only a named user, a delegation, an access provider's `isApprover` or platform staff can make the caller an approver, and that path checks every such pending request, so a policy asks for it only on the rows outside the caller's tenants.
 
-Postgres evaluates the set once per scan when you write `in (select ...)`, and the function is `stable` and writes nothing, so a payload that scans the requests table three times evaluates it three times. Every rule reads the database as of that statement, so a change made earlier in the transaction counts.
+It applies the rules of `approval_eligible` as one query over the pending requests: users, roles, teams, managers and delegations are joins, and each permission is checked once through `tenant_ids_with`, the tenants the caller holds it in. A block's `selfDecides` rule runs only for the caller's own requests, and the expenses block answers all of them in one `expense_self_decides_many` call. Only an access provider's `isApprover` and a block's `decides` or `approvable` check still run once per request. The function is `stable` and writes nothing; Postgres evaluates each set once per scan when you write `in (select ...)`. A parity test keeps the sets and `approval_eligible` in step.
 
-Use it once in a policy on the requests table, or on a table that points at a request, instead of calling `approval_eligible(request_id)` for every row:
+Use it in two parts in a policy on the requests table, or on a table that points at a request, instead of calling `approval_eligible(request_id)` for every row:
 
 ```sql
 create policy approval_requests_select on public.approval_requests
@@ -535,10 +535,17 @@ create policy approval_requests_select on public.approval_requests
   using (
     requested_by = (select auth.uid())
     or id in (select better_supabase.approval_eligible_ids_in())
+    or (
+      (organization_id is null
+        or organization_id not in (select better_supabase.member_organization_ids()))
+      and id in (select better_supabase.approval_eligible_ids_in(outside => true))
+    )
   );
 ```
 
-Don't call it once per member organization and again without a tenant: one call already covers both. Pass an array to read some organizations' requests in one call, and `approval_eligible_ids(tenant)` for one organization; it calls the set form, and `list_approvals` uses it. On the local stack with 60 tenants, 2,400 pending requests and a caller who owns 14 of them, one statement that scans the requests three times took 122 ms with one call per member tenant plus one without a tenant (444 `can` calls) and 93 ms with three calls without a tenant. With `approval_eligible_ids_in()` it takes 12.7 ms, and 5.8 ms with the 14 tenants passed as an array. `tests/bench/approval-eligible-payload.ts` measures it. The pgTAP file `900_better_supabase_approvals_eligible_ids.test.sql` checks both functions against `approval_eligible` for each user in the test database, in one transaction.
+A page that reads one of the caller's organizations never reaches the second part, so the per-request checks outside the caller's tenants don't run. Don't call `approval_eligible_ids(tenant)` once per member organization: the first part answers all of them in one call. `approval_eligible_ids(tenant)` stays for one organization, and without a tenant it returns both parts. `list_approvals` uses it.
+
+On the local stack with 60 tenants, 2,400 pending requests and a caller who owns 14 of them, one statement that scans the requests three times took, with the policy that calls `approval_eligible_ids` once per member tenant and once without a tenant, 38 ms filtered to one owned tenant and 122 ms over every tenant. The two-part policy takes 6.3 ms and 18 ms. `tests/bench/approval-eligible-payload.ts` measures both shapes. The pgTAP file `900_better_supabase_approvals_eligible_ids.test.sql` checks both parts against `approval_eligible` for each user in the test database, in one transaction.
 
 ## Without the client
 

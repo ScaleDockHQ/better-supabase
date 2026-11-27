@@ -771,10 +771,12 @@ ${indent}end if;`;
     where ${ctx.staff("k.p")}`
     : "";
 
-  const eligibleIdsBody = `with base as (
+  // The set over the pending requests `scope` picks: those in v_tenants, or
+  // those outside it (tenantless included).
+  const eligibleIdsBody = (scope: string): string => `with base as (
     select r.*, (select auth.uid()) as bsb_me from ${requests} r
     where r.${c("status")} = 'pending' and (select auth.uid()) is not null
-      and (approval_eligible_ids_in.tenants is null or r.${c("tenant")} = any (approval_eligible_ids_in.tenants))
+      and ${scope}
   ),
   q as (
     select b.*, ${policyOf("b")} -> 'steps' -> ${stepOf("b")} as bsb_step from base b
@@ -1116,27 +1118,40 @@ end;
 $$;
 ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 
--- The pending requests the caller may decide in tenants (every tenant when
--- null, tenantless requests included), as a set, for a policy or a list
--- (\`id in (select ${fn("approval_eligible_ids_in")}())\`): Postgres evaluates the set once per
--- statement, not once per row. It applies the rules of approval_eligible as
--- joins over the pending requests (each permission is checked once through the
--- tenants the caller holds it in${provider ? ", an access provider's isApprover per request" : ""}), and a parity test keeps the two
--- in step. One call answers every tenant, so a policy needs no call per member
--- tenant. It is PL/pgSQL so the body may name tables a later module creates.
-create or replace function ${fn("approval_eligible_ids_in")}(tenants ${ctx.idType}[] default null)
+-- The pending requests the caller may decide, as a set, for a policy or a list.
+-- tenants defaults to the caller's member tenants; outside => true answers the
+-- requests outside them instead, tenantless ones included, where only a named
+-- user, a delegation${provider ? ", the access provider's isApprover" : ""} or platform staff can make the
+-- caller an approver. A policy asks for the member tenants once and for the
+-- rest only on rows outside them:
+--   id in (select ${fn("approval_eligible_ids_in")}())
+--   or ((${c("tenant")} is null or ${c("tenant")} not in (select ${ctx.scope.members()}))
+--     and id in (select ${fn("approval_eligible_ids_in")}(outside => true)))
+-- Postgres evaluates each set once per statement, not once per row. It applies
+-- the rules of approval_eligible as joins over the pending requests (each
+-- permission is checked once through the tenants the caller holds it in${provider ? ", the provider's isApprover per request" : ""}),
+-- and a parity test keeps the two in step. It is PL/pgSQL so the body may name
+-- tables a later module creates.
+create or replace function ${fn("approval_eligible_ids_in")}(tenants ${ctx.idType}[] default null, outside boolean default false)
 returns setof uuid
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_tenants ${ctx.idType}[] := coalesce(approval_eligible_ids_in.tenants, array(select ${ctx.scope.members()}));
 begin
-  return query
-  ${eligibleIdsBody};
+  if coalesce(approval_eligible_ids_in.outside, false) then
+    return query
+    ${eligibleIdsBody(`(r.${c("tenant")} is null or r.${c("tenant")} <> all (v_tenants))`)};
+  else
+    return query
+    ${eligibleIdsBody(`r.${c("tenant")} = any (v_tenants)`)};
+  end if;
 end;
 $$;
-${userGrant(`${fn("approval_eligible_ids_in")}(${ctx.idType}[])`)}
+${userGrant(`${fn("approval_eligible_ids_in")}(${ctx.idType}[], boolean)`)}
 
 -- approval_eligible_ids_in for one tenant, or every tenant when null. It runs
 -- as the caller; approval_eligible_ids_in reads the requests as the owner. It
@@ -1150,8 +1165,14 @@ security invoker
 set search_path = ''
 as $$
 begin
+  if approval_eligible_ids.tenant is not null then
+    return query select x from ${fn("approval_eligible_ids_in")}(array[approval_eligible_ids.tenant]) as x;
+    return;
+  end if;
   return query
-  select x from ${fn("approval_eligible_ids_in")}(case when approval_eligible_ids.tenant is null then null else array[approval_eligible_ids.tenant] end) as x;
+  select x from ${fn("approval_eligible_ids_in")}() as x
+  union all
+  select x from ${fn("approval_eligible_ids_in")}(outside => true) as x;
 end;
 $$;
 ${userGrant(`${fn("approval_eligible_ids")}(${ctx.idType})`)}
@@ -1641,7 +1662,7 @@ export const APPROVALS: BlockSqlDefinition = {
     {
       from: 6,
       description:
-        "Adds approval_eligible_ids_in(tenants), the set form for several tenants or all of them in one call; approval_eligible_ids(tenant) calls it. Each permission is checked once through tenant_ids_with, and a block's selfDecides runs only for the caller's own requests.",
+        "Adds approval_eligible_ids_in(tenants, outside), the set form for the caller's member tenants (or the tenants passed) in one call, and for the requests outside them; approval_eligible_ids(tenant) calls it. Each permission is checked once through tenant_ids_with, and a block's selfDecides runs only for the caller's own requests.",
       sql: () => "",
     },
   ],

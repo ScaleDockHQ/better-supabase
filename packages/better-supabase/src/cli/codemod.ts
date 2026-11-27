@@ -87,6 +87,12 @@ export interface MigrationContext {
    * names there too.
    */
   readonly appChecks?: ReadonlySet<string>;
+  /**
+   * The policies the app's schema files create, as `schema.table` and name
+   * joined by a NUL. They belong to the app (or to a library it installs, such
+   * as PermDock), so the `bsb_` policy renames leave them alone.
+   */
+  readonly appPolicies?: ReadonlySet<string>;
 }
 
 /** A rewrite of one source file, with the project's context already read. */

@@ -29,6 +29,9 @@ union all
 select '00000000-0000-4000-8000-000000000002', 'eligible_set', 'u1', 'approve',
   '{"steps":[{"approvers":{"users":["00000000-0000-4000-8000-0000000000a1"]},"required":1}],"selfApproval":false}', '00000000-0000-4000-8000-0000000000a3'
 union all
+select '00000000-0000-4000-8000-000000000002', 'eligible_set', 'b1', 'approve',
+  '{"steps":[{"approvers":{"users":["00000000-0000-4000-8000-0000000000a2"]},"required":1}],"selfApproval":false}', '00000000-0000-4000-8000-0000000000a3'
+union all
 select '00000000-0000-4000-8000-000000000001', 'eligible_set', 'own', 'approve',
   '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":false}', '00000000-0000-4000-8000-0000000000a1';
 commit;
@@ -46,8 +49,8 @@ declare
   v_result text;
   v_parity text;
   v_step integer := 0;
-  v_steps text[] := array['ann', 'ann_again', 'ann_wrapper', 'ben', 'ann_back', 'ann_capped', 'ann_acme'];
-  v_claims text[] := array[v_ann, v_ann, v_ann, v_ben, v_ann, v_capped, v_ann];
+  v_steps text[] := array['ann', 'ann_again', 'ann_wrapper', 'ben', 'ben_outside', 'ann_back', 'ann_capped', 'ann_acme'];
+  v_claims text[] := array[v_ann, v_ann, v_ann, v_ben, v_ben, v_ann, v_capped, v_ann];
   v_name text;
 begin
   foreach v_name in array v_steps loop
@@ -56,13 +59,19 @@ begin
     v_calls := (select coalesce(sum(f.calls), 0) from pg_stat_xact_user_functions f where f.schemaname = 'better_supabase' and f.funcname = 'tenant_ids_with');
     v_result := case v_name
       when 'ann_wrapper' then (select string_agg(r.subject_id, ',' order by r.subject_id) from better_supabase.approval_eligible_ids() x join better_supabase.approval_requests r on r.id = x where r.subject_type = 'eligible_set')
+      when 'ben_outside' then (select string_agg(r.subject_id, ',' order by r.subject_id) from better_supabase.approval_eligible_ids_in(outside => true) x join better_supabase.approval_requests r on r.id = x where r.subject_type = 'eligible_set')
       when 'ann_acme' then (select string_agg(r.subject_id, ',' order by r.subject_id) from better_supabase.approval_eligible_ids('00000000-0000-4000-8000-000000000001') x join better_supabase.approval_requests r on r.id = x where r.subject_type = 'eligible_set')
       else (select string_agg(r.subject_id, ',' order by r.subject_id) from better_supabase.approval_eligible_ids_in() x join better_supabase.approval_requests r on r.id = x where r.subject_type = 'eligible_set')
     end;
     v_calls := (select coalesce(sum(f.calls), 0) from pg_stat_xact_user_functions f where f.schemaname = 'better_supabase' and f.funcname = 'tenant_ids_with') - v_calls;
     v_parity := (select string_agg(r.subject_id, ',' order by r.subject_id) from better_supabase.approval_requests r
       where r.subject_type = 'eligible_set' and r.status = 'pending'
-        and (v_name <> 'ann_acme' or r.tenant_id = '00000000-0000-4000-8000-000000000001')
+        and case v_name
+          when 'ann_acme' then r.tenant_id = '00000000-0000-4000-8000-000000000001'
+          when 'ann_wrapper' then true
+          when 'ben_outside' then r.tenant_id not in (select better_supabase.member_organization_ids())
+          else r.tenant_id in (select better_supabase.member_organization_ids())
+        end
         and better_supabase.approval_eligible(r.id));
     perform set_config('test.set_' || v_name, coalesce(v_result, ''), false);
     perform set_config('test.parity_' || v_name, coalesce(v_parity, ''), false);
@@ -93,7 +102,7 @@ $$;
 commit;
 
 begin;
-select plan(19);
+select plan(21);
 
 select is(current_setting('test.set_no_xid'), 'true', 'the reads ran without a transaction id');
 
@@ -103,12 +112,15 @@ select is(current_setting('test.calls_ann'), '1', 'one tenant_ids_with call for 
 
 select is(current_setting('test.set_ann_again'), current_setting('test.set_ann'), 'the same claims read the same set again');
 select is(current_setting('test.calls_ann_again'), '1', 'a second read computes the set again; it keeps nothing between calls');
-select is(current_setting('test.set_ann_wrapper'), current_setting('test.set_ann'), 'approval_eligible_ids() reads the same memo');
+select is(current_setting('test.set_ann_wrapper'), current_setting('test.set_ann'), 'approval_eligible_ids() returns the same set');
 select is(current_setting('test.calls_ann_wrapper'), '1', 'approval_eligible_ids() asks each permission once as well');
 
 select is(current_setting('test.set_ben'), 'm1,m2,m3', 'Ben, in the same transaction, gets his own set');
 select is(current_setting('test.set_ben'), current_setting('test.parity_ben'), 'Ben''s set matches approval_eligible');
 select is(current_setting('test.calls_ben'), '1', 'Ben''s set checks the permission once for him');
+
+select is(current_setting('test.set_ben_outside'), 'b1', 'outside => true answers the Globex request that names Ben, outside his tenants');
+select is(current_setting('test.set_ben_outside'), current_setting('test.parity_ben_outside'), 'the outside set matches approval_eligible');
 
 select is(current_setting('test.set_ann_back'), current_setting('test.set_ann'), 'Ann after Ben gets her own set back');
 

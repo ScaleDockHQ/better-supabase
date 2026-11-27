@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:1d11b75687d9c31ac36d5c19562d231de7c2fe7f0c9a6eeac948867fbe53588e
+-- @bsb-hash sha256:b7ccb220d9bc810e266c6e49500c95312a4c7d98d9a094637b1f4de27a110feb
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -391,6 +391,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -416,7 +417,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()

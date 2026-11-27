@@ -143,6 +143,30 @@ export function renameNames(
     (name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`),
   );
 
+  const functions = renames.filter((r) => r.kind === "sqlFunctionName");
+
+  // A PostgREST path names a function after `rpc/`, such as
+  // `/rest/v1/rpc/save_task` in a test's fetch.
+  const rpcPath =
+    functions.length === 0
+      ? undefined
+      : new RegExp(
+          `(\\brpc/)(${functions
+            .map((r) => r.from)
+            .toSorted((a, b) => b.length - a.length)
+            .join("|")})(?![A-Za-z0-9_])`,
+          "g",
+        );
+
+  const withRpcPaths = (value: string): string =>
+    rpcPath === undefined
+      ? value
+      : value.replaceAll(
+          rpcPath,
+          (_match, prefix: string, name: string) =>
+            `${prefix}${quoted.get(name) ?? name}`,
+        );
+
   return rewriteSource(text, ({ program, text: source, edit, report }) => {
     const whole = (value: string): string | undefined =>
       env.get(value) ?? quoted.get(value);
@@ -172,10 +196,28 @@ export function renameNames(
           const [quasi] = node.quasis;
 
           const to =
-            quasi === undefined ? undefined : quoted.get(quasi.value.raw);
+            quasi === undefined
+              ? undefined
+              : (quoted.get(quasi.value.raw) ??
+                (withRpcPaths(quasi.value.raw) === quasi.value.raw
+                  ? undefined
+                  : withRpcPaths(quasi.value.raw)));
 
           if (quasi !== undefined && to !== undefined) {
             edit.overwrite(node.start + 1, node.end - 1, to);
+          }
+
+          return;
+        }
+
+        if (node.type === "TemplateElement") {
+          const to = withRpcPaths(node.value.raw);
+
+          // The element's span can take in the `}` or backtick around it.
+          const at = source.indexOf(node.value.raw, node.start);
+
+          if (to !== node.value.raw && at !== -1) {
+            edit.overwrite(at, at + node.value.raw.length, to);
           }
 
           return;
@@ -199,6 +241,16 @@ export function renameNames(
           const mark = source[node.start];
 
           edit.overwrite(node.start, node.end, `${mark}${to}${mark}`);
+
+          return;
+        }
+
+        const path = withRpcPaths(node.value);
+
+        if (path !== node.value && !/[\\'"`]/u.test(path)) {
+          const mark = source[node.start];
+
+          edit.overwrite(node.start, node.end, `${mark}${path}${mark}`);
 
           return;
         }
@@ -232,7 +284,10 @@ function qualifiedOf(table: string): { schema: string; name: string } {
  * from a rule, not from rows of the rename table, because a module writes
  * hundreds of them.
  */
-function generatedPolicyRenames(projectSql: string | undefined): string[] {
+function generatedPolicyRenames(
+  projectSql: string | undefined,
+  appPolicies: ReadonlySet<string> = new Set(),
+): string[] {
   if (projectSql === undefined) {
     return [];
   }
@@ -242,9 +297,17 @@ function generatedPolicyRenames(projectSql: string | undefined): string[] {
   return getPolicies(projectSql).flatMap(({ policy }): string[] => {
     const { schema, name } = qualifiedOf(policy.table);
     const to = bsbPolicyName(policy.name);
-    const key = `${policy.table}\u0000${policy.name}`;
+    const key = policyKey(policy.table, policy.name);
 
-    if (schema !== "better_supabase" || to === policy.name || seen.has(key)) {
+    // A policy the app's schema files create is the app's (or a library's it
+    // installs, such as PermDock's read-only actor policies): the block never
+    // wrote it, so a rename only makes the schema diff drop and create it.
+    if (
+      schema !== "better_supabase" ||
+      to === policy.name ||
+      seen.has(key) ||
+      appPolicies.has(key)
+    ) {
       return [];
     }
 
@@ -256,17 +319,48 @@ function generatedPolicyRenames(projectSql: string | undefined): string[] {
   });
 }
 
+/** `schema.table` and a policy name, as `appPolicyKeys` lists them. */
+function policyKey(table: string, name: string): string {
+  const { schema, name: relation } = qualifiedOf(table);
+
+  return `${schema}.${relation}\u0000${name}`;
+}
+
+/** The policies `sql` creates, as `appPolicies` keys. */
+export function appPolicyKeys(sql: string): Set<string> {
+  return new Set(
+    getPolicies(sql).map(({ policy }) => policyKey(policy.table, policy.name)),
+  );
+}
+
+const ADD_COLUMN_CHECK =
+  /\balter\s+table\s+(?:only\s+)?(?:if\s+exists\s+)?(?:"?[a-z_][\w$]*"?\s*\.\s*)?"?([a-z_][\w$]*)"?([^;]*);/giu;
+
+const ADDED_COLUMN =
+  /\badd\s+column\s+(?:if\s+not\s+exists\s+)?"?([a-z_][\w$]*)"?([^]*?)(?=\badd\s+column\b|$)/giu;
+
 /**
  * The names of the check constraints `sql` declares with `constraint <name>
- * check`.
+ * check`, and the names Postgres gives an unnamed check on a column an `alter
+ * table ... add column` adds (`<table>_<column>_check`), such as a column an
+ * app adds to a block table.
  */
 export function appCheckNames(sql: string): Set<string> {
-  return new Set(
-    Array.from(
-      sql.matchAll(/\bconstraint\s+(?:"([^"]+)"|([a-z_][\w$]*))\s+check\b/giu),
-      (match) => match[1] ?? match[2]!.toLowerCase(),
-    ),
+  const named = Array.from(
+    sql.matchAll(/\bconstraint\s+(?:"([^"]+)"|([a-z_][\w$]*))\s+check\b/giu),
+    (match) => match[1] ?? match[2]!.toLowerCase(),
   );
+
+  const unnamed = [...sql.matchAll(ADD_COLUMN_CHECK)].flatMap(
+    ([, table, rest]) =>
+      [...rest!.matchAll(ADDED_COLUMN)].flatMap(([, column, tail]) =>
+        /\bcheck\s*\(/iu.test(tail!) && !/\bconstraint\b/iu.test(tail!)
+          ? [`${table!.toLowerCase()}_${column!.toLowerCase()}_check`]
+          : [],
+      ),
+  );
+
+  return new Set([...named, ...unnamed]);
 }
 
 /**
@@ -459,7 +553,7 @@ export function renameMigrationSql(
   });
 
   statements.push(
-    ...generatedPolicyRenames(projectSql),
+    ...generatedPolicyRenames(projectSql, context?.appPolicies),
     ...generatedCheckRenames(projectSql, context?.appChecks),
   );
 
@@ -472,10 +566,10 @@ export function renameMigrationSql(
 
 /**
  * Rewrites a call to a renamed SQL function in the app's own SQL, where the
- * name is qualified with the module schema (X * bare name stays: it may be the
- * app's own function. The module's function is dropped and created again by the
- * next schema diff, never renamed, because its body qualifies its arguments
- * with the function name.
+ * name is qualified with the module schema or the `api` schema that exposes it
+ * (X * bare name stays: it may be the app's own function. The module's function
+ * is dropped and created again by the next schema diff, never renamed, because
+ * its body qualifies its arguments with the function name.
  */
 function renameSqlFunctions(
   text: string,
@@ -495,7 +589,7 @@ function renameSqlFunctions(
 
   return text.replaceAll(
     new RegExp(
-      `(\\bbetter_supabase"?\\.)(["]?)(${names.join("|")})\\2(?![\\w])`,
+      `(\\b(?:better_supabase|api)"?\\.)(["]?)(${names.join("|")})\\2(?![\\w])`,
       "g",
     ),
     (_match, schema: string, mark: string, name: string) =>

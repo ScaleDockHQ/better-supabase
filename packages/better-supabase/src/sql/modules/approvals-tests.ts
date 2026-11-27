@@ -32,7 +32,7 @@ begin
       select coalesce(array_agg(r.${id} order by r.${id}), '{}') from ${requests} r
       where r.${status} = 'pending' and ${eligible}(r.${id})
     );
-    if v_expected is distinct from (select coalesce(array_agg(x order by x), '{}') from ${idsIn}() x)
+    if v_expected is distinct from (select coalesce(array_agg(x order by x), '{}') from (select x from ${idsIn}() x union all select x from ${idsIn}(outside => true) x) s)
       or v_expected is distinct from (select coalesce(array_agg(x order by x), '{}') from ${ids}() x) then
       bad := bad + 1;
     end if;

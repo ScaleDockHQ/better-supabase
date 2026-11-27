@@ -17,6 +17,9 @@ const ROW_COLUMN = /\b(?:new|old)\s*\.\s*"?([a-z_][\w$]*)"?/gi;
 const GUARD_MARKER =
   /@bsb[ \t]+same-tenant-guard[ \t]+columns?[ \t]*=[ \t]*([a-z_][\w$]*(?:[ \t]*,[ \t]*[a-z_][\w$]*)*)/gi;
 
+const guardMarked = (body: string): boolean =>
+  new RegExp(GUARD_MARKER.source, "i").test(body);
+
 const inSchemas = (table: string, schemas: readonly string[]): boolean =>
   schemas.includes(table.slice(0, table.indexOf(".")));
 
@@ -63,8 +66,8 @@ function notNullColumns(
 
 /**
  * The function body of each app trigger, by `schema.table`. Triggers named
- * `bsb_*` are the blocks' own and don't count, so a check the app already makes
- * is never emitted twice.
+ * `bsb_*` are the blocks' own and count only with the same-tenant guard marker,
+ * so a check the app or a block already makes is never emitted twice.
  */
 function appTriggerBodies(
   files: Texts,
@@ -85,17 +88,18 @@ function appTriggerBodies(
 
   for (const facts of all) {
     for (const trigger of facts.triggers) {
+      const body = bodies.get(trigger.function) ?? "";
+
+      // A block's own trigger counts only when it declares the guard, such
+      // as the drive node triggers that check the parent's tenant.
       if (
-        trigger.name.startsWith("bsb_") ||
+        (trigger.name.startsWith("bsb_") && !guardMarked(body)) ||
         !inSchemas(trigger.table, schemas)
       ) {
         continue;
       }
 
-      found.set(trigger.table, [
-        ...(found.get(trigger.table) ?? []),
-        bodies.get(trigger.function) ?? "",
-      ]);
+      found.set(trigger.table, [...(found.get(trigger.table) ?? []), body]);
     }
   }
 

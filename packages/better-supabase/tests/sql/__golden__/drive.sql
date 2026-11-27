@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:4707980c691702e613de069b7fd1290aa7bf79890ef2ca7dfc679c5534614cac
+-- @bsb-hash sha256:17c834b3201fd07bdba85adc899b9da46cd0d4fce10ea2123d972645bb347a21
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -349,6 +349,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -374,7 +375,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -1511,7 +1512,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:347dcc44b68344a88e70ab034513d42970a7b65b023e84fd830929c2259744e1
+-- @bsb-hash sha256:b7a264312ab82e9e65efdb31c7cea25a73a407e264c8f85047f9ce59b9c1bfc0
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1862,6 +1863,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -1887,7 +1889,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -3170,7 +3172,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:96ee1af5fea64ce6d6f1726ae2665a2c6875ae12f3f90070c31aaede1adaab4b
+-- @bsb-hash sha256:b794117ca8b1e883543fbe697b1edef623f2884c75e3fc1578c728b09d83c0ad
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3523,6 +3525,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -3548,7 +3551,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "app_private"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "app_private"."drive_nodes"
   for each row execute function "app_private"."drive_node_path"();
 
 create or replace function "app_private"."drive_node_moved"()
@@ -4685,7 +4688,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:ed9bc6bdddd4f8abdeb628a077621f53ebef469b531460363cb74142a5cefb06
+-- @bsb-hash sha256:2c9c9bee09e1f5b232565c08eff2f4020f2d5f0747a1c71d6596b51c5b56f086
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5033,6 +5036,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -5058,7 +5062,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -6487,7 +6491,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:f2b4d5b3cccbfea41e5dbb4cd4368f56833e227c19868d906d523a46b147ddd6
+-- @bsb-hash sha256:67e3099fbfacde96a10576ba55df21a2a7e19d2818171c397b8858c63f6626f9
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6778,6 +6782,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -6803,7 +6808,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "tenant_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()
@@ -7912,7 +7917,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:27c354f37bf6616ec4a1649c3e89b573ce1cc88077b89980ecebbfdfeaf97523
+-- @bsb-hash sha256:e4adab83ecc379d27692be726405b64e187680959d7c9a614518380e036a180d
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8260,6 +8265,7 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
+-- @bsb same-tenant-guard column=parent_id
 declare
   v_parent_path text;
   v_parent_tenant text;
@@ -8285,7 +8291,7 @@ begin
 end;
 $$;
 create trigger "bsb_drive_node_path"
-  before insert or update of "parent_id" on "better_supabase"."drive_nodes"
+  before insert or update of "parent_id", "org_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
 create or replace function "better_supabase"."drive_node_moved"()

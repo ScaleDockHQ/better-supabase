@@ -451,6 +451,25 @@ create trigger bsb_same_tenant_team_id before update on public.jobs
     expect(sql).toContain('"bsb_same_tenant_team_id"');
   });
 
+  it("counts a block's own trigger only when it carries the marker", async () => {
+    const block = `${schema}
+create function public.jobs_team_guard() returns trigger
+language plpgsql as $$
+-- @bsb same-tenant-guard column=team_id
+begin
+  return new;
+end;
+$$;
+create trigger bsb_jobs_team_guard before insert on public.jobs
+  for each row execute function public.jobs_team_guard();
+`;
+
+    expect(
+      (await sameTenantLayoutOf([{ text: block }], ["public"]))
+        .appTriggerColumns,
+    ).toStrictEqual({ "public.jobs": ["customer_id", "team_id"] });
+  });
+
   it("reads a marker on its own line only", async () => {
     const layout = await sameTenantLayoutOf(
       [

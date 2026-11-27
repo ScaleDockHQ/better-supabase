@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:d3a87fe88726387027e5eb4ffe25c1168f2e84ee639375644abb2d54f9ddc41c
+-- @bsb-hash sha256:54197c49cdd44065903122cfb59e19a11be9d54b8cfd71305a632e32949d857e
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -19,7 +19,7 @@ begin
       select coalesce(array_agg(r."id" order by r."id"), '{}') from "better_supabase"."approval_requests" r
       where r."status" = 'pending' and "better_supabase"."approval_eligible"(r."id")
     );
-    if v_expected is distinct from (select coalesce(array_agg(x order by x), '{}') from "better_supabase"."approval_eligible_ids_in"() x)
+    if v_expected is distinct from (select coalesce(array_agg(x order by x), '{}') from (select x from "better_supabase"."approval_eligible_ids_in"() x union all select x from "better_supabase"."approval_eligible_ids_in"(outside => true) x) s)
       or v_expected is distinct from (select coalesce(array_agg(x order by x), '{}') from "better_supabase"."approval_eligible_ids"() x) then
       bad := bad + 1;
     end if;
