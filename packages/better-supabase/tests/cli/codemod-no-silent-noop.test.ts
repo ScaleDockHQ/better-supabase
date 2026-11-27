@@ -19,6 +19,7 @@ const NO_SOURCE_STAGE = new Set([
   "declared-rows",
   "doctor-baseline",
   "table-modules",
+  "audit-statement",
 ]);
 
 describe("no silent no-ops", () => {

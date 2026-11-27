@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:f75c29260d172099500279767980633577a3e735d272e322a5e13cbe43b5a958
+-- @bsb-hash sha256:b36d8547238041dc97003b8d8ea53438ee596fb6c6249794de007d61df97bde9
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1233,10 +1233,18 @@ declare
   v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
   v_have boolean := false;
-  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
-    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
-      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  v_heads oid := pg_catalog.to_regclass('pg_temp.bsb_chain_heads');
+  v_owner oid;
+  v_batched boolean := false;
 begin
+  -- The regclass cast throws when the temp table is absent, and it is resolved
+  -- when the statement is planned, so the owner check uses the oid from
+  -- to_regclass. The row trigger calls chain_link without the statement
+  -- wrapper that creates the table.
+  if v_heads is not null then
+    select c.relowner into v_owner from pg_catalog.pg_class c where c.oid = v_heads;
+    v_batched := v_owner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  end if;
   if v_batched then
     select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
     v_have := found;
@@ -1904,7 +1912,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:e7cdb65b0ea5b7cd53cdb716d29188bc909f0750474d027b27120cee83630ed4
+-- @bsb-hash sha256:0e4c9e9528cf253da0b9975e4c5591ad383a9da15d80388e8975dcdc83039c9a
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3155,10 +3163,18 @@ declare
   v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
   v_have boolean := false;
-  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
-    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
-      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  v_heads oid := pg_catalog.to_regclass('pg_temp.bsb_chain_heads');
+  v_owner oid;
+  v_batched boolean := false;
 begin
+  -- The regclass cast throws when the temp table is absent, and it is resolved
+  -- when the statement is planned, so the owner check uses the oid from
+  -- to_regclass. The row trigger calls chain_link without the statement
+  -- wrapper that creates the table.
+  if v_heads is not null then
+    select c.relowner into v_owner from pg_catalog.pg_class c where c.oid = v_heads;
+    v_batched := v_owner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  end if;
   if v_batched then
     select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
     v_have := found;
@@ -3991,7 +4007,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:1099746517f5d959e44f264f8d81dbbc33bf056eac5a6fe9e967c9a3206a93df
+-- @bsb-hash sha256:4f4a3e49fde464a7aa4995f07c72f29a9b63820cf4933708566ec82169528fa2
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5223,10 +5239,18 @@ declare
   v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
   v_have boolean := false;
-  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
-    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
-      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  v_heads oid := pg_catalog.to_regclass('pg_temp.bsb_chain_heads');
+  v_owner oid;
+  v_batched boolean := false;
 begin
+  -- The regclass cast throws when the temp table is absent, and it is resolved
+  -- when the statement is planned, so the owner check uses the oid from
+  -- to_regclass. The row trigger calls chain_link without the statement
+  -- wrapper that creates the table.
+  if v_heads is not null then
+    select c.relowner into v_owner from pg_catalog.pg_class c where c.oid = v_heads;
+    v_batched := v_owner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  end if;
   if v_batched then
     select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
     v_have := found;
@@ -5894,7 +5918,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:66cacff345e65b11a9cddb5f978b5128a1237e5f39a509f7a4873fbbbc1a42b4
+-- @bsb-hash sha256:7366819e862aa08e9fcac001a4afe71a0112ee53f7e1b1d6d1648618e6f4a91c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7126,10 +7150,18 @@ declare
   v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
   v_have boolean := false;
-  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
-    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
-      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  v_heads oid := pg_catalog.to_regclass('pg_temp.bsb_chain_heads');
+  v_owner oid;
+  v_batched boolean := false;
 begin
+  -- The regclass cast throws when the temp table is absent, and it is resolved
+  -- when the statement is planned, so the owner check uses the oid from
+  -- to_regclass. The row trigger calls chain_link without the statement
+  -- wrapper that creates the table.
+  if v_heads is not null then
+    select c.relowner into v_owner from pg_catalog.pg_class c where c.oid = v_heads;
+    v_batched := v_owner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  end if;
   if v_batched then
     select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
     v_have := found;
@@ -7936,7 +7968,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:e6dead0abad97addad4b5da3ca881fdd530bc77ccfc41c69f39e00b771ba2b43
+-- @bsb-hash sha256:697f0fd81512cbbe7114010538fec854c9d94a9301f7604e1444448e18a7b134
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9012,10 +9044,18 @@ declare
   v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
   v_have boolean := false;
-  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
-    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
-      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  v_heads oid := pg_catalog.to_regclass('pg_temp.bsb_chain_heads');
+  v_owner oid;
+  v_batched boolean := false;
 begin
+  -- The regclass cast throws when the temp table is absent, and it is resolved
+  -- when the statement is planned, so the owner check uses the oid from
+  -- to_regclass. The row trigger calls chain_link without the statement
+  -- wrapper that creates the table.
+  if v_heads is not null then
+    select c.relowner into v_owner from pg_catalog.pg_class c where c.oid = v_heads;
+    v_batched := v_owner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  end if;
   if v_batched then
     select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
     v_have := found;
@@ -9667,7 +9707,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@16 managed
--- @bsb-hash sha256:8e9342b6079d4067c32d8d94ae8cf1467031ee1ad8390899bfc0b56d3d479268
+-- @bsb-hash sha256:d329f985e52821b86aacdd2b4a555dcf4663508f77ac6f12ed19e036a5518622
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10899,10 +10939,18 @@ declare
   v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
   v_have boolean := false;
-  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
-    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
-      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  v_heads oid := pg_catalog.to_regclass('pg_temp.bsb_chain_heads');
+  v_owner oid;
+  v_batched boolean := false;
 begin
+  -- The regclass cast throws when the temp table is absent, and it is resolved
+  -- when the statement is planned, so the owner check uses the oid from
+  -- to_regclass. The row trigger calls chain_link without the statement
+  -- wrapper that creates the table.
+  if v_heads is not null then
+    select c.relowner into v_owner from pg_catalog.pg_class c where c.oid = v_heads;
+    v_batched := v_owner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  end if;
   if v_batched then
     select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
     v_have := found;

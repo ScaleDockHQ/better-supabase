@@ -78,10 +78,18 @@ declare
   v_key text := coalesce(case when v_column is null then '' else pg_catalog.to_jsonb(new) ->> v_column end, '');
   v_prev record;
   v_have boolean := false;
-  v_batched boolean := pg_catalog.to_regclass('pg_temp.bsb_chain_heads') is not null
-    and (select c.relowner from pg_catalog.pg_class c where c.oid = 'pg_temp.bsb_chain_heads'::regclass)
-      = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  v_heads oid := pg_catalog.to_regclass('pg_temp.bsb_chain_heads');
+  v_owner oid;
+  v_batched boolean := false;
 begin
+  -- The regclass cast throws when the temp table is absent, and it is resolved
+  -- when the statement is planned, so the owner check uses the oid from
+  -- to_regclass. The row trigger calls chain_link without the statement
+  -- wrapper that creates the table.
+  if v_heads is not null then
+    select c.relowner into v_owner from pg_catalog.pg_class c where c.oid = v_heads;
+    v_batched := v_owner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user);
+  end if;
   if v_batched then
     select h.chain_seq, h.row_hash into v_prev from pg_temp.bsb_chain_heads h where h.tenant = v_key;
     v_have := found;

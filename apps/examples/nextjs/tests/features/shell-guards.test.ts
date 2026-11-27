@@ -105,7 +105,9 @@ const MIN_ENSURE_STATIC = 59;
 // 110_187: the lazy search wrapper takes the `areas` prop; the area commands
 // load with the palette, on intent.
 // 110_264: the Change requests menu item (its label case and icon).
-const MAX_CLIENT_BYTES = 110_264;
+// 110_455: AuthzRefresh takes the live authorization version, so the browser
+// does not call caller_authz_version() itself (EX-906).
+const MAX_CLIENT_BYTES = 110_455;
 
 describe("shell prerender table", () => {
   const exports = (name: string): string[] =>

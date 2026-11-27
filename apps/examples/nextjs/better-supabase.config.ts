@@ -1243,12 +1243,13 @@ export default defineConfig({
     "billing",
   ],
 
-  // A table the provider does not declare, shared between holders of one grant.
-  // RLS still checks the read (ADR 1267).
+  // A table the provider does not declare. The select policy returns the
+  // organizations a member belongs to, so two holders of the same grant do not
+  // read the same rows. Share it per row. RLS still checks the read (ADR 1267).
   shares: {
     tables: {
       "public.organizations": {
-        share: "tenant",
+        share: "row",
         permissions: ["organizations.read"],
       },
     },

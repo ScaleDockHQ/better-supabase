@@ -46,6 +46,8 @@ const PURE = new Set([
   join(SRC, "sql/table-facts.ts"),
   join(SRC, "sql/value-maps.ts"),
   join(SRC, "core/column-kind.ts"),
+  join(SRC, "config/shares.ts"),
+  join(SRC, "sql/row-audit.ts"),
 ]);
 
 describe("the CLI's library imports", () => {

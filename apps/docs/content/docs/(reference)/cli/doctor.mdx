@@ -1252,7 +1252,7 @@ The same rule runs in pgTAP with
 ### BS651
 
 **Error: row and statement audit triggers.** A table has a row audit
-trigger (`bsb_audit`, `bs_audit`, or a trigger that calls
+trigger (`bsb_audit`, the retired `bs` prefix plus `_audit`, or a trigger that calls
 `better_supabase.audit_row_change()`) and statement audit triggers
 (`bsb_audit_stmt_*`, or a trigger that calls
 `better_supabase.audit_statement_change()`). Both fire, so every change is

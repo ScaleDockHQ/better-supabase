@@ -8664,11 +8664,7 @@
               },
               "needs": {},
               "claims": {},
-              "hold": {},
-              "identifiers": {
-                "type": "string",
-                "default": "tenant"
-              }
+              "hold": {}
             }
           }
         }

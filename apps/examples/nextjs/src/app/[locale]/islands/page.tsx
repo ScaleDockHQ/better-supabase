@@ -36,7 +36,9 @@ export const ensureStatic = "shell";
  */
 export default function IslandsPage({
   searchParams,
-}: PageProps<"/[locale]/islands">) {
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const t = useExtracted("islands");
   // oxlint-disable-next-line react-doctor/nextjs-async-dynamic-api-not-awaited -- mapped with then and passed on unawaited, so the page renders without waiting for the request.
   const scope = searchParams.then((params) => islandScope(params["scope"]));

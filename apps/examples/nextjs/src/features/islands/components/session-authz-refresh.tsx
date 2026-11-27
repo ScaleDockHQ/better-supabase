@@ -11,6 +11,7 @@ import { AuthzRefresh } from "./authz-refresh";
  * reads that version once and the client reports it on the first join, so the
  * browser does not call `caller_authz_version()` itself.
  */
+// skeleton: the signed-in layout suspends this boundary; it renders no fallback of its own
 export async function SessionAuthzRefresh() {
   const session = bsb.claims();
   const liveVersion = await liveAuthzVersion();
