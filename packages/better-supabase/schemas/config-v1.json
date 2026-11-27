@@ -956,6 +956,9 @@
                 "isApprover": {
                   "type": "string"
                 },
+                "isApproverMany": {
+                  "type": "string"
+                },
                 "holdersOf": {
                   "type": "string"
                 },
@@ -6477,6 +6480,9 @@
               "decider": {
                 "type": "string"
               },
+              "deciderMany": {
+                "type": "string"
+              },
               "selfDecideWhenTopOfChain": {
                 "type": "boolean",
                 "default": false
@@ -7128,6 +7134,9 @@
                 "default": "permission"
               },
               "decider": {
+                "type": "string"
+              },
+              "deciderMany": {
                 "type": "string"
               },
               "selfDecideWhenTopOfChain": {
@@ -8791,6 +8800,9 @@
                 }
               },
               "decider": {
+                "type": "string"
+              },
+              "deciderMany": {
                 "type": "string"
               },
               "writer": {

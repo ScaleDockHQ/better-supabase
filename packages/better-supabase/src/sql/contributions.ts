@@ -223,6 +223,14 @@ export interface ApprovalContribution {
    */
   readonly decides?: (request: ApprovalRequestSql) => string;
   /**
+   * The set form of `decides`: a `uuid[]` expression of the subject ids in
+   * `subjectIds` (a `uuid[]` expression) the caller decides, answering what
+   * `decides` answers for each id. `approval_eligible_ids_in` asks it once for
+   * every pending request of the subject type whose step sets `decider: true`,
+   * instead of once per request.
+   */
+  readonly decidesMany?: (subjectIds: string) => string;
+  /**
    * A boolean expression: whether the requester (the caller) may decide their
    * own request although the policy has no `selfApproval`, such as when nobody
    * else can. The step's approvers must still match them.

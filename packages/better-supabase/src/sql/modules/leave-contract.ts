@@ -13,7 +13,12 @@ import {
   policyOf,
   policySnapshot,
 } from "./approvals-policies.ts";
-import { deciderCall, hasDecider, subjectRow } from "./direct-approver.ts";
+import {
+  deciderCall,
+  decidesMany,
+  hasDecider,
+  subjectRow,
+} from "./direct-approver.ts";
 import { leaveFeedSubject, leaveTeamFeedSubject } from "./leave-feed.ts";
 import { leaveOwner, leaveByEmployee, leaveParts } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -302,7 +307,7 @@ function leaveDecided(
  */
 function leaveDeciders(
   own: BlockSqlContext,
-): Pick<ApprovalContribution, "decides" | "selfDecides"> {
+): Pick<ApprovalContribution, "decides" | "decidesMany" | "selfDecides"> {
   const decider = hasDecider(own) ? "on" : "";
 
   return {
@@ -324,6 +329,7 @@ function leaveDeciders(
                 subjectId,
               ),
             ).replace(/^ or /u, ""),
+          ...decidesMany(own, WHERE),
         }),
     ...(own.flag("selfDecideWhenTopOfChain", false)
       ? {

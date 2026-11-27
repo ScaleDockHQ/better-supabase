@@ -330,6 +330,7 @@ const authorization = v.strictObject({
     roleIn: v.optional(v.string()),
     permissionsFor: v.optional(v.string()),
     isApprover: v.optional(v.string()),
+    isApproverMany: v.optional(v.string()),
     holdersOf: v.optional(v.string()),
     actorMayWrite: v.optional(v.string()),
     permitted: v.optional(v.string()),

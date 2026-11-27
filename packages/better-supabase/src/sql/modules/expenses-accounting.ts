@@ -2,7 +2,7 @@ import type { AccountingSource } from "../accounting-sources-sql.ts";
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { expensesStandalone } from "./expenses-standalone.ts";
+import { expensesStandalone } from "./expenses-standalone-policy.ts";
 
 /**
  * What expenses books in accounting: an approved report in the purchase journal

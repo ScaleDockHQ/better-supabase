@@ -93,8 +93,15 @@ function restRoot(url: string): string {
   return new URL("rest/v1/", url.endsWith("/") ? url : `${url}/`).href;
 }
 
+/**
+ * Opens the connection to PostgREST with an `OPTIONS` request. A `GET` of the
+ * root makes PostgREST build the OpenAPI description of every exposed schema,
+ * which is slow and large on a big schema and is exactly what a cold start
+ * should not wait for; `OPTIONS` answers from the router alone.
+ */
 async function ping(deps: WarmDeps, url: string): Promise<void> {
   const response = await deps.fetch(restRoot(url), {
+    method: "OPTIONS",
     headers: { apikey: deps.publishableKey() },
   });
 

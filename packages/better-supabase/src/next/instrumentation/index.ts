@@ -195,6 +195,34 @@ export function createOnRequestError(
   };
 }
 
+/** What `warm` and `warmInBackground` warm: a server or a Next instance. */
+export interface WarmTarget {
+  readonly warm: (options?: WarmOptions) => Promise<WarmReport>;
+  readonly events?: EventHub;
+}
+
+/**
+ * Starts `warm` without waiting for it, so the request that started a cold
+ * instance is served while the JWKS and the connections open. `register()` runs
+ * before that request, and awaiting the network steps there adds their round
+ * trips to the cold start. The steps still log a failure at `warn`.
+ *
+ * ```ts
+ * export async function register() {
+ *   if (process.env.NEXT_RUNTIME === "nodejs") {
+ *     const { bsb } = await import("./lib/supabase/server");
+ *     warmInBackground(bsb);
+ *   }
+ * }
+ * ```
+ */
+export function warmInBackground(
+  target: WarmTarget,
+  options?: WarmOptions,
+): void {
+  void warm(target, options);
+}
+
 /**
  * Warms a server or a Next instance from `register()`, so the first request
  * finds the JWKS loaded and the PostgREST, pool and flags connections open.
@@ -212,10 +240,7 @@ export function createOnRequestError(
  * ```
  */
 export async function warm(
-  target: {
-    readonly warm: (options?: WarmOptions) => Promise<WarmReport>;
-    readonly events?: EventHub;
-  },
+  target: WarmTarget,
   options?: WarmOptions,
 ): Promise<WarmReport> {
   try {

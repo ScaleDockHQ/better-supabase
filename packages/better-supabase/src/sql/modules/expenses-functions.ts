@@ -24,11 +24,8 @@ import {
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { managerDecides } from "./direct-approver.ts";
-import {
-  expenseKey,
-  expenseStandaloneSql,
-  expensesStandalone,
-} from "./expenses-standalone.ts";
+import { expensesStandalone } from "./expenses-standalone-policy.ts";
+import { expenseKey, expenseStandaloneSql } from "./expenses-standalone.ts";
 import { expenseReportGuardSql } from "./expenses-write-guard.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
 

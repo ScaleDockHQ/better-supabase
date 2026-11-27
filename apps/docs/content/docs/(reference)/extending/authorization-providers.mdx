@@ -236,6 +236,7 @@ puts the result into a policy or a module function:
 | `roleIn`               | `{role}`, `{tenant}`, `{scope}`                                            | whether `{role}` is a role of `{tenant}` (declared, or a custom role it owns or shares); with `roles.many`, `membership_roles` refuses every other role                  |
 | `permissionsFor`       | `{user}`, `{tenant}`, `{scope}`                                            | `text[]`: the permission keys `{user}` holds in `{tenant}`                                                                                                               |
 | `isApprover`           | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{approvers}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                                                                                                   |
+| `isApproverMany`       | `{requests}`, `{scope}`                                                    | a set of the request ids (text) the caller may approve, out of `{requests}`; the set form of `isApprover`                                                                |
 | `holdersOf`            | `{permission}`, `{tenant}`, `{scope}`                                      | a set of user ids that hold `{permission}` on `{tenant}`                                                                                                                 |
 | `actorMayWrite`        | none                                                                       | `boolean`: the caller's session may write                                                                                                                                |
 | `permitted`            | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}`                | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`                                                                                            |
@@ -441,6 +442,18 @@ calls and support sessions pass `null`. Under the `provider` model,
 allows decide the call. `isApprover` always refuses the requester, so
 a request needs a second approver. Without
 `isApprover`, the chat's owner decides a tool call.
+
+`isApproverMany` is the set form of `isApprover`, for a provider that can
+answer many requests in one call. `{requests}` is a `jsonb` array of
+`{ id, kind, subject, tenant, requester, approvers }` objects, each value as
+`isApprover` receives it and `id` as text; the template is used as
+`select r.id from <template> as r(id)` and returns the id of every request
+the caller may approve, the same answer `isApprover` gives for each. The
+approvals block's `approval_eligible_ids_in` passes it the pending requests
+that nothing else lets the caller decide, once per read. Without it, that
+function calls `isApprover` once per distinct kind, tenant, requester and
+approvers (and subject, when the template names `{subject}`). It needs
+`isApprover`, which the single-request checks keep calling.
 
 `holdersOf` is the audience for `notifications.send({ permission })`: the
 user ids that hold that key on the tenant. A provider sets it from its
@@ -861,11 +874,31 @@ tenant still gets `subject`.
 ### Permissions in the bootstrap
 
 A provider that sets `functions.bootstrapPermissions` gets the caller's
-permissions returned by every sessions bootstrap wrapper, in the query that
-checks the session, as `Bootstrap.permissions`. The wrapper calls only your
-template (`{tenant}` is the page's tenant, or `null` for every tenant the
-caller belongs to); it never names a provider function. Set `permissions:
-false` on a bootstrap entry to leave them out.
+permissions returned by a sessions bootstrap wrapper, in the query that checks
+the session, as `Bootstrap.permissions`. The wrapper calls only your template
+(`{tenant}` is the page's tenant, or `null` for every tenant the caller belongs
+to); it never names a provider function.
+
+Each bootstrap entry picks when the wrapper computes them with `permissions`:
+
+| `permissions`        | A call with a tenant | A call without a tenant            |
+| -------------------- | -------------------- | ---------------------------------- |
+| `"tenant"` (default) | that tenant's        | none (`null`)                      |
+| `"all"`              | that tenant's        | every tenant the caller belongs to |
+| `false`              | none                 | none                               |
+
+The default keeps a shell bootstrap from computing a bitset for each of the
+caller's tenants on every cache miss, which grows with the number of
+memberships. Pass the tenant of the page (`bsb.bootstrap({ rpc, tenant })`) to
+get its permissions, and set `permissions: "all"` only for a screen that shows
+every tenant's permissions at once.
+
+#### Why
+
+A bootstrap is on the path of every page. Before 0.91 a call without a tenant
+computed every tenant's permissions, so an app that bootstrapped its shell once
+per user paid for one permission evaluation per membership, and most pages read
+only the active tenant's.
 
 The value is versioned (`apiVersion: 1`) and has two forms:
 

@@ -2284,7 +2284,18 @@ claims, in a transaction that is rolled back. Two limits apply:
 | The provider's hook budget | `octet_length` of each of `tokenHook.budget.claims` | `tokenHook.budget.bytes`, or `tooling.doctor.claimsLimit`         |
 
 Each one is a separate warning, so a token of 1.5 KB whose budget claims fit
-the budget passes. When the hook sets `tokenHook.budget.truncatedClaim`,
+the budget passes.
+
+A third warning covers the session cookie. `@supabase/ssr` splits it into
+chunks of 3,180 characters, and the claims are base64-encoded twice: once in
+the access token, then again with the whole session in the cookie. One byte of
+claims costs about 1.78 characters, and the header, signature and session
+fields add about 430. With `tokens-only` cookies a payload above about 1,540
+bytes needs a second chunk, well below the 2048-byte token limit, so doctor
+reports it separately (target `:cookie`). `user-and-tokens` cookies add about
+1 KB more for the user object.
+
+When the hook sets `tokenHook.budget.truncatedClaim`,
 doctor also reports that the token lists only some entries, so server checks
 for that user need a database lookup. Keep ids and roles in the token and
 look everything else up. This needs a direct connection (local stack,
@@ -3714,3 +3725,16 @@ emits no `bsb_same_tenant_<column>` check for a foreign key column that an app
 trigger declares it guards with `@bsb same-tenant-guard column=<column>`. Doctor
 lists each such column, so a check left to the app is a choice someone can
 review. BS398 warns when the trigger never mentions the tenant column.
+
+### BS734
+
+**Info: a set form decides who reads approval requests.** `options.deciderMany`
+on leave, expenses or time entries, and the provider's
+`functions.isApproverMany`, answer many approval requests in one call inside
+`approval_eligible_ids_in`, which the approvals read policy uses. A set form
+must answer exactly what its per-request form (`decider`, `isApprover`)
+answers: an id it adds lets the caller read and decide that request. Doctor
+lists each set form and points at the pgTAP test
+`900_better_supabase_approvals_eligible_ids.test.sql` that `upgrade` writes,
+which compares the set with `approval_eligible` for every user. Run it against
+data that exercises the set form.

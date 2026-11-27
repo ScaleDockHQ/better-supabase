@@ -75,6 +75,17 @@ export interface AuthorizationFunctions {
    */
   readonly isApprover?: string;
   /**
+   * The set form of `isApprover`: the requests the caller may approve, out of
+   * `{requests}`, a jsonb array of `{ id, kind, subject, tenant, requester,
+   * approvers }` objects (each value as `isApprover` receives it, `id` as
+   * text). It is used as `select r.id from <template> as r(id)` and returns the
+   * `id` of each request it allows, answering what `isApprover` answers for
+   * each. The approvals block's `approval_eligible_ids_in` calls it once per
+   * read instead of `isApprover` once per pending request. It needs
+   * `isApprover`, which the single-request checks keep calling.
+   */
+  readonly isApproverMany?: string;
+  /**
    * The user ids that hold `{permission}` on `{tenant}`, as a set: it is used
    * as `select u from <template> as t(u)`. A notification's `permission`
    * audience calls it. Without it, naming `permission` is refused.

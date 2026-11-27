@@ -72,6 +72,15 @@ export type LeaveSqlOptions = {
    */
   readonly decider?: string;
   /**
+   * The set form of `decider`: an app function `"schema.function"`, `(ids
+   * uuid[]) returns uuid[]`, that answers in one call which of `ids` the caller
+   * decides. It must answer what `decider` answers for each id, and needs
+   * `decider`. The approvals block's eligible set (the read policy's
+   * `approval_eligible_ids_in`) calls it once per read instead of `decider`
+   * once per pending request.
+   */
+  readonly deciderMany?: string;
+  /**
    * With `approvals: false`, a requester who holds the approve permission
    * decides their own request through `decide_leave_request` when nobody else
    * can: no other active member holds the permission, and no active manager
@@ -110,6 +119,7 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
       default: "permission",
     }),
     decider: option.string(),
+    deciderMany: option.string(),
     selfDecideWhenTopOfChain: option.boolean({ default: false }),
     approvalSubject: option.string({ default: "leave_request" }),
     approvalRequired: option.string(),

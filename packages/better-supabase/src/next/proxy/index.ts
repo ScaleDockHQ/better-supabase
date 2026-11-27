@@ -25,6 +25,49 @@ export { postAuthPath } from "../sign-in.ts";
 
 export type { NextOptions, ProxyOptions } from "../types.ts";
 
+export { vercelRuntimeCache } from "../../core/jwks-store.ts";
+
+export type {
+  VercelRuntimeCache,
+  VercelRuntimeCacheOptions,
+} from "../../core/jwks-store.ts";
+
+/**
+ * Options `createProxy` never reads: they configure the server side of
+ * `createNext` (Server Components, Server Actions, route handlers). Passing
+ * them pulls their stores and drivers (a SQL support store, a Postgres pool,
+ * the authorizer) into the proxy's bundle and its cold start for nothing.
+ */
+type ServerOnlyOption =
+  | "approval"
+  | "audit"
+  | "authorization"
+  | "authorizer"
+  | "credentials"
+  | "kept"
+  | "postgres"
+  | "support"
+  | "versions";
+
+const SERVER_ONLY_OPTIONS: readonly ServerOnlyOption[] = [
+  "approval",
+  "audit",
+  "authorization",
+  "authorizer",
+  "credentials",
+  "kept",
+  "postgres",
+  "support",
+  "versions",
+];
+
+/** The options of `createProxy`: `createNext`'s without the server-only ones. */
+export type CreateProxyOptions<C = unknown, P = unknown> = Omit<
+  NextOptions,
+  ServerOnlyOption
+> &
+  ProxyOptions<C, P>;
+
 /**
  * The `proxy.ts` handler without the Server Component side of `createNext`: it
  * refreshes the session, answers the cookie-only redirect and forwards the
@@ -38,7 +81,7 @@ export type { NextOptions, ProxyOptions } from "../types.ts";
  * ```
  */
 export function createProxy<C = unknown, P = unknown>(
-  options?: NextOptions & ProxyOptions<C, P>,
+  options?: CreateProxyOptions<C, P>,
 ): (request: NextRequest) => Promise<Response>;
 export function createProxy<
   M extends AnyModels,
@@ -50,11 +93,11 @@ export function createProxy<
   B = unknown,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options?: NextOptions & ProxyOptions<C, P>,
+  options?: CreateProxyOptions<C, P>,
 ): (request: NextRequest) => Promise<Response>;
 export function createProxy<C = unknown, P = unknown>(
-  first: SessionsHost<C, P> | (NextOptions & ProxyOptions<C, P>) = {},
-  second: NextOptions & ProxyOptions<C, P> = {},
+  first: SessionsHost<C, P> | CreateProxyOptions<C, P> = {},
+  second: CreateProxyOptions<C, P> = {},
 ): (request: NextRequest) => Promise<Response> {
   const hosted = "events" in first && first.events instanceof EventHub;
 
@@ -64,7 +107,15 @@ export function createProxy<C = unknown, P = unknown>(
     : { events: new EventHub() };
 
   // SAFETY: the options are the first argument when no definition was passed.
-  const options = hosted ? second : (first as NextOptions & ProxyOptions<C, P>);
+  const options = hosted ? second : (first as CreateProxyOptions<C, P>);
+
+  const ignored = SERVER_ONLY_OPTIONS.filter((key) => key in options);
+
+  if (ignored.length > 0) {
+    betterSupabase.events.logger.warn(
+      `createProxy ignores ${ignored.join(", ")}: these options configure createNext. Leave them out of proxy.ts so their stores and drivers stay out of the proxy's bundle and cold start.`,
+    );
+  }
 
   const runtime = sessionsRuntime(betterSupabase, options);
 

@@ -2282,6 +2282,16 @@ uri = "https://example.com/hook"
         { severity: "info", message: expect.stringContaining("no such user") },
       ]);
       expect((await run(1500)).findings).toEqual([]);
+      // Under the 2048-byte limit, but the twice-encoded payload splits the cookie.
+      expect((await run(1800)).findings).toMatchObject([
+        {
+          severity: "warning",
+          message: expect.stringMatching(
+            /returns 1800 bytes of claims.*splits into 2 chunks of 3180/,
+          ),
+          target: expect.stringMatching(/:cookie$/),
+        },
+      ]);
       // The stub's hook budgets 1024 bytes of memberships within a 2048-byte token.
       expect((await run(1500, true, AUTHZ, { budget: 600 })).findings).toEqual(
         [],

@@ -44,6 +44,10 @@ describe("warmUp", () => {
     expect(fetch.mock.calls[0]?.[1]?.headers).toEqual({
       apikey: "sb_publishable_test",
     });
+    expect(fetch.mock.calls.map(([, init]) => init?.method)).toEqual([
+      "OPTIONS",
+      "OPTIONS",
+    ]);
   });
 
   it("runs select 1 on a pg pool or a postgres sql tag and initializes flags", async () => {
