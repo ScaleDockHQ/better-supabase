@@ -170,13 +170,13 @@ describe("the approvals block and the provider's isApprover", BOOT, () => {
     );
   });
 
-  it("asks isApprover in approval_eligible_ids per request, not approval_eligible", () => {
+  it("asks isApprover in approval_eligible_ids_in per request, not approval_eligible", () => {
     const sql = coverFiles()
       .map((file) => file.contents)
       .join("\n");
 
     const body =
-      /function "better_supabase"."approval_eligible_ids"[\s\S]*?\$\$;/u.exec(
+      /function "better_supabase"."approval_eligible_ids_in"[\s\S]*?\$\$;/u.exec(
         sql,
       )?.[0];
 

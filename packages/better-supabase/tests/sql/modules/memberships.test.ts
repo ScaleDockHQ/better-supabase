@@ -410,6 +410,7 @@ create table public.jobs (
 );
 create function public.jobs_organization_fixed() returns trigger
 language plpgsql as $$
+-- @bsb same-tenant-guard column=customer_id
 begin
   if new.customer_id is distinct from old.customer_id
      and (select organization_id from public.customers where id = new.customer_id) <> new.organization_id then
@@ -430,11 +431,70 @@ create trigger bsb_same_tenant_team_id before update on public.jobs
       ...(await sameTenantLayoutOf([{ text }], ["public"])),
     })!;
 
-  it("reads the columns of app triggers and ignores bsb_* triggers", async () => {
+  it("reads the columns app triggers mark as guarded and ignores bsb_* triggers", async () => {
+    const layout = await sameTenantLayoutOf([{ text: schema }], ["public"]);
+
+    expect(layout.appTriggerColumns).toStrictEqual({
+      "public.jobs": ["customer_id"],
+    });
+    expect(layout.appTriggerTouched).toStrictEqual({
+      "public.jobs": ["customer_id", "organization_id"],
+    });
+  });
+
+  it("keeps the check for a column an unmarked app trigger only reads", async () => {
+    const sql = await render(
+      schema.replace("-- @bsb same-tenant-guard column=customer_id\n", ""),
+    );
+
+    expect(sql).toContain('"bsb_same_tenant_customer_id"');
+    expect(sql).toContain('"bsb_same_tenant_team_id"');
+  });
+
+  it("counts a block's own trigger only when it carries the marker", async () => {
+    const block = `${schema}
+create function public.jobs_team_guard() returns trigger
+language plpgsql as $$
+-- @bsb same-tenant-guard column=team_id
+begin
+  return new;
+end;
+$$;
+create trigger bsb_jobs_team_guard before insert on public.jobs
+  for each row execute function public.jobs_team_guard();
+`;
+
     expect(
-      (await sameTenantLayoutOf([{ text: schema }], ["public"]))
+      (await sameTenantLayoutOf([{ text: block }], ["public"]))
         .appTriggerColumns,
-    ).toStrictEqual({ "public.jobs": ["customer_id", "organization_id"] });
+    ).toStrictEqual({ "public.jobs": ["customer_id", "team_id"] });
+  });
+
+  it("reads a marker on its own line only", async () => {
+    const layout = await sameTenantLayoutOf(
+      [
+        {
+          text: schema.replace(
+            "-- @bsb same-tenant-guard column=customer_id\n",
+            "-- @bsb same-tenant-guard column=customer_id,\nteam_id := 1;\n",
+          ),
+        },
+      ],
+      ["public"],
+    );
+
+    expect(layout.appTriggerColumns).toStrictEqual({
+      "public.jobs": ["customer_id"],
+    });
+  });
+
+  it("keeps the check for a column another column's marker doesn't name", async () => {
+    const sql = await render(
+      schema.replace("column=customer_id", "column=team_id"),
+    );
+
+    expect(sql).toContain('"bsb_same_tenant_customer_id"');
+    expect(sql).not.toContain('"bsb_same_tenant_team_id"');
   });
 
   it("emits no second trigger for a column an app trigger guards", async () => {

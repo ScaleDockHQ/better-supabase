@@ -20,6 +20,15 @@ export interface DriveOffboardingSinkOptions {
   ) => string | undefined | PromiseLike<string | undefined>;
   /** Stripped from each event type. Defaults to `dev.better-supabase`. */
   readonly typePrefix?: string;
+  /**
+   * Called with the drives that stayed with the leaving member because the new
+   * owner can't own them, such as a second personal drive. Archive or reassign
+   * them here. Without it the sink logs a warning.
+   */
+  readonly onKept?: (kept: {
+    readonly event: CloudEvent;
+    readonly keptDriveIds: readonly string[];
+  }) => void | PromiseLike<void>;
 }
 
 /**
@@ -65,6 +74,20 @@ export function driveOffboardingSink(
         if (!moved.ok) {
           throw new Error(
             `driveOffboardingSink: moving ${userId}'s items failed: ${moved.error.message}`,
+          );
+        }
+
+        const keptDriveIds = moved.data.keptDriveIds ?? [];
+
+        if (keptDriveIds.length === 0) {
+          continue;
+        }
+
+        if (options.onKept) {
+          await options.onKept({ event, keptDriveIds });
+        } else {
+          console.warn(
+            `driveOffboardingSink: ${userId} keeps ${keptDriveIds.join(",")}`,
           );
         }
       }

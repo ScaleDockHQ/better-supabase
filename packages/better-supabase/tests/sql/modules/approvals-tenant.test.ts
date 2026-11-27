@@ -158,7 +158,7 @@ describe("approval policies", () => {
 
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
-    expect(plan?.to).toBe(6);
+    expect(plan?.to).toBe(7);
     expect(sql).toContain(
       `drop constraint if exists "approval_requests_status_check"`,
     );

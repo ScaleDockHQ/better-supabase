@@ -2,7 +2,7 @@
 -- keeps permissions, the request's decisions and the memberships live. Ann
 -- (…a1) owns Acme (…0001) and Ben (…a2) is a member (supabase/seed.sql).
 begin;
-select plan(11);
+select plan(12);
 
 set local track_functions = 'all';
 
@@ -35,9 +35,15 @@ create temp table calls_after on commit drop as
   select funcname, calls from pg_stat_xact_user_functions where schemaname = 'better_supabase';
 
 select is(
-  (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'can'),
+  (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'tenant_ids_with'),
   1::bigint,
-  'permissions stay live: one can() call for the tenant and permission pair, not one per request'
+  'permissions stay live: one tenant_ids_with() call for the permission, not one per request or tenant'
+);
+
+select is(
+  (select coalesce(a.calls, 0) - coalesce(b.calls, 0) from calls_after a left join calls_before b using (funcname) where a.funcname = 'can'),
+  null::bigint,
+  'the set form asks no can() per tenant and permission pair'
 );
 
 select is(

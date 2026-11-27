@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   appCheckNames,
+  appPolicyKeys,
   NAMING_RENAMES,
   namingCodemod,
   renameEnvFileNames,
@@ -353,6 +354,66 @@ create policy notes_read on public.notes for select using (true);
   it("writes nothing without the project's SQL", () => {
     expect(renameMigrationSql([])).toBeUndefined();
   });
+
+  it("leaves a policy the app's schema files create, such as a provider's", () => {
+    const own =
+      'create policy app_attachments_delete_guard on "better_supabase"."attachments" as restrictive for delete to authenticated using (true);';
+
+    const migration = renameMigrationSql([], `${sql}\n${own}`, {
+      configLoaded: true,
+      tenantColumns: { global: new Set(), byTable: new Map() },
+      appPolicies: appPolicyKeys(own),
+    });
+
+    expect(migration).toContain('rename to "bsb_tasks_read"');
+    expect(migration).not.toContain("app_attachments_delete_guard");
+  });
+});
+
+describe("renamed SQL functions in the app's files", () => {
+  const renames = [
+    {
+      from: "save_task",
+      to: "upsert_task",
+      kind: "sqlFunctionName" as const,
+      since: "0.88",
+    },
+  ];
+
+  it("rewrites calls through the api schema in SQL", async () => {
+    const codemod = namingCodemod(renames);
+
+    const out = await codemod.sql!(
+      "select api.save_task('{}');\nselect better_supabase.save_task('{}');\nselect app.save_task_x();",
+      {
+        configLoaded: false,
+        tenantColumns: { global: new Set(), byTable: new Map() },
+      },
+    );
+
+    expect(out).toBe(
+      "select api.upsert_task('{}');\nselect better_supabase.upsert_task('{}');\nselect app.save_task_x();",
+    );
+  });
+
+  it("rewrites rpc paths and rpc names in TypeScript", () => {
+    // A template literal with a placeholder, written without one here.
+    const tick = String.fromCodePoint(96);
+    const url = ["$", "{url}"].join("");
+
+    const source = (name: string, other: string): string =>
+      [
+        `await fetch(${tick}${url}/rest/v1/rpc/${name}${tick});`,
+        `await fetch("/rest/v1/rpc/${name}?select=id");`,
+        `await db.rpc("${name}");`,
+        `const other = "rpc/${other}";`,
+        "",
+      ].join("\n");
+
+    expect(renameNames(source("save_task", "save_tasks"), renames).text).toBe(
+      source("upsert_task", "save_tasks"),
+    );
+  });
 });
 
 describe("generated check names", () => {
@@ -375,6 +436,14 @@ describe("generated check names", () => {
 });
 
 describe("appCheckNames", () => {
+  it("names the unnamed check of a column an app file adds to a block table", () => {
+    expect(
+      appCheckNames(
+        `alter table "better_supabase"."flags"\n  add column "expires_at" timestamptz,\n  add column "kind" text not null default 'release' check (kind in ('release', 'ops')),\n  add column "owner" text;`,
+      ),
+    ).toEqual(new Set(["flags_kind_check"]));
+  });
+
   it("reads the names of the checks a schema file declares", () => {
     expect(
       appCheckNames(

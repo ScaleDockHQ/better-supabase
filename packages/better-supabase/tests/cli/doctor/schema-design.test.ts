@@ -239,7 +239,7 @@ describe("schema design rules", () => {
     ]);
   });
 
-  it("accepts an app trigger that compares the tenant column (BS217)", async () => {
+  it("accepts a marked app trigger that compares the tenant column (BS217)", async () => {
     const snap = (uniqueIndex: boolean) =>
       snapshot((tables) => {
         const notes = table(tables, "notes");
@@ -270,6 +270,7 @@ describe("schema design rules", () => {
     const trigger = (compare: string) => ({
       path: "supabase/schemas/notes.sql",
       text: `create function public.check_customer() returns trigger language plpgsql as $$
+-- @bsb same-tenant-guard column=customer_id
 begin
   if (select ${compare} from public.customers c where c.id = new.customer_id) then
     raise exception 'other tenant';

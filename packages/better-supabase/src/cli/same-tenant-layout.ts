@@ -10,6 +10,16 @@ type Texts = readonly { readonly text: string }[];
 
 const ROW_COLUMN = /\b(?:new|old)\s*\.\s*"?([a-z_][\w$]*)"?/gi;
 
+/**
+ * `@bsb same-tenant-guard column=a,b` in a trigger function: the app's trigger
+ * checks the tenant of those foreign key columns itself (ADR 1268).
+ */
+const GUARD_MARKER =
+  /@bsb[ \t]+same-tenant-guard[ \t]+columns?[ \t]*=[ \t]*([a-z_][\w$]*(?:[ \t]*,[ \t]*[a-z_][\w$]*)*)/gi;
+
+const guardMarked = (body: string): boolean =>
+  new RegExp(GUARD_MARKER.source, "i").test(body);
+
 const inSchemas = (table: string, schemas: readonly string[]): boolean =>
   schemas.includes(table.slice(0, table.indexOf(".")));
 
@@ -56,8 +66,8 @@ function notNullColumns(
 
 /**
  * The function body of each app trigger, by `schema.table`. Triggers named
- * `bsb_*` are the blocks' own and don't count, so a check the app already makes
- * is never emitted twice.
+ * `bsb_*` are the blocks' own and count only with the same-tenant guard marker,
+ * so a check the app or a block already makes is never emitted twice.
  */
 function appTriggerBodies(
   files: Texts,
@@ -78,24 +88,51 @@ function appTriggerBodies(
 
   for (const facts of all) {
     for (const trigger of facts.triggers) {
+      const body = bodies.get(trigger.function) ?? "";
+
+      // A block's own trigger counts only when it declares the guard, such
+      // as the drive node triggers that check the parent's tenant.
       if (
-        trigger.name.startsWith("bsb_") ||
+        (trigger.name.startsWith("bsb_") && !guardMarked(body)) ||
         !inSchemas(trigger.table, schemas)
       ) {
         continue;
       }
 
-      found.set(trigger.table, [
-        ...(found.get(trigger.table) ?? []),
-        bodies.get(trigger.function) ?? "",
-      ]);
+      found.set(trigger.table, [...(found.get(trigger.table) ?? []), body]);
     }
   }
 
   return Object.fromEntries(found);
 }
 
+/**
+ * The foreign key columns each table's app triggers declare they guard, by the
+ * `@bsb same-tenant-guard` marker. Reading `new.<column>` alone guards
+ * nothing.
+ */
 function appTriggerColumns(
+  bodies: Readonly<Record<string, readonly string[]>>,
+): Readonly<Record<string, readonly string[]>> {
+  return Object.fromEntries(
+    Object.entries(bodies).flatMap(([table, list]) => {
+      const columns = new Set<string>();
+
+      for (const body of list) {
+        for (const marker of body.matchAll(GUARD_MARKER)) {
+          for (const column of marker[1]!.split(",")) {
+            columns.add(column.trim().toLowerCase());
+          }
+        }
+      }
+
+      return columns.size === 0 ? [] : [[table, [...columns]]];
+    }),
+  );
+}
+
+/** The columns each table's app triggers read or write through `new.` or `old.`. */
+function appTriggerTouched(
   bodies: Readonly<Record<string, readonly string[]>>,
 ): Readonly<Record<string, readonly string[]>> {
   return Object.fromEntries(
@@ -148,6 +185,7 @@ export function sameTenantLayout(
       layout: {
         foreignKeys: declaredForeignKeys(facts, schemas),
         appTriggerColumns: appTriggerColumns(bodies),
+        appTriggerTouched: appTriggerTouched(bodies),
         appTriggerBodies: bodies,
         declaredColumns: asLists(declaredTableColumns(facts, schemas)),
         notNullColumns: asLists(notNullColumns(files, schemas)),

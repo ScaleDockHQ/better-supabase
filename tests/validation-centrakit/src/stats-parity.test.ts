@@ -35,6 +35,15 @@ async function statementCalls(
   return Number(rows[0]?.calls ?? 0);
 }
 
+/** How often pg_stat_statements has evicted entries since its last reset. */
+async function deallocs(pool: Pool): Promise<number> {
+  const { rows } = await pool.query<{ dealloc: string }>(
+    "select dealloc::text from pg_stat_statements_info",
+  );
+
+  return Number(rows[0]?.dealloc ?? 0);
+}
+
 describe("request stats against pg_stat_statements", () => {
   const pool = live ? new Pool({ connectionString: dbUrl, max: 4 }) : undefined;
 
@@ -190,23 +199,32 @@ describe("request stats against pg_stat_statements", () => {
     // The published client is the one an app builds itself. Its calls go
     // through connect(), the same path as connect(postgresExecutor()).
     const client = createClient(url, key, { auth: { persistSession: false } });
-    const request = new StatsRecorder();
-    const db = listed.connect(client, {}, { stats: request });
 
-    const before = await statementCalls(
-      (text, params) => pool.query(text, params ? [...params] : []),
-      ['%"public"."customers"%'],
-    );
+    const query = (text: string, params?: readonly unknown[]) =>
+      pool.query<{ calls: string }>(text, params ? [...params] : []);
 
-    await db.customers.list({ limit: 1 });
+    // Other test files fill pg_stat_statements too. When it passes its max it
+    // evicts the least used entries, which can drop counted statements between
+    // the two reads; a measurement during an eviction is taken again.
+    let calls = 0;
+    let delta = 0;
 
-    const calls = request.snapshot().calls;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const evictions = await deallocs(pool);
+      const request = new StatsRecorder();
+      const db = listed.connect(client, {}, { stats: request });
+      const before = await statementCalls(query, ['%"public"."customers"%']);
 
-    const delta =
-      (await statementCalls(
-        (text, params) => pool.query(text, params ? [...params] : []),
-        ['%"public"."customers"%'],
-      )) - before;
+      await db.customers.list({ limit: 1 });
+
+      calls = request.snapshot().calls;
+      delta =
+        (await statementCalls(query, ['%"public"."customers"%'])) - before;
+
+      if ((await deallocs(pool)) === evictions) {
+        break;
+      }
+    }
 
     expect(calls).toBe(1);
     expect(delta).toBe(calls);
