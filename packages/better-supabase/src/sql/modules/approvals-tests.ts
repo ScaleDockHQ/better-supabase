@@ -4,8 +4,7 @@ import type { BlockSqlTestFile } from "../module-types.ts";
 /**
  * Checks that `approval_eligible_ids_in()` and `approval_eligible_ids()` return
  * the pending requests `approval_eligible` accepts, for each user of the
- * database in turn, in one transaction, so a memo kept for one user never
- * answers for the next.
+ * database in turn, in one transaction.
  */
 export function approvalTests(ctx: BlockSqlContext): BlockSqlTestFile[] {
   const requests = ctx.table("requests");
@@ -21,8 +20,6 @@ export function approvalTests(ctx: BlockSqlContext): BlockSqlTestFile[] {
       sql: `begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;

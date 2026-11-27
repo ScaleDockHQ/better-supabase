@@ -61,15 +61,12 @@ describe("approval_eligible_ids", () => {
     );
   });
 
-  it("keeps the set for a transaction that wrote nothing, keyed by the claims and the tenants", () => {
+  it("is one stable query that writes no setting", () => {
     const body = functionBody(sqlOf("approvals"), "approval_eligible_ids_in");
 
-    expect(body).toContain(
-      "if pg_catalog.pg_current_xact_id_if_assigned() is null then",
-    );
-    expect(body).toContain("current_setting('request.jwt.claims', true)");
-    expect(body).toContain("approval_eligible_ids_in.tenants::text");
-    expect(body).toContain("better_supabase.memo_slot_set(v_key");
+    expect(body).toMatch(/language plpgsql\s+stable/u);
+    expect(body).not.toContain("set_config");
+    expect(body).not.toContain("memo_slot");
   });
 });
 

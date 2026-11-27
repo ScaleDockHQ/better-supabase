@@ -1,14 +1,12 @@
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:82e2e5632c17d8dd139ca7425436cbe38e34721b66c12ffae9daea1feb5864c8
+-- @bsb-hash sha256:d3a87fe88726387027e5eb4ffe25c1168f2e84ee639375644abb2d54f9ddc41c
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;

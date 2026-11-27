@@ -234,7 +234,7 @@ try {
       p95: Number(stats.p95.toFixed(1)),
       calls: Object.fromEntries(
         Object.entries(calls).filter(([name]) =>
-          /^(can|member_can|tenant_ids_with|approval_eligible_ids(_in)?|memo_slot_set)$/u.test(
+          /^(can|member_can|tenant_ids_with|approval_eligible_ids(_in)?)$/u.test(
             name,
           ),
         ),

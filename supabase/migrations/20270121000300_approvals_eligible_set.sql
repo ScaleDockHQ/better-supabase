@@ -32,26 +32,8 @@ CREATE OR REPLACE FUNCTION better_supabase.approval_eligible_ids_in (
   SECURITY DEFINER
   SET search_path TO ''
   AS $function$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
+  return query
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
@@ -106,11 +88,7 @@ begin
       select 1 from "public"."memberships" mm
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me
     )))))
-    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end))));
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end)));
 end;
 $function$;
 

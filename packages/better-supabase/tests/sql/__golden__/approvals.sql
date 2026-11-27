@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@7 managed
--- @bsb-hash sha256:7090c0800223ebc9551857acfa16c4e7188063835747f0371d7f881c0fe2e0dd
+-- @bsb-hash sha256:db59b76ff572e3277da4324f756865f86c40fafdfaf5ff6dfcb1e637350a789a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -241,9 +241,8 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 -- statement, not once per row. It applies the rules of approval_eligible as
 -- joins over the pending requests (each permission is checked once through the
 -- tenants the caller holds it in), and a parity test keeps the two
--- in step. A transaction that has written nothing keeps the answer in a
--- transaction-local memo keyed by the caller's claims and the tenants, so the
--- policy scans of one read reuse it; a write or other claims compute it again.
+-- in step. One call answers every tenant, so a policy needs no call per member
+-- tenant. It is PL/pgSQL so the body may name tables a later module creates.
 create or replace function "better_supabase"."approval_eligible_ids_in"(tenants uuid[] default null)
 returns setof uuid
 language plpgsql
@@ -251,26 +250,8 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
+  return query
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
@@ -307,11 +288,7 @@ begin
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
     ))
     or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
-    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)))));
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) from public, anon;
@@ -1724,15 +1701,13 @@ on conflict (name) do update
 -- ==== alone: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:82e2e5632c17d8dd139ca7425436cbe38e34721b66c12ffae9daea1feb5864c8
+-- @bsb-hash sha256:d3a87fe88726387027e5eb4ffe25c1168f2e84ee639375644abb2d54f9ddc41c
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;
@@ -1769,7 +1744,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@7 managed
--- @bsb-hash sha256:e6c0699a66f2fb4dd05eb302861becff01082344725b85083795e86ff123321f
+-- @bsb-hash sha256:bc52f8deb84aa8be1a883fa5bafdf83602468f030e0007ba18970969acf25f62
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2026,9 +2001,8 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 -- statement, not once per row. It applies the rules of approval_eligible as
 -- joins over the pending requests (each permission is checked once through the
 -- tenants the caller holds it in), and a parity test keeps the two
--- in step. A transaction that has written nothing keeps the answer in a
--- transaction-local memo keyed by the caller's claims and the tenants, so the
--- policy scans of one read reuse it; a write or other claims compute it again.
+-- in step. One call answers every tenant, so a policy needs no call per member
+-- tenant. It is PL/pgSQL so the body may name tables a later module creates.
 create or replace function "better_supabase"."approval_eligible_ids_in"(tenants uuid[] default null)
 returns setof uuid
 language plpgsql
@@ -2036,26 +2010,8 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
+  return query
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
@@ -2110,11 +2066,7 @@ begin
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."disabled_at" is null
     )))))
-    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end))));
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end)));
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) from public, anon;
@@ -3826,15 +3778,13 @@ on conflict (name) do update
 -- ==== with every module: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:82e2e5632c17d8dd139ca7425436cbe38e34721b66c12ffae9daea1feb5864c8
+-- @bsb-hash sha256:d3a87fe88726387027e5eb4ffe25c1168f2e84ee639375644abb2d54f9ddc41c
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;
@@ -3871,7 +3821,7 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@7 managed
--- @bsb-hash sha256:7242069d39cdff31b7174d64892495119c07bd48f945ff6335165c881212a502
+-- @bsb-hash sha256:695de951ecb29709ba87cc24ef6882880c4cbbebfe52a3764247c7712854223d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4116,9 +4066,8 @@ grant execute on function "app_private"."approval_eligible"(uuid) to authenticat
 -- statement, not once per row. It applies the rules of approval_eligible as
 -- joins over the pending requests (each permission is checked once through the
 -- tenants the caller holds it in), and a parity test keeps the two
--- in step. A transaction that has written nothing keeps the answer in a
--- transaction-local memo keyed by the caller's claims and the tenants, so the
--- policy scans of one read reuse it; a write or other claims compute it again.
+-- in step. One call answers every tenant, so a policy needs no call per member
+-- tenant. It is PL/pgSQL so the body may name tables a later module creates.
 create or replace function "app_private"."approval_eligible_ids_in"(tenants uuid[] default null)
 returns setof uuid
 language plpgsql
@@ -4126,26 +4075,8 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
+  return query
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "app_private"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
@@ -4182,11 +4113,7 @@ begin
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
     ))
     or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
-    or exists (select 1 from "app_private"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)))));
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+    or exists (select 1 from "app_private"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
 end;
 $$;
 revoke execute on function "app_private"."approval_eligible_ids_in"(uuid[]) from public, anon;
@@ -5599,15 +5526,13 @@ on conflict (name) do update
 -- ==== schema app_private: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:0aea591a50ce1a7d08623765f951a05cb98babfbfd500c9ab4c3a26cc4ea1430
+-- @bsb-hash sha256:e66659a5e480e3067ef38344c337e69a1b1aeffbb27eec750c29a99b4c423b09
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;
@@ -5644,7 +5569,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@7 managed
--- @bsb-hash sha256:9ba94f3fa530bc5dc10ffbcc6017d5996c35016c4e993b999c72c8f18d9d1d57
+-- @bsb-hash sha256:9ba402541d1a93779ea54c0029b42fb3b52a54a0ad5105a36eb38201c1adc541
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5884,9 +5809,8 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 -- statement, not once per row. It applies the rules of approval_eligible as
 -- joins over the pending requests (each permission is checked once through the
 -- tenants the caller holds it in), and a parity test keeps the two
--- in step. A transaction that has written nothing keeps the answer in a
--- transaction-local memo keyed by the caller's claims and the tenants, so the
--- policy scans of one read reuse it; a write or other claims compute it again.
+-- in step. One call answers every tenant, so a policy needs no call per member
+-- tenant. It is PL/pgSQL so the body may name tables a later module creates.
 create or replace function "better_supabase"."approval_eligible_ids_in"(tenants uuid[] default null)
 returns setof uuid
 language plpgsql
@@ -5894,26 +5818,8 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
+  return query
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
@@ -5950,11 +5856,7 @@ begin
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
     ))
     or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
-    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)))));
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) from public, anon;
@@ -7589,15 +7491,13 @@ on conflict (name) do update
 -- ==== api schema: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:82e2e5632c17d8dd139ca7425436cbe38e34721b66c12ffae9daea1feb5864c8
+-- @bsb-hash sha256:d3a87fe88726387027e5eb4ffe25c1168f2e84ee639375644abb2d54f9ddc41c
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;
@@ -7634,7 +7534,7 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@7 managed
--- @bsb-hash sha256:54014b05ac04e39a8848bd8c5f1fdb229bb9ede0195bff9c6f088346b4878b72
+-- @bsb-hash sha256:60ca4c59a2e583217580a824d16df5b34be07877780fd90c3865d7564c84f11b
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7866,9 +7766,8 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 -- statement, not once per row. It applies the rules of approval_eligible as
 -- joins over the pending requests (each permission is checked once through the
 -- tenants the caller holds it in), and a parity test keeps the two
--- in step. A transaction that has written nothing keeps the answer in a
--- transaction-local memo keyed by the caller's claims and the tenants, so the
--- policy scans of one read reuse it; a write or other claims compute it again.
+-- in step. One call answers every tenant, so a policy needs no call per member
+-- tenant. It is PL/pgSQL so the body may name tables a later module creates.
 create or replace function "better_supabase"."approval_eligible_ids_in"(tenants uuid[] default null)
 returns setof uuid
 language plpgsql
@@ -7876,26 +7775,8 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
+  return query
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
@@ -7932,11 +7813,7 @@ begin
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
     ))
     or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
-    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)))));
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) from public, anon;
@@ -9349,15 +9226,13 @@ on conflict (name) do update
 -- ==== over the app's tables: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:82e2e5632c17d8dd139ca7425436cbe38e34721b66c12ffae9daea1feb5864c8
+-- @bsb-hash sha256:d3a87fe88726387027e5eb4ffe25c1168f2e84ee639375644abb2d54f9ddc41c
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;
@@ -9394,7 +9269,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@7 managed
--- @bsb-hash sha256:9434f2822f02e18161490e9fec6dd8cc50e0e58e77b84ad23e526f4367ed2183
+-- @bsb-hash sha256:16ea9719a25f31cf460c89a8dc34c79add78020e0d813928b78297cf6f358c70
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9634,9 +9509,8 @@ grant execute on function "better_supabase"."approval_eligible"(uuid) to authent
 -- statement, not once per row. It applies the rules of approval_eligible as
 -- joins over the pending requests (each permission is checked once through the
 -- tenants the caller holds it in), and a parity test keeps the two
--- in step. A transaction that has written nothing keeps the answer in a
--- transaction-local memo keyed by the caller's claims and the tenants, so the
--- policy scans of one read reuse it; a write or other claims compute it again.
+-- in step. One call answers every tenant, so a policy needs no call per member
+-- tenant. It is PL/pgSQL so the body may name tables a later module creates.
 create or replace function "better_supabase"."approval_eligible_ids_in"(tenants uuid[] default null)
 returns setof uuid
 language plpgsql
@@ -9644,26 +9518,8 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
+  return query
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
@@ -9700,11 +9556,7 @@ begin
       where mm."org_id" = q."org_id" and mm."user_id" = q.bsb_me and mm."role" = (q.bsb_step -> 'escalateTo') ->> 'role'
     ))
     or ((q.bsb_step -> 'escalateTo') ->> 'team' is not null and false)))
-    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)))));
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me))));
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) from public, anon;
@@ -11117,15 +10969,13 @@ on conflict (name) do update
 -- ==== tenant column renamed: test supabase/tests/900_better_supabase_approvals_eligible_ids.test.sql
 -- better-supabase module: approvals
 -- @bsb-block-test approvals
--- @bsb-hash sha256:82e2e5632c17d8dd139ca7425436cbe38e34721b66c12ffae9daea1feb5864c8
+-- @bsb-hash sha256:d3a87fe88726387027e5eb4ffe25c1168f2e84ee639375644abb2d54f9ddc41c
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 begin;
 create extension if not exists pgtap with schema extensions;
 
--- Before plan(), which writes: the reads run without a transaction id, as
--- PostgREST reads do, so the transaction memo is in play.
 do $$
 declare
   u record;

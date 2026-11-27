@@ -1,13 +1,13 @@
--- approval_eligible_ids_in answers several tenants, or all of them, in one call,
--- checks each permission once and keeps the answer for the rest of a transaction
--- that wrote nothing. The memo is keyed by the caller's claims and the tenants,
--- so another user, other claims or a later transaction never read it. Ann (…a1)
+-- approval_eligible_ids_in answers several tenants, or all of them, in one call
+-- and checks each permission once, for whoever the claims name at the time of
+-- the call: users and claims that change in one transaction each get their own
+-- answer, and nothing carries over to the next transaction. Ann (…a1)
 -- owns Acme (…0001) and is a member of Globex (…0002), Ben (…a2) is a member of
 -- Acme and Cara (…a3) owns Globex (supabase/seed.sql).
 --
--- The reads must run in a transaction without a transaction id, as PostgREST
--- reads do, so the fixture is committed first (without triggers) and removed at
--- the end. pgTAP's own bookkeeping writes, so the reads record their results in
+-- The reads run in a transaction without a transaction id, as PostgREST reads
+-- do, so the fixture is committed first (without triggers) and removed at the
+-- end. pgTAP's own bookkeeping writes, so the reads record their results in
 -- settings and the assertions run in a later transaction.
 
 begin;
@@ -102,13 +102,13 @@ select is(current_setting('test.set_ann'), current_setting('test.parity_ann'), '
 select is(current_setting('test.calls_ann'), '1', 'one tenant_ids_with call for the one permission, across both tenants');
 
 select is(current_setting('test.set_ann_again'), current_setting('test.set_ann'), 'the same claims read the same set again');
-select is(current_setting('test.calls_ann_again'), '0', 'the second read in the transaction comes from the memo');
+select is(current_setting('test.calls_ann_again'), '1', 'a second read computes the set again; it keeps nothing between calls');
 select is(current_setting('test.set_ann_wrapper'), current_setting('test.set_ann'), 'approval_eligible_ids() reads the same memo');
-select is(current_setting('test.calls_ann_wrapper'), '0', 'approval_eligible_ids() asks no permission again');
+select is(current_setting('test.calls_ann_wrapper'), '1', 'approval_eligible_ids() asks each permission once as well');
 
 select is(current_setting('test.set_ben'), 'm1,m2,m3', 'Ben, in the same transaction, gets his own set');
 select is(current_setting('test.set_ben'), current_setting('test.parity_ben'), 'Ben''s set matches approval_eligible');
-select is(current_setting('test.calls_ben'), '1', 'Ben''s claims miss Ann''s memo and compute');
+select is(current_setting('test.calls_ben'), '1', 'Ben''s set checks the permission once for him');
 
 select is(current_setting('test.set_ann_back'), current_setting('test.set_ann'), 'Ann after Ben gets her own set back');
 
@@ -119,9 +119,9 @@ select is(current_setting('test.set_ann_acme'), 'p1,p2,p3,p4,p5,p6', 'approval_e
 select is(current_setting('test.set_ann_acme'), current_setting('test.parity_ann_acme'), 'the tenant set matches approval_eligible');
 
 select is(current_setting('test.set_next_ben'), 'm1,m2,m3', 'a later transaction starts with Ben and reads none of Ann''s set');
-select is(current_setting('test.calls_next_ann'), '1', 'a later transaction computes Ann''s set again');
+select is(current_setting('test.calls_next_ann'), '1', 'a later transaction checks Ann''s permission once');
 
--- After a write the transaction has an id, and every call computes the set.
+-- A decision written in the transaction counts at once.
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}', true);
 insert into better_supabase.approval_decisions (request_id, tenant_id, step, approver, decision)
 select r.id, r.tenant_id, 0, '00000000-0000-4000-8000-0000000000a1', 'approved'

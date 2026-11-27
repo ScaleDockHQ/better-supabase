@@ -1122,9 +1122,8 @@ ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 -- statement, not once per row. It applies the rules of approval_eligible as
 -- joins over the pending requests (each permission is checked once through the
 -- tenants the caller holds it in${provider ? ", an access provider's isApprover per request" : ""}), and a parity test keeps the two
--- in step. A transaction that has written nothing keeps the answer in a
--- transaction-local memo keyed by the caller's claims and the tenants, so the
--- policy scans of one read reuse it; a write or other claims compute it again.
+-- in step. One call answers every tenant, so a policy needs no call per member
+-- tenant. It is PL/pgSQL so the body may name tables a later module creates.
 create or replace function ${fn("approval_eligible_ids_in")}(tenants ${ctx.idType}[] default null)
 returns setof uuid
 language plpgsql
@@ -1132,31 +1131,9 @@ stable
 security definer
 set search_path = ''
 as $$
-declare
-  v_me uuid := auth.uid();
-  v_key text;
-  v_hit text;
-  v_ids uuid[];
 begin
-  if v_me is null then
-    return;
-  end if;
-  if pg_catalog.pg_current_xact_id_if_assigned() is null then
-    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
-      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
-      coalesce(approval_eligible_ids_in.tenants::text, '*')));
-    v_hit := better_supabase.memo_slot_get(v_key);
-    if v_hit is not null then
-      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
-      return;
-    end if;
-  end if;
-  v_ids := array(
-  ${eligibleIdsBody});
-  if v_key is not null then
-    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
-  end if;
-  return query select unnest(v_ids);
+  return query
+  ${eligibleIdsBody};
 end;
 $$;
 ${userGrant(`${fn("approval_eligible_ids_in")}(${ctx.idType}[])`)}
@@ -1662,7 +1639,7 @@ export const APPROVALS: BlockSqlDefinition = {
     {
       from: 6,
       description:
-        "Adds approval_eligible_ids_in(tenants), the set form for several tenants or all of them in one call, with a transaction memo for reads; approval_eligible_ids(tenant) calls it. Each permission is checked once through tenant_ids_with, and a block's selfDecides runs only for the caller's own requests.",
+        "Adds approval_eligible_ids_in(tenants), the set form for several tenants or all of them in one call; approval_eligible_ids(tenant) calls it. Each permission is checked once through tenant_ids_with, and a block's selfDecides runs only for the caller's own requests.",
       sql: () => "",
     },
   ],
