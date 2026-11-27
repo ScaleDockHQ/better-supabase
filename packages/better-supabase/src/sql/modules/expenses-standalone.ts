@@ -1,6 +1,5 @@
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 import type { BlockSqlUpgrade } from "../module-types.ts";
-import type { ApprovalPolicy } from "./approvals-policies.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -22,15 +21,11 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
-import {
-  assertCountedApprovers,
-  policyOf,
-  policySnapshot,
-} from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
 import {
   appFunction,
   deciderCall,
+  decidesMany,
   hasDecider,
   managerDecides,
 } from "./direct-approver.ts";
@@ -39,9 +34,15 @@ import {
   EXPENSE_RESERVED,
   invoicedCheck,
 } from "./expenses-standalone-contract.ts";
+import {
+  EXPENSE_SUBJECT,
+  expensesStandalone,
+  standaloneApprovals,
+  standalonePolicy,
+} from "./expenses-standalone-policy.ts";
 import { expenseGuardSql } from "./expenses-write-guard.ts";
 import { lockModuleTable } from "./over-app.ts";
-import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
 
 export const expenseKey = (ctx: BlockSqlContext, action: string): string =>
@@ -102,90 +103,6 @@ export const EXPENSE_TABLE: BlockSqlTableSpec = {
   ],
   typed: ["status"],
 };
-
-/** The subject type of an expense the approvals block decides. */
-export const EXPENSE_SUBJECT = "expense";
-
-/**
- * Whether each standalone expense goes through the approvals block:
- * `options.standaloneApprovals`, which needs `tables.reports: null`.
- */
-export function standaloneApprovals(ctx: BlockSqlContext): boolean {
-  const on = ctx.flag("standaloneApprovals", false);
-
-  if (on && !expensesStandalone(ctx)) {
-    throw new TypeError(
-      "blocks.expenses.options.standaloneApprovals needs tables.reports: null; reports go through approvals already",
-    );
-  }
-
-  if (!on && ctx.flag("selfDecideWhenTopOfChain", false)) {
-    throw new TypeError(
-      "blocks.expenses.options.selfDecideWhenTopOfChain needs standaloneApprovals; decideExpense already lets the owner decide when nobody else can",
-    );
-  }
-
-  return on;
-}
-
-/**
- * `options.policy`, or one step for holders of the approve permission and, with
- * `options.decider`, whoever the app's decider accepts.
- */
-function standalonePolicy(ctx: BlockSqlContext): string {
-  const policy = standalonePolicyOf(ctx);
-
-  if (ctx.flag("selfDecideWhenTopOfChain", false)) {
-    assertCountedApprovers(
-      policy,
-      ctx.permissionKey("approve", OPERATIONS["expenses.approve"]),
-      "blocks.expenses.options.selfDecideWhenTopOfChain",
-    );
-  }
-
-  return policySnapshot(policy);
-}
-
-function standalonePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
-  const policy = policyOf(
-    EXPENSE_SUBJECT,
-    "approve",
-    ctx.option("policy") ?? {
-      steps: [
-        {
-          approvers: {
-            permission: ctx.permissionKey(
-              "approve",
-              OPERATIONS["expenses.approve"],
-            ),
-            ...(hasDecider(ctx) ? { decider: true } : {}),
-          },
-        },
-      ],
-    },
-    "blocks.expenses.options.policy",
-  );
-
-  if (policy.run !== undefined) {
-    throw new TypeError(
-      "blocks.expenses.options.policy.run is not allowed; the final approval approves the expense",
-    );
-  }
-
-  return policy;
-}
-
-export function expensesStandalone(ctx: BlockSqlContext): boolean {
-  const reports = ctx.config.tables["reports"] === null;
-
-  if (reports !== (ctx.config.tables["lines"] === null)) {
-    throw new TypeError(
-      "blocks.expenses.tables.reports and lines map to null together: without reports, each expense is one row of tables.expenses",
-    );
-  }
-
-  return reports;
-}
 
 export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const owner = recordOwner(ctx, {
@@ -420,9 +337,12 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     }) as const;
 
   // Who may decide: the approve key, the owner's manager (options.approver),
-  // or a caller the app's options.decider function accepts.
-  const decides = (row: string): string =>
-    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`, managerArgs(row))})`;
+  // or a caller the app's options.decider function accepts (or `decider`, the
+  // clause of its set form, options.deciderMany).
+  const decides = (row: string, decider?: string): string =>
+    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${decider ?? deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`, managerArgs(row))})`;
+
+  const deciderMany = decidesMany(ctx, "blocks.expenses.options").decidesMany;
 
   const deciderOn = hasDecider(ctx);
 
@@ -994,10 +914,10 @@ security definer
 set search_path = ''
 as $$
   select coalesce(array_agg(v_row.${e("id")}), '{}'::uuid[])
-  from ${table} v_row
+  from ${table} v_row${deciderMany === undefined ? "" : `, (select ${deciderMany("expense_self_decides_many.expense_ids")} as bsb_ids) bsb_decided`}
   where v_row.${e("id")} = any (expense_self_decides_many.expense_ids)
     and auth.uid() is not null
-    and ${selfOf("v_row", "auth.uid()")} and ${decides("v_row")} and ${nobodyElse("v_row", creatorOf("v_row"))}
+    and ${selfOf("v_row", "auth.uid()")} and ${decides("v_row", deciderMany === undefined ? undefined : ` or coalesce(v_row.${e("id")} = any (bsb_decided.bsb_ids), false)`)} and ${nobodyElse("v_row", creatorOf("v_row"))}
 $$;
 ${userGrant(`${fn("expense_self_decides_many")}(uuid[])`)}
 

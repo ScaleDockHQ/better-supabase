@@ -3714,3 +3714,16 @@ emits no `bsb_same_tenant_<column>` check for a foreign key column that an app
 trigger declares it guards with `@bsb same-tenant-guard column=<column>`. Doctor
 lists each such column, so a check left to the app is a choice someone can
 review. BS398 warns when the trigger never mentions the tenant column.
+
+### BS734
+
+**Info: a set form decides who reads approval requests.** `options.deciderMany`
+on leave, expenses or time entries, and the provider's
+`functions.isApproverMany`, answer many approval requests in one call inside
+`approval_eligible_ids_in`, which the approvals read policy uses. A set form
+must answer exactly what its per-request form (`decider`, `isApprover`)
+answers: an id it adds lets the caller read and decide that request. Doctor
+lists each set form and points at the pgTAP test
+`900_better_supabase_approvals_eligible_ids.test.sql` that `upgrade` writes,
+which compares the set with `approval_eligible` for every user. Run it against
+data that exercises the set form.

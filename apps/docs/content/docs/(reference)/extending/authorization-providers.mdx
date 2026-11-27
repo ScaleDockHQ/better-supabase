@@ -236,6 +236,7 @@ puts the result into a policy or a module function:
 | `roleIn`               | `{role}`, `{tenant}`, `{scope}`                                            | whether `{role}` is a role of `{tenant}` (declared, or a custom role it owns or shares); with `roles.many`, `membership_roles` refuses every other role                  |
 | `permissionsFor`       | `{user}`, `{tenant}`, `{scope}`                                            | `text[]`: the permission keys `{user}` holds in `{tenant}`                                                                                                               |
 | `isApprover`           | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{approvers}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                                                                                                   |
+| `isApproverMany`       | `{requests}`, `{scope}`                                                    | a set of the request ids (text) the caller may approve, out of `{requests}`; the set form of `isApprover`                                                                |
 | `holdersOf`            | `{permission}`, `{tenant}`, `{scope}`                                      | a set of user ids that hold `{permission}` on `{tenant}`                                                                                                                 |
 | `actorMayWrite`        | none                                                                       | `boolean`: the caller's session may write                                                                                                                                |
 | `permitted`            | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}`                | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`                                                                                            |
@@ -441,6 +442,18 @@ calls and support sessions pass `null`. Under the `provider` model,
 allows decide the call. `isApprover` always refuses the requester, so
 a request needs a second approver. Without
 `isApprover`, the chat's owner decides a tool call.
+
+`isApproverMany` is the set form of `isApprover`, for a provider that can
+answer many requests in one call. `{requests}` is a `jsonb` array of
+`{ id, kind, subject, tenant, requester, approvers }` objects, each value as
+`isApprover` receives it and `id` as text; the template is used as
+`select r.id from <template> as r(id)` and returns the id of every request
+the caller may approve, the same answer `isApprover` gives for each. The
+approvals block's `approval_eligible_ids_in` passes it the pending requests
+that nothing else lets the caller decide, once per read. Without it, that
+function calls `isApprover` once per distinct kind, tenant, requester and
+approvers (and subject, when the template names `{subject}`). It needs
+`isApprover`, which the single-request checks keep calling.
 
 `holdersOf` is the audience for `notifications.send({ permission })`: the
 user ids that hold that key on the tenant. A provider sets it from its

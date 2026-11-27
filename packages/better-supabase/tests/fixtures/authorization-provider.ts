@@ -7,6 +7,7 @@ type StubProvider = AuthorizationProvider & {
       AuthorizationProvider["functions"],
       | "permissionsFor"
       | "isApprover"
+      | "isApproverMany"
       | "holdersOf"
       | "actorMayWrite"
       | "permitted"

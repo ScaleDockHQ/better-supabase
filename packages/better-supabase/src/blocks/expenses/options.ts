@@ -57,6 +57,15 @@ export type ExpensesSqlOptions = {
    */
   readonly decider?: string;
   /**
+   * The set form of `decider`: an app function `"schema.function"`, `(ids
+   * uuid[]) returns uuid[]`, that answers in one call which of `ids` the caller
+   * decides. It must answer what `decider` answers for each id, and needs
+   * `decider`. The approvals block's eligible set (the read policy's
+   * `approval_eligible_ids_in`) calls it once per read instead of `decider`
+   * once per pending request.
+   */
+  readonly deciderMany?: string;
+  /**
    * With `standaloneApprovals`, the owner decides their own expense's approval
    * request when nobody else can: they hold the approve permission (or the
    * decider accepts them), no other active member holds it, and no active
@@ -87,6 +96,7 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
       default: "permission",
     }),
     decider: option.string(),
+    deciderMany: option.string(),
     selfDecideWhenTopOfChain: option.boolean({ default: false }),
     approvalRequired: option.string(),
   });

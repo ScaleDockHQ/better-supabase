@@ -29,6 +29,7 @@ import { diffEngine, migrationCommand, tomlGet } from "../supabase-config.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
+import { APPROVAL_SET_FORM_RULES } from "./approval-set-forms.ts";
 import { moduleOwned } from "./audit-coverage.ts";
 import { AUTH_USER_RULES } from "./auth-users.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
@@ -1096,6 +1097,7 @@ export const RULES: readonly Rule[] = [
   ...INLINE_SCHEMA_RULES,
   ...PROVIDER_DOCTOR_RULES,
   ...SHIPPED_SHIM_RULES,
+  ...APPROVAL_SET_FORM_RULES,
   ...OWN_RULES,
   ...RLS_RULES,
   ...POLICY_RULES,

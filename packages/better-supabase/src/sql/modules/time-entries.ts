@@ -135,6 +135,7 @@ const NAMES: BlockSqlNames = {
     "lockedColumns",
     "on",
     "decider",
+    "deciderMany",
     "writer",
     "approvalRequired",
     "selfApproveWhenTopOfChain",
