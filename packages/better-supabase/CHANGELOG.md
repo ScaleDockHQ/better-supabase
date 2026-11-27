@@ -1,5 +1,21 @@
 # better-supabase
 
+## 0.91.0
+
+### Minor Changes
+
+- [#1184](https://github.com/ScaleDockHQ/better-supabase/pull/1184) [`2c60756`](https://github.com/ScaleDockHQ/better-supabase/commit/2c607560cad1b0102aef95197a5768556d1924a8) Thanks [@mick340](https://github.com/mick340)! - The approvals block's `approval_eligible_ids_in` no longer runs the approver hooks once per pending request. A block's `decides` rule runs once per subject type through the new `options.deciderMany` of leave, expenses and time entries, the set form of `options.decider`. The provider's `isApprover` runs once per distinct kind, tenant, requester and approvers, and only for requests nothing else lets the caller decide, or once in all through the new `authorization.functions.isApproverMany` template. Approvals module version 8.
+
+- [#1185](https://github.com/ScaleDockHQ/better-supabase/pull/1185) [`31f6ac5`](https://github.com/ScaleDockHQ/better-supabase/commit/31f6ac5c7ea926b718d8f2e77af6dfb48e3d9eee) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: a sessions bootstrap wrapper returns the authorization provider's permissions only for a call that names a tenant. A call without a tenant, such as a shell bootstrap, gets `permissions: null` instead of one permission bitset per tenant the caller belongs to, which every cache miss paid for and most pages never read. Set `permissions: "all"` on a bootstrap entry to keep the old behavior, or pass the page's tenant to `bsb.bootstrap({ rpc, tenant })`. `permissions: false` still leaves them out. Run `better-supabase upgrade` and generate a migration to rewrite the wrappers.
+
+- [#1185](https://github.com/ScaleDockHQ/better-supabase/pull/1185) [`0e8798e`](https://github.com/ScaleDockHQ/better-supabase/commit/0e8798e18d87a2801351d39bdf5140a034c9d78f) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: `createProxy` from `better-supabase/next/proxy` no longer accepts the options only `createNext` reads (`support`, `postgres`, `kept`, `authorizer`, `authorization`, `versions`, `credentials`, `audit` and `approval`). The proxy never used them, and passing them pulled a SQL support store, a Postgres pool or the authorizer into the proxy bundle and its cold start. Remove them from `proxy.ts`; a JavaScript caller that still passes one gets a warning. `CreateProxyOptions` is the new options type. `better-supabase/next/proxy` also exports `vercelRuntimeCache`, so a proxy that shares its JWKS through the Vercel Runtime Cache no longer imports `better-supabase/server`.
+
+### Patch Changes
+
+- [#1185](https://github.com/ScaleDockHQ/better-supabase/pull/1185) [`d1b1f00`](https://github.com/ScaleDockHQ/better-supabase/commit/d1b1f00d963ef4198e21ba0e4ea0855bab5c625d) Thanks [@martijn00](https://github.com/martijn00)! - Doctor BS405 measures the session cookie the way `@supabase/ssr` writes it: the claims are base64-encoded twice, once in the token and again in the cookie, so a payload above about 1,540 bytes needs a second cookie chunk with `tokens-only` cookies. It reports that as its own warning (target `:cookie`), below the 2048-byte token limit, and the chunk count in the token warning uses the same formula. Before, it counted the claims once and reported one chunk for payloads that split into two.
+
+- [#1185](https://github.com/ScaleDockHQ/better-supabase/pull/1185) [`aba26b0`](https://github.com/ScaleDockHQ/better-supabase/commit/aba26b0e78cbaa0efadd74b04e32f194d7685224) Thanks [@martijn00](https://github.com/martijn00)! - `warm()` opens the PostgREST connection with an `OPTIONS` request instead of a `GET` of `/rest/v1/`, which made PostgREST build the OpenAPI description of every exposed schema during a cold start. `better-supabase/next/instrumentation` adds `warmInBackground(bsb)` for `register()`, which starts the warm-up without making the request that started the instance wait for it.
+
 ## 0.90.0
 
 ### Minor Changes
