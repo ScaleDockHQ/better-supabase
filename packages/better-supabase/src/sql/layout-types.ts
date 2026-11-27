@@ -81,4 +81,9 @@ export type SameTenantLayout = Required<
    * BS398).
    */
   readonly appTriggerBodies: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The columns the app triggers read or write through `new.` or `old.`,
+   * `schema.table` to names, marked or not (doctor BS733).
+   */
+  readonly appTriggerTouched: Readonly<Record<string, readonly string[]>>;
 };

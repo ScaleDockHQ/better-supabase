@@ -1991,13 +1991,14 @@ left out.
 
 **Warning: an app trigger replaces the same-tenant check without the tenant.**
 `sameTenant.auto` emits no check for a foreign key column that an app trigger
-(any trigger not named `bsb_*`) reads or writes through `new.<column>` or
-`old.<column>`, because the app is taken to guard it, and BS340 accepts that
-column for the same reason. A trigger that touches the column but never mentions
-the tenant column guards nothing about the tenant, so nothing checks the
-referenced row. Compare the tenant of the referenced row in the trigger, or list
-the reference in `blocks.memberships.options.sameTenant` so the block emits the
-check. Doctor reads the trigger functions in the schema files.
+(any trigger not named `bsb_*`) declares it guards with `@bsb same-tenant-guard
+column=<column>` in its function, and BS340 accepts that column for the same
+reason. A trigger that declares the column but never mentions the tenant column
+guards nothing about the tenant, so nothing checks the referenced row. Compare
+the tenant of the referenced row in the trigger, or remove the marker so the
+block emits the check. A trigger that only reads `new.<column>` or
+`old.<column>` without the marker keeps the generated check. Doctor reads the
+trigger functions in the schema files.
 
 ### BS399
 
@@ -3705,3 +3706,11 @@ slow here often has a policy or a function inside it that is. Run `explain
 database, reports nothing when `pg_stat_statements` is not installed, and a
 saved snapshot skips it. Reset the statistics with `select
 pg_stat_statements_reset()` after a fix to see the new means.
+
+### BS733
+
+**Info: an app trigger turns a generated same-tenant check off.** `sameTenant.auto`
+emits no `bsb_same_tenant_<column>` check for a foreign key column that an app
+trigger declares it guards with `@bsb same-tenant-guard column=<column>`. Doctor
+lists each such column, so a check left to the app is a choice someone can
+review. BS398 warns when the trigger never mentions the tenant column.

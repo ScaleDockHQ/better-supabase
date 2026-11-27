@@ -62,6 +62,7 @@ const trigger = (
   body: string,
 ): string => `create function public.notes_tag_guard()
 returns trigger language plpgsql as $$
+-- @bsb same-tenant-guard column=tag_id
 begin
   ${body}
   return new;
@@ -119,6 +120,34 @@ describe("an app trigger on a tenant foreign key (BS340, BS398)", () => {
       {
         severity: "warning",
         message: expect.stringContaining("no trigger body mentions"),
+      },
+    ]);
+  });
+
+  it("treats an unmarked trigger that only reads the column as no guard", async () => {
+    const ctx = context(unguarded);
+
+    const plain = {
+      ...ctx,
+      sqlFiles: ctx.sqlFiles!.map((file) => ({
+        ...file,
+        text: file.text.replace(
+          "-- @bsb same-tenant-guard column=tag_id\n",
+          "",
+        ),
+      })),
+    };
+
+    expect(target(await run("BS340", plain))).toHaveLength(1);
+    expect(target(await run("BS398", plain))).toEqual([]);
+    expect(target(await run("BS733", plain))).toEqual([]);
+  });
+
+  it("lists a column a marker turns the generated check off for (BS733)", async () => {
+    expect(target(await run("BS733", context(guarded)))).toMatchObject([
+      {
+        severity: "info",
+        message: expect.stringContaining("same-tenant-guard"),
       },
     ]);
   });

@@ -460,9 +460,10 @@ export interface BlockSqlLayout {
    */
   readonly notNullColumns?: Readonly<Record<string, readonly string[]>>;
   /**
-   * The columns the app's own triggers read or write, `schema.table` to names.
-   * `sameTenant.auto` emits nothing for a column an app trigger already guards
-   * (Lienlink's `jobs_organization_fixed`).
+   * The foreign key columns the app's own triggers declare they guard with
+   * `@bsb same-tenant-guard column=...` in the trigger function, `schema.table`
+   * to names. `sameTenant.auto` emits nothing for such a column. A trigger that
+   * only reads the column guards nothing, so its check stays (ADR 1268).
    */
   readonly appTriggerColumns?: Readonly<Record<string, readonly string[]>>;
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
