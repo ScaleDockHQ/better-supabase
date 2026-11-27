@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@6 managed
--- @bsb-hash sha256:e93a43a090bb93d295d168815210fd28b0b53739a03b032b8def793b32922442
+-- @bsb-hash sha256:dbd41ea9831f3b99cb5e5c199efb843f4e5068236d9ed85c29a28bf7f629e3f5
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,6 +159,13 @@ begin
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."identifier"::text, s."body"::text), ''), '/work', '{}'::jsonb
         into v_tenant, v_title, v_body, v_url, v_facets
         from "better_supabase"."work_items" s
+        where s."id" = (search_refresh.subject_id)::uuid
+        and s."archived_at" is null;
+      v_found := found;
+    when 'work_project' then
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."key"::text, s."description"::text), ''), null, '{}'::jsonb
+        into v_tenant, v_title, v_body, v_url, v_facets
+        from "better_supabase"."work_projects" s
         where s."id" = (search_refresh.subject_id)::uuid
         and s."archived_at" is null;
       v_found := found;
@@ -613,6 +620,13 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'work_item' then
     for v_id in select s."id"::text from "better_supabase"."work_items" s loop
       if "better_supabase"."search_refresh"('work_item', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'work_project' then
+    for v_id in select s."id"::text from "better_supabase"."work_projects" s loop
+      if "better_supabase"."search_refresh"('work_project', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;

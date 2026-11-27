@@ -238,6 +238,11 @@ export const permissions = {
     read: "pipelines.read",
     manage: "pipelines.manage",
   },
+  project: {
+    read: "tasks.read",
+    write: "tasks.manage",
+    upload: "tasks.manage",
+  },
   settings: {
     read: "settings.read",
     update: "settings.update",

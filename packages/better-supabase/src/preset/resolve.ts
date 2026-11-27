@@ -231,11 +231,39 @@ function expandComposites(
       return;
     }
 
-    if (!composites.some((each) => each.name === name)) {
-      composites.push({ name, parts, defaults: manifest.defaults ?? {} });
+    if (composites.some((each) => each.name === name)) {
+      if (owner !== undefined) {
+        const owners = partOf.get(name) ?? [];
+
+        if (!owners.includes(owner)) {
+          partOf.set(name, [...owners, owner]);
+        }
+      }
+
+      return;
     }
 
+    composites.push({ name, parts, defaults: manifest.defaults ?? {} });
+
     for (const sql of manifest.sql) {
+      // A glue module that shares the composite's name is the SQL module to
+      // install. Walking that name again expands this same composite.
+      if (sql === name) {
+        if (!out.includes(sql)) {
+          out.push(sql);
+        }
+
+        if (owner !== undefined) {
+          const owners = partOf.get(sql) ?? [];
+
+          if (!owners.includes(owner)) {
+            partOf.set(sql, [...owners, owner]);
+          }
+        }
+
+        continue;
+      }
+
       visit(sql, owner ?? name);
     }
 

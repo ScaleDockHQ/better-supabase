@@ -451,6 +451,11 @@ export const permissions = {
     read: "catalog.read",
     write: "catalog.manage",
   },
+  project: {
+    read: "tasks.read",
+    write: "tasks.manage",
+    upload: "tasks.manage",
+  },
   qualification_type: {
     read: "qualifications.read",
     write: "qualifications.manage",

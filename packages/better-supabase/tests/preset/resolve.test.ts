@@ -244,11 +244,17 @@ const withoutComposites = (names: readonly string[]): string[] =>
       return ["invitations", ...withoutComposites(PARTS_OF(name))];
     }
 
-    const parts = Object.keys(
-      BLOCK_MANIFESTS.find((block) => block.name === name)?.composes ?? {},
-    );
+    const manifest = BLOCK_MANIFESTS.find((block) => block.name === name);
+    const parts = Object.keys(manifest?.composes ?? {});
 
-    return parts.length === 0 ? [name] : withoutComposites(parts);
+    if (parts.length === 0) {
+      return [name];
+    }
+
+    // A glue module that shares the composite's name is SQL, not a part.
+    const glue = (manifest?.sql ?? []).filter((sql) => !parts.includes(sql));
+
+    return [...glue, ...withoutComposites(parts)];
   });
 
 const PARTS_OF = (name: string): string[] =>

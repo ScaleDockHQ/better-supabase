@@ -183,7 +183,7 @@ insert into better_supabase.work_projects (id, tenant_id, key, name, owner_id, s
 
 set session_replication_role = replica;
 
-insert into better_supabase.work_items (id, tenant_id, number, identifier, title, body, team_id, project_id, priority, estimate, state, due_at, rank, created_by, closed_at, close_reason) values
+insert into better_supabase.work_items (id, tenant_id, number, identifier, title, body, team_id, work_project_id, priority, estimate, state, due_at, rank, created_by, closed_at, close_reason) values
   ('00000000-0000-4000-8000-00000000f101', '00000000-0000-4000-8000-000000000001', 1, 'TASK-1', 'Draft the new homepage copy', 'Hero, pricing teaser and the customer quotes.', '00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-00000000f001', 2, 3, 'started', now() + interval '5 days', 'V', '00000000-0000-4000-8000-0000000000a1', null, null),
   ('00000000-0000-4000-8000-00000000f102', '00000000-0000-4000-8000-000000000001', 2, 'TASK-2', 'Pick a hosting plan', null, null, '00000000-0000-4000-8000-00000000f001', 3, 1, 'completed', null, 'W', '00000000-0000-4000-8000-0000000000a1', now() - interval '3 days', 'completed'),
   ('00000000-0000-4000-8000-00000000f103', '00000000-0000-4000-8000-000000000001', 3, 'TASK-3', 'Redirect the old blog URLs', 'Map every /blog/<year>/<slug> to /posts/<slug>.', null, '00000000-0000-4000-8000-00000000f001', 2, 2, 'unstarted', now() + interval '12 days', 'X', '00000000-0000-4000-8000-0000000000a1', null, null),

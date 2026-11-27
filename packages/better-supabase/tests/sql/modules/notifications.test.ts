@@ -101,7 +101,7 @@ describe("notifications module", () => {
     expect(sql).toContain('"data" jsonb not null default');
     expect(sql).toContain("notification_events_key_idx");
     expect(sql).toContain(
-      'grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;',
+      'grant update ("read_at", "dismissed_at", "snoozed_until") on "better_supabase"."notification_recipients" to authenticated;',
     );
     expect(sql).toContain("notification_deliveries");
     expect(sql).toContain("notification_subscriptions");
@@ -258,6 +258,7 @@ describe("notifications module", () => {
       "mark_notifications_read",
       "mark_notifications_unread",
       "dismiss_notifications",
+      "snooze_notification",
       "purge_notifications",
       "resolve_notifications",
       "set_notification_subscription",
@@ -278,7 +279,7 @@ describe("notifications module", () => {
       },
     });
 
-    expect(minimal!.functions).toHaveLength(12);
+    expect(minimal!.functions).toHaveLength(13);
   });
 
   it("reads one notification and returns the changed ones from each update", () => {

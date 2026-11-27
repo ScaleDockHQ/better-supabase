@@ -42,7 +42,9 @@ const MODULES = [
 // The shared stack's work_items table references `work_projects`, the name
 // the Next.js example gives it.
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["tasks"], {}),
+  subjects: withBlockSubjects({}, ["tasks"], {
+    tasks: { tables: { projects: "work_projects" } },
+  }),
   modules: { tasks: { tables: { projects: "work_projects" } } },
 };
 

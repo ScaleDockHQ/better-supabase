@@ -1803,12 +1803,12 @@ export const personListFilter: z.ZodType<{ search?: string; lifecycle?: string; 
   cursor: z.json().meta({ description: "The last row's `{ name, id }`." }).exactOptional(),
 }).meta({ title: "PartyListOptions" });
 
-export const workItemInput: z.ZodType<{ title: string; body?: string; parentId?: string; teamId?: string; projectId?: string; iterationId?: string; priority?: number; estimate?: number; progress?: number; startAt?: Temporal.Instant; endAt?: Temporal.Instant; dueAt?: Temporal.Instant; pipelineId?: string; stageId?: string; attachmentIds?: string[]; fields?: Json }> = z.object({
+export const workItemInput: z.ZodType<{ title: string; body?: string; parentId?: string; teamId?: string; workProjectId?: string; iterationId?: string; priority?: number; estimate?: number; progress?: number; startAt?: Temporal.Instant; endAt?: Temporal.Instant; dueAt?: Temporal.Instant; pipelineId?: string; stageId?: string; attachmentIds?: string[]; fields?: Json }> = z.object({
   title: z.string().min(1).max(500),
   body: z.string().exactOptional(),
   parentId: z.guid().exactOptional(),
   teamId: z.guid().exactOptional(),
-  projectId: z.guid().exactOptional(),
+  workProjectId: z.guid().exactOptional(),
   iterationId: z.guid().exactOptional(),
   priority: z.int().min(0).max(4).exactOptional(),
   estimate: z.number().min(0).exactOptional(),
@@ -1829,9 +1829,9 @@ export const workItemChange: z.ZodType<{ workItemId: string; expectedVersion?: T
   value: z.unknown().meta({ description: "`null` clears the field." }),
 }).meta({ title: "WorkItemChange" });
 
-export const workItemListFilter: z.ZodType<{ teamId?: string; projectId?: string; iterationId?: string; parentId?: string; assigneeId?: string; states?: ("triage" | "backlog" | "unstarted" | "started" | "completed" | "canceled")[]; open?: boolean; search?: string; after?: string; limit?: number }> = z.object({
+export const workItemListFilter: z.ZodType<{ teamId?: string; workProjectId?: string; iterationId?: string; parentId?: string; assigneeId?: string; states?: ("triage" | "backlog" | "unstarted" | "started" | "completed" | "canceled")[]; open?: boolean; search?: string; after?: string; limit?: number }> = z.object({
   teamId: z.guid().exactOptional(),
-  projectId: z.guid().exactOptional(),
+  workProjectId: z.guid().exactOptional(),
   iterationId: z.guid().exactOptional(),
   parentId: z.guid().exactOptional(),
   assigneeId: z.guid().exactOptional(),

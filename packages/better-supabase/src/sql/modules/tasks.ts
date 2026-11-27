@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- milestones, cadences and triage add lines past the limit. 1 finding. */
 import type { TasksEvents } from "../../blocks/tasks/events.ts";
 import type {
   BlockSqlContext,
@@ -11,6 +12,7 @@ import type { TaskNames } from "./tasks-functions.ts";
 
 import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { declareRead } from "../reads.ts";
 import { entityType } from "../resolved-names.ts";
 import { searchColumnSql } from "../search-column.ts";
 import { fail, schemaPreamble, triggerGrant } from "../shared.ts";
@@ -39,6 +41,7 @@ import {
   holdApprovalContribution,
 } from "./tasks-hold-approvals.ts";
 import { taskLinesContract, taskLinesSql } from "./tasks-lines.ts";
+import { projectWorkSql } from "./tasks-projects.ts";
 import { createTaskWithSla } from "./tasks-sla.ts";
 
 /** The subject type of a project, after `blocks.tasks.entities`. */
@@ -77,6 +80,29 @@ const ITEM = [
   "subjectType",
   "subjectId",
   "title",
+  "actorId",
+  "actorKind",
+  "actorName",
+] as const;
+
+const PROJECT_EVENT = [
+  "organizationId",
+  "projectId",
+  "subjectType",
+  "subjectId",
+  "key",
+  "name",
+  "actorId",
+  "actorKind",
+  "actorName",
+] as const;
+
+const ITERATION_EVENT = [
+  "organizationId",
+  "iterationId",
+  "subjectType",
+  "subjectId",
+  "name",
   "actorId",
   "actorKind",
   "actorName",
@@ -123,6 +149,31 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
     subject: "tasks",
     payload: [...ITEM, "kind", "returnStageId"],
   },
+  "project.created": { subject: "projects", payload: [...PROJECT_EVENT] },
+  "project.updated": { subject: "projects", payload: [...PROJECT_EVENT] },
+  "project.archived": { subject: "projects", payload: [...PROJECT_EVENT] },
+  "project.restored": { subject: "projects", payload: [...PROJECT_EVENT] },
+  "project.deleted": { subject: "projects", payload: [...PROJECT_EVENT] },
+  "iteration.created": { subject: "iterations", payload: [...ITERATION_EVENT] },
+  "iteration.updated": { subject: "iterations", payload: [...ITERATION_EVENT] },
+  "iteration.deleted": { subject: "iterations", payload: [...ITERATION_EVENT] },
+  "iteration.started": { subject: "iterations", payload: [...ITERATION_EVENT] },
+  "iteration.completed": {
+    subject: "iterations",
+    payload: [...ITERATION_EVENT],
+  },
+  "project_milestone.created": {
+    subject: "milestones",
+    payload: [...PROJECT_EVENT, "milestoneId"],
+  },
+  "project_milestone.updated": {
+    subject: "milestones",
+    payload: [...PROJECT_EVENT, "milestoneId"],
+  },
+  "project_milestone.deleted": {
+    subject: "milestones",
+    payload: [...PROJECT_EVENT, "milestoneId"],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -143,6 +194,24 @@ const NAMES: BlockSqlNames = {
     },
   ],
   events: EVENTS,
+  reads: [
+    declareRead(
+      "project",
+      "get_project",
+      { projectId: { param: "project", type: "id" } },
+      "json",
+      "One project the caller can read, with its progress.",
+      ["projects", "items"],
+    ),
+    declareRead(
+      "board",
+      "page_tasks",
+      { organizationId: { param: "tenant", type: "id" } },
+      "json",
+      "A tenant's tasks as a keyset page. Filters go through the page method.",
+      ["items", "assignees"],
+    ),
+  ],
   entities: {
     task: {
       table: "items",
@@ -160,8 +229,20 @@ const NAMES: BlockSqlNames = {
         template: "template",
       },
     },
-    project: { table: "projects", singular: "project" },
+    project: {
+      table: "projects",
+      singular: "project",
+      subject: {
+        title: "name",
+        deletedAt: "archivedAt",
+        permissions: { read: "read", write: "manage", upload: "manage" },
+        search: { title: "name", body: ["key", "description"] },
+        realtime: true,
+        history: ["name", "status", "description"],
+      },
+    },
     iteration: { table: "iterations", singular: "iteration" },
+    project_milestone: { table: "milestones", singular: "project_milestone" },
     checklist_item: { table: "checklist", singular: "checklist_item" },
   },
   hooks: [
@@ -184,6 +265,7 @@ const NAMES: BlockSqlNames = {
     "needs",
     "claims",
     "hold",
+    "identifiers",
   ],
   tables: {
     items: {
@@ -229,6 +311,9 @@ const NAMES: BlockSqlNames = {
         holdReturnStage: "hold_return_stage_id",
         delegateProfile: "delegate_profile",
         closeNote: "close_note",
+        milestone: "milestone_id",
+        duplicateOf: "duplicate_of",
+        snoozedUntil: "snoozed_until",
       },
       optional: [
         "waitingOn",
@@ -250,6 +335,9 @@ const NAMES: BlockSqlNames = {
         "createdBy",
         "template",
         "sourceTemplate",
+        "milestone",
+        "duplicateOf",
+        "snoozedUntil",
       ],
       typed: ["state", "closeReason"],
       mappable: ["priority"],
@@ -345,10 +433,23 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         key: "key",
         name: "name",
+        description: "description",
         owner: "owner_id",
+        team: "team_id",
         status: "status",
+        priority: "priority",
+        icon: "icon",
+        color: "color",
+        rank: "rank",
+        health: "health",
+        healthAt: "health_at",
         startOn: "start_on",
         targetOn: "target_on",
+        startResolution: "start_resolution",
+        targetResolution: "target_resolution",
+        completedAt: "completed_at",
+        canceledAt: "canceled_at",
+        template: "template",
         budgetAmount: "budget_amount",
         budgetCurrency: "budget_currency",
         budgetHours: "budget_hours",
@@ -357,12 +458,25 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
       optional: [
+        "description",
         "owner",
+        "team",
+        "priority",
+        "icon",
+        "color",
+        "rank",
+        "health",
+        "healthAt",
         "startOn",
         "targetOn",
+        "startResolution",
+        "targetResolution",
+        "completedAt",
+        "canceledAt",
         "budgetAmount",
         "budgetCurrency",
         "budgetHours",
+        "template",
       ],
       typed: ["status"],
     },
@@ -378,9 +492,76 @@ const NAMES: BlockSqlNames = {
         name: "name",
         startsOn: "starts_on",
         endsOn: "ends_on",
+        number: "number",
+        description: "description",
         createdAt: "created_at",
       },
-      optional: ["team"],
+      optional: ["team", "number", "description"],
+    },
+    milestones: {
+      name: "milestones",
+      optionalTable: true,
+      omitWithout: "projects",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        project: "project_id",
+        name: "name",
+        description: "description",
+        targetOn: "target_on",
+        rank: "rank",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    cadences: {
+      name: "iteration_cadences",
+      optionalTable: true,
+      omitWithout: "iterations",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        team: "team_id",
+        weeks: "weeks",
+        cooldownDays: "cooldown_days",
+        startWeekday: "start_weekday",
+        upcoming: "upcoming",
+        rollover: "rollover",
+        createdAt: "created_at",
+      },
+    },
+    snapshots: {
+      name: "iteration_snapshots",
+      optionalTable: true,
+      omitWithout: "iterations",
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        iteration: "iteration_id",
+        day: "day",
+        scope: "scope",
+        started: "started",
+        completed: "completed",
+      },
+    },
+    identifiers: {
+      name: "task_identifiers",
+      optionalTable: true,
+      omitUnless: { option: "identifiers", value: "project" },
+      app: {},
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        tenant: "tenant_id",
+        identifier: "identifier",
+        item: "task_id",
+        createdAt: "created_at",
+      },
     },
   },
 };
@@ -472,8 +653,8 @@ create table if not exists ${t("projects")} (
   ${p("id")} uuid primary key default gen_random_uuid(),
   ${p("tenant")} ${ctx.idType} not null,
   ${p("key")} text not null check (${p("key")} ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),${column("projects", "owner", (name) => `${name} uuid`)}
-  ${p("status")} text not null default 'planned' check (${p("status")} in ('planned', 'active', 'paused', 'completed', 'canceled')),${column("projects", "startOn", (name) => `${name} date`)}${column("projects", "targetOn", (name) => `${name} date`)}
+  ${p("name")} text not null check (length(${p("name")}) between 1 and 200),${column("projects", "description", (name) => `${name} text check (${name} is null or length(${name}) between 1 and 10000)`)}${column("projects", "owner", (name) => `${name} uuid`)}${column("projects", "team", (name) => `${name} uuid`)}
+  ${p("status")} text not null default 'planned' check (${p("status")} in ('planned', 'active', 'paused', 'completed', 'canceled')),${column("projects", "priority", (name) => `${name} smallint not null default 0 check (${name} between 0 and 4)`)}${column("projects", "icon", (name) => `${name} text check (${name} is null or length(${name}) between 1 and 50)`)}${column("projects", "color", (name) => `${name} text check (${name} is null or length(${name}) between 1 and 50)`)}${column("projects", "rank", (name) => `${name} text collate "C" not null default 'V'`)}${column("projects", "health", (name) => `${name} text check (${name} is null or ${name} in ('on_track', 'at_risk', 'off_track'))`)}${column("projects", "healthAt", (name) => `${name} timestamptz`)}${column("projects", "startOn", (name) => `${name} date`)}${column("projects", "targetOn", (name) => `${name} date`)}${column("projects", "startResolution", (name) => `${name} text check (${name} is null or ${name} in ('day', 'month', 'quarter', 'half', 'year'))`)}${column("projects", "targetResolution", (name) => `${name} text check (${name} is null or ${name} in ('day', 'month', 'quarter', 'half', 'year'))`)}${column("projects", "completedAt", (name) => `${name} timestamptz`)}${column("projects", "canceledAt", (name) => `${name} timestamptz`)}
   ${p("archivedAt")} timestamptz,
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now(),
@@ -522,7 +703,7 @@ create table if not exists ${t("items")} (
   ${w("archivedAt")} timestamptz,${column("items", "createdBy", (name) => `${name} uuid`)}
   ${w("createdAt")} timestamptz not null default now(),
   ${w("updatedAt")} timestamptz not null default now(),
-  unique (${w("tenant")}, ${w("number")})${both("items", "startAt", "endAt") ? `,\n  check (${w("endAt")} is null or ${w("startAt")} is null or ${w("endAt")} >= ${w("startAt")})` : ""}
+  ${ctx.text("identifiers", "tenant") === "project" ? `unique (${w("tenant")}, ${w("identifier")})` : `unique (${w("tenant")}, ${w("number")})`}${both("items", "startAt", "endAt") ? `,\n  check (${w("endAt")} is null or ${w("startAt")} is null or ${w("endAt")} >= ${w("startAt")})` : ""}
 );${appUniqueIndex(ctx, "items", ["tenant", "number"])}
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_board_idx`)} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_parent_idx`)} on ${t("items")} (${w("parent")});${ctx.has("items", "project") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("project_idx")}`)} on ${t("items")} (${w("project")});` : ""}${ctx.has("items", "iteration") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("iteration_idx")}`)} on ${t("items")} (${w("iteration")});` : ""}
@@ -540,7 +721,8 @@ create index if not exists ${sqlIdent(`${ctx.tableName("assignees").name}_user_i
 ${lockModuleTable(ctx, "assignees", { read: true })}
 ${read("assignees")}
 ${checklistTable(ctx, n)}
-${taskLinesSql(ctx, n)}`;
+${taskLinesSql(ctx, n)}
+${projectWorkSql(ctx)}`;
 }
 
 /**
@@ -746,6 +928,60 @@ update ${items} y set ${w("rank")} = ${ctx.of("rank").fn("rank_key")}(o.nth, o.t
  * The version 7 step: delegate_profile stored the delegator's actor label, and
  * now stores a reservation, so old values are cleared.
  */
+function upgradeFromEight(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom" || !ctx.hasTable("projects")) {
+    return "";
+  }
+
+  const add = (
+    logical: string,
+    definition: (column: string) => string,
+  ): string =>
+    ctx.has("projects", logical)
+      ? `alter table ${ctx.table("projects")} add column if not exists ${ctx.col("projects", logical)} ${definition(ctx.col("projects", logical))};`
+      : "";
+
+  const resolution = (column: string): string =>
+    `text check (${column} is null or ${column} in ('day', 'month', 'quarter', 'half', 'year'))`;
+
+  return [
+    add(
+      "description",
+      (column) =>
+        `text check (${column} is null or length(${column}) between 1 and 10000)`,
+    ),
+    add("team", () => "uuid"),
+    add(
+      "priority",
+      (column) =>
+        `smallint not null default 0 check (${column} between 0 and 4)`,
+    ),
+    add(
+      "icon",
+      (column) =>
+        `text check (${column} is null or length(${column}) between 1 and 50)`,
+    ),
+    add(
+      "color",
+      (column) =>
+        `text check (${column} is null or length(${column}) between 1 and 50)`,
+    ),
+    add("rank", () => `text collate "C" not null default 'V'`),
+    add(
+      "health",
+      (column) =>
+        `text check (${column} is null or ${column} in ('on_track', 'at_risk', 'off_track'))`,
+    ),
+    add("healthAt", () => "timestamptz"),
+    add("startResolution", resolution),
+    add("targetResolution", resolution),
+    add("completedAt", () => "timestamptz"),
+    add("canceledAt", () => "timestamptz"),
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
 function upgradeFromSix(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom" || !ctx.has("items", "delegateProfile")) {
     return "";
@@ -847,6 +1083,41 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             args: ["{id}", "uuid", "jsonb"],
             returns: "jsonb",
           },
+          {
+            name: "archive_project",
+            args: ["uuid", "boolean"],
+            returns: "boolean",
+          },
+          { name: "remove_project", args: ["uuid"], returns: "boolean" },
+          {
+            name: "clone_project",
+            args: ["uuid", "integer"],
+            returns: "jsonb",
+          },
+          ...(ctx.has("projects", "health")
+            ? [
+                {
+                  name: "set_project_health",
+                  args: ["uuid", "text"],
+                  returns: "boolean",
+                },
+              ]
+            : []),
+          ...(ctx.hasTable("milestones")
+            ? [
+                {
+                  name: "save_milestone",
+                  args: ["{id}", "uuid", "jsonb"],
+                  returns: "jsonb",
+                },
+                { name: "page_milestones", args: ["uuid"], returns: "jsonb" },
+                {
+                  name: "remove_milestone",
+                  args: ["uuid"],
+                  returns: "boolean",
+                },
+              ]
+            : []),
         ]
       : []),
     ...(ctx.hasTable("iterations")
@@ -855,6 +1126,39 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             name: "upsert_iteration",
             args: ["{id}", "uuid", "jsonb"],
             returns: "jsonb",
+          },
+          {
+            name: "page_iterations",
+            args: ["{id}", "jsonb"],
+            returns: "jsonb",
+          },
+          { name: "get_iteration", args: ["uuid"], returns: "jsonb" },
+          { name: "remove_iteration", args: ["uuid"], returns: "boolean" },
+          ...(ctx.hasTable("cadences")
+            ? [
+                {
+                  name: "save_iteration_cadence",
+                  args: ["{id}", "uuid", "jsonb"],
+                  returns: "jsonb",
+                },
+                { name: "iteration_burnup", args: ["uuid"], returns: "jsonb" },
+                { name: "roll_iterations", args: [], returns: "integer" },
+              ]
+            : []),
+        ]
+      : []),
+    { name: "accept_task", args: ["uuid"], returns: "jsonb" },
+    { name: "decline_task", args: ["uuid"], returns: "jsonb" },
+    { name: "snooze_task", args: ["uuid", "timestamptz"], returns: "jsonb" },
+    ...(ctx.has("items", "duplicateOf")
+      ? [{ name: "mark_duplicate", args: ["uuid", "uuid"], returns: "jsonb" }]
+      : []),
+    ...(ctx.hasTable("identifiers")
+      ? [
+          {
+            name: "resolve_task_identifier",
+            args: ["{id}", "text"],
+            returns: "uuid",
           },
         ]
       : []),
@@ -929,8 +1233,8 @@ const CONTRIBUTES: BlockContributes = {
         own.permissionKey("manage", moduleOperations("tasks").manage),
       ).holdApproval,
     ),
-  housekeeping: (own) =>
-    own.hasTable("claims")
+  housekeeping: (own) => [
+    ...(own.hasTable("claims")
       ? [
           {
             job: own.fnName("expire_task_claims"),
@@ -938,7 +1242,17 @@ const CONTRIBUTES: BlockContributes = {
             every: "1 minute",
           },
         ]
-      : [],
+      : []),
+    ...(own.hasTable("cadences")
+      ? [
+          {
+            job: own.fnName("roll_iterations"),
+            function: own.fn("roll_iterations"),
+            every: "1 day",
+          },
+        ]
+      : []),
+  ],
   "option-sets": (own) => [
     {
       type: taskType(own),
@@ -1046,7 +1360,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 10,
   upgrades: [
     {
       from: 1,
@@ -1077,6 +1391,18 @@ export const WORK_ITEMS: BlockSqlDefinition = {
       description:
         "Adds options.claims.agents, which names the sessions the claim rules treat as agents, approval rules per hold kind in options.hold.approval.kinds, and the waiting list filter (ADR 1219).",
       sql: () => "",
+    },
+    {
+      from: 8,
+      description:
+        "Projects become subjects: description, team, priority, icon, color, rank, health and timeframes, plus project and iteration events.",
+      sql: (ctx) => upgradeFromEight(ctx),
+    },
+    {
+      from: 9,
+      description:
+        "Milestones, per-project identifiers, cycle cadences and snapshots, triage actions and task snooze.",
+      sql: (ctx) => projectWorkSql(ctx),
     },
   ],
   names: NAMES,

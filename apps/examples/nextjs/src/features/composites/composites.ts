@@ -137,6 +137,13 @@ export function projectsOf(db: AppDb) {
       approvals: blocks.approvals,
       invoices: blocks.invoices,
       meetings: blocks.meetings,
+      comments: blocks.comments,
+      attachments: blocks.attachments,
+      tags: blocks.tags,
+      timeline: blocks.timeline,
+      relations: blocks.relations,
+      "saved-views": blocks.savedViews,
+      subjects: blocks.subjects,
     },
   });
 }

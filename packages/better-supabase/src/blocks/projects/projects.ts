@@ -10,11 +10,13 @@ import type { BlockContext } from "../create-blocks.ts";
 import type { CompositeOptions } from "../define-block.ts";
 import type { Timesheet } from "../time-entries/index.ts";
 import type { ProjectsParts } from "./manifest.ts";
+import type { ProjectCard, ProjectOverview } from "./overview.ts";
 
 import { money, roundHalfEven } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult as Async, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { projectPage } from "./page.ts";
 
 /** What `projects.approveAndInvoice` returns. */
 export interface ApprovedAndInvoiced {
@@ -98,6 +100,70 @@ export interface Projects {
     projectId: string;
     retainer: Money;
   }): AsyncResult<RetainerDrawdown>;
+  /**
+   * The project page: the project, its record team, task counts per state,
+   * financials, blocking projects, file count, recent activity and the views
+   * saved under `project:<id>`. The first failed read is the result.
+   */
+  overview(input: {
+    organizationId: string;
+    projectId: string;
+    /** The project subject's type. Default: `project`. */
+    subjectType?: string;
+  }): AsyncResult<ProjectOverview>;
+  /**
+   * Comment counts, tags, file counts and sub-task progress for each task, in
+   * one round of reads.
+   */
+  cards(input: {
+    organizationId: string;
+    taskIds: readonly string[];
+    /** The task subject's type. Default: `task`. */
+    subjectType?: string;
+  }): AsyncResult<Readonly<Record<string, ProjectCard>>>;
+  /** The views saved for one project, under the list key `project:<id>`. */
+  views(
+    projectId: string,
+  ): AsyncResult<readonly { readonly id: string; readonly name: string }[]>;
+  /** Posts an update, sets the project's health and tells its subscribers. */
+  postUpdate(input: {
+    organizationId: string;
+    projectId: string;
+    health: "on_track" | "at_risk" | "off_track";
+    body: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  /**
+   * Projects this one blocks and projects that block it. `violated` is true
+   * when the blocker's target date is after the dependent's start date.
+   */
+  dependencies(input: {
+    projectId: string;
+    subjectType?: string;
+  }): AsyncResult<
+    readonly {
+      readonly direction: "in" | "out";
+      readonly projectId: string;
+      readonly violated: boolean;
+    }[]
+  >;
+  saveInitiative(input: {
+    organizationId: string;
+    initiativeId?: string;
+    name: string;
+    description?: string;
+    status?: string;
+    priority?: number;
+    ownerId?: string;
+    targetOn?: string;
+    parentId?: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  pageInitiatives(
+    organizationId: string,
+  ): AsyncResult<readonly Record<string, unknown>[]>;
+  linkInitiative(input: {
+    initiativeId: string;
+    projectId: string;
+  }): AsyncResult<boolean>;
 }
 
 const HOUR_SECONDS = 3600n;
@@ -167,6 +233,24 @@ function billableOf(
 export function createProjects(options: ProjectsOptions): Projects {
   const { "time-entries": timeEntries, "billable-time": billableTime } =
     options.parts;
+
+  const financialsOf = (input: {
+    projectId: string;
+    subjectType?: string;
+  }): AsyncResult<ProjectFinancials> =>
+    timeEntries
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
+      .list({
+        everyone: true,
+        subject: { type: input.subjectType ?? "project", id: input.projectId },
+      })
+      .map(billableOf);
+
+  const financials = (input: {
+    projectId: string;
+  }): AsyncResult<ProjectFinancials> => financialsOf(input);
+
+  const page = projectPage(options, financialsOf);
 
   const client: Projects = {
     approveAndInvoice: ({ timesheetId, decidedBy, invoice }) =>
@@ -248,11 +332,7 @@ export function createProjects(options: ProjectsOptions): Projects {
           })),
         });
       }),
-    financials: ({ projectId }) =>
-      timeEntries
-        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
-        .list({ everyone: true, subject: { type: "project", id: projectId } })
-        .map(billableOf),
+    financials,
     retainerDrawdown: ({ projectId, retainer }) =>
       timeEntries
         // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
@@ -272,6 +352,14 @@ export function createProjects(options: ProjectsOptions): Projects {
             exhausted: left <= 0n,
           };
         }),
+    overview: page.overview,
+    cards: page.cards,
+    views: page.views,
+    postUpdate: page.postUpdate,
+    dependencies: page.dependencies,
+    saveInitiative: page.saveInitiative,
+    pageInitiatives: page.pageInitiatives,
+    linkInitiative: page.linkInitiative,
   };
 
   return withBlockHooks(client, options.hooks, {

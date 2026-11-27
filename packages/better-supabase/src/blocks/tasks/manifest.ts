@@ -45,9 +45,22 @@ export const tasksBlock: BlockOf<
     project: {
       ...projectListSurface,
       mutability: "editable",
-      emits: { update: false },
+      emits: {
+        create: true,
+        update: true,
+        delete: true,
+        archive: true,
+        restore: true,
+      },
     },
-    iteration: { mutability: "editable", emits: { update: false } },
+    iteration: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    project_milestone: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
     checklist_item: {
       mutability: "editable",
       emits: { update: false, delete: false },

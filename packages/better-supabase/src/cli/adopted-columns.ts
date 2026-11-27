@@ -201,6 +201,11 @@ function computeManagedText(module: string): TextColumns {
     );
 
     for (const [logical, spec] of Object.entries(definition.names.tables)) {
+      // omitUnless and omitWithout map the table to null. It has no name.
+      if (!ctx.hasTable(logical)) {
+        continue;
+      }
+
       const { schema, name } = ctx.tableName(logical);
       const declared = types.get(`${schema}.${name}`);
       const written = defaultWrites().get(`${schema}.${name}`);

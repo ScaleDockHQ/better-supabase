@@ -41,7 +41,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   assignment:
     "assign_subject assignment_history delete_assignment_queue list_assignment_queues set_assignment_members upsert_assignment_queue",
   attachments:
-    "claim_attachment_upload confirm_attachment create_attachment define_attachment_document_type delete_attachment delete_attachment_document_type get_attachment list_attachment_document_types list_attachment_versions list_attachments mark_attachment_missing object_scan page_attachments replace_attachment restore_attachment_version set_attachment_status set_object_scan",
+    "attachment_counts claim_attachment_upload confirm_attachment create_attachment define_attachment_document_type delete_attachment delete_attachment_document_type get_attachment list_attachment_document_types list_attachment_versions list_attachments mark_attachment_missing object_scan page_attachments replace_attachment restore_attachment_version set_attachment_status set_object_scan",
   audit:
     "audit_event audit_event_many audit_event_types audit_events_tenants chain_heads chain_proof count_audit_events get_audit_event list_audit_events list_chain_checkpoints purge_audit_log record_chain_checkpoint verify_chain",
   automations:
@@ -73,7 +73,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "chat-sdk-state":
     "chat_install chat_installation chat_state_acquire_lock chat_state_append_to_list chat_state_delete chat_state_dequeue chat_state_enqueue chat_state_extend_lock chat_state_force_release_lock chat_state_get chat_state_get_list chat_state_is_subscribed chat_state_queue_depth chat_state_release_lock chat_state_set chat_state_set_if_not_exists chat_state_subscribe chat_state_unsubscribe chat_uninstall list_chat_installations purge_chat_state",
   collections:
-    "archive_collection collection_entries collection_subject_ids collections_of complete_saved_item create_collection create_collection_entries delete_collection_entries delete_saved_item get_collection list_collections list_saved_items page_collections rank_collection_entry rank_star remind_due_saved_items rename_collection star_subject starred_subjects unstar_subject upsert_for_later",
+    "archive_collection collection_entries collection_subject_ids collections_of complete_saved_item create_collection create_collection_entries delete_collection_entries delete_saved_item get_collection list_collections list_saved_items move_star page_collections rank_collection_entry rank_star remind_due_saved_items remove_star_folder rename_collection save_star_folder star_subject starred_subjects unstar_subject upsert_for_later",
   comments:
     "comment_conversation comment_counts copy_comments create_comment get_comment list_comments list_file_comments",
   compliance:
@@ -206,7 +206,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   moderation:
     "ban_user decide_appeal decide_notice file_appeal issue_statement list_bans list_notices list_statements moderate moderation_item moderation_queue moderation_statuses report_content set_trusted_flagger submit_notice transparency_report unban_user",
   notifications:
-    "claim_notification_deliveries claim_notification_digests complete_notification_delivery complete_notification_digest dismiss_notifications get_notification list_notification_preferences list_notification_subscriptions list_notification_suppressions list_notifications list_subject_deliveries mark_notifications_read mark_notifications_unread notification_counts notification_page purge_notifications record_delivery_event resolve_notifications send_notification send_notifications set_notification_preference set_notification_subscription suppress_notification_address unsuppress_notification_address",
+    "claim_notification_deliveries claim_notification_digests complete_notification_delivery complete_notification_digest dismiss_notifications get_notification list_notification_preferences list_notification_subscriptions list_notification_suppressions list_notifications list_subject_deliveries mark_notifications_read mark_notifications_unread notification_counts notification_page purge_notifications record_delivery_event resolve_notifications send_notification send_notifications set_notification_preference set_notification_subscription snooze_notification suppress_notification_address unsuppress_notification_address",
   numbering: "next_number preview_number",
   "oauth-server":
     "create_oauth_authorization_code create_oauth_device_code decide_oauth_device_code delete_oauth_client is_oauth_token_revoked list_oauth_grants oauth_client oauth_device_request poll_oauth_device_code purge_oauth_server redeem_oauth_authorization_code register_oauth_client revoke_oauth_grant revoke_oauth_token rotate_oauth_client_secret update_oauth_client verify_oauth_client verify_oauth_registration_token",
@@ -231,6 +231,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   posts:
     "archive_post create_post get_post list_post_boards list_posts merge_posts page_post_boards page_posts purge_post restore_post set_post_state update_post upsert_post_board vote_on_post",
   profiles: "my_profile update_my_profile",
+  projects:
+    "link_initiative_project page_initiatives page_project_updates save_initiative save_project_update",
   promotions:
     "apply_promotion_code create_promotion_codes delete_promotion delete_promotion_code remove_promotion_code set_promotion_active upsert_promotion",
   push: "prune_push_tokens push_tokens_for register_push_device unregister_push_device",
@@ -290,9 +292,9 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "purge_streams stream_append stream_cancel stream_close stream_kv_get stream_kv_incr stream_kv_publish stream_kv_set stream_open stream_read stream_status",
   subjects:
     "can_subject can_subject_for create_subject_member end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
-  tags: "create_tag delete_tag get_tag list_tags page_tags rank_tag subject_tags tag untag update_tag",
+  tags: "create_tag delete_tag get_tag list_tags page_tags rank_tag subject_tags subjects_tags tag untag update_tag",
   tasks:
-    "archive_task archive_tasks claim_next_task claim_task clone_task close_task create_task create_tasks delegate_task delete_task delete_task_checklist_item delete_tasks get_project get_task hold_task list_task_checklist list_tasks page_projects page_tasks release_task_claim release_task_hold renew_task_claim set_task_assignees task_stage_times task_tree update_tasks upsert_iteration upsert_project upsert_task_checklist_item",
+    "accept_task archive_project archive_task archive_tasks claim_next_task claim_task clone_project clone_task close_task create_task create_tasks decline_task delegate_task delete_task delete_task_checklist_item delete_tasks get_iteration get_project get_task hold_task iteration_burnup list_task_checklist list_tasks mark_duplicate page_iterations page_milestones page_projects page_tasks release_task_claim release_task_hold remove_iteration remove_milestone remove_project renew_task_claim save_iteration_cadence save_milestone set_task_assignees snooze_task task_stage_times task_tree update_tasks upsert_iteration upsert_project upsert_task_checklist_item",
   teams:
     "archive_team create_team create_team_member delete_team_member get_team list_teams purge_team purge_teams update_team",
   templates:

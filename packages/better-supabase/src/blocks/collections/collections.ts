@@ -283,6 +283,19 @@ export interface Collections<F extends object = Record<never, never>> {
   starred(
     input: { organizationId: string } & { readonly type?: string },
   ): AsyncResult<Star[]>;
+  /** Creates or renames one of the caller's favorite folders. */
+  saveStarFolder(input: {
+    organizationId: string;
+    folderId?: string;
+    name: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** Deletes a folder. Its stars stay, with no folder. */
+  removeStarFolder(folderId: string): AsyncResult<boolean>;
+  /** Moves a star into a folder. `folderId` null takes it out. */
+  moveStar(input: {
+    subject: CollectionSubject;
+    folderId: string | null;
+  }): AsyncResult<boolean>;
   /** Moves a star between its neighbours' rank keys. Resolves to its new key. */
   reorderStar(input: {
     subject: CollectionSubject;
@@ -688,6 +701,24 @@ export function createCollections<
         "starred_subjects",
         { tenant: organizationId, subject_type: starredOptions.type ?? null },
         (value) => recordsOf(value, "starred_subjects").map(starOf),
+      ),
+    saveStarFolder: ({ organizationId, folderId, name }) =>
+      call(
+        "save_star_folder",
+        { tenant: organizationId, id: folderId ?? null, name },
+        (value) => (isRecord(value) ? value : {}),
+      ),
+    removeStarFolder: (folderId) =>
+      call("remove_star_folder", { id: folderId }, (value) => value === true),
+    moveStar: ({ subject, folderId }) =>
+      call(
+        "move_star",
+        {
+          subject_type: subject.type,
+          subject_id: subject.id,
+          folder: folderId,
+        },
+        (value) => value === true,
       ),
     reorderStar: ({ subject, neighbors }) => {
       const key = rankBetweenResult(neighbors);

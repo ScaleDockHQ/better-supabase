@@ -239,14 +239,18 @@ describe("blocks.generated.ts", () => {
 
     expect(blockConfigEntries(config)["tasks"]?.names).toEqual({
       functions: {
+        accept_task: "accept_ticket",
+        archive_project: "archive_initiative",
         archive_task: "archive_ticket",
         archive_tasks: "archive_tickets",
         claim_next_task: "claim_next_ticket",
         claim_task: "claim_ticket",
+        clone_project: "clone_initiative",
         clone_task: "clone_ticket",
         close_task: "close_ticket",
         create_task: "create_ticket",
         create_tasks: "create_tickets",
+        decline_task: "decline_ticket",
         delegate_task: "delegate_ticket",
         delete_task: "delete_ticket",
         delete_task_checklist_item: "delete_ticket_checklist_item",
@@ -260,10 +264,12 @@ describe("blocks.generated.ts", () => {
         page_tasks: "page_tickets",
         release_task_claim: "release_ticket_claim",
         release_task_hold: "release_ticket_hold",
+        remove_project: "remove_initiative",
         renew_task_claim: "renew_ticket_claim",
         upsert_project: "upsert_initiative",
         upsert_task_checklist_item: "upsert_ticket_checklist_item",
         set_task_assignees: "set_ticket_assignees",
+        snooze_task: "snooze_ticket",
         task_stage_times: "ticket_stage_times",
         task_tree: "ticket_tree",
         update_tasks: "update_tickets",
@@ -371,7 +377,7 @@ describe("blocks.generated.ts", () => {
           tasks: { names: { task: "todo" } },
           tickets: {
             block: "tasks",
-            entities: { task: "ticket" },
+            entities: { task: "ticket", project: "ticket_project" },
             uses: { pipelines: "pipelines" },
           },
         },
@@ -385,7 +391,7 @@ describe("blocks.generated.ts", () => {
       names: {
         functions: {
           create_task: "create_ticket",
-          upsert_project: "tickets_upsert_project",
+          upsert_project: "upsert_ticket_project",
         },
       },
     });

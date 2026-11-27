@@ -946,6 +946,11 @@ export const permissions = {
     read: "dispatch.read",
     write: "dispatch.manage",
   },
+  work_project: {
+    read: "tasks.read",
+    write: "tasks.manage",
+    upload: "tasks.manage",
+  },
   "workflow-editor": {
     read: "workflow_editor.read",
     run: "workflow_editor.run",

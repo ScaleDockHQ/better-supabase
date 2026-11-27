@@ -2765,6 +2765,14 @@
     "message": "Unknown verification mode"
   },
   {
+    "code": "INITIATIVE_FORBIDDEN",
+    "message": "not allowed to change initiatives"
+  },
+  {
+    "code": "INITIATIVE_NOT_FOUND",
+    "message": "initiative not found"
+  },
+  {
     "code": "INSPECTION_CASES_NOT_INSTALLED",
     "message": "raising a case needs the cases block"
   },
@@ -4591,6 +4599,14 @@
     "message": "These profile columns are managed by the service"
   },
   {
+    "code": "PROJECT_NOT_FOUND",
+    "message": "project not found"
+  },
+  {
+    "code": "PROJECT_UPDATE_INVALID",
+    "message": "health must be on_track, at_risk or off_track"
+  },
+  {
     "code": "PROMOTIONS_CODE_FORMAT",
     "message": "a code has 3 to 40 letters, digits, dashes or underscores"
   },
@@ -5669,6 +5685,10 @@
   {
     "code": "TASK_LOCKED",
     "message": "the item is locked; its dates can"
+  },
+  {
+    "code": "TASK_MILESTONE_NOT_FOUND",
+    "message": "milestone not found"
   },
   {
     "code": "TASK_MOVE_INVALID",

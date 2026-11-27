@@ -1054,10 +1054,16 @@ describe.skipIf(!live)("comments", () => {
           "comments",
         ],
         {
-          subjects: withBlockSubjects({ project: { table } }, ["tasks"], {}),
+          subjects: withBlockSubjects({ project: { table } }, ["tasks"], {
+            tasks: {
+              tables: { projects: "work_projects" },
+              entities: { project: { name: "work_project" } },
+            },
+          }),
           modules: {
             tasks: {
               tables: { projects: "work_projects" },
+              entities: { project: { name: "work_project" } },
               options: { maxAssignees: 0 },
             },
           },

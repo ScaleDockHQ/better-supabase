@@ -85,6 +85,18 @@ export type TagsForSubjectsArgs = { readonly tenant: string; readonly subjectTyp
 /** What `reads.tags.forSubjects` returns. @public */
 export type TagsForSubjectsResult = unknown;
 
+/** The arguments of `reads.tasks.project`. @public */
+export type TasksProjectArgs = { readonly projectId: string };
+
+/** What `reads.tasks.project` returns. @public */
+export type TasksProjectResult = unknown;
+
+/** The arguments of `reads.tasks.board`. @public */
+export type TasksBoardArgs = { readonly organizationId: string };
+
+/** What `reads.tasks.board` returns. @public */
+export type TasksBoardResult = unknown;
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -108,5 +120,9 @@ export const reads = {
   tags: {
     list: blockRead<TagsListArgs, TagsListResult>("list_tags", { tenant: "tenant", kind: "kind" }, ["tags"], "better_supabase"),
     forSubjects: blockRead<TagsForSubjectsArgs, TagsForSubjectsResult>("subjects_tags", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["tags", "taggings"], "better_supabase"),
+  },
+  tasks: {
+    project: blockRead<TasksProjectArgs, TasksProjectResult>("get_project", { projectId: "project" }, ["projects", "items"], "better_supabase"),
+    board: blockRead<TasksBoardArgs, TasksBoardResult>("page_tasks", { organizationId: "tenant" }, ["items", "assignees"], "better_supabase"),
   },
 } as const;

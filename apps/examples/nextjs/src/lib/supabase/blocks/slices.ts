@@ -50,12 +50,6 @@ export const supportConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
-/** The `projects` instance's config slice. */
-export const projectsConfig = {
-  schema: "better_supabase",
-  options: {},
-} as const satisfies GeneratedBlock;
-
 /** The `service` instance's config slice. */
 export const serviceConfig = {
   schema: "better_supabase",
@@ -1361,30 +1355,39 @@ export const tasksConfig = {
   options: {},
   names: {
     functions: {
+      accept_task: "accept_work_item",
+      archive_project: "archive_work_project",
       archive_task: "archive_work_item",
       archive_tasks: "archive_work_items",
       claim_next_task: "claim_next_work_item",
       claim_task: "claim_work_item",
+      clone_project: "clone_work_project",
       clone_task: "clone_work_item",
       close_task: "close_work_item",
       create_task: "create_work_item",
       create_tasks: "create_work_items",
+      decline_task: "decline_work_item",
       delegate_task: "delegate_work_item",
       delete_task: "delete_work_item",
       delete_task_checklist_item: "delete_work_item_checklist_item",
       delete_tasks: "delete_work_items",
+      get_project: "get_work_project",
       get_task: "get_work_item",
       hold_task: "hold_work_item",
       list_task_checklist: "list_work_item_checklist",
       list_tasks: "list_work_items",
+      page_projects: "page_work_projects",
       page_tasks: "page_work_items",
       release_task_claim: "release_work_item_claim",
       release_task_hold: "release_work_item_hold",
+      remove_project: "remove_work_project",
       renew_task_claim: "renew_work_item_claim",
       set_task_assignees: "set_work_item_assignees",
+      snooze_task: "snooze_work_item",
       task_stage_times: "work_item_stage_times",
       task_tree: "work_item_tree",
       update_tasks: "update_work_items",
+      upsert_project: "upsert_work_project",
       upsert_task_checklist_item: "upsert_work_item_checklist_item",
     },
     entities: [{
@@ -1395,6 +1398,15 @@ export const tasksConfig = {
       to: {
         singular: "work_item",
         plural: "work_items",
+      },
+    }, {
+      from: {
+        singular: "project",
+        plural: "projects",
+      },
+      to: {
+        singular: "work_project",
+        plural: "work_projects",
       },
     }],
     events: [{
@@ -1407,6 +1419,15 @@ export const tasksConfig = {
         plural: "work_items",
       },
       keyed: true,
+    }, {
+      from: {
+        singular: "project",
+        plural: "projects",
+      },
+      to: {
+        singular: "work_project",
+        plural: "work_projects",
+      },
     }],
   },
 } as const satisfies GeneratedBlock;
@@ -1422,42 +1443,59 @@ export const facilitiesConfig = {
   },
   names: {
     functions: {
+      accept_task: "accept_maintenance_request",
+      archive_project: "archive_maintenance_project",
       archive_task: "archive_maintenance_request",
       archive_tasks: "archive_maintenance_requests",
       claim_next_task: "claim_next_maintenance_request",
       claim_task: "claim_maintenance_request",
+      clone_project: "clone_maintenance_project",
       clone_task: "clone_maintenance_request",
       close_task: "close_maintenance_request",
       create_task: "create_maintenance_request",
       create_tasks: "create_maintenance_requests",
+      decline_task: "decline_maintenance_request",
       delegate_task: "delegate_maintenance_request",
       delete_task: "delete_maintenance_request",
       delete_task_checklist_item: "delete_maintenance_request_checklist_item",
       delete_tasks: "delete_maintenance_requests",
+      get_project: "get_maintenance_project",
       get_task: "get_maintenance_request",
       hold_task: "hold_maintenance_request",
       list_task_checklist: "list_maintenance_request_checklist",
       list_tasks: "list_maintenance_requests",
+      page_projects: "page_maintenance_projects",
       page_tasks: "page_maintenance_requests",
       release_task_claim: "release_maintenance_request_claim",
       release_task_hold: "release_maintenance_request_hold",
+      remove_project: "remove_maintenance_project",
       renew_task_claim: "renew_maintenance_request_claim",
       set_task_assignees: "set_maintenance_request_assignees",
+      snooze_task: "snooze_maintenance_request",
       task_stage_times: "maintenance_request_stage_times",
       task_tree: "maintenance_request_tree",
       update_tasks: "update_maintenance_requests",
+      upsert_project: "upsert_maintenance_project",
       upsert_task_checklist_item: "upsert_maintenance_request_checklist_item",
       expire_task_claims: "expire_maintenance_request_claims",
-      get_project: "facilities_get_project",
+      get_iteration: "facilities_get_iteration",
+      iteration_burnup: "facilities_iteration_burnup",
       list_task_materials: "list_maintenance_request_materials",
       list_task_specification: "list_maintenance_request_specification",
-      page_projects: "facilities_page_projects",
+      mark_duplicate: "facilities_mark_duplicate",
+      page_iterations: "facilities_page_iterations",
+      page_milestones: "facilities_page_milestones",
+      remove_iteration: "facilities_remove_iteration",
+      remove_milestone: "facilities_remove_milestone",
+      roll_iterations: "facilities_roll_iterations",
+      save_iteration_cadence: "facilities_save_iteration_cadence",
+      save_milestone: "facilities_save_milestone",
+      set_project_health: "set_maintenance_project_health",
       task_actor: "maintenance_request_actor",
       task_claim: "maintenance_request_claim",
       task_claims_changed: "maintenance_request_claims_changed",
       tasks_changed: "maintenance_requests_changed",
       upsert_iteration: "facilities_upsert_iteration",
-      upsert_project: "facilities_upsert_project",
       upsert_task_material_line: "upsert_maintenance_request_material_line",
       upsert_task_specification_line: "upsert_maintenance_request_specification_line",
     },
@@ -1470,6 +1508,15 @@ export const facilitiesConfig = {
         singular: "maintenance_request",
         plural: "maintenance_requests",
       },
+    }, {
+      from: {
+        singular: "project",
+        plural: "projects",
+      },
+      to: {
+        singular: "maintenance_project",
+        plural: "maintenance_projects",
+      },
     }],
     events: [{
       from: {
@@ -1481,6 +1528,15 @@ export const facilitiesConfig = {
         plural: "maintenance_requests",
       },
       keyed: true,
+    }, {
+      from: {
+        singular: "project",
+        plural: "projects",
+      },
+      to: {
+        singular: "maintenance_project",
+        plural: "maintenance_projects",
+      },
     }],
   },
   block: "tasks",

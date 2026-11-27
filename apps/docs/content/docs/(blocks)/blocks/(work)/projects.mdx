@@ -1,6 +1,6 @@
 ---
 title: Projects
-description: Tasks, time tracking, billable time, approvals, invoices and meetings for project work.
+description: Tasks, time, billing, comments, files, tags, timeline, relations and saved views for a project page.
 ---
 
 Covers work that is tracked and billed: tasks, time entries priced from a rate card, approvals of the time, invoices from the approved hours and meetings.
@@ -29,6 +29,15 @@ Installing `projects` installs these blocks. Each stays an ordinary block in the
 - [`approvals`](/docs/blocks/approvals)
 - [`invoices`](/docs/blocks/invoices)
 - [`meetings`](/docs/blocks/meetings)
+- [`comments`](/docs/blocks/comments)
+- [`attachments`](/docs/blocks/attachments)
+- [`tags`](/docs/blocks/tags)
+- [`timeline`](/docs/blocks/timeline)
+- [`relations`](/docs/blocks/relations)
+- [`saved-views`](/docs/blocks/saved-views)
+- [`subjects`](/docs/blocks/subjects)
+
+An install that already had `projects` gains the parts it did not already have on `upgrade`. The composite also installs the `projects` SQL module: project updates and initiatives. Tasks still owns the project, milestone and iteration rows.
 
 ## Helpers
 
@@ -64,7 +73,17 @@ await blocks.projects.retainerDrawdown({
 });
 ```
 
-The Next.js example calls these from the `weekUtilization` and `projectBudget` server actions in `composite-actions.ts`.
+The Next.js example calls these from the `weekUtilization` and `projectBudget` server actions in `composites-actions.ts`.
+
+`overview` reads one project for a page: the project, its record team, milestones, the latest update, task counts per state, financials, blocking projects, the file count, recent activity and the views saved under `project:<id>`. The first failed read is the result. Pass `subjectType` when the app renamed the project subject.
+
+```ts
+const page = await blocks.projects
+  .overview({ organizationId, projectId })
+  .orThrow();
+```
+
+`cards` reads comment counts, tags, file counts and sub-task progress for a list of tasks in one round. `postUpdate` posts a health update and sets the project's health. `dependencies` lists projects that block this one and projects it blocks, and marks a link `violated` when the blocker's target date is after the dependent's start date. `saveInitiative` and `pageInitiatives` group projects.
 
 The helper returns a `Result`; each step is idempotent, so retrying after a partial failure is safe.
 

@@ -50,7 +50,7 @@ export type ChecklistItemInput = RenamedType<DefaultChecklistItemInput, TasksRen
 export type Iteration = RenamedType<DefaultIteration, TasksRenames>;
 
 /** @public */
-export type Project = RenamedType<DefaultProject, TasksRenames>;
+export type WorkProject = RenamedType<DefaultProject, TasksRenames>;
 
 /** @public */
 export type WorkItem<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, TasksRenames>;

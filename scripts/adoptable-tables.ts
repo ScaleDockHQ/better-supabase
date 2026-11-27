@@ -29,9 +29,13 @@ function line(
     return undefined;
   }
 
-  const { schema, name } = moduleContext(module, {}, [module]).tableName(
-    logical,
-  );
+  const ctx = moduleContext(module, {}, [module]);
+
+  // A table an option leaves out still has a default name, and `tableName`
+  // throws once the option has mapped it to null.
+  const { schema, name } = ctx.hasTable(logical)
+    ? ctx.tableName(logical)
+    : { schema: ctx.schemaName, name: spec.name };
 
   const optional = new Set(spec.optional);
 

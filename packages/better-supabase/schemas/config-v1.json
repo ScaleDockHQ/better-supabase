@@ -2241,6 +2241,7 @@
               "pipelines",
               "posts",
               "profiles",
+              "projects",
               "promotions",
               "prompts",
               "push",
@@ -2438,6 +2439,7 @@
                   "pipelines",
                   "posts",
                   "profiles",
+                  "projects",
                   "promotions",
                   "prompts",
                   "push",
@@ -2873,6 +2875,9 @@
             },
             "profiles": {
               "$ref": "#/$defs/blocks/profiles"
+            },
+            "projects": {
+              "$ref": "#/$defs/blocks/projects"
             },
             "promotions": {
               "$ref": "#/$defs/blocks/promotions"
@@ -7894,6 +7899,22 @@
           }
         }
       },
+      "projects": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "updateEvery": {
+                "type": "string",
+                "default": ""
+              }
+            }
+          }
+        }
+      },
       "promotions": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -8673,7 +8694,11 @@
               },
               "needs": {},
               "claims": {},
-              "hold": {}
+              "hold": {},
+              "identifiers": {
+                "type": "string",
+                "default": "tenant"
+              }
             }
           }
         }

@@ -2641,6 +2641,19 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "iteration.completed",
+        "iteration.created",
+        "iteration.deleted",
+        "iteration.started",
+        "iteration.updated",
+        "project.archived",
+        "project.created",
+        "project.deleted",
+        "project.restored",
+        "project.updated",
+        "project_milestone.created",
+        "project_milestone.deleted",
+        "project_milestone.updated",
         "task.archived",
         "task.assigned",
         "task.claim_expired",
@@ -5463,6 +5476,36 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/option-sets"
     },
     {
+      "name": "projects",
+      "title": "Projects",
+      "category": "Work management",
+      "description": "Tasks, time, billing, comments, files, tags, timeline, relations and saved views installed together for a project page.",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "tasks"
+      ],
+      "integrates": [
+        "notifications",
+        "housekeeping",
+        "outbox"
+      ],
+      "modes": [
+        "managed"
+      ],
+      "events": [
+        "initiative.archived",
+        "initiative.created",
+        "initiative.deleted",
+        "initiative.updated",
+        "project_update.created"
+      ],
+      "subpath": "better-supabase/blocks/projects",
+      "react": null,
+      "docs": "/docs/blocks/projects"
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "Database primitives",
@@ -7713,6 +7756,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "ai-evals",
         "ai-guardrails",
         "option-sets",
+        "projects",
         "rls-guard"
       ]
     }

@@ -14,7 +14,7 @@ Each file lists the blocks of one category with their client, entities, permissi
 | [Notifications & messaging](catalog-notifications-and-messaging.md) | 4 |
 | [Growth & engagement](catalog-growth-and-engagement.md) | 5 |
 | [CRM & sales](catalog-crm-and-sales.md) | 12 |
-| [Work management](catalog-work-management.md) | 26 |
+| [Work management](catalog-work-management.md) | 27 |
 | [People](catalog-people.md) | 13 |
 | [Billing & commerce](catalog-billing-and-commerce.md) | 27 |
 | [Scheduling](catalog-scheduling.md) | 5 |

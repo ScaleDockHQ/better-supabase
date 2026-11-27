@@ -32,7 +32,9 @@ const WITH_TASKS = [
 // The Next.js example names its projects table `work_projects`; this suite does
 // too.
 const TASKS_LAYOUT: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["tasks"], {}),
+  subjects: withBlockSubjects({}, ["tasks"], {
+    tasks: { tables: { projects: "work_projects" } },
+  }),
   modules: { tasks: { tables: { projects: "work_projects" } } },
 };
 

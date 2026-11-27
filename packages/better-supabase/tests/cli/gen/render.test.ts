@@ -325,10 +325,10 @@ describe("render with gen.blockModules and renamed instances", () => {
   const renamed: BetterSupabaseConfig = {
     blocks: {
       pipelines: {},
-      tasks: { names: { task: "todo" } },
+      tasks: { names: { task: "todo", project: "todo_project" } },
       tickets: {
         block: "tasks",
-        entities: { task: "ticket" },
+        entities: { task: "ticket", project: "ticket_project" },
         uses: { pipelines: "pipelines" },
       },
     },

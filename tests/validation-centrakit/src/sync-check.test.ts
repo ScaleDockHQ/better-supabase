@@ -209,6 +209,7 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.import_runs.lease_expires_at",
           "centrakit.import_runs.outcome",
           "centrakit.import_runs.plan",
+          "centrakit.notification_recipients.snoozed_until",
         ],
         // Two foreign keys to one table whose first columns differ.
         "warning BS630": [

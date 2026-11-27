@@ -4116,6 +4116,9 @@
       "promotions": [
         "ORDERS_"
       ],
+      "projects": [
+        "INITIATIVE_"
+      ],
       "queue": [
         "IDEMPOTENCY_KEY_",
         "JOB_LEASE_",

@@ -8,6 +8,12 @@ export type AttachmentsListArgs = { readonly tenant: string; readonly subjectTyp
 /** What `reads.attachments.list` returns. @public */
 export type AttachmentsListResult = readonly unknown[];
 
+/** The arguments of `reads.attachments.counts`. @public */
+export type AttachmentsCountsArgs = { readonly tenant: string; readonly subjectType: string; readonly subjectIds: readonly string[] };
+
+/** What `reads.attachments.counts` returns. @public */
+export type AttachmentsCountsResult = unknown;
+
 /** The arguments of `reads.billing.overview`. @public */
 export type BillingOverviewArgs = { readonly organizationId: string; readonly invoiceLimit?: number };
 
@@ -258,6 +264,30 @@ export type TagsForSubjectsArgs = { readonly tenant: string; readonly subjectTyp
 /** What `reads.tags.forSubjects` returns. @public */
 export type TagsForSubjectsResult = unknown;
 
+/** The arguments of `reads.tasks.project`. @public */
+export type TasksProjectArgs = { readonly projectId: string };
+
+/** What `reads.tasks.project` returns. @public */
+export type TasksProjectResult = unknown;
+
+/** The arguments of `reads.tasks.board`. @public */
+export type TasksBoardArgs = { readonly organizationId: string };
+
+/** What `reads.tasks.board` returns. @public */
+export type TasksBoardResult = unknown;
+
+/** The arguments of `reads.facilities.project`. @public */
+export type FacilitiesProjectArgs = { readonly projectId: string };
+
+/** What `reads.facilities.project` returns. @public */
+export type FacilitiesProjectResult = unknown;
+
+/** The arguments of `reads.facilities.board`. @public */
+export type FacilitiesBoardArgs = { readonly organizationId: string };
+
+/** What `reads.facilities.board` returns. @public */
+export type FacilitiesBoardResult = unknown;
+
 /**
  * The installed blocks' composed reads, for `defineReadSet(..., { blocks:
  * reads })`: `s.blocks.<instance>.<read>(args)` in a read set.
@@ -266,6 +296,7 @@ export type TagsForSubjectsResult = unknown;
 export const reads = {
   attachments: {
     list: blockRead<AttachmentsListArgs, AttachmentsListResult>("list_attachments", { tenant: "tenant", subjectType: "subject_type", subjectId: "subject_id" }, ["attachments"], "api"),
+    counts: blockRead<AttachmentsCountsArgs, AttachmentsCountsResult>("attachment_counts", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["attachments"], "api"),
   },
   billing: {
     overview: blockRead<BillingOverviewArgs, BillingOverviewResult>("billing_overview", { organizationId: "tenant", invoiceLimit: "invoice_limit" }, ["customers", "subscriptions"], "api"),
@@ -302,5 +333,13 @@ export const reads = {
   tags: {
     list: blockRead<TagsListArgs, TagsListResult>("list_tags", { tenant: "tenant", kind: "kind" }, ["tags"], "api"),
     forSubjects: blockRead<TagsForSubjectsArgs, TagsForSubjectsResult>("subjects_tags", { tenant: "tenant", subjectType: "subject_type", subjectIds: "subject_ids" }, ["tags", "taggings"], "api"),
+  },
+  tasks: {
+    project: blockRead<TasksProjectArgs, TasksProjectResult>("get_work_project", { projectId: "project" }, ["projects", "items"], "api"),
+    board: blockRead<TasksBoardArgs, TasksBoardResult>("page_work_items", { organizationId: "tenant" }, ["items", "assignees"], "api"),
+  },
+  facilities: {
+    project: blockRead<FacilitiesProjectArgs, FacilitiesProjectResult>("get_maintenance_project", { projectId: "project" }, ["projects", "items"], "api"),
+    board: blockRead<FacilitiesBoardArgs, FacilitiesBoardResult>("page_maintenance_requests", { organizationId: "tenant" }, ["items", "assignees"], "api"),
   },
 } as const;

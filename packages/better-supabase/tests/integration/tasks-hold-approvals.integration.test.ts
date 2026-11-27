@@ -31,7 +31,9 @@ const layout = (
   hold: Record<string, unknown> = {},
   approval: Record<string, unknown> = {},
 ): BlockSqlLayout => ({
-  subjects: withBlockSubjects({}, ["tasks"], {}),
+  subjects: withBlockSubjects({}, ["tasks"], {
+    tasks: { tables: { projects: "work_projects" } },
+  }),
   modules: {
     tasks: {
       tables: { projects: "work_projects" },

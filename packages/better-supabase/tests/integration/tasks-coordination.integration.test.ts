@@ -28,7 +28,9 @@ const layout = (
   claims?: Record<string, unknown>,
   hold?: Record<string, unknown>,
 ): BlockSqlLayout => ({
-  subjects: withBlockSubjects({}, ["tasks"], {}),
+  subjects: withBlockSubjects({}, ["tasks"], {
+    tasks: { tables: { projects: "work_projects" } },
+  }),
   modules: {
     tasks: {
       tables: { projects: "work_projects" },

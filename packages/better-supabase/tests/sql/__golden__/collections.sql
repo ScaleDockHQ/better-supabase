@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:b0cbaa4b9e72b215e839bf2c2b1d6b12d0fc67334fc29241766379db200a7232
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:a3587adf33408f2b7df8837db30ce86fb3649c1b45938578a1dada7ff3a01b16
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,6 +65,92 @@ alter table "better_supabase"."collection_favorites" enable row level security;
 revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
 grant select on "better_supabase"."collection_favorites" to authenticated;
 grant all on "better_supabase"."collection_favorites" to service_role;
+
+create table "better_supabase"."collection_star_folders" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
+  "rank" text collate "C" not null default 'V'
+);
+alter table "better_supabase"."collection_star_folders" enable row level security;
+alter table "better_supabase"."collection_favorites" add column "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
+create index "collection_star_folders_user_idx" on "better_supabase"."collection_star_folders" ("user_id");
+create index "collection_favorites_folder_idx" on "better_supabase"."collection_favorites" ("folder_id") where "folder_id" is not null;
+
+create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "better_supabase"."collection_star_folders" ("user_id", "tenant_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "better_supabase"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 create table "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1297,21 +1383,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as rest
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
+-- @bsb-hash sha256:5cfc756ef45516c641430f0bc9a3e1bbf70862c367e4ff02a7bddb4e6079f24f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 2, 'managed')
+values ('collections', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:068ee1c6392ba610bd8263bb0ceb16ab5dfd2b295f280bf393f36bd097fe749e
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:999b4c6f889564fdee744b8d17609122c51ae2528f74046be3e6ac0886691a1c
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1375,6 +1461,92 @@ alter table "better_supabase"."collection_favorites" enable row level security;
 revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
 grant select on "better_supabase"."collection_favorites" to authenticated;
 grant all on "better_supabase"."collection_favorites" to service_role;
+
+create table "better_supabase"."collection_star_folders" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
+  "rank" text collate "C" not null default 'V'
+);
+alter table "better_supabase"."collection_star_folders" enable row level security;
+alter table "better_supabase"."collection_favorites" add column "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
+create index "collection_star_folders_user_idx" on "better_supabase"."collection_star_folders" ("user_id");
+create index "collection_favorites_folder_idx" on "better_supabase"."collection_favorites" ("folder_id") where "folder_id" is not null;
+
+create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "better_supabase"."collection_star_folders" ("user_id", "tenant_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "better_supabase"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 create table "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2610,21 +2782,21 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
+-- @bsb-hash sha256:5cfc756ef45516c641430f0bc9a3e1bbf70862c367e4ff02a7bddb4e6079f24f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 2, 'managed')
+values ('collections', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:e63ed48744c36d7ef89bd165710d6ca07a281ec32cecc606d451c2bd1958b85e
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:c03a7b75730996d9d6b6e4892ffd9082e305d1e9c7575f02f2723c8b679aca1f
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2693,6 +2865,92 @@ alter table "app_private"."collection_favorites" enable row level security;
 revoke all on "app_private"."collection_favorites" from public, anon, authenticated;
 grant select on "app_private"."collection_favorites" to authenticated;
 grant all on "app_private"."collection_favorites" to service_role;
+
+create table "app_private"."collection_star_folders" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
+  "rank" text collate "C" not null default 'V'
+);
+alter table "app_private"."collection_star_folders" enable row level security;
+alter table "app_private"."collection_favorites" add column "folder_id" uuid references "app_private"."collection_star_folders" ("id") on delete set null;
+create index "collection_star_folders_user_idx" on "app_private"."collection_star_folders" ("user_id");
+create index "collection_favorites_folder_idx" on "app_private"."collection_favorites" ("folder_id") where "folder_id" is not null;
+
+create or replace function "app_private"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "app_private"."collection_star_folders" ("user_id", "tenant_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "app_private"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "app_private"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "app_private"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "app_private"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "app_private"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "app_private"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "app_private"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "app_private"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "app_private"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "app_private"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "app_private"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 create table "app_private"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3925,21 +4183,21 @@ create policy bsb_tenant_scope_delete on "app_private"."saved_items" as restrict
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
+-- @bsb-hash sha256:5cfc756ef45516c641430f0bc9a3e1bbf70862c367e4ff02a7bddb4e6079f24f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 2, 'managed')
+values ('collections', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:b691e130d0286314b68a7fef0287821cb6abc965b864305d7d633f39a3d46b80
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:9f5dab28b640dbe7550d24536659e060ce411679c64e97cdf670799ed5dbfc67
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4003,6 +4261,92 @@ alter table "better_supabase"."collection_favorites" enable row level security;
 revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
 grant select on "better_supabase"."collection_favorites" to authenticated;
 grant all on "better_supabase"."collection_favorites" to service_role;
+
+create table "better_supabase"."collection_star_folders" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
+  "rank" text collate "C" not null default 'V'
+);
+alter table "better_supabase"."collection_star_folders" enable row level security;
+alter table "better_supabase"."collection_favorites" add column "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
+create index "collection_star_folders_user_idx" on "better_supabase"."collection_star_folders" ("user_id");
+create index "collection_favorites_folder_idx" on "better_supabase"."collection_favorites" ("folder_id") where "folder_id" is not null;
+
+create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "better_supabase"."collection_star_folders" ("user_id", "tenant_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "better_supabase"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 create table "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5236,6 +5580,33 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as rest
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+create or replace function "api"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_star_folder"($1, $2, $3) $$;
+revoke execute on function "api"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."remove_star_folder"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_star_folder"($1) $$;
+revoke execute on function "api"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "api"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "api"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."move_star"($1, $2, $3) $$;
+revoke execute on function "api"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "api"."move_star"(text, text, uuid) to authenticated, service_role;
+
 create or replace function "api"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text)
 returns jsonb
 language sql
@@ -5436,21 +5807,21 @@ grant execute on function "api"."remind_due_saved_items"(integer) to service_rol
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
+-- @bsb-hash sha256:5cfc756ef45516c641430f0bc9a3e1bbf70862c367e4ff02a7bddb4e6079f24f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 2, 'managed')
+values ('collections', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:16cf9e2f8cd023ca025a25bba0e5b7d206fc536da4206bc7f1ffe56b0af672b9
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:ec28b3d39cafea1f7bd2a2b78399d744ea7c81f8d5de0e34cdb0f81f8727ded7
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5506,6 +5877,91 @@ create index if not exists "collection_favorites_subject_idx" on "better_supabas
 alter table "better_supabase"."collection_favorites" enable row level security;
 grant select on "better_supabase"."collection_favorites" to authenticated;
 grant all on "better_supabase"."collection_favorites" to service_role;
+
+-- better_supabase.collection_star_folders is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."collection_star_folders" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."collection_star_folders" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."collection_star_folders" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."collection_star_folders" add column if not exists "name" text constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120);
+alter table "better_supabase"."collection_star_folders" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."collection_star_folders" enable row level security;
+alter table "better_supabase"."collection_favorites" add column if not exists "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
+create index if not exists "collection_star_folders_user_idx" on "better_supabase"."collection_star_folders" ("user_id");
+create index if not exists "collection_favorites_folder_idx" on "better_supabase"."collection_favorites" ("folder_id") where "folder_id" is not null;
+
+create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "better_supabase"."collection_star_folders" ("user_id", "tenant_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "better_supabase"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 -- better_supabase.saved_items is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."saved_items" add column if not exists "id" uuid default gen_random_uuid();
@@ -6736,21 +7192,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as rest
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
+-- @bsb-hash sha256:5cfc756ef45516c641430f0bc9a3e1bbf70862c367e4ff02a7bddb4e6079f24f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 2, 'managed')
+values ('collections', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:8da7a4920f3ce1186c2b5dac849cc91255d81dea4ee18612ae58d8606b104a8c
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:ada54a31eeb2bf35eda75158a84a401ab790871b98af90e4e5cc3fad64cda24b
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6814,6 +7270,92 @@ alter table "better_supabase"."collection_favorites" enable row level security;
 revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
 grant select on "better_supabase"."collection_favorites" to authenticated;
 grant all on "better_supabase"."collection_favorites" to service_role;
+
+create table "better_supabase"."collection_star_folders" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "org_id" uuid not null,
+  "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
+  "rank" text collate "C" not null default 'V'
+);
+alter table "better_supabase"."collection_star_folders" enable row level security;
+alter table "better_supabase"."collection_favorites" add column "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
+create index "collection_star_folders_user_idx" on "better_supabase"."collection_star_folders" ("user_id");
+create index "collection_favorites_folder_idx" on "better_supabase"."collection_favorites" ("folder_id") where "folder_id" is not null;
+
+create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "better_supabase"."collection_star_folders" ("user_id", "org_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "better_supabase"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 create table "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -8046,13 +8588,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as rest
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
+-- @bsb-hash sha256:5cfc756ef45516c641430f0bc9a3e1bbf70862c367e4ff02a7bddb4e6079f24f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 2, 'managed')
+values ('collections', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

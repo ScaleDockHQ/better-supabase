@@ -92,6 +92,7 @@ import type { PermissionsSqlOptions } from "./permissions/options.ts";
 import type { PipelinesSqlOptions } from "./pipelines/options.ts";
 import type { PostsSqlOptions } from "./posts/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
+import type { ProjectsSqlOptions } from "./projects/options.ts";
 import type { PromptsSqlOptions } from "./prompts/options.ts";
 import type { QualificationsSqlOptions } from "./qualifications/options.ts";
 import type { QueueSqlOptions, RateLimitSqlOptions } from "./queue/options.ts";
@@ -231,6 +232,7 @@ import { permissionsSqlOptions } from "./permissions/options.ts";
 import { pipelinesSqlOptions } from "./pipelines/options.ts";
 import { postsSqlOptions } from "./posts/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
+import { projectsSqlOptions } from "./projects/options.ts";
 import { promptsSqlOptions } from "./prompts/options.ts";
 import { qualificationsSqlOptions } from "./qualifications/options.ts";
 import { queueSqlOptions, rateLimitSqlOptions } from "./queue/options.ts";
@@ -407,6 +409,7 @@ export interface BlockOptionsRegistry {
   readonly pgtap: None;
   readonly "option-sets": OptionSetsSqlOptions;
   readonly pipelines: PipelinesSqlOptions;
+  readonly projects: ProjectsSqlOptions;
   readonly posts: PostsSqlOptions;
   readonly content: ContentSqlOptions;
   readonly qualifications: QualificationsSqlOptions;
@@ -600,6 +603,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   pgtap: NO_OPTIONS,
   "option-sets": optionSetsSqlOptions,
   pipelines: pipelinesSqlOptions,
+  projects: projectsSqlOptions,
   posts: postsSqlOptions,
   content: contentSqlOptions,
   qualifications: qualificationsSqlOptions,

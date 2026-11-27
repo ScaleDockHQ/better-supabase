@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:bdb7bbd4a08da99fd74528c75bbadd36ebe1f35417204faa42d66479464779a2
+-- @bsb-hash sha256:26d994e8b4b36f03c5bb161c16b6483dcd73ff1d80e5ca9afa43f7b3b458c906
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1321,6 +1321,7 @@ as $$
     ('user', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.collection_favorites', '"better_supabase"."collection_favorites"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.collection_star_folders', '"better_supabase"."collection_star_folders"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_reports', '"better_supabase"."moderation_reports"', 'reporter_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_bans', '"better_supabase"."moderation_bans"', 'user_id', true, '{}'::text[], true),
@@ -1639,6 +1640,9 @@ as $$
     ('organization', 'better_supabase.work_item_assignees', '"better_supabase"."work_item_assignees"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.work_projects', '"better_supabase"."work_projects"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.iterations', '"better_supabase"."iterations"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.milestones', '"better_supabase"."milestones"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.iteration_cadences', '"better_supabase"."iteration_cadences"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.iteration_snapshots', '"better_supabase"."iteration_snapshots"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipelines', '"better_supabase"."pipelines"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_stages', '"better_supabase"."pipeline_stages"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_transitions', '"better_supabase"."pipeline_transitions"', 'tenant_id', true, '{}'::text[], true),
@@ -1683,6 +1687,7 @@ as $$
     ('organization', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.subject_collection_entries', '"better_supabase"."subject_collection_entries"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.collection_favorites', '"better_supabase"."collection_favorites"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.collection_star_folders', '"better_supabase"."collection_star_folders"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.hostnames', '"better_supabase"."hostnames"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_items', '"better_supabase"."moderation_items"', 'tenant_id', true, '{}'::text[], true),
@@ -2205,6 +2210,12 @@ begin
       from "better_supabase"."work_items" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.work_items';
       v_reveal := 'work_items_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'work_project' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."work_projects" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.work_projects';
+      v_reveal := 'work_projects_reveal';
       v_reveal_schema := 'better_supabase';
     when 'employee' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant

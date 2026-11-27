@@ -1,6 +1,6 @@
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:9fca0b814dfaa664e489893a4e3720fd5f3b67ccce04a3177ed45293cfd9f851
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:8586db67bf311c586d1c444225c55e36f8305353816e42192c4c1c4e818ec663
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,6 +64,92 @@ alter table "better_supabase"."collection_favorites" enable row level security;
 revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
 grant select on "better_supabase"."collection_favorites" to authenticated;
 grant all on "better_supabase"."collection_favorites" to service_role;
+
+create table "better_supabase"."collection_star_folders" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
+  "rank" text collate "C" not null default 'V'
+);
+alter table "better_supabase"."collection_star_folders" enable row level security;
+alter table "better_supabase"."collection_favorites" add column "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
+create index "collection_star_folders_user_idx" on "better_supabase"."collection_star_folders" ("user_id");
+create index "collection_favorites_folder_idx" on "better_supabase"."collection_favorites" ("folder_id") where "folder_id" is not null;
+
+create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "better_supabase"."collection_star_folders" ("user_id", "tenant_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "better_supabase"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 create table "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -134,7 +220,7 @@ begin
   if v_scope not in ('user', 'team', 'tenant') then
     raise exception 'scope must be user, team or tenant' using errcode = '22023', hint = 'COLLECTION_INVALID';
   end if;
-  if create_collection.subject_type is null or not (create_collection.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])) then
+  if create_collection.subject_type is null or not (create_collection.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,work_project,employee,ledger_account,invoice,product,product_variant,rfq,till,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,warranty_claim,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,meeting,meeting_decision,maintenance_plan,dam_usage_right,lims_sample,tax_code,production_order,work_center,bank_account,care_plan,incident,advisory,advisory_product,vulnerability,content_entry,document,customer,drive_node,organization,application,change_request,project,task}'::text[])) then
     raise exception 'not a subject type in config.recordTypes' using errcode = '22023', hint = 'COLLECTION_SUBJECT_TYPE_UNKNOWN';
   end if;
   if v_name is null then
@@ -723,6 +809,7 @@ begin
       when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
+      when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_row."tenant_id"::text)
@@ -1020,6 +1107,7 @@ begin
       when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
+      when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (star_subject.subject_id)::uuid and s."tenant_id"::text = star_subject.tenant::text)
@@ -1202,6 +1290,7 @@ begin
       when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
+      when 'work_project' then exists (select 1 from "better_supabase"."work_projects" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (upsert_for_later.subject_id)::uuid and s."tenant_id"::text = upsert_for_later.tenant::text)
@@ -1537,6 +1626,33 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- blocks.collections.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_star_folder"($1, $2, $3) $$;
+revoke execute on function "api"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."remove_star_folder"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_star_folder"($1) $$;
+revoke execute on function "api"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "api"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "api"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."move_star"($1, $2, $3) $$;
+revoke execute on function "api"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "api"."move_star"(text, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text)
 returns jsonb

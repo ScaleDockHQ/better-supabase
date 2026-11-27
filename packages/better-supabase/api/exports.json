@@ -11898,12 +11898,15 @@
     "values": [
       "createProjects",
       "projectsBlock",
-      "projectsParts"
+      "projectsParts",
+      "projectsReadSets"
     ],
     "types": [
       "ApprovedAndInvoiced",
       "MemberUtilization",
+      "ProjectCard",
       "ProjectFinancials",
+      "ProjectOverview",
       "Projects",
       "ProjectsOptions",
       "ProjectsParts",

@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- milestone, triage and cadence methods add lines past the limit. 1 finding. */
 import type { Money } from "../../commerce/money.ts";
 import type {
   BlockFields,
@@ -89,11 +90,22 @@ export interface Task<F extends object = Record<never, never>> {
   readonly teamId?: string;
   readonly projectId?: string;
   readonly iterationId?: string;
-  /** 0 none, 1 urgent, 2 high, 3 medium, 4 low. */
+  /** The milestone this item belongs to. */
+  readonly milestoneId?: string;
+  /** The earlier item this one duplicates. */
+  readonly duplicateOfId?: string;
+  /** Hidden from triage until this instant. */
+  readonly snoozedUntil?: Temporal.Instant;
+  /** 0 none, 1 low, 2 medium, 3 high, 4 urgent. */
   readonly priority: number;
   readonly estimate?: number;
   /** Its own progress; `tree` rolls children up when it has none. */
   readonly progress?: number;
+  /**
+   * Direct children that are not archived: how many are completed, and how many
+   * there are.
+   */
+  readonly subtasks?: { readonly done: number; readonly total: number };
   readonly startAt?: Temporal.Instant;
   readonly endAt?: Temporal.Instant;
   readonly dueAt?: Temporal.Instant;
@@ -320,6 +332,24 @@ export interface Project {
   /** What the project may cost; `billableTime.projectCosts` compares it. */
   readonly budget?: Money;
   readonly budgetHours?: number;
+  readonly description?: string;
+  /** The lead. Members are the record team on the project subject. */
+  readonly teamId?: string;
+  /** 0 none, 1 low, 2 medium, 3 high, 4 urgent. */
+  readonly priority?: number;
+  readonly icon?: string;
+  readonly color?: string;
+  readonly rank?: string;
+  readonly health?: "on_track" | "at_risk" | "off_track";
+  readonly healthAt?: Temporal.Instant;
+  readonly startResolution?: "day" | "month" | "quarter" | "half" | "year";
+  readonly targetResolution?: "day" | "month" | "quarter" | "half" | "year";
+  readonly completedAt?: Temporal.Instant;
+  readonly canceledAt?: Temporal.Instant;
+  /** Set when the project is archived. The `archived` filter returns these. */
+  readonly archived?: boolean;
+  readonly createdAt?: Temporal.Instant;
+  readonly updatedAt?: Temporal.Instant;
 }
 
 export interface Iteration {
@@ -497,6 +527,85 @@ export interface Tasks<
     organizationId: string;
     iteration: Partial<Omit<Iteration, "id">> & { readonly id?: string };
   }): AsyncResult<Iteration>;
+  /** Iterations of a tenant, soonest first. `teamId` narrows them. */
+  pageIterations(input: {
+    organizationId: string;
+    teamId?: string | undefined;
+    limit?: number | undefined;
+  }): AsyncResult<Iteration[]>;
+  /** One iteration, or a `not_found` error. */
+  getIteration(iterationId: string): AsyncResult<Iteration>;
+  /** Deletes an iteration. Tasks that pointed at it keep no iteration. */
+  removeIteration(iterationId: string): AsyncResult<boolean>;
+  /** Archives a project and records `project.archived`. */
+  archiveProject(projectId: string): AsyncResult<boolean>;
+  /** Brings an archived project back and records `project.restored`. */
+  restoreProject(projectId: string): AsyncResult<boolean>;
+  /**
+   * Deletes a project that is already archived, unlinks its tasks and records
+   * `project.deleted`.
+   */
+  removeProject(projectId: string): AsyncResult<boolean>;
+  /** Saves a milestone on a project. Omit `milestoneId` to create one. */
+  saveMilestone(input: {
+    organizationId: string;
+    milestoneId?: string;
+    projectId: string;
+    name: string;
+    description?: string;
+    targetOn?: string;
+    rank?: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** The milestones of one project, in rank order. */
+  pageMilestones(
+    projectId: string,
+  ): AsyncResult<readonly { readonly id: string; readonly name: string }[]>;
+  removeMilestone(milestoneId: string): AsyncResult<boolean>;
+  /** Moves a triaged task to the backlog. */
+  acceptTask(taskId: string): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** Closes a triaged task with the reason `not_planned`. */
+  declineTask(taskId: string): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** Closes a task as a duplicate and copies its watchers to the original. */
+  markDuplicate(input: {
+    taskId: string;
+    originalId: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** Hides a task until `until`. Housekeeping clears it. */
+  snoozeTask(input: {
+    taskId: string;
+    until: string;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** Copies a project, its milestones and its root tasks. */
+  cloneProject(input: {
+    sourceId: string;
+    shiftDays?: number;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** The cycle length, cooldown and rollover of one team. */
+  saveIterationCadence(input: {
+    organizationId: string;
+    teamId: string;
+    weeks?: number;
+    cooldownDays?: number;
+    startWeekday?: number;
+    upcoming?: number;
+    rollover?: boolean;
+  }): AsyncResult<Readonly<Record<string, unknown>>>;
+  /** Scope, started and completed per day for one iteration. */
+  iterationBurnup(
+    iterationId: string,
+  ): AsyncResult<
+    readonly {
+      readonly day: string;
+      readonly scope: number;
+      readonly started: number;
+      readonly completed: number;
+    }[]
+  >;
+  /** The task id behind an identifier, including one a move retired. */
+  resolveIdentifier(input: {
+    organizationId: string;
+    identifier: string;
+  }): AsyncResult<string | undefined>;
   /**
    * Moves the item to `stageId`, a stage of the `completed` category, and
    * checks that the item is completed afterwards. A stage of another category
@@ -590,6 +699,9 @@ const KNOWN = new Set([
   "team_id",
   "project_id",
   "iteration_id",
+  "milestone_id",
+  "duplicate_of",
+  "snoozed_until",
   "priority",
   "estimate",
   "progress",
@@ -612,6 +724,7 @@ const KNOWN = new Set([
   "locked",
   "rank",
   "archived_at",
+  "subtasks",
   "recurs_from",
   "checklist",
   "recurrence",
@@ -645,9 +758,13 @@ function itemOf(value: unknown): Task {
     teamId: optionalText(row["team_id"]),
     projectId: optionalText(row["project_id"]),
     iterationId: optionalText(row["iteration_id"]),
+    milestoneId: optionalText(row["milestone_id"]),
+    duplicateOfId: optionalText(row["duplicate_of"]),
+    snoozedUntil: optionalInstant(row["snoozed_until"]),
     priority: num(row["priority"]) ?? 0,
     estimate: num(row["estimate"]),
     progress: num(row["progress"]),
+    subtasks: subtasksOf(row["subtasks"]),
     startAt: optionalInstant(row["start_at"]),
     endAt: optionalInstant(row["end_at"]),
     dueAt: optionalInstant(row["due_at"]),
@@ -685,6 +802,21 @@ function itemOf(value: unknown): Task {
     createdAt: requiredInstant(row["created_at"], "createdAt"),
     updatedAt: requiredInstant(row["updated_at"], "updatedAt"),
   });
+}
+
+function subtasksOf(
+  value: unknown,
+): { readonly done: number; readonly total: number } | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const done = num(value["done"]);
+  const total = num(value["total"]);
+
+  return done === undefined || total === undefined
+    ? undefined
+    : { done, total };
 }
 
 function reservationOf(value: unknown): Task["delegateProfile"] {
@@ -791,7 +923,11 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
   type F = FieldsOf<S>;
 
   applyTemporal(options);
+
   const call = blockCall(options.transport, options.schema, options.mappers);
+
+  const jsonObject = (value: unknown): Readonly<Record<string, unknown>> =>
+    isRecord(value) ? value : {};
 
   const fields: BlockFields<F> = blockFields(
     options.fields,
@@ -1193,6 +1329,137 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         iterationOf,
       );
     },
+    pageIterations: ({ organizationId, teamId, limit }) =>
+      call(
+        "page_iterations",
+        {
+          tenant: organizationId,
+          filters: {
+            ...(teamId === undefined ? {} : { teamId }),
+            ...(limit === undefined ? {} : { limit }),
+          },
+        },
+        (value) => recordsOf(value, "page_iterations").map(iterationOf),
+      ),
+    getIteration: (iterationId) =>
+      call("get_iteration", { iteration: iterationId }, (value) =>
+        value === null || value === undefined ? undefined : iterationOf(value),
+      ).andThen((iteration) =>
+        foundOrNotFound("iteration", iteration, iterationId),
+      ),
+    removeIteration: (iterationId) =>
+      call(
+        "remove_iteration",
+        { iteration: iterationId },
+        (value) => value === true,
+      ),
+    archiveProject: (projectId) =>
+      call(
+        "archive_project",
+        { project: projectId, archived: true },
+        (value) => value === true,
+      ),
+    restoreProject: (projectId) =>
+      call(
+        "archive_project",
+        { project: projectId, archived: false },
+        (value) => value === true,
+      ),
+    removeProject: (projectId) =>
+      call("remove_project", { project: projectId }, (value) => value === true),
+    saveMilestone: (input) =>
+      call(
+        "save_milestone",
+        {
+          tenant: input.organizationId,
+          id: input.milestoneId ?? null,
+          attrs: {
+            projectId: input.projectId,
+            name: input.name,
+            description: input.description ?? null,
+            targetOn: input.targetOn ?? null,
+            rank: input.rank ?? null,
+          },
+        },
+        jsonObject,
+      ),
+    pageMilestones: (projectId) =>
+      call("page_milestones", { project: projectId }, (value) =>
+        (Array.isArray(value) ? value : []).flatMap((row) => {
+          if (!isRecord(row) || typeof row["id"] !== "string") {
+            return [];
+          }
+
+          return [
+            {
+              id: row["id"],
+              name: typeof row["name"] === "string" ? row["name"] : "",
+            },
+          ];
+        }),
+      ),
+    removeMilestone: (milestoneId) =>
+      call(
+        "remove_milestone",
+        { milestone: milestoneId },
+        (value) => value === true,
+      ),
+    acceptTask: (taskId) => call("accept_task", { task: taskId }, jsonObject),
+    declineTask: (taskId) => call("decline_task", { task: taskId }, jsonObject),
+    markDuplicate: ({ taskId, originalId }) =>
+      call(
+        "mark_duplicate",
+        { task: taskId, original: originalId },
+        jsonObject,
+      ),
+    snoozeTask: ({ taskId, until }) =>
+      call("snooze_task", { task: taskId, until }, jsonObject),
+    cloneProject: ({ sourceId, shiftDays = 0 }) =>
+      call(
+        "clone_project",
+        { source: sourceId, shift_days: shiftDays },
+        jsonObject,
+      ),
+    saveIterationCadence: (input) =>
+      call(
+        "save_iteration_cadence",
+        {
+          tenant: input.organizationId,
+          team: input.teamId,
+          attrs: {
+            weeks: input.weeks ?? null,
+            cooldownDays: input.cooldownDays ?? null,
+            startWeekday: input.startWeekday ?? null,
+            upcoming: input.upcoming ?? null,
+            rollover: input.rollover ?? null,
+          },
+        },
+        jsonObject,
+      ),
+    iterationBurnup: (iterationId) =>
+      call("iteration_burnup", { iteration: iterationId }, (value) =>
+        (Array.isArray(value) ? value : []).flatMap((row) => {
+          if (!isRecord(row) || typeof row["day"] !== "string") {
+            return [];
+          }
+
+          return [
+            {
+              day: row["day"],
+              scope: typeof row["scope"] === "number" ? row["scope"] : 0,
+              started: typeof row["started"] === "number" ? row["started"] : 0,
+              completed:
+                typeof row["completed"] === "number" ? row["completed"] : 0,
+            },
+          ];
+        }),
+      ),
+    resolveIdentifier: ({ organizationId, identifier }) =>
+      call(
+        "resolve_task_identifier",
+        { tenant: organizationId, identifier },
+        (value) => (typeof value === "string" ? value : undefined),
+      ),
     complete: (input) => close(input, "completed"),
     cancel: (input) => close(input, "canceled"),
     reopen: (input) => settle(input, OPEN_STATES, "open"),

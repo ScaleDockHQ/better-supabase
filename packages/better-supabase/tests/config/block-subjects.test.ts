@@ -17,6 +17,20 @@ describe("withBlockSubjects", () => {
         rank: { column: "rank", group: "stage_id" },
         search: { title: "title", body: ["identifier", "body"] },
       },
+      project: {
+        table: "better_supabase.projects",
+        idType: "uuid",
+        tenant: "tenant_id",
+        title: "name",
+        deletedAt: "archived_at",
+        history: ["name", "status", "description"],
+        permissions: {
+          read: "tasks.read",
+          upload: "tasks.manage",
+          write: "tasks.manage",
+        },
+        search: { title: "name", body: ["key", "description"] },
+      },
     });
   });
 
@@ -57,9 +71,9 @@ describe("withBlockSubjects", () => {
     );
     expect(() =>
       withBlockSubjects({}, ["tasks"], {
-        tasks: { entities: { project: { team: { actions: ["read"] } } } },
+        tasks: { entities: { iteration: { team: { actions: ["read"] } } } },
       }),
-    ).toThrow(/"project" is not one/);
+    ).toThrow(/"iteration" is not one/);
   });
 
   it("registers the entities of the blocks a block requires", () => {
@@ -124,7 +138,9 @@ describe("withBlockSubjects", () => {
   it("leaves out an entity with subject: false and a block in custom mode", () => {
     expect(
       withBlockSubjects({}, ["tasks", "employees"], {
-        tasks: { entities: { task: { subject: false } } },
+        tasks: {
+          entities: { task: { subject: false }, project: { subject: false } },
+        },
         employees: { mode: "custom" },
       }),
     ).toEqual({});
@@ -149,6 +165,7 @@ describe("resolveConfig subjects", () => {
 
     expect(Object.keys(resolved.subjects).toSorted()).toEqual([
       "invoice",
+      "project",
       "task",
     ]);
   });

@@ -49,7 +49,10 @@ describe("nameConstantLines", () => {
       {
         blocks: {
           tasks: {},
-          "support-tickets": { block: "tasks", entities: { task: "ticket" } },
+          "support-tickets": {
+            block: "tasks",
+            entities: { task: "ticket", project: "support_project" },
+          },
         },
       },
       "/project",

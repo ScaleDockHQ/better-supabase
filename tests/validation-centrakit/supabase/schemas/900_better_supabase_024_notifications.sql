@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
--- @bsb-block notifications@11 managed
--- @bsb-hash sha256:f66f0292b0ad8de3b773d58a9f35d3d6801399eb442b6f3d83a1919539d74672
+-- @bsb-block notifications@12 managed
+-- @bsb-hash sha256:d99680b83d8a822499b9623b0d1fef76cde00224d12466e08c925b601f84ca26
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,7 +14,8 @@ alter table "centrakit"."notification_events" enable row level security;
 grant select on "centrakit"."notification_events" to authenticated;
 grant all on "centrakit"."notification_events" to service_role;
 
--- centrakit.notification_recipients is the app's table, and it has every column this block needs.
+-- centrakit.notification_recipients is the app's table: this block adds only the columns it needs.
+alter table "centrakit"."notification_recipients" add column if not exists "snoozed_until" timestamptz;
 alter table "centrakit"."notification_events" add column if not exists "actions" jsonb;
 alter table "centrakit"."notification_recipients" add column if not exists "resolution" jsonb;
 create index if not exists notification_recipients_inbox_idx on "centrakit"."notification_recipients" ("recipient_user_id", "created_at" desc, "id" desc) where "dismissed_at" is null;
@@ -22,7 +23,7 @@ create index if not exists notification_recipients_unread_idx on "centrakit"."no
 create index if not exists notification_recipients_user_idx on "centrakit"."notification_recipients" ("recipient_user_id");
 alter table "centrakit"."notification_recipients" enable row level security;
 grant select on "centrakit"."notification_recipients" to authenticated;
-grant update ("read_at", "dismissed_at") on "centrakit"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at", "snoozed_until") on "centrakit"."notification_recipients" to authenticated;
 grant all on "centrakit"."notification_recipients" to service_role;
 create policy bsb_notification_recipients_read on "centrakit"."notification_recipients"
   for select to authenticated
@@ -40,6 +41,30 @@ create policy bsb_notification_events_read on "centrakit"."notification_events"
       and r."recipient_user_id" = (select auth.uid())
   )
 );
+
+create or replace function "better_supabase"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "centrakit"."notification_recipients" rc
+  set "snoozed_until" = snooze_notification.until
+  where rc."id" = snooze_notification.id
+    and rc."recipient_user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 
 -- centrakit.notification_deliveries is the app's table, and it has every column this block needs.
 create index if not exists notification_deliveries_pending_idx on "centrakit"."notification_deliveries" ("channel", "created_at") where "status" = 'pending';
@@ -462,7 +487,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."recipient_user_id" = $1$q$;
+  v_where := $q$rc."recipient_user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -569,7 +594,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."recipient_user_id" = $1$q$;
+  v_where := $q$rc."recipient_user_id" = $1 and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -684,6 +709,7 @@ as $$
         where rc."recipient_user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
+          and (rc."snoozed_until" <= now() or rc."snoozed_until" is null)
           and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u

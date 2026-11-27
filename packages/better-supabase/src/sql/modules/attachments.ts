@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the batched attachment counts read adds lines past the limit. 1 finding. */
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
@@ -829,7 +830,24 @@ begin
   )}
   return v_files;
 end;
-$$;${attachmentPageSql(ctx, { authors, extras, json: rowJson })}create or replace function ${fn("get_attachment")}(id uuid)
+$$;
+create or replace function ${fn("attachment_counts")}(tenant ${id}, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, coalesce(n.total, 0)), '{}'::jsonb)
+  from (select distinct u as id from unnest(attachment_counts.subject_ids) u where u is not null limit 200) s
+  left join lateral (
+    select count(*) as total from ${t} y
+    where y.${c("tenant")} is not distinct from attachment_counts.tenant
+      and y.${c("subjectType")} = attachment_counts.subject_type
+      and y.${c("subjectId")} = s.id
+  ) n on true
+$$;
+${attachmentPageSql(ctx, { authors, extras, json: rowJson })}create or replace function ${fn("get_attachment")}(id uuid)
 returns jsonb
 language sql
 stable
@@ -966,6 +984,8 @@ grant execute on function ${fn("create_attachment")}(${CREATE_ARGS(id, documents
 grant execute on function ${fn("confirm_attachment")}(uuid, jsonb) to authenticated, service_role;
 grant execute on function ${fn("set_attachment_status")}(uuid, text, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
+revoke execute on function ${fn("attachment_counts")}(${id}, text, text[]) from public, anon;
+grant execute on function ${fn("attachment_counts")}(${id}, text, text[]) to authenticated, service_role;
 grant execute on function ${fn("get_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("delete_attachment")}(uuid) to authenticated, service_role;`;
 }

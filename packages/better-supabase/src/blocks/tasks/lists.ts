@@ -20,6 +20,10 @@ export const taskListSurface: EntityListSurface = {
     "open",
     "ready",
     "waiting",
+    "dueFrom",
+    "dueTo",
+    "triage",
+    "milestoneId",
   ],
   search: ["title", "identifier"],
 };

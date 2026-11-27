@@ -140,10 +140,10 @@ Issues and tasks on pipelines: identifiers, parents without cycles, several assi
 - Modes: `managed`, `custom`
 - Requires: `memberships`, `permissions`, `subjects`, `pipelines`
 - Works with: `sla`, `approvals`, `outbox`, `notifications`, `numbering`, `attachments`, `reminders`, `accounting`, `option-sets`, `templates`, `tags`, `catalog`, `relations`, `rank`, `messaging`, `housekeeping`, `pipelines`, `subjects`
-- Entities: `task`, `project`, `iteration`, `checklist_item`
-- Tables: `tasks`, `projects`, `iterations`, `task_checklist_items`
+- Entities: `task`, `project`, `iteration`, `project_milestone`, `checklist_item`
+- Tables: `tasks`, `projects`, `iterations`, `milestones`, `task_checklist_items`
 - Permission keys: `tasks.read`, `tasks.write`, `tasks.manage`
-- Events (`TasksEvents`): `task.archived`, `task.assigned`, `task.claim_expired`, `task.claimed`, `task.closed`, `task.created`, `task.delegated`, `task.deleted`, `task.failed`, `task.held`, `task.hold_released`, `task.released`, `task.reopened`, `task.restored`, `task.updated`
+- Events (`TasksEvents`): `iteration.completed`, `iteration.created`, `iteration.deleted`, `iteration.started`, `iteration.updated`, `project.archived`, `project.created`, `project.deleted`, `project.restored`, `project.updated`, `project_milestone.created`, `project_milestone.deleted`, `project_milestone.updated`, `task.archived`, `task.assigned`, `task.claim_expired`, `task.claimed`, `task.closed`, `task.created`, `task.delegated`, `task.deleted`, `task.failed`, `task.held`, `task.hold_released`, `task.released`, `task.reopened`, `task.restored`, `task.updated`
 - Consumes: `customFields (optional)`
 - Provides: `sink`
 - Actions: `tasks.from_conversation`
@@ -389,3 +389,19 @@ Tenant-editable items for a field such as priority or severity: ordered items wi
 - Tables: `option_sets`
 - Permission keys: `option_sets.read`, `option_sets.manage`
 - Events (`OptionSetsEvents`): `option_set.created`, `option_set.updated`, `option_set_item.archived`, `option_set_item.created`, `option_set_item.restored`, `option_set_item.updated`
+
+## projects
+
+Tasks, time, billing, comments, files, tags, timeline, relations and saved views installed together for a project page.
+
+- Title: Projects
+- Docs: https://bettersupabase.com/docs/blocks/projects
+- Client: `projectsBlock` from `better-supabase/blocks/projects`
+- Modes: `managed`
+- Requires: `memberships`, `permissions`, `subjects`, `tasks`
+- Works with: `notifications`, `housekeeping`, `outbox`
+- Composes: `tasks`, `time-entries`, `billable-time`, `approvals`, `invoices`, `meetings`, `comments`, `attachments`, `tags`, `timeline`, `relations`, `saved-views`, `subjects`
+- Entities: `project_update`, `initiative`
+- Tables: `project_updates`, `initiatives`
+- Permission keys: `initiatives.read`, `initiatives.manage`
+- Events: `initiative.archived`, `initiative.created`, `initiative.deleted`, `initiative.updated`, `project_update.created`

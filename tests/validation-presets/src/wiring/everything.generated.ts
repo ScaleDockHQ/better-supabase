@@ -3,6 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
+import { projectsBlock } from "better-supabase/blocks/projects";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
 import { accountingBlock } from "better-supabase/blocks/accounting";
@@ -172,6 +173,7 @@ import { blockConfig } from "./everything.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
+  projects: projectsBlock,
   permissions: permissionsBlock,
   accessRequests: accessRequestsBlock,
   accounting: accountingBlock,

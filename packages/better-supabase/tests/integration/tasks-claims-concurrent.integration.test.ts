@@ -29,7 +29,9 @@ describe.skipIf(!live)("concurrent task claims", () => {
   // leaves out the organizations module.
   beforeAll(async () => {
     const layout: BlockSqlLayout = {
-      subjects: withBlockSubjects({}, ["tasks"], {}),
+      subjects: withBlockSubjects({}, ["tasks"], {
+        tasks: { tables: { projects: "work_projects" } },
+      }),
       modules: {
         tasks: {
           tables: { projects: "work_projects" },

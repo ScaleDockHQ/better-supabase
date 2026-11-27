@@ -36,6 +36,7 @@ export function ownTablesOf(
       if (
         spec.app === undefined ||
         mapped[logical] === null ||
+        !ctx.hasTable(logical) ||
         (spec.app.onlyWhenMapped === true && mapped[logical] === undefined)
       ) {
         continue;

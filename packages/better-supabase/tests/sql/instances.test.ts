@@ -26,7 +26,7 @@ const config = resolveConfig(
       tasks: { uses: { pipelines: "pipelines" } },
       tickets: {
         block: "tasks",
-        entities: { task: "ticket" },
+        entities: { task: "ticket", project: "ticket_project" },
         uses: { pipelines: "hiringPipelines" },
       },
     },
@@ -180,7 +180,10 @@ describe("renameIdentifiers", () => {
           tasks: {},
           facilities: {
             block: "tasks",
-            entities: { task: "maintenance_request" },
+            entities: {
+              task: "maintenance_request",
+              project: "facility_project",
+            },
             tables: { projects: null },
           },
         },

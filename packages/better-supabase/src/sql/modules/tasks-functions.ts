@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- project fields, identifiers and iteration capacity add lines past the limit. 1 finding. */
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import type { Coordination } from "./tasks-coordination.ts";
 
@@ -6,6 +7,7 @@ import { sqlString } from "../../core/template.ts";
 import { booksAccounting } from "../accounting-sources-sql.ts";
 import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
+import { entityType } from "../resolved-names.ts";
 import {
   fail,
   insertExtraColumns,
@@ -15,6 +17,7 @@ import {
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { asText } from "./over-app.ts";
+import { actorPayload } from "./tasks-coordination-shared.ts";
 import {
   claimReadSql,
   coordinationSql,
@@ -25,7 +28,11 @@ import {
   linkAttachmentsSql,
   taskExtraFunctions,
 } from "./tasks-extras.ts";
-import { taskPageSql } from "./tasks-pages.ts";
+import { projectProgressSql, taskPageSql } from "./tasks-pages.ts";
+import {
+  projectIdentifierSql,
+  projectWorkFunctions,
+} from "./tasks-projects.ts";
 import { cloneTenant } from "./templates-clone.ts";
 
 export interface TaskNames {
@@ -194,19 +201,57 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
 
   const row = (alias: string): string =>
-    `${ctx.rowJson("items", alias, { as: { number: (v) => `${v}::text` } })} || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}${ctx.hasTable("claims") ? ` || jsonb_build_object('claim', ${fn("task_claim")}(${alias}.${w("id")}))` : ""}`;
+    `${ctx.rowJson("items", alias, { as: { number: (v) => `${v}::text` } })} || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ${state(`ch.${w("state")}`, ["completed"])}), 'total', count(*)) from ${t("items")} ch where ch.${w("parent")} = ${alias}.${w("id")} and ch.${w("archivedAt")} is null)) || ${itemExtrasJson(ctx, n, alias)}${ctx.hasTable("claims") ? ` || jsonb_build_object('claim', ${fn("task_claim")}(${alias}.${w("id")}))` : ""}`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     taskRecord(ctx, n, type, alias, extra);
 
+  // A project or iteration of another tenant fails the foreign key only when
+  // the id is unknown, so the write checks the tenant itself.
+  const sameTenant = (
+    table: "projects" | "iterations",
+    idExpr: string,
+    tenantExpr: string,
+    hint: string,
+    message: string,
+  ): string =>
+    ctx.hasTable(table) &&
+    ctx.has("items", table === "projects" ? "project" : "iteration")
+      ? `
+        if ${idExpr} is not null and not exists (
+          select 1 from ${t(table)} r where r.${c(table, "id")} = ${idExpr} and r.${c(table, "tenant")} = ${tenantExpr}
+        ) then
+          ${fail(hint, message, "P0002")}
+        end if;`
+      : "";
+
   const writes = [
-    ...fields(ctx, w, e).map((field) =>
-      has(field.column)
-        ? `      when ${sqlString(field.field)} then
+    ...fields(ctx, w, e).map((field) => {
+      const guard =
+        field.column === "project"
+          ? sameTenant(
+              "projects",
+              "(v_change -> 'value' #>> '{}')::uuid",
+              `(select i.${w("tenant")} from ${t("items")} i where i.${w("id")} = v_item)`,
+              "TASK_PROJECT_NOT_FOUND",
+              "project not found",
+            )
+          : field.column === "iteration"
+            ? sameTenant(
+                "iterations",
+                "(v_change -> 'value' #>> '{}')::uuid",
+                `(select i.${w("tenant")} from ${t("items")} i where i.${w("id")} = v_item)`,
+                "TASK_ITERATION_NOT_FOUND",
+                "iteration not found",
+              )
+            : "";
+
+      return has(field.column)
+        ? `      when ${sqlString(field.field)} then${guard}
         update ${t("items")} x set ${field.set("v_change -> 'value'")} where x.${w("id")} = v_item;`
         : `      when ${sqlString(field.field)} then
-        ${fail("TASK_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no ${field.column} column`, "22023")}`,
-    ),
+        ${fail("TASK_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no ${field.column} column`, "22023")}`;
+    }),
     has("startAt") && has("endAt")
       ? `      when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
@@ -326,6 +371,67 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
 
   const claimRead = claimReadSql(ctx, n);
 
+  const projectTypeName = sqlString(entityType(ctx.resolved, "project"));
+  const iterationTypeName = sqlString(entityType(ctx.resolved, "iteration"));
+
+  const projectEvent = (type: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', v_project.${p("tenant")}, 'projectId', v_project.${p("id")}, 'subjectType', ${projectTypeName}, 'subjectId', v_project.${p("id")}::text, 'key', v_project.${p("key")}, 'name', v_project.${p("name")}${actorPayload(n)})`,
+      subject: `'projects/' || v_project.${p("id")}::text`,
+      tenant: `v_project.${p("tenant")}::text`,
+      row: "v_project",
+      audit: false,
+    });
+
+  const iterationEvent = (type: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', v_iteration.${i("tenant")}, 'iterationId', v_iteration.${i("id")}, 'subjectType', ${iterationTypeName}, 'subjectId', v_iteration.${i("id")}::text, 'name', v_iteration.${i("name")}${actorPayload(n)})`,
+      subject: `'iterations/' || v_iteration.${i("id")}::text`,
+      tenant: `v_iteration.${i("tenant")}::text`,
+      row: "v_iteration",
+      audit: false,
+    });
+
+  const projectFields = [
+    ["description", "description", "text"],
+    ["teamId", "team", "uuid"],
+    ["priority", "priority", "smallint"],
+    ["icon", "icon", "text"],
+    ["color", "color", "text"],
+    ["rank", "rank", "text"],
+    ["health", "health", "text"],
+    ["healthAt", "healthAt", "timestamptz"],
+    ["startResolution", "startResolution", "text"],
+    ["targetResolution", "targetResolution", "text"],
+    ["completedAt", "completedAt", "timestamptz"],
+    ["canceledAt", "canceledAt", "timestamptz"],
+  ] as const;
+
+  const projectSets = projectFields
+    .filter(([, logical]) => ctx.has("projects", logical))
+    .map(
+      ([key, logical, type]) =>
+        `        ${p(logical)} = case when upsert_project.attrs ? '${key}' then nullif(upsert_project.attrs ->> '${key}', '')::${type} else x.${p(logical)} end,\n`,
+    )
+    .join("");
+
+  const projectInsertColumns = projectFields
+    .filter(([, logical]) => ctx.has("projects", logical))
+    .map(([, logical]) => also("projects", logical))
+    .join("");
+
+  const projectInsertValues = projectFields
+    .filter(([, logical]) => ctx.has("projects", logical))
+    .map(([key, logical, type]) =>
+      logical === "priority"
+        ? `coalesce(nullif(upsert_project.attrs ->> 'priority', '')::smallint, 0)`
+        : logical === "rank"
+          ? `coalesce(nullif(upsert_project.attrs ->> 'rank', ''), 'V')`
+          : `nullif(upsert_project.attrs ->> '${key}', '')::${type}`,
+    );
+
   const projects = ctx.hasTable("projects")
     ? `
 -- Creates a project (project null) or changes the keys attrs names: key,
@@ -340,11 +446,26 @@ set search_path = ''
 as $$
 declare
   v_id uuid := upsert_project.project;
+  v_created boolean := v_id is null;
+  v_was timestamptz;
+  v_project ${t("projects")};
 begin
   ${manageGuard("upsert_project.tenant")}${unsupported(
     "projects",
     "upsert_project.attrs",
     [
+      ["description", "description"],
+      ["teamId", "team"],
+      ["priority", "priority"],
+      ["icon", "icon"],
+      ["color", "color"],
+      ["rank", "rank"],
+      ["health", "health"],
+      ["healthAt", "healthAt"],
+      ["startResolution", "startResolution"],
+      ["targetResolution", "targetResolution"],
+      ["completedAt", "completedAt"],
+      ["canceledAt", "canceledAt"],
       ["ownerId", "owner"],
       ["startOn", "startOn"],
       ["targetOn", "targetOn"],
@@ -353,9 +474,12 @@ begin
       ["budgetHours", "budgetHours"],
     ],
   )}
+  if not v_created then
+    select x.${p("archivedAt")} into v_was from ${t("projects")} x where x.${p("id")} = v_id and x.${p("tenant")} = upsert_project.tenant;
+  end if;
   begin
     if v_id is null then
-      insert into ${t("projects")} (${p("tenant")}, ${p("key")}, ${p("name")}${also("projects", "owner")}, ${p("status")}${also("projects", "startOn")}${also("projects", "targetOn")}${also("projects", "budgetAmount")}${also("projects", "budgetCurrency")}${also("projects", "budgetHours")})
+      insert into ${t("projects")} (${p("tenant")}, ${p("key")}, ${p("name")}${also("projects", "owner")}${projectInsertColumns}, ${p("status")}${also("projects", "startOn")}${also("projects", "targetOn")}${also("projects", "budgetAmount")}${also("projects", "budgetCurrency")}${also("projects", "budgetHours")})
       values (${lines(
         "        ",
         [
@@ -367,6 +491,7 @@ begin
             "owner",
             "(upsert_project.attrs ->> 'ownerId')::uuid",
           ),
+          ...projectInsertValues,
         ],
         [
           ctx.cast(
@@ -408,6 +533,7 @@ begin
       update ${t("projects")} x set
         ${p("key")} = coalesce(upper(upsert_project.attrs ->> 'key'), x.${p("key")}),
         ${p("name")} = coalesce(upsert_project.attrs ->> 'name', x.${p("name")}),
+${projectSets}
 ${ctx.has("projects", "owner") ? `        ${p("owner")} = case when upsert_project.attrs ? 'ownerId' then (upsert_project.attrs ->> 'ownerId')::uuid else x.${p("owner")} end,\n` : ""}        ${p("status")} = coalesce(${ctx.cast("projects", "status", "upsert_project.attrs ->> 'status'")}, x.${p("status")}),
 ${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) ? [`        ${p(key)} = case when upsert_project.attrs ? '${key}' then (upsert_project.attrs ->> '${key}')::date else x.${p(key)} end,\n`] : [])).join("")}${budgetSets}        ${p("archivedAt")} = case when upsert_project.attrs ? 'archived' then (case when (upsert_project.attrs ->> 'archived')::boolean then coalesce(x.${p("archivedAt")}, now()) end) else x.${p("archivedAt")} end,
         ${p("updatedAt")} = now()
@@ -421,18 +547,88 @@ ${(["startOn", "targetOn"] as const).flatMap((key) => (ctx.has("projects", key) 
   when check_violation or not_null_violation then
     ${fail("TASK_PROJECT_INVALID", "a project needs a key of capitals and a name, and ends after it starts", "22023")}
   end;
+  select * into v_project from ${t("projects")} x where x.${p("id")} = v_id;
+  if v_created then
+    ${projectEvent("project.created")}
+  else
+    ${projectEvent("project.updated")}
+    if v_project.${p("archivedAt")} is not null and v_was is null then
+      ${projectEvent("project.archived")}
+    elsif v_project.${p("archivedAt")} is null and v_was is not null then
+      ${projectEvent("project.restored")}
+    end if;
+  end if;
 ${dimensionSync}
   return (select ${ctx.rowJson("projects", "x")}${budgetText} || jsonb_build_object('progress', ${
     has("project")
-      ? `(
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where ${state(`y.${w("state")}`, ["completed"])}) / count(*) filter (where ${state(`y.${w("state")}`, ["canceled"], true)})) end
-      from ${t("items")} y where y.${w("project")} = x.${p("id")} and y.${w("archivedAt")} is null
-    )`
+      ? projectProgressSql(
+          t("items"),
+          w("project"),
+          `x.${p("id")}`,
+          w("archivedAt"),
+          state,
+          `y.${w("state")}`,
+        )
       : "null"
   }) from ${t("projects")} x where x.${p("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("upsert_project")}(${ctx.idType}, uuid, jsonb)`)}
+
+-- Archives a project, or brings it back when archived is false.
+create or replace function ${fn("archive_project")}(project uuid, archived boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_project ${t("projects")};
+  v_was timestamptz;
+begin
+  select x.${p("archivedAt")} into v_was from ${t("projects")} x where x.${p("id")} = archive_project.project;
+  update ${t("projects")} x set
+    ${p("archivedAt")} = case when archive_project.archived then coalesce(x.${p("archivedAt")}, now()) end,
+    ${p("updatedAt")} = now()
+  where x.${p("id")} = archive_project.project and (${n.service} or ${ctx.scope.can(`x.${p("tenant")}`, n.manage)})
+  returning * into v_project;
+  if v_project.${p("id")} is null then
+    return false;
+  end if;
+  ${projectEvent("project.updated")}
+  if archive_project.archived and v_was is null then
+    ${projectEvent("project.archived")}
+  elsif not archive_project.archived and v_was is not null then
+    ${projectEvent("project.restored")}
+  end if;
+  return true;
+end;
+$$;
+${userGrant(`${fn("archive_project")}(uuid, boolean)`)}
+
+-- Deletes a project that is already archived and unlinks its tasks.
+create or replace function ${fn("remove_project")}(project uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_project ${t("projects")};
+begin
+  select * into v_project from ${t("projects")} x
+  where x.${p("id")} = remove_project.project and x.${p("archivedAt")} is not null
+    and (${n.service} or ${ctx.scope.can(`x.${p("tenant")}`, n.manage)});
+  if v_project.${p("id")} is null then
+    return false;
+  end if;
+  ${has("project") ? `update ${t("items")} y set ${w("project")} = null where y.${w("project")} = v_project.${p("id")};` : ""}
+  delete from ${t("projects")} x where x.${p("id")} = v_project.${p("id")};
+  ${projectEvent("project.deleted")}
+  return true;
+end;
+$$;
+${userGrant(`${fn("remove_project")}(uuid)`)}
 
 ${pages.projects}
 `
@@ -450,6 +646,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := upsert_iteration.iteration;
+  v_created boolean := v_id is null;
+  v_iteration ${t("iterations")};
 begin
   ${manageGuard("upsert_iteration.tenant")}${unsupported("iterations", "upsert_iteration.attrs", [["teamId", "team"]])}
   begin
@@ -461,7 +659,7 @@ begin
     else
       update ${t("iterations")} x set
         ${i("name")} = coalesce(upsert_iteration.attrs ->> 'name', x.${i("name")}),
-        ${i("startsOn")} = coalesce((upsert_iteration.attrs ->> 'startsOn')::date, x.${i("startsOn")}),
+${ctx.has("iterations", "team") ? `        ${i("team")} = case when upsert_iteration.attrs ? 'teamId' then (upsert_iteration.attrs ->> 'teamId')::uuid else x.${i("team")} end,\n` : ""}        ${i("startsOn")} = coalesce((upsert_iteration.attrs ->> 'startsOn')::date, x.${i("startsOn")}),
         ${i("endsOn")} = coalesce((upsert_iteration.attrs ->> 'endsOn')::date, x.${i("endsOn")})
       where x.${i("id")} = v_id and x.${i("tenant")} = upsert_iteration.tenant;
       if not found then
@@ -471,16 +669,96 @@ begin
   exception when check_violation or not_null_violation then
     ${fail("TASK_ITERATION_INVALID", "an iteration needs a name and ends on or after it starts", "22023")}
   end;
+  select * into v_iteration from ${t("iterations")} x where x.${i("id")} = v_id;
+  if v_created then
+    ${iterationEvent("iteration.created")}
+  else
+    ${iterationEvent("iteration.updated")}
+  end if;
   return (select ${ctx.rowJson("iterations", "x")} from ${t("iterations")} x where x.${i("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("upsert_iteration")}(${ctx.idType}, uuid, jsonb)`)}
+
+-- Iterations of a tenant, soonest first. filters: teamId, limit.
+create or replace function ${fn("page_iterations")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(p.value order by p.starts_on, p.id), '[]'::jsonb)
+  from (
+    select ${ctx.rowJson("iterations", "x")} as value, x.${i("startsOn")} as starts_on, x.${i("id")} as id
+    from ${t("iterations")} x
+    where x.${i("tenant")} = page_iterations.tenant
+      and (${ctx.has("iterations", "team") ? `(page_iterations.filters ->> 'teamId' is null or x.${i("team")} = (page_iterations.filters ->> 'teamId')::uuid)` : "page_iterations.filters ->> 'teamId' is null"})
+    order by x.${i("startsOn")}, x.${i("id")}
+    limit ${pageSize("(page_iterations.filters ->> 'limit')::integer", 50, 200)}
+  ) p
+$$;
+${userGrant(`${fn("page_iterations")}(${ctx.idType}, jsonb)`)}
+
+create or replace function ${fn("get_iteration")}(iteration uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${ctx.rowJson("iterations", "x")} || jsonb_build_object(
+    'status', case
+      when x.${i("endsOn")} < current_date then 'completed'
+      when x.${i("startsOn")} > current_date then 'upcoming'
+      else 'active'
+    end,
+    'capacity', ${
+      ctx.has("items", "estimate") && ctx.has("items", "iteration")
+        ? `(
+      select round(avg(done)) from (
+        select sum(t.${c("items", "estimate")}) filter (where t.${c("items", "state")} = 'completed') as done
+        from ${t("iterations")} prev
+        join ${t("items")} t on t.${c("items", "iteration")} = prev.${i("id")}
+        where prev.${i("tenant")} = x.${i("tenant")} and prev.${i("endsOn")} < x.${i("startsOn")}
+        group by prev.${i("id")}
+        order by prev.${i("endsOn")} desc
+        limit 3
+      ) recent
+    )`
+        : "null"
+    }
+  ) from ${t("iterations")} x where x.${i("id")} = get_iteration.iteration
+$$;
+${userGrant(`${fn("get_iteration")}(uuid)`)}
+
+create or replace function ${fn("remove_iteration")}(iteration uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_iteration ${t("iterations")};
+begin
+  delete from ${t("iterations")} x
+  where x.${i("id")} = remove_iteration.iteration
+    and (${n.service} or ${ctx.scope.can(`x.${i("tenant")}`, n.manage)})
+  returning * into v_iteration;
+  if v_iteration.${i("id")} is null then
+    return false;
+  end if;
+  ${iterationEvent("iteration.deleted")}
+  return true;
+end;
+$$;
+${userGrant(`${fn("remove_iteration")}(uuid)`)}
 `
     : "";
 
   return `${claimRead}
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
--- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
+-- projectId, iterationId, priority (0 none, 1 low, 2 medium, 3 high, 4 urgent), estimate,
 -- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
 -- extra columns, by name). assignees: user ids.
 create or replace function ${fn("create_task")}(tenant ${ctx.idType}, attrs jsonb, assignees uuid[])
@@ -513,7 +791,19 @@ begin
   ${ctx.hook("before_task_create", [
     [ctx.idType, "create_task.tenant"],
     ["jsonb", "create_task.attrs"],
-  ])}
+  ])}${sameTenant(
+    "projects",
+    `(create_task.attrs ->> ${sqlString(e("projectId"))})::uuid`,
+    "create_task.tenant",
+    "TASK_PROJECT_NOT_FOUND",
+    "project not found",
+  )}${sameTenant(
+    "iterations",
+    `(create_task.attrs ->> ${sqlString(e("iterationId"))})::uuid`,
+    "create_task.tenant",
+    "TASK_ITERATION_NOT_FOUND",
+    "iteration not found",
+  )}
   ${assignNumberSql(
     ctx,
     e("task"),
@@ -530,6 +820,7 @@ begin
       ? { when: "nullif(create_task.attrs ->> 'templateId', '') is null" }
       : {},
   )}
+  ${projectIdentifierSql(ctx, n)}
   begin
     insert into ${t("items")} (${lines(
       "      ",
@@ -1030,6 +1321,12 @@ begin
     'body', ${ctx.has("items", "body") ? `v_src.${w("body")}` : "null"},
     'parentId', v_src.${w("parent")},
     'teamId', v_src.${w("team")},
+    'projectId', ${ctx.has("items", "project") ? `v_src.${w("project")}` : "null"},
+    'iterationId', ${ctx.has("items", "iteration") ? `v_src.${w("iteration")}` : "null"},
+    'estimate', ${ctx.has("items", "estimate") ? `v_src.${w("estimate")}` : "null"},
+    'progress', ${ctx.has("items", "progress") ? `v_src.${w("progress")}` : "null"},
+    'startAt', ${ctx.has("items", "startAt") ? `v_src.${w("startAt")}` : "null"},
+    'endAt', ${ctx.has("items", "endAt") ? `v_src.${w("endAt")}` : "null"},
     'dueAt', v_src.${w("dueAt")},
     'priority', v_src.${w("priority")},
     'templateId', ${template},
@@ -1045,5 +1342,6 @@ begin
 end;
 $$;
 ${userGrant(`${fn("clone_task")}(uuid, jsonb)`)}
+${projectWorkFunctions(ctx, n)}
 `;
 }

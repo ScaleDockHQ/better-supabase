@@ -355,6 +355,20 @@ the old entity keys and subject types, the outbox `legacyEventTypes` option
 and `SequenceEnrollmentEventData`, and the 0.46 permission keys in configured
 roles, `DbError.legacyHint` and `workItemChecklistBinding` go with them.
 
+## Project page, not in this release
+
+The `projects` composite reads a project, but the Next.js example does not yet
+show it as one page. Still to build:
+
+- A tabbed project page (Overview, Board, List, Table, Calendar, Timeline,
+  Files, Activity, and a tab per saved view) and one project model in the
+  example instead of the two it has now.
+- A project graph with a predicted completion date, a Pulse feed and
+  summaries, releases, and initiative updates.
+- Triage rules and a rotation, view subscriptions, display-option defaults,
+  a cycle calendar feed, a batched avatar read, a list of a record's watchers,
+  and undo for a task move.
+
 ## Later
 
 - **A machine-readable capability file** for better-supabase itself, in the

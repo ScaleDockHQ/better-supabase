@@ -131,6 +131,7 @@ import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
 import { POSTS } from "./modules/posts.ts";
 import { PROFILES } from "./modules/profiles.ts";
+import { PROJECTS } from "./modules/projects.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PROMPTS } from "./modules/prompts.ts";
 import { PUSH } from "./modules/push.ts";
@@ -476,6 +477,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(AI_EVALS),
       built(AI_GUARDRAILS),
       built(OPTION_SETS),
+      built(PROJECTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

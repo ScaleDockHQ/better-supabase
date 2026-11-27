@@ -401,6 +401,14 @@ export interface Attachments<F extends object = Record<never, never>> {
    */
   list(subject?: RecordRef | null): AsyncResult<readonly (Attachment & F)[]>;
   /**
+   * How many files each record of one type has, keyed by record id. A record
+   * with no files is 0.
+   */
+  counts(input: {
+    type: string;
+    ids: readonly string[];
+  }): AsyncResult<Readonly<Record<string, number>>>;
+  /**
    * One keyset page of the tenant's files, newest first. `filters` takes
    * `subjectType`, `subjectId`, `status` and `documentTypeId` as lists; `q`
    * searches the file name. Row security decides what the caller sees. The
@@ -962,6 +970,20 @@ export function createAttachments<
               (raw) => [raw, attachmentOf(raw)] as const,
             ),
         ).andThen((rows) => allWithFields(fields, rows)),
+      ),
+    counts: ({ type, ids }) =>
+      requireTenant(options.tenant).andThen((organizationId) =>
+        call(
+          "attachment_counts",
+          { tenant: organizationId, subject_type: type, subject_ids: ids },
+          (value) => {
+            const found = isRecord(value) ? value : {};
+
+            return Object.fromEntries(
+              ids.map((id) => [id, Number(found[id] ?? 0)]),
+            );
+          },
+        ),
       ),
     attachmentPage: (page = {}) =>
       attachmentRows
