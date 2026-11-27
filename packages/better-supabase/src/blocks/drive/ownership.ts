@@ -80,14 +80,23 @@ const noRequests = () =>
     { hint: "DRIVE_ACCESS_REQUESTS_CLIENT" },
   );
 
-function countOf(row: Readonly<Record<string, unknown>>, key: string): number {
-  const value = row[key];
+/** The counts and kept drives of a drive_transfer_ownership reply. */
+function transferOf(value: unknown): DriveTransfer {
+  const { nodes, drives, keptDriveIds } = recordOf(
+    value,
+    "drive_transfer_ownership",
+  );
 
-  if (typeof value !== "number" || !Number.isInteger(value)) {
-    throw new TypeError(`drive_transfer_ownership returned no ${key} count`);
+  if (!Number.isInteger(nodes) || !Number.isInteger(drives)) {
+    throw new TypeError("drive_transfer_ownership returned no counts");
   }
 
-  return value;
+  // SAFETY: Number.isInteger accepted both, so they are numbers.
+  return {
+    nodes,
+    drives,
+    keptDriveIds: stringsOf(keptDriveIds),
+  } as DriveTransfer;
 }
 
 /** The drive client's access request and ownership methods. */
@@ -112,15 +121,7 @@ export function driveAccess(options: DriveAccessOptions): DriveAccess {
       call(
         "drive_transfer_ownership",
         { tenant: organizationId, from_user: fromUserId, to_user: toUserId },
-        (value) => {
-          const row = recordOf(value, "drive_transfer_ownership");
-
-          return {
-            nodes: countOf(row, "nodes"),
-            drives: countOf(row, "drives"),
-            keptDriveIds: stringsOf(row["keptDriveIds"]),
-          };
-        },
+        transferOf,
       ),
   };
 }
