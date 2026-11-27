@@ -379,27 +379,25 @@ grant execute on function "api"."${name}"(${types}) to service_role;`,
       /create or replace function "api"\."check_rate_limits"\(hits jsonb\)\nreturns jsonb\nlanguage sql\nsecurity invoker\n/,
     );
     expect(file).not.toContain(`"api"."set_rate_limit"`);
+  });
 
-    const missing = Object.keys(SQL_MODULES).flatMap((module) => {
-      const names = clientFunctions(module);
-
-      if (names.length === 0) {
-        return [];
-      }
-
+  it.each(
+    Object.keys(SQL_MODULES).filter(
+      (module) => clientFunctions(module).length > 0,
+    ),
+  )(
+    "wraps every function the %s client calls when functions lists none",
+    (module) => {
       const narrowed = schemaFileWith(module, { schema: "api", functions: [] });
 
-      return names
-        .filter(
+      expect(
+        clientFunctions(module).filter(
           (name) =>
             !narrowed.includes(`create or replace function "api"."${name}"(`),
-        )
-        .map((name) => `${module}: ${name}`);
-    });
-
-    expect(missing).toEqual([]);
-    // Renders every module twice; a shared CI runner needs about 20 s.
-  }, 120_000);
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it("wraps only the used functions under gen.api.expose: used, and the client's", () => {
     const render = (apiUsed: readonly string[]) =>
