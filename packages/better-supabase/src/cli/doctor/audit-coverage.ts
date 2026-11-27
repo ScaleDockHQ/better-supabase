@@ -171,3 +171,32 @@ export function unauditedTables(context: DoctorContext): FindingInput[] {
 
   return [...unaudited, ...unexplained, ...taggedWithoutReason];
 }
+
+/**
+ * A table with a row audit trigger and statement audit triggers writes every
+ * change twice.
+ */
+export function doubledAudit(context: DoctorContext): FindingInput[] {
+  return catalogOf(context)
+    .tables.filter(
+      (table) =>
+        table.kind === "table" &&
+        table.partitionOf === undefined &&
+        table.triggers.some(
+          (trigger) =>
+            trigger.name === "bsb_audit" ||
+            trigger.name === "bs_audit" ||
+            trigger.function.split(".").at(-1) === "audit_row_change",
+        ) &&
+        table.triggers.some(
+          (trigger) =>
+            trigger.name.startsWith("bsb_audit_stmt_") ||
+            trigger.function.split(".").at(-1) === "audit_statement_change",
+        ),
+    )
+    .map((table) => ({
+      message: `${qualified(table)} has both a row audit trigger and statement audit triggers, so every change is written twice. Keep one: drop the bsb_audit trigger, or drop the bsb_audit_stmt_* triggers.`,
+      target: qualified(table),
+      object: tableObject(table),
+    }));
+}

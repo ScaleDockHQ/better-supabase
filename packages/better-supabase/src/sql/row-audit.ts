@@ -142,3 +142,74 @@ export function auditTrigger(
 
   return `create ${deferred ? "constraint " : ""}trigger bsb_audit after insert or update or delete on ${target} ${deferred ? "deferrable initially deferred " : ""}for each row when (${AUDIT_NOT_IMPORT_SUMMARY}) execute function better_supabase.audit_row_change(${sqlString(settings)});`;
 }
+
+/**
+ * The three statement triggers `audit(statement => true)` creates, in order.
+ * `referencing` names the transition tables the function reads.
+ */
+const AUDIT_STATEMENT_TRIGGERS = [
+  ["bsb_audit_stmt_insert", "insert", "referencing new table as new_rows"],
+  [
+    "bsb_audit_stmt_update",
+    "update",
+    "referencing old table as old_rows new table as new_rows",
+  ],
+  ["bsb_audit_stmt_delete", "delete", "referencing old table as old_rows"],
+] as const;
+
+/** One statement trigger. `settings` is the SQL literal of its argument. */
+function auditStatementTrigger(
+  name: string,
+  event: string,
+  referencing: string,
+  target: string,
+  when: string,
+  settings: string,
+): string {
+  return `create trigger ${name} after ${event} on ${target} ${referencing} for each statement when (${when}) execute function better_supabase.audit_statement_change(${settings})`;
+}
+
+/**
+ * The three static statement triggers for `target`, with the same settings
+ * shape a row trigger stores. A schema diff keeps a `create trigger`, which it
+ * skips for a top-level `select better_supabase.audit(...)`.
+ */
+export function auditStatementTriggers(
+  target: string,
+  names: Readonly<Record<string, unknown>>,
+): string {
+  const settings = JSON.stringify({ ignore: [], redact: [], ...names });
+
+  return AUDIT_STATEMENT_TRIGGERS.map(([name, event, referencing]) =>
+    auditStatementTrigger(
+      name,
+      event,
+      referencing,
+      target,
+      AUDIT_NOT_IMPORT_SUMMARY,
+      sqlString(settings),
+    ),
+  )
+    .map((statement) => `${statement};`)
+    .join("\n");
+}
+
+/**
+ * The `execute format(...)` lines `audit()` runs for statement mode. The format
+ * string is the static trigger with `%s` for the table and `%L` for the
+ * settings, so the two forms stay the same statement.
+ */
+export function auditStatementExecute(): string {
+  return AUDIT_STATEMENT_TRIGGERS.map(([name, event, referencing]) => {
+    const body = auditStatementTrigger(
+      name,
+      event,
+      referencing,
+      "%s",
+      AUDIT_NOT_IMPORT_SUMMARY,
+      "%L",
+    ).replaceAll("'", "''");
+
+    return `    execute format(\n      '${body}',\n      target, base_settings::text\n    );`;
+  }).join("\n");
+}

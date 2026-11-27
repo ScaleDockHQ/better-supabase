@@ -2,7 +2,7 @@ import type { FrameworkBinding } from "../../plugins/frameworks.ts";
 import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
-import type { AuthorizationProvider } from "../authorization.ts";
+import type { AuthorizationProvider, SharesConfig } from "../authorization.ts";
 import type { BlockConfigOf, BlockName, NamedInstance } from "../blocks.ts";
 import type { ExposeConfig } from "../expose.ts";
 import type { AppTableConfig } from "./app-tables.ts";
@@ -273,6 +273,11 @@ export interface BetterSupabaseConfig {
    * with an `@bsb subject` tag in its table comment (ADR 0102).
    */
   readonly recordTypes?: SubjectsConfig;
+  /**
+   * Tables and functions the app shares per tenant, next to the authorization
+   * provider's `tables` and `sharedFunctions`.
+   */
+  readonly shares?: SharesConfig;
   /**
    * The blocks to install and keep in sync: a list of block names and `{ block,
    * name?, ...entry }` objects that set a block's ownership, names and options.

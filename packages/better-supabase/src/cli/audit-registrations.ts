@@ -3,13 +3,13 @@ import type { AuditedTable } from "../sql/layout-types.ts";
 import { factsOf } from "./schema-reader/index.ts";
 
 /**
- * The tables `files` register with `better_supabase.audit(...)` or a static
+ * The tables `files` register with `better_supabase.audit(...)`, a static
  * `create trigger bsb_audit ... execute function
- * better_supabase.audit_row_change('{...}')`, in file order: a later
- * registration for the same table replaces the earlier one, `unaudit(...)` or a
- * `drop table` removes it, and `alter table ... rename to` moves it to the new
- * name. Calls with non-literal arguments are skipped. The files are read first
- * with `primeSchemaFacts`.
+ * better_supabase.audit_row_change('{...}')`, or the `bsb_audit_stmt_*`
+ * statement triggers, in file order: a later registration for the same table
+ * replaces the earlier one, `unaudit(...)` or a `drop table` removes it, and
+ * `alter table ... rename to` moves it to the new name. Calls with non-literal
+ * arguments are skipped. The files are read first with `primeSchemaFacts`.
  */
 export function auditRegistrations(
   files: readonly { readonly text: string }[],

@@ -142,7 +142,7 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
       const line = file.text.slice(0, wave.start).split("\n").length;
 
       findings.push({
-        message: `${file.path} awaits ${wave.reads} database reads in one Promise.all. They run in parallel, but each is its own request. Load them in one call with a read set (or bsb.bootstrap for a page's first load). The read set that replaces them:\n${readSetFor(file.path, wave.entries)}`,
+        message: `${file.path} awaits ${wave.reads} database reads in one Promise.all. They run in parallel, but each is its own request. Load them in one call with a read set, with read_batch (what bsb.record(type).get uses for a record page), or with bsb.bootstrap for a page's first load. The read set that replaces them:\n${readSetFor(file.path, wave.entries)}`,
         target: keys.get(wave.start)!,
         location: { file: file.path, line },
       });
@@ -158,7 +158,7 @@ export const ROUND_TRIP_RULES: readonly Rule[] = [
     severity: "info",
     title: "Three or more database reads in one Promise.all",
     description:
-      "A page that loads its data with several parallel reads makes one request each. A read set compiles the same reads into one stable database function, so the page waits on one round trip and RLS applies as for any read.",
+      "A page that loads its data with several parallel reads makes one request each. A read set compiles the same reads into one stable database function, so the page waits on one round trip and RLS applies as for any read. A record page can send the same bindings through read_batch, which bsb.record(type).get calls.",
     check: parallelReads,
   },
 ];

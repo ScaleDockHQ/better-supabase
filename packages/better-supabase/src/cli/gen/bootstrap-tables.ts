@@ -1,5 +1,7 @@
 import type { ResolvedConfig } from "../../config/index.ts";
 
+import { resolveShares } from "../../config/shares.ts";
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -31,8 +33,8 @@ function entriesOf(config: ResolvedConfig): [string, unknown][] {
  * introspection can read their bodies.
  */
 export function bootstrapFunctionNames(config: ResolvedConfig): string[] {
-  const shared = Object.keys(config.authorization?.sharedFunctions ?? {}).map(
-    (name) => (name.includes(".") ? name : `public.${name}`),
+  const shared = Object.keys(resolveShares(config).functions).map((name) =>
+    name.includes(".") ? name : `public.${name}`,
   );
 
   return [

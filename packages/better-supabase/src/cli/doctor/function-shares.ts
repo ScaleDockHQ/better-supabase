@@ -2,9 +2,11 @@ import type {
   AuthorizationPermissionFilter,
   AuthorizationProvider,
 } from "../../config/index.ts";
+import type { ResolvedShares } from "../../config/shares.ts";
 import type { CatalogFunction, CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
+import { resolveShares } from "../../config/shares.ts";
 import { providerLabel } from "../authorization.ts";
 import { bodyOf, list, obj, str, strings } from "../schema-reader/ast.ts";
 import { parseStatements } from "../schema-reader/index.ts";
@@ -170,30 +172,34 @@ export interface ShareScope {
 
 /** `scope` for a provider over a catalog. */
 export function shareScope(
-  provider: AuthorizationProvider,
+  provider: AuthorizationProvider | undefined,
   functions: readonly CatalogFunction[],
   tables: readonly CatalogTable[],
   sources: Readonly<Record<string, string>> | undefined,
+  shares?: ResolvedShares,
 ): ShareScope {
+  const resolved =
+    shares ??
+    resolveShares({
+      ...(provider === undefined ? {} : { authorization: provider }),
+    });
+
   const tenantTables = new Set(
-    Object.entries(provider.tables ?? {}).flatMap(([name, entry]) => {
+    Object.entries(resolved.tables).flatMap(([name, entry]) => {
       const found = tableNamed(tables, name);
 
-      return entry.share === "tenant" && found ? [qualified(found)] : [];
+      return entry.share.share === "tenant" && found ? [qualified(found)] : [];
     }),
   );
 
   return {
     functions,
     sources,
-    listed: new Set(
-      Object.keys(provider.sharedFunctions ?? {}).map(qualifiedName),
-    ),
+    listed: new Set(Object.keys(resolved.functions).map(qualifiedName)),
     filters: Object.fromEntries(
-      Object.entries(provider.permissionFilters ?? {}).map(([name, filter]) => [
-        qualifiedName(name),
-        filter,
-      ]),
+      Object.entries(provider?.permissionFilters ?? {}).map(
+        ([name, filter]) => [qualifiedName(name), filter],
+      ),
     ),
     tenantTables,
   };
@@ -409,9 +415,10 @@ export async function functionShares(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const provider = context.config.authorization;
-  const declared = Object.entries(provider?.sharedFunctions ?? {});
+  const shares = resolveShares(context.config);
+  const declared = Object.entries(shares.functions);
 
-  if (!provider || declared.length === 0) {
+  if (declared.length === 0) {
     return [];
   }
 
@@ -422,12 +429,24 @@ export async function functionShares(
     catalog.functions,
     catalog.tables,
     context.snapshot.extras.functionSources,
+    shares,
   );
 
   const findings: FindingInput[] = [];
 
-  for (const [key, entry] of declared) {
-    const target = `authorization.sharedFunctions.${key}`;
+  for (const [key, declaredShare] of declared) {
+    const entry = declaredShare.share;
+
+    const target =
+      declaredShare.source === "app"
+        ? `shares.functions.${key}`
+        : `authorization.sharedFunctions.${key}`;
+
+    const label =
+      declaredShare.source === "app" || provider === undefined
+        ? "shares.functions"
+        : `${providerLabel(provider)} sharedFunctions`;
+
     const name = qualifiedName(key);
 
     const fn = catalog.functions.find(
@@ -436,7 +455,7 @@ export async function functionShares(
 
     if (!fn) {
       findings.push({
-        message: `${providerLabel(provider)} declares ${key} in sharedFunctions, but the database has no such function.`,
+        message: `${label} declares ${key}, but the database has no such function.`,
         target,
       });
       continue;
@@ -451,14 +470,14 @@ export async function functionShares(
         tables.add(qualified(found));
       } else {
         findings.push({
-          message: `${providerLabel(provider)} declares ${qualifiedFn(fn)} as reading ${table}, but the database has no such table.`,
+          message: `${label} declares ${qualifiedFn(fn)} as reading ${table}, but the database has no such table.`,
           target,
         });
       }
 
-      if (provider.tables?.[table]?.share !== "tenant") {
+      if (shares.tables[table]?.share.share !== "tenant") {
         findings.push({
-          message: `${providerLabel(provider)} declares ${qualifiedFn(fn)} as reading ${table}, which its tables don't share per tenant, so no shared fill can call the function.`,
+          message: `${label} declares ${qualifiedFn(fn)} as reading ${table}, which the provider's tables and shares.tables don't share per tenant, so no shared fill can call the function.`,
           target,
         });
       }
@@ -480,7 +499,7 @@ export async function functionShares(
 
     if (reasons.length > 0) {
       findings.push({
-        message: `${providerLabel(provider)} declares ${qualifiedFn(fn)} in sharedFunctions, but ${reasons.length === 1 ? reasons[0] : reasons.map((reason, index) => `(${String(index + 1)}) ${reason}`).join("; ")}. A shared entry could hand one caller's rows to another.`,
+        message: `${label} declares ${qualifiedFn(fn)}, but ${reasons.length === 1 ? reasons[0] : reasons.map((reason, index) => `(${String(index + 1)}) ${reason}`).join("; ")}. A shared entry could hand one caller's rows to another.`,
         target,
         object: { kind: "function", schema: fn.schema, name: fn.name },
       });

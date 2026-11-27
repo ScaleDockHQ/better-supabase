@@ -175,25 +175,14 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.workflow_events",
           "centrakit.workflow_runs",
         ],
-        // Tenant columns CentraKit doesn't index.
+        // CentraKit's own tables whose tenant column has no index. Adopted
+        // block tables are left to the module.
         "warning BS204": [
           "centrakit.customer_contacts.organization_id",
           "centrakit.customers.organization_id",
           "centrakit.employees.organization_id",
-          "centrakit.file_node.organization_id",
-          "centrakit.file_node_grant.organization_id",
-          "centrakit.inbound_webhook_events.organization_id",
-          "centrakit.inbound_webhooks.organization_id",
-          "centrakit.integration_credentials.organization_id",
-          "centrakit.notification_deliveries.organization_id",
-          "centrakit.notification_events.organization_id",
-          "centrakit.notification_preferences.organization_id",
-          "centrakit.notification_recipients.organization_id",
-          "centrakit.organization_users.organization_id",
           "centrakit.projects.organization_id",
           "centrakit.tasks.organization_id",
-          "centrakit.webhook_destination_secrets.organization_id",
-          "centrakit.workflow_events.organization_id",
           "centrakit.workflow_runs.organization_id",
         ],
         // CentraKit's int8 ids, with no `int8` codec in the config.

@@ -928,6 +928,25 @@ const FLAT = {
     }),
   ),
   authorization: v.optional(checkedAuthorization),
+  shares: v.optional(
+    v.strictObject({
+      tables: v.optional(
+        v.record(
+          v.string(),
+          v.strictObject({
+            share: v.picklist(["tenant", "row"]),
+            permissions: strings,
+          }),
+        ),
+      ),
+      functions: v.optional(
+        v.record(
+          v.string(),
+          v.strictObject({ tables: strings, permissions: strings }),
+        ),
+      ),
+    }),
+  ),
   vectorSearch: v.optional(
     v.record(
       v.string(),
@@ -1145,6 +1164,7 @@ const ENTRIES = {
     }),
   ),
   recordTypes: FLAT.recordTypes,
+  shares: FLAT.shares,
   blocks: FLAT.blocks,
   adapters: FLAT.adapters,
   gen: v.optional(

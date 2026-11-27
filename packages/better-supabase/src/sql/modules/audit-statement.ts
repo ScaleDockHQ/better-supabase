@@ -112,7 +112,23 @@ export function statementFunction(
   const entries = `select ${once(values)}
     from final${labels ? "\n    left join labels l on l.tenant_key is not distinct from final.row_tenant" : ""}`;
 
-  const write = (source: string): string => `with src as (
+  // One chain lock and one lookup of the previous row per tenant of the
+  // statement. chain_link reads the heads table the function owns and links
+  // the later rows of the same insert from it, because a before-row trigger
+  // cannot see the earlier rows of its own insert.
+  const chained = ctx.owns("log") && ctx.flag("chain", false);
+
+  const chainOpen = chained
+    ? `create temp table if not exists bsb_chain_heads (tenant text primary key, chain_seq bigint, row_hash bytea) on commit drop;
+    truncate pg_temp.bsb_chain_heads;`
+    : "";
+
+  const chainClose = chained
+    ? "drop table if exists pg_temp.bsb_chain_heads;"
+    : "";
+
+  const write = (source: string): string => `${chainOpen}
+    with src as (
       ${source}
     ), paired as (
       select case when s.old_row is null then 'insert' when s.new_row is null then 'delete' else 'update' end as op,
@@ -140,10 +156,12 @@ export function statementFunction(
     )
     insert into ${restricted.table} (${restricted.columns})
     select ${once(restricted.values)}
-    ${pairedFrom(restricted.pair)};`
+    ${pairedFrom(restricted.pair)};
+    ${chainClose}`
         : `
     insert into ${ctx.table("log")} (${parts.insert.columns})
-    ${entries};`
+    ${entries};
+    ${chainClose}`
     }`;
 
   const sides = {

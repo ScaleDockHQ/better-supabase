@@ -1396,8 +1396,11 @@ export interface PrivateCachedOptions<T extends string = string>
   readonly scope?: "private";
   /**
    * Keeps the reads of `ctx.db` in the kept store (`bsb.kept()`'s store), per
-   * user, expired by writes to the table they read. Writes, `$many()` batches
-   * and raw SQL always reach the database.
+   * user, expired by writes to the table they read. A stable `$rpc()` and a
+   * `$many()` batch are kept too when `keep.tables` names the tables they read,
+   * one entry for the call. A volatile function, a function call with no
+   * `keep.tables`, a function source and raw SQL always reach the database. A
+   * failed call is not stored.
    */
   readonly keep?: KeepReadsOptions<T>;
   /**

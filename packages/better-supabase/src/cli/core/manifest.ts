@@ -984,6 +984,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
+      {
+        name: "audit-statement",
+        description:
+          "Rewrite a table's row audit trigger, or its audit() call, as the three static statement triggers",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
     ],
   },
 ];

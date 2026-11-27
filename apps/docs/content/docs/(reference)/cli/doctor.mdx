@@ -403,11 +403,16 @@ runs, so the finding is info instead of a warning.
 
 ### BS204
 
-**Warning: tenant column without an index.** With the
-[memberships extension](/docs/blocks/memberships), every query filters on the tenant column. Add
-an index that starts with it; an expression index whose first key is the plain
-column counts, a partial one doesn't. Views are left out, because a query on a
-view uses the indexes of its tables.
+**Warning: tenant column without an index.** Every query filters on the
+tenant column. Doctor checks each table in `schemas`, including a private
+schema such as `billing`, and skips the block schemas, the tables blocks adopt
+and partitions. The column is `columns.<table>.tenant` when a block sets one,
+`user_id` for an app table with `scope: "user"`, and otherwise
+`sql.tenantColumn` or the memberships column. Add an index that starts with
+it. An expression index whose first key is the plain column counts. A partial
+index does not, and neither does an index that contains the column further
+along. Each finding includes the `create index` statement. Views are left out,
+because a query on a view uses the indexes of its tables.
 
 ### BS205
 
@@ -1243,6 +1248,16 @@ export default defineConfig({
 The same rule runs in pgTAP with
 `select tests.every_table_audited('public', array['sessions', '%_archive'])`
 (see [testing](/docs/testing#pgtap)).
+
+### BS651
+
+**Error: row and statement audit triggers.** A table has a row audit
+trigger (`bsb_audit`, the retired `bs` prefix plus `_audit`, or a trigger that calls
+`better_supabase.audit_row_change()`) and statement audit triggers
+(`bsb_audit_stmt_*`, or a trigger that calls
+`better_supabase.audit_statement_change()`). Both fire, so every change is
+written twice. Drop one of them. Partitions are left out, because they take
+their parent's triggers.
 
 ### BS316
 
@@ -2577,6 +2592,19 @@ and reports:
   `permissions`, so the entry would be keyed on the wrong grant;
 - a name the database has no table for.
 
+A schema-qualified name (`private.counts`) is read even when `schemas` does
+not list that schema. An unqualified name is read in `schemas`. An entry of
+`shares.tables` is checked the same way, and the finding names
+`shares.tables.<name>`.
+
+### BS652
+
+**Error: an app share disagrees with the provider.** `shares.tables` or
+`shares.functions` names a table or function the authorization provider
+already declares, with a different `share` or `permissions`. Gen omits the
+entry, so the two places must agree or only one of them should declare it.
+An identical entry is a restated default (BS427).
+
 ### BS430
 
 **Error: a function the provider shares per tenant reads past its tables.** An
@@ -2601,7 +2629,9 @@ and reports, in one finding, every reason it fails. A function fails when it:
 
 Names match as `schema.name`. A bare table or function name resolves through
 the function's `search_path` (its own schema, then `public`, when it sets
-none), and a bare key in `sharedFunctions` or `tables` means `public`. A call
+none), and a bare key in `sharedFunctions` or `tables` means `public`. An
+entry of `shares.functions` is checked the same way, and the finding names
+`shares.functions.<name>`. A call
 is admitted in three cases:
 
 | The callee                                                                                             | Condition                                                                      |
@@ -2896,9 +2926,11 @@ awaits at least three repository, block client or `$rpc` calls in one
 PostgREST. A read set compiles the same reads into one stable database
 function, so the page waits on one round trip: `defineReadSet(db, "name", ...)`
 and `db.$many(readSet, params)`, or `bsb.bootstrap` for a page's first load.
-The finding prints the read set that replaces the reads: the same calls on the
-builder `s`, keyed by table, and the `db.$many` call. A value that comes from
-the page becomes a placeholder. See [read sets](/docs/repository/read-sets).
+A record page can send the same bindings through `read_batch`, which
+`bsb.record(type).get` calls. The finding prints the read set that replaces
+the reads: the same calls on the builder `s`, keyed by table, and the
+`db.$many` call. A value that comes from the page becomes a placeholder. See
+[read sets](/docs/repository/read-sets).
 `tooling.doctor.parallelReads` sets the count (default 3).
 
 ### BS634

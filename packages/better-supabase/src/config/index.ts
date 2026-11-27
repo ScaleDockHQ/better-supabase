@@ -200,6 +200,7 @@ export type {
   AuthorizationRoleSource,
   AuthorizationScope,
   AuthorizationTableShare,
+  SharesConfig,
   AuthorizationTokenHook,
   AuthorizationVersions,
 } from "./authorization.ts";

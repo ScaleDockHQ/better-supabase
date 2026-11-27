@@ -6,6 +6,7 @@ import type {
   ExecuteContext,
   ExecuteResult,
   Executor,
+  RpcContext,
 } from "../core/executor.ts";
 import type { KeptCache, KeptStore } from "../core/kept-cache.ts";
 import type { Result } from "../core/result.ts";
@@ -32,6 +33,7 @@ import {
   keptVersionOf,
   memoryKeptStore,
 } from "../core/kept-cache.ts";
+import { rpcFunction } from "../core/rpc-result.ts";
 import { cacheTagsOf } from "../core/tags.ts";
 import {
   sharedFunctionsOf,
@@ -45,6 +47,72 @@ import { cacheKeyOf } from "./session-handle.ts";
 
 const DEFAULT_REVALIDATE = 300;
 const DEFAULT_EXPIRE = 86_400;
+
+/**
+ * A function call that must not be stored. Thrown from the fill so the kept
+ * store never writes the envelope, then caught and returned as the result.
+ */
+class UnkeptRpc extends Error {
+  readonly result: Result<unknown>;
+
+  constructor(result: Result<unknown>) {
+    super("kept rpc");
+    this.name = "UnkeptRpc";
+    this.result = result;
+  }
+}
+
+function schemaOf(value: unknown): SchemaMeta | undefined {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "functions" in value &&
+    "tables" in value
+  ) {
+    // SAFETY: createNext passes the definition's SchemaMeta as deps.meta.
+    return value as SchemaMeta;
+  }
+
+  return undefined;
+}
+
+/**
+ * A function call is kept when the caller named the tables it reads, unless the
+ * schema says the function is volatile. A function the schema doesn't name (a
+ * block call, an API function) is kept: the tables are the expiry.
+ */
+function keepsRpc(
+  context: RpcContext,
+  tables: readonly string[] | undefined,
+  meta: SchemaMeta | undefined,
+  name: string,
+  args: Readonly<Record<string, unknown>>,
+): boolean {
+  if (tables === undefined || tables.length === 0) {
+    return false;
+  }
+
+  const fn =
+    context.function ??
+    (meta === undefined
+      ? undefined
+      : rpcFunction(meta, name, context.schema, args));
+
+  if (fn?.volatility === "volatile") {
+    return false;
+  }
+
+  if (
+    context.get === true ||
+    fn?.volatility === "stable" ||
+    fn?.volatility === "immutable"
+  ) {
+    return true;
+  }
+
+  // The schema doesn't name it. The caller listed the tables it reads.
+  return fn === undefined;
+}
 
 interface KeptScope<Ctx, C, P> {
   readonly ctx: Ctx;
@@ -440,7 +508,63 @@ export function keptBinding<Ctx extends KeptContext<C, P>, C, P>(
         return fn.in(scope, canonical);
       };
 
-      return { ...inner, execute: read };
+      const call = inner.rpc?.bind(inner);
+      const meta = schemaOf(deps.meta);
+
+      if (call === undefined) {
+        return { ...inner, execute: read };
+      }
+
+      const rpc = (
+        name: string,
+        args: Readonly<Record<string, unknown>>,
+        context: RpcContext,
+      ): Promise<Result<unknown>> => {
+        const tables = keep.tables;
+
+        if (
+          tables === undefined ||
+          !keepsRpc(context, tables, meta, name, args)
+        ) {
+          return call(name, args, context);
+        }
+
+        let canonical: string;
+
+        try {
+          canonical = canonicalJson({ schema: context.schema, name, args });
+        } catch {
+          return call(name, args, context);
+        }
+
+        const fn = build(
+          async (_ctx: Ctx, _key: string) => {
+            const result = await call(name, args, context);
+
+            if (!result.ok) {
+              throw new UnkeptRpc(result);
+            }
+
+            return result;
+          },
+          {
+            name: `${keep.name}:rpc:${context.schema}.${name}`,
+            tables,
+            ...(keep.life ? { life: keep.life } : {}),
+            ...(keep.version === undefined ? {} : { version: keep.version }),
+          },
+        );
+
+        return fn.in(scope, canonical).catch((error: unknown) => {
+          if (error instanceof UnkeptRpc) {
+            return error.result;
+          }
+
+          throw error;
+        });
+      };
+
+      return { ...inner, execute: read, rpc };
     };
 
   const keepMemo = (

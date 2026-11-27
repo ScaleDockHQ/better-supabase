@@ -3,9 +3,13 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
+import type {
+  BetterSupabaseConfig,
+  ResolvedConfig,
+} from "../../../src/config/index.ts";
 
 import {
+  declaredTableSchemas,
   getSnapshot,
   managementTarget,
   openSource,
@@ -22,6 +26,22 @@ const config = (
   source: NonNullable<BetterSupabaseConfig["database"]>["source"] = {},
   root = "/p",
 ) => resolveConfig({ database: { source } }, root);
+
+describe("declaredTableSchemas", () => {
+  it("keeps the schema of a qualified provider table", () => {
+    // SAFETY: the helper reads only authorization.tables.
+    const resolved = {
+      authorization: {
+        tables: {
+          "private.counts": { share: "row", permissions: [] },
+          customers: { share: "row", permissions: [] },
+        },
+      },
+    } as unknown as ResolvedConfig;
+
+    expect(declaredTableSchemas(resolved)).toEqual(["private"]);
+  });
+});
 
 describe("managementTarget", () => {
   it("reads a project ref from the flag or the config", () => {
