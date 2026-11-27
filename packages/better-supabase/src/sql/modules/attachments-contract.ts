@@ -56,6 +56,11 @@ export function attachmentsContract(
       args: ["{id}", "text", "text"],
       returns: "jsonb",
     },
+    {
+      name: "attachment_counts",
+      args: ["{id}", "text", "text[]"],
+      returns: "jsonb",
+    },
     { name: "page_attachments", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_attachment", args: ["uuid"], returns: "jsonb" },
     { name: "delete_attachment", args: ["uuid"], returns: "boolean" },

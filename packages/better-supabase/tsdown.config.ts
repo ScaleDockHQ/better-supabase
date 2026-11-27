@@ -366,6 +366,14 @@ const library = defineConfig({
           test: (id: string) => id.endsWith(COLD_START_MARK),
           includeDependenciesRecursively: false,
         },
+        {
+          // The project page helpers stay out of the composite entry (ADR 1262).
+          name: "projects-page",
+          test: (id: string) =>
+            id.endsWith("/blocks/projects/overview.ts") ||
+            id.endsWith("/blocks/projects/page.ts"),
+          includeDependenciesRecursively: false,
+        },
       ],
     },
   },

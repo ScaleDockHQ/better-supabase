@@ -12,7 +12,12 @@ import type { CollectionNames } from "./collections-functions.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  extraFieldsArg,
+  lockTable,
+  schemaPreamble,
+  userGrant,
+} from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectCascades } from "../subjects.ts";
 import {
@@ -132,9 +137,23 @@ const NAMES: BlockSqlNames = {
         subjectId: "subject_id",
         rank: "rank",
         createdAt: "created_at",
+        folder: "folder_id",
       },
       app: {},
-      optional: ["createdAt"],
+      optional: ["createdAt", "folder"],
+    },
+    folders: {
+      name: "collection_star_folders",
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", user: "user", export: true },
+      columns: {
+        id: "id",
+        user: "user_id",
+        tenant: "tenant_id",
+        name: "name",
+        rank: "rank",
+      },
+      app: {},
     },
     savedItems: {
       name: "saved_items",
@@ -221,6 +240,81 @@ create table if not exists ${t("favorites")} (
 create index if not exists ${sqlIdent(`${ctx.tableName("favorites").name}_user_rank_idx`)} on ${t("favorites")} (${fa("user")}, ${fa("tenant")}, ${fa("rank")});
 create index if not exists ${sqlIdent(`${ctx.tableName("favorites").name}_subject_idx`)} on ${t("favorites")} (${fa("subjectType")}, ${fa("subjectId")});
 ${lockTable(t("favorites"), { read: true })}
+${
+  ctx.has("favorites", "folder")
+    ? `
+create table if not exists ${t("folders")} (
+  ${names.c("folders", "id")} uuid primary key default gen_random_uuid(),
+  ${names.c("folders", "user")} uuid not null references auth.users (id) on delete cascade,
+  ${names.c("folders", "tenant")} ${ctx.idType} not null,
+  ${names.c("folders", "name")} text not null check (length(${names.c("folders", "name")}) between 1 and 120),
+  ${names.c("folders", "rank")} text collate "C" not null default 'V'
+);
+alter table ${t("favorites")} add column if not exists ${fa("folder")} uuid references ${t("folders")} (${names.c("folders", "id")}) on delete set null;
+
+create or replace function ${ctx.fn("save_star_folder")}(tenant ${ctx.idType}, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("folders")};
+begin
+  if save_star_folder.id is null then
+    insert into ${t("folders")} (${names.c("folders", "user")}, ${names.c("folders", "tenant")}, ${names.c("folders", "name")})
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update ${t("folders")} x
+    set ${names.c("folders", "name")} = save_star_folder.name
+    where x.${names.c("folders", "id")} = save_star_folder.id and x.${names.c("folders", "user")} = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+${userGrant(`${ctx.fn("save_star_folder")}(${ctx.idType}, uuid, text)`)}
+
+create or replace function ${ctx.fn("remove_star_folder")}(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  delete from ${t("folders")} x
+  where x.${names.c("folders", "id")} = remove_star_folder.id and x.${names.c("folders", "user")} = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+${userGrant(`${ctx.fn("remove_star_folder")}(uuid)`)}
+
+create or replace function ${ctx.fn("move_star")}(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  update ${t("favorites")} x
+  set ${fa("folder")} = move_star.folder
+  where x.${fa("user")} = auth.uid()
+    and x.${fa("subjectType")} = move_star.subject_type
+    and x.${fa("subjectId")} = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+${userGrant(`${ctx.fn("move_star")}(text, text, uuid)`)}
+`
+    : ""
+}
 
 create table if not exists ${t("savedItems")} (
   ${sv("id")} uuid primary key default gen_random_uuid(),
@@ -427,6 +521,21 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "unstar_subject", args: ["text", "text"], returns: "boolean" },
     { name: "rank_star", args: ["text", "text", "text"], returns: "boolean" },
     { name: "starred_subjects", args: ["{id}", "text"], returns: "jsonb" },
+    ...(ctx.has("favorites", "folder")
+      ? [
+          {
+            name: "save_star_folder",
+            args: ["{id}", "uuid", "text"],
+            returns: "jsonb",
+          },
+          { name: "remove_star_folder", args: ["uuid"], returns: "boolean" },
+          {
+            name: "move_star",
+            args: ["text", "text", "uuid"],
+            returns: "boolean",
+          },
+        ]
+      : []),
     {
       name: "upsert_for_later",
       args: ["{id}", "text", "text", "text", "timestamptz"],
@@ -467,7 +576,25 @@ export const COLLECTIONS: BlockSqlDefinition = {
   integrates: ["outbox", "teams"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
+  upgrades: [
+    {
+      from: 2,
+      description:
+        "Favorites can sit in a folder. collection_star_folders holds the folders and favorites gain folder_id.",
+      sql: (ctx) =>
+        ctx.has("favorites", "folder")
+          ? `create table if not exists ${ctx.table("folders")} (
+  ${ctx.col("folders", "id")} uuid primary key default gen_random_uuid(),
+  ${ctx.col("folders", "user")} uuid not null references auth.users (id) on delete cascade,
+  ${ctx.col("folders", "tenant")} ${ctx.idType} not null,
+  ${ctx.col("folders", "name")} text not null check (length(${ctx.col("folders", "name")}) between 1 and 120),
+  ${ctx.col("folders", "rank")} text collate "C" not null default 'V'
+);
+alter table ${ctx.table("favorites")} add column if not exists ${ctx.col("favorites", "folder")} uuid references ${ctx.table("folders")} (${ctx.col("folders", "id")}) on delete set null;`
+          : "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

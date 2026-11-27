@@ -302,6 +302,7 @@ describe("tasks block", () => {
 
     expect(project).toMatchObject({ key: "PAY", progress: 50 });
     expect(project.startOn?.toString()).toBe("2026-10-01");
+    expect(project.archived).toBeUndefined();
 
     const sprint = await items
       .saveIteration({
@@ -372,6 +373,9 @@ describe("tasks block, sparse rows and options", () => {
         start_on: null,
         target_on: "2026-12-31",
         progress: null,
+        archived_at: "2026-11-01T00:00:00Z",
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-11-01T00:00:00Z",
       }),
       upsert_iteration: () => ({
         id: "i1",
@@ -422,8 +426,14 @@ describe("tasks block, sparse rows and options", () => {
       })
       .orThrow();
 
-    expect(project).toMatchObject({ ownerId: "u1", status: "planned" });
+    expect(project).toMatchObject({
+      ownerId: "u1",
+      status: "planned",
+      archived: true,
+    });
     expect(project.startOn).toBeUndefined();
+    expect(project.createdAt?.toString()).toBe("2026-10-01T00:00:00Z");
+    expect(project.updatedAt?.toString()).toBe("2026-11-01T00:00:00Z");
 
     const sprint = await items
       .saveIteration({ organizationId: "o", iteration: { name: "Sprint" } })

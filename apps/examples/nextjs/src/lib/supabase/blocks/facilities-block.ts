@@ -3,6 +3,7 @@
 import { type EventRenamesOf, renameBlock, type RenamedEvents, type RenamedType } from "better-supabase/blocks";
 import { blockConfig } from "../blocks.config.ts";
 import {
+  type Project as DefaultProject,
   type Task as DefaultTask,
   type TaskBulkAction as DefaultTaskBulkAction,
   type TaskChange as DefaultTaskChange,
@@ -35,6 +36,9 @@ type FacilitiesRenamesEvents = EventRenamesOf<(typeof blockConfig)["facilities"]
  * @public
  */
 export const facilitiesBlock = renameBlock(defaultTasksBlock, blockConfig["facilities"].names);
+
+/** @public */
+export type MaintenanceProject = RenamedType<DefaultProject, FacilitiesRenames>;
 
 /** @public */
 export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, FacilitiesRenames>;

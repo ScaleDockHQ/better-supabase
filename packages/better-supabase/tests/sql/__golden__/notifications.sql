@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@11 managed
--- @bsb-hash sha256:511edd18e5fc818f7db7f520724daca8d8c2f6b9e35946bedbd3950c4dd31abb
+-- @bsb-block notifications@12 managed
+-- @bsb-hash sha256:d1d3e9c74a4b0a2d7039729255d60127ab09c18cdf5a527a861df5d880310096
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,6 +42,7 @@ create table "better_supabase"."notification_recipients" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
+  "snoozed_until" timestamptz,
   "resolved_at" timestamptz,
   "resolution" jsonb,
   "delivered_at" timestamptz not null default now(),
@@ -54,7 +55,7 @@ create index notification_recipients_user_idx on "better_supabase"."notification
 alter table "better_supabase"."notification_recipients" enable row level security;
 revoke all on "better_supabase"."notification_recipients" from public, anon, authenticated;
 grant select on "better_supabase"."notification_recipients" to authenticated;
-grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at", "snoozed_until") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
 create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
   for select to authenticated
@@ -72,6 +73,30 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
       and r."user_id" = (select auth.uid())
   )
 );
+
+create or replace function "better_supabase"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."notification_recipients" rc
+  set "snoozed_until" = snooze_notification.until
+  where rc."id" = snooze_notification.id
+    and rc."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 
 create table "better_supabase"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -523,7 +548,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -630,7 +655,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -745,6 +770,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
+          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -1722,21 +1748,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."notification_prefere
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:05c628047975e2ae3353911fb447ee61981fb09e848c307ac2a2e7435215abb0
+-- @bsb-hash sha256:592f818e5b3042da7ce5f497b54c518e69e17d1e0046a062f9823859a8ee4c1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 11, 'managed')
+values ('notifications', 12, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@11 managed
--- @bsb-hash sha256:dfcf33835439cd7ee621f5da3c75bc68a6be2d37370e4c3c5a4710f12ab6c0f3
+-- @bsb-block notifications@12 managed
+-- @bsb-hash sha256:3dbc995043c1821186965ac6d67419de427b5ee3d99201987bf25ae18175f2dd
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1777,6 +1803,7 @@ create table "better_supabase"."notification_recipients" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
+  "snoozed_until" timestamptz,
   "resolved_at" timestamptz,
   "resolution" jsonb,
   "delivered_at" timestamptz not null default now(),
@@ -1789,7 +1816,7 @@ create index notification_recipients_user_idx on "better_supabase"."notification
 alter table "better_supabase"."notification_recipients" enable row level security;
 revoke all on "better_supabase"."notification_recipients" from public, anon, authenticated;
 grant select on "better_supabase"."notification_recipients" to authenticated;
-grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at", "snoozed_until") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
 create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
   for select to authenticated
@@ -1807,6 +1834,30 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
       and r."user_id" = (select auth.uid())
   )
 );
+
+create or replace function "better_supabase"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."notification_recipients" rc
+  set "snoozed_until" = snooze_notification.until
+  where rc."id" = snooze_notification.id
+    and rc."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 
 create table "better_supabase"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2286,7 +2337,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -2393,7 +2444,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -2508,6 +2559,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
+          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -3535,21 +3587,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."notification_prefere
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:05c628047975e2ae3353911fb447ee61981fb09e848c307ac2a2e7435215abb0
+-- @bsb-hash sha256:592f818e5b3042da7ce5f497b54c518e69e17d1e0046a062f9823859a8ee4c1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 11, 'managed')
+values ('notifications', 12, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@11 managed
--- @bsb-hash sha256:448515c7b6b4268d107103dec4291c2a550f31475db53c52717c1cd05398803b
+-- @bsb-block notifications@12 managed
+-- @bsb-hash sha256:c10c1e2b0424557572956b8f13c389a5b0c610574175514e6ca4afada41763c8
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3595,6 +3647,7 @@ create table "app_private"."notification_recipients" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
+  "snoozed_until" timestamptz,
   "resolved_at" timestamptz,
   "resolution" jsonb,
   "delivered_at" timestamptz not null default now(),
@@ -3607,7 +3660,7 @@ create index notification_recipients_user_idx on "app_private"."notification_rec
 alter table "app_private"."notification_recipients" enable row level security;
 revoke all on "app_private"."notification_recipients" from public, anon, authenticated;
 grant select on "app_private"."notification_recipients" to authenticated;
-grant update ("read_at", "dismissed_at") on "app_private"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at", "snoozed_until") on "app_private"."notification_recipients" to authenticated;
 grant all on "app_private"."notification_recipients" to service_role;
 create policy bsb_notification_recipients_read on "app_private"."notification_recipients"
   for select to authenticated
@@ -3625,6 +3678,30 @@ create policy bsb_notification_events_read on "app_private"."notification_events
       and r."user_id" = (select auth.uid())
   )
 );
+
+create or replace function "app_private"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "app_private"."notification_recipients" rc
+  set "snoozed_until" = snooze_notification.until
+  where rc."id" = snooze_notification.id
+    and rc."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "app_private"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "app_private"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 
 create table "app_private"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4076,7 +4153,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -4183,7 +4260,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -4298,6 +4375,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
+          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -5275,21 +5353,21 @@ create policy bsb_tenant_scope_delete on "app_private"."notification_preferences
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:05c628047975e2ae3353911fb447ee61981fb09e848c307ac2a2e7435215abb0
+-- @bsb-hash sha256:592f818e5b3042da7ce5f497b54c518e69e17d1e0046a062f9823859a8ee4c1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 11, 'managed')
+values ('notifications', 12, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@11 managed
--- @bsb-hash sha256:fcd6ce8c84926f927ac6b53b2cdbc71f29f1d43d7df1528c93dc57a7de1cb067
+-- @bsb-block notifications@12 managed
+-- @bsb-hash sha256:ab121c822549c13db2c99dac4cf5fbe07ce6f0fd19b0cd359f035d044695f454
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5330,6 +5408,7 @@ create table "better_supabase"."notification_recipients" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
+  "snoozed_until" timestamptz,
   "resolved_at" timestamptz,
   "resolution" jsonb,
   "delivered_at" timestamptz not null default now(),
@@ -5342,7 +5421,7 @@ create index notification_recipients_user_idx on "better_supabase"."notification
 alter table "better_supabase"."notification_recipients" enable row level security;
 revoke all on "better_supabase"."notification_recipients" from public, anon, authenticated;
 grant select on "better_supabase"."notification_recipients" to authenticated;
-grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at", "snoozed_until") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
 create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
   for select to authenticated
@@ -5360,6 +5439,30 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
       and r."user_id" = (select auth.uid())
   )
 );
+
+create or replace function "better_supabase"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."notification_recipients" rc
+  set "snoozed_until" = snooze_notification.until
+  where rc."id" = snooze_notification.id
+    and rc."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 
 create table "better_supabase"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5811,7 +5914,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -5918,7 +6021,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -6033,6 +6136,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
+          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -7024,6 +7128,15 @@ create policy bsb_tenant_scope_delete on "better_supabase"."notification_prefere
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+create or replace function "api"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."snooze_notification"($1, $2) $$;
+revoke execute on function "api"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "api"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 create or replace function "api"."notification_enabled"(member uuid, tenant uuid, type text, channel text)
 returns boolean
 language sql
@@ -7298,21 +7411,21 @@ grant execute on function "api"."purge_notifications"(interval, integer) to serv
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:05c628047975e2ae3353911fb447ee61981fb09e848c307ac2a2e7435215abb0
+-- @bsb-hash sha256:592f818e5b3042da7ce5f497b54c518e69e17d1e0046a062f9823859a8ee4c1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 11, 'managed')
+values ('notifications', 12, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@11 managed
--- @bsb-hash sha256:59cb2b9ddcc029261854aa908a0032edd51de2eebacfdfe3a01c76b6ab428be2
+-- @bsb-block notifications@12 managed
+-- @bsb-hash sha256:8fb3033b81b87848b1cc0b3e376259bac89a59973dc6492e9d08a507fb63af7d
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7349,6 +7462,7 @@ alter table "better_supabase"."notification_recipients" add column if not exists
 alter table "better_supabase"."notification_recipients" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."notification_recipients" add column if not exists "read_at" timestamptz;
 alter table "better_supabase"."notification_recipients" add column if not exists "dismissed_at" timestamptz;
+alter table "better_supabase"."notification_recipients" add column if not exists "snoozed_until" timestamptz;
 alter table "better_supabase"."notification_recipients" add column if not exists "resolved_at" timestamptz;
 alter table "better_supabase"."notification_recipients" add column if not exists "resolution" jsonb;
 alter table "better_supabase"."notification_recipients" add column if not exists "delivered_at" timestamptz not null default now();
@@ -7360,7 +7474,7 @@ create index if not exists notification_recipients_unread_idx on "better_supabas
 create index if not exists notification_recipients_user_idx on "better_supabase"."notification_recipients" ("user_id");
 alter table "better_supabase"."notification_recipients" enable row level security;
 grant select on "better_supabase"."notification_recipients" to authenticated;
-grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at", "snoozed_until") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
 create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
   for select to authenticated
@@ -7378,6 +7492,30 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
       and r."user_id" = (select auth.uid())
   )
 );
+
+create or replace function "better_supabase"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."notification_recipients" rc
+  set "snoozed_until" = snooze_notification.until
+  where rc."id" = snooze_notification.id
+    and rc."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 
 -- better_supabase.notification_deliveries is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."notification_deliveries" add column if not exists "id" uuid default gen_random_uuid();
@@ -7820,7 +7958,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -7927,7 +8065,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -8042,6 +8180,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
+          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
           and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -9019,21 +9158,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."notification_prefere
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:05c628047975e2ae3353911fb447ee61981fb09e848c307ac2a2e7435215abb0
+-- @bsb-hash sha256:592f818e5b3042da7ce5f497b54c518e69e17d1e0046a062f9823859a8ee4c1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 11, 'managed')
+values ('notifications', 12, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
--- @bsb-block notifications@11 managed
--- @bsb-hash sha256:360e78470612cd47399425b44334605cb8aa48680a9d95f38a1dae995f92a173
+-- @bsb-block notifications@12 managed
+-- @bsb-hash sha256:4c7498771ee08c14128c3d99186a483a7ba64ba00330be6b9cbe44eba179b621
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9074,6 +9213,7 @@ create table "better_supabase"."notification_recipients" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
+  "snoozed_until" timestamptz,
   "resolved_at" timestamptz,
   "resolution" jsonb,
   "delivered_at" timestamptz not null default now(),
@@ -9086,7 +9226,7 @@ create index notification_recipients_user_idx on "better_supabase"."notification
 alter table "better_supabase"."notification_recipients" enable row level security;
 revoke all on "better_supabase"."notification_recipients" from public, anon, authenticated;
 grant select on "better_supabase"."notification_recipients" to authenticated;
-grant update ("read_at", "dismissed_at") on "better_supabase"."notification_recipients" to authenticated;
+grant update ("read_at", "dismissed_at", "snoozed_until") on "better_supabase"."notification_recipients" to authenticated;
 grant all on "better_supabase"."notification_recipients" to service_role;
 create policy bsb_notification_recipients_read on "better_supabase"."notification_recipients"
   for select to authenticated
@@ -9104,6 +9244,30 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
       and r."user_id" = (select auth.uid())
   )
 );
+
+create or replace function "better_supabase"."snooze_notification"(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."notification_recipients" rc
+  set "snoozed_until" = snooze_notification.until
+  where rc."id" = snooze_notification.id
+    and rc."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."snooze_notification"(uuid, timestamptz) to authenticated, service_role;
+
 
 create table "better_supabase"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -9555,7 +9719,7 @@ declare
   v_where text;
   result jsonb;
 begin
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(list_notifications.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif list_notifications.dismissed is not null then
@@ -9662,7 +9826,7 @@ begin
   if notification_page.before is not null and coalesce(notification_page.order_by, 'newest') <> 'newest' then
     raise exception 'before pages the newest order; page another order with skip' using errcode = '22023';
   end if;
-  v_where := $q$rc."user_id" = $1$q$;
+  v_where := $q$rc."user_id" = $1 and (rc."snoozed_until" is null or rc."snoozed_until" <= now())$q$;
   if coalesce(notification_page.status, 'all') = 'settled' then
     v_where := v_where || $q$ and (rc."resolved_at" is not null or rc."dismissed_at" is not null)$q$;
   elsif notification_page.dismissed is not null then
@@ -9777,6 +9941,7 @@ as $$
         where rc."user_id" = auth.uid()
           and rc."read_at" is null
           and rc."dismissed_at" is null
+          and (rc."snoozed_until" is null or rc."snoozed_until" <= now())
           and (notification_counts.tenant is null or rc."org_id" = notification_counts.tenant)
         limit notification_counts.cap
       ) u
@@ -10754,13 +10919,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."notification_prefere
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block-data notifications
--- @bsb-hash sha256:05c628047975e2ae3353911fb447ee61981fb09e848c307ac2a2e7435215abb0
+-- @bsb-hash sha256:592f818e5b3042da7ce5f497b54c518e69e17d1e0046a062f9823859a8ee4c1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('notifications', 11, 'managed')
+values ('notifications', 12, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

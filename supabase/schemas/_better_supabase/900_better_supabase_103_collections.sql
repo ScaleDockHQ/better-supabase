@@ -1,6 +1,6 @@
 -- better-supabase module: collections
--- @bsb-block collections@2 managed
--- @bsb-hash sha256:9fca0b814dfaa664e489893a4e3720fd5f3b67ccce04a3177ed45293cfd9f851
+-- @bsb-block collections@3 managed
+-- @bsb-hash sha256:ac6e4c6c9dd4493801b32fd024026847ccc76c0eb471cc036a2caf9a9f44809e
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,6 +64,89 @@ alter table "better_supabase"."collection_favorites" enable row level security;
 revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
 grant select on "better_supabase"."collection_favorites" to authenticated;
 grant all on "better_supabase"."collection_favorites" to service_role;
+
+create table "better_supabase"."collection_star_folders" (
+  "id" uuid primary key default gen_random_uuid(),
+  "user_id" uuid not null references auth.users (id) on delete cascade,
+  "tenant_id" uuid not null,
+  "name" text not null constraint bsb_collection_star_folders_name_check check (length("name") >= 1 and length("name") <= 120),
+  "rank" text collate "C" not null default 'V'
+);
+alter table "better_supabase"."collection_favorites" add column "folder_id" uuid references "better_supabase"."collection_star_folders" ("id") on delete set null;
+
+create or replace function "better_supabase"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."collection_star_folders";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if save_star_folder.id is null then
+    insert into "better_supabase"."collection_star_folders" ("user_id", "tenant_id", "name")
+    values (auth.uid(), save_star_folder.tenant, save_star_folder.name)
+    returning * into v_row;
+  else
+    update "better_supabase"."collection_star_folders" x
+    set "name" = save_star_folder.name
+    where x."id" = save_star_folder.id and x."user_id" = auth.uid()
+    returning * into v_row;
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_star_folder"(id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."collection_star_folders" x
+  where x."id" = remove_star_folder.id and x."user_id" = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."collection_favorites" x
+  set "folder_id" = move_star.folder
+  where x."user_id" = auth.uid()
+    and x."subject_type" = move_star.subject_type
+    and x."subject_id" = move_star.subject_id;
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."move_star"(text, text, uuid) to authenticated, service_role;
+
 
 create table "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1537,6 +1620,33 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- blocks.collections.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+create or replace function "api"."save_star_folder"(tenant uuid, id uuid, name text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_star_folder"($1, $2, $3) $$;
+revoke execute on function "api"."save_star_folder"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."save_star_folder"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."remove_star_folder"(id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_star_folder"($1) $$;
+revoke execute on function "api"."remove_star_folder"(uuid) from public, anon;
+grant execute on function "api"."remove_star_folder"(uuid) to authenticated, service_role;
+
+create or replace function "api"."move_star"(subject_type text, subject_id text, folder uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."move_star"($1, $2, $3) $$;
+revoke execute on function "api"."move_star"(text, text, uuid) from public, anon;
+grant execute on function "api"."move_star"(text, text, uuid) to authenticated, service_role;
 
 create or replace function "api"."create_collection"(tenant uuid, subject_type text, name text, scope text, team text, description text)
 returns jsonb

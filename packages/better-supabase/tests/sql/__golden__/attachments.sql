@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:662ab4762f32698f83eb8db0b8db2a078c95187322c2caee5c859d4e03ba30c9
+-- @bsb-hash sha256:8e7cd297a30f9027099527e97089b97948724b241cfda892fbfac7427c9ad1d2
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -771,6 +771,23 @@ begin
   return v_files;
 end;
 $$;
+create or replace function "better_supabase"."attachment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, coalesce(n.total, 0)), '{}'::jsonb)
+  from (select distinct u as id from unnest(attachment_counts.subject_ids) u where u is not null limit 200) s
+  left join lateral (
+    select count(*) as total from "better_supabase"."attachments" y
+    where y."tenant_id" is not distinct from attachment_counts.tenant
+      and y."subject_type" = attachment_counts.subject_type
+      and y."subject_id" = s.id
+  ) n on true
+$$;
+
 -- A keyset page of files, newest first (ADR 1077). Row security decides what
 -- the caller sees. filters is { subjectType, subjectId, status, documentTypeId (each a value
 -- or a list), search, sort (createdAt, name, size), direction, facet, count,
@@ -1301,6 +1318,8 @@ grant execute on function "better_supabase"."create_attachment"(uuid, text, text
 grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 -- Seeds the rows every organization starts with for attachments. Safe to run
@@ -1422,7 +1441,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:6ae61e837c9519571953119fe15d4fe3a4df15bc9244335e0066bcbd8aaad1f8
+-- @bsb-hash sha256:5e8bce19aaa025b41f1a70e937a4ae975625f1544a0c97815a05a970977c11a5
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2318,6 +2337,23 @@ begin
   return v_files;
 end;
 $$;
+create or replace function "better_supabase"."attachment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, coalesce(n.total, 0)), '{}'::jsonb)
+  from (select distinct u as id from unnest(attachment_counts.subject_ids) u where u is not null limit 200) s
+  left join lateral (
+    select count(*) as total from "better_supabase"."attachments" y
+    where y."tenant_id" is not distinct from attachment_counts.tenant
+      and y."subject_type" = attachment_counts.subject_type
+      and y."subject_id" = s.id
+  ) n on true
+$$;
+
 -- A keyset page of files, newest first (ADR 1077). Row security decides what
 -- the caller sees. filters is { subjectType, subjectId, status, documentTypeId (each a value
 -- or a list), search, sort (createdAt, name, size), direction, facet, count,
@@ -2864,6 +2900,8 @@ grant execute on function "better_supabase"."create_attachment"(uuid, text, text
 grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 -- Seeds the rows every organization starts with for attachments. Safe to run
@@ -2988,7 +3026,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:8522b2f6e5a36f34946b4be843d0d5443e075a1eed7a0ad1e20c16ceb450c704
+-- @bsb-hash sha256:4c75db3adbf052a45866b84183a6b339cff18081e78706b5a827c41cf2089a2f
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3763,6 +3801,23 @@ begin
   return v_files;
 end;
 $$;
+create or replace function "app_private"."attachment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, coalesce(n.total, 0)), '{}'::jsonb)
+  from (select distinct u as id from unnest(attachment_counts.subject_ids) u where u is not null limit 200) s
+  left join lateral (
+    select count(*) as total from "app_private"."attachments" y
+    where y."tenant_id" is not distinct from attachment_counts.tenant
+      and y."subject_type" = attachment_counts.subject_type
+      and y."subject_id" = s.id
+  ) n on true
+$$;
+
 -- A keyset page of files, newest first (ADR 1077). Row security decides what
 -- the caller sees. filters is { subjectType, subjectId, status, documentTypeId (each a value
 -- or a list), search, sort (createdAt, name, size), direction, facet, count,
@@ -4293,6 +4348,8 @@ grant execute on function "app_private"."create_attachment"(uuid, text, text, bi
 grant execute on function "app_private"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "app_private"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "app_private"."list_attachments"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."attachment_counts"(uuid, text, text[]) from public, anon;
+grant execute on function "app_private"."attachment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "app_private"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."delete_attachment"(uuid) to authenticated, service_role;
 -- Seeds the rows every organization starts with for attachments. Safe to run
@@ -4414,7 +4471,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:d1d2ab96a856fc260c7736dfe2e1aaa8f41f2378e70c16b1c7dc95b70830ad21
+-- @bsb-hash sha256:eaf6fdcfdc93f89bc967cabef521825f9cf9d2e23c2c097c86d03a4c22f989a4
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5184,6 +5241,23 @@ begin
   return v_files;
 end;
 $$;
+create or replace function "better_supabase"."attachment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, coalesce(n.total, 0)), '{}'::jsonb)
+  from (select distinct u as id from unnest(attachment_counts.subject_ids) u where u is not null limit 200) s
+  left join lateral (
+    select count(*) as total from "better_supabase"."attachments" y
+    where y."tenant_id" is not distinct from attachment_counts.tenant
+      and y."subject_type" = attachment_counts.subject_type
+      and y."subject_id" = s.id
+  ) n on true
+$$;
+
 -- A keyset page of files, newest first (ADR 1077). Row security decides what
 -- the caller sees. filters is { subjectType, subjectId, status, documentTypeId (each a value
 -- or a list), search, sort (createdAt, name, size), direction, facet, count,
@@ -5714,6 +5788,8 @@ grant execute on function "better_supabase"."create_attachment"(uuid, text, text
 grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 -- Seeds the rows every organization starts with for attachments. Safe to run
@@ -5975,6 +6051,16 @@ as $$ select "better_supabase"."list_attachments"($1, $2, $3) $$;
 revoke execute on function "api"."list_attachments"(uuid, text, text) from public, anon;
 grant execute on function "api"."list_attachments"(uuid, text, text) to authenticated, service_role;
 
+create or replace function "api"."attachment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."attachment_counts"($1, $2, $3) $$;
+revoke execute on function "api"."attachment_counts"(uuid, text, text[]) from public, anon;
+grant execute on function "api"."attachment_counts"(uuid, text, text[]) to authenticated, service_role;
+
 create or replace function "api"."get_attachment"(id uuid)
 returns jsonb
 language sql
@@ -6030,7 +6116,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:0aef4501ce4a2368c610b86e4efbc9b81391d9a4d9658cd91be4757513354b66
+-- @bsb-hash sha256:4a04c112d65465d0ec6083f0d36fbd19064fa7f3ad2b1371cacc70ec9ef4bb71
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6621,6 +6707,23 @@ begin
   return v_files;
 end;
 $$;
+create or replace function "better_supabase"."attachment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, coalesce(n.total, 0)), '{}'::jsonb)
+  from (select distinct u as id from unnest(attachment_counts.subject_ids) u where u is not null limit 200) s
+  left join lateral (
+    select count(*) as total from "better_supabase"."attachments" y
+    where y."tenant_id" is not distinct from attachment_counts.tenant
+      and y."subject_type" = attachment_counts.subject_type
+      and y."subject_id" = s.id
+  ) n on true
+$$;
+
 -- A keyset page of files, newest first (ADR 1077). Row security decides what
 -- the caller sees. filters is { subjectType, subjectId, status, documentTypeId (each a value
 -- or a list), search, sort (createdAt, name, size), direction, facet, count,
@@ -7149,6 +7252,8 @@ grant execute on function "better_supabase"."create_attachment"(uuid, text, text
 grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 -- Seeds the rows every organization starts with for attachments. Safe to run
@@ -7264,7 +7369,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:dadc1a7890d0aa66332bcbd55dab9b109ba30f1b6c5585d60b07ab3b6529e82c
+-- @bsb-hash sha256:daef33cbb211e4da9863bd0dfc7333433b5cbaa0f4837b2673c7cda60f4f90f1
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8034,6 +8139,23 @@ begin
   return v_files;
 end;
 $$;
+create or replace function "better_supabase"."attachment_counts"(tenant uuid, subject_type text, subject_ids text[])
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_object_agg(s.id, coalesce(n.total, 0)), '{}'::jsonb)
+  from (select distinct u as id from unnest(attachment_counts.subject_ids) u where u is not null limit 200) s
+  left join lateral (
+    select count(*) as total from "better_supabase"."attachments" y
+    where y."org_id" is not distinct from attachment_counts.tenant
+      and y."subject_type" = attachment_counts.subject_type
+      and y."subject_id" = s.id
+  ) n on true
+$$;
+
 -- A keyset page of files, newest first (ADR 1077). Row security decides what
 -- the caller sees. filters is { subjectType, subjectId, status, documentTypeId (each a value
 -- or a list), search, sort (createdAt, name, size), direction, facet, count,
@@ -8564,6 +8686,8 @@ grant execute on function "better_supabase"."create_attachment"(uuid, text, text
 grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) from public, anon;
+grant execute on function "better_supabase"."attachment_counts"(uuid, text, text[]) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 -- Seeds the rows every organization starts with for attachments. Safe to run

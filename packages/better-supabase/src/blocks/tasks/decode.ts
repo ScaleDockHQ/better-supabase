@@ -1,5 +1,6 @@
 import type { Iteration, Project } from "./tasks.ts";
 
+import { optionalInstant } from "../../core/block-helpers.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { optionalMoneyOf } from "../money-codec.ts";
 import { enumOrThrow, optionalText, recordOf, textOf } from "../shared.ts";
@@ -24,6 +25,13 @@ export const num = (value: unknown): number | undefined => {
 
   return undefined;
 };
+
+const RESOLUTIONS = ["day", "month", "quarter", "half", "year"] as const;
+
+type Resolution = (typeof RESOLUTIONS)[number];
+
+const resolutionOf = (value: unknown): Resolution | undefined =>
+  RESOLUTIONS.find((item) => item === value);
 
 const date = (value: unknown): Temporal.PlainDate | undefined =>
   typeof value === "string"
@@ -51,6 +59,29 @@ export function projectOf(value: unknown): Project {
         ? undefined
         : optionalMoneyOf(row["budget_amount"], row["budget_currency"]),
     budgetHours: num(row["budget_hours"]),
+    description: optionalText(row["description"]),
+    teamId: optionalText(row["team_id"]),
+    priority: num(row["priority"]),
+    icon: optionalText(row["icon"]),
+    color: optionalText(row["color"]),
+    rank: optionalText(row["rank"]),
+    health:
+      row["health"] === "on_track" ||
+      row["health"] === "at_risk" ||
+      row["health"] === "off_track"
+        ? row["health"]
+        : undefined,
+    healthAt: optionalInstant(row["health_at"]),
+    startResolution: resolutionOf(row["start_resolution"]),
+    targetResolution: resolutionOf(row["target_resolution"]),
+    completedAt: optionalInstant(row["completed_at"]),
+    canceledAt: optionalInstant(row["canceled_at"]),
+    archived:
+      row["archived_at"] !== null && row["archived_at"] !== undefined
+        ? true
+        : undefined,
+    createdAt: optionalInstant(row["created_at"]),
+    updatedAt: optionalInstant(row["updated_at"]),
   });
 }
 

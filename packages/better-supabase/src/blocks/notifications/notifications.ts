@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- snooze adds a method past the limit. 1 finding. */
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type {
@@ -863,6 +864,13 @@ export function createNotifications<
     },
     dismiss(ids) {
       return run("dismiss_notifications", { ids }, updateOf);
+    },
+    snooze(id, until) {
+      return run(
+        "snooze_notification",
+        { id, until },
+        (value) => value === true,
+      );
     },
     bulk(ids, action, bulkOptions) {
       return notificationsBulk(

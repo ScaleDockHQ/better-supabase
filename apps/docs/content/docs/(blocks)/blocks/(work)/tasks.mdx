@@ -372,7 +372,7 @@ already assigned.
 
 ## Paging tasks and projects
 
-`page({ organizationId })` pages tasks by keyset. Sorts are `number`, `title`, `dueAt` and `createdAt`. Filters are `state`, `priority`, `teamId`, `projectId`, `iterationId`, `parentId`, `assigneeId` and `open`, facets are `state` and `priority`, and `q` searches the title and the identifier. `facets`, `count` and `getTask` follow the contract; `get` keeps returning `undefined` for a missing task, and `getTask` returns a `not_found` error. Projects live in this block: `pageProjects`, `projectFacets`, `countProjects` and `getProject` page them by `status` and `q`. Iterations and checklist items have no page. `list` is deprecated. The SQL functions are `page_tasks`, `page_projects` and `get_project`.
+`page({ organizationId })` pages tasks by keyset. Sorts are `number`, `title`, `dueAt` and `createdAt`. Filters are `state`, `priority`, `teamId`, `projectId`, `iterationId`, `parentId`, `assigneeId`, `open`, `dueFrom`, `dueTo`, `triage` and `milestoneId`. Facets are `state` and `priority`, and `q` searches the title and the identifier. `facets`, `count` and `getTask` follow the contract; `get` keeps returning `undefined` for a missing task, and `getTask` returns a `not_found` error. Projects live in this block: `pageProjects`, `projectFacets`, `countProjects` and `getProject` page them by `status` and `q`. A project is a subject, so comments, files, tags and the timeline can attach to it. `pageIterations` and `getIteration` read cycles. Checklist items have no page. `list` is deprecated. The SQL functions are `page_tasks`, `page_projects`, `get_project` and `page_iterations`.
 
 ```ts
 const page = await tasks

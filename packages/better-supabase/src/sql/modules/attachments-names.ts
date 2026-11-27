@@ -78,6 +78,18 @@ export const NAMES: BlockSqlNames = {
       "The files on one record, or the tenant's files, oldest first.",
       ["attachments"],
     ),
+    declareRead(
+      "counts",
+      "attachment_counts",
+      {
+        tenant: { param: "tenant", type: "id" },
+        subjectType: { param: "subject_type", type: "text" },
+        subjectIds: { param: "subject_ids", type: "text[]" },
+      },
+      "json",
+      "How many files each record has, keyed by record id.",
+      ["attachments"],
+    ),
   ],
   tables: {
     attachments: {

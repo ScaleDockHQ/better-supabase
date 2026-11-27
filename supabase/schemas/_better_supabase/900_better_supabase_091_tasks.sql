@@ -1,7 +1,7 @@
 -- better-supabase module: tasks
--- @bsb-block tasks@8 managed
--- @bsb-hash sha256:ee151bdf815493d8a1635b7c3608ba05fda48fda66013b956c1bb5453a4c9e08
--- @bsb-names tasks task=work_item/work_items
+-- @bsb-block tasks@10 managed
+-- @bsb-hash sha256:afcfb7b716688474937f24da38eb37ec6f084ae520edef9c983a3833bd490e6d
+-- @bsb-names tasks task=work_item/work_items project=work_project/work_projects
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,10 +14,22 @@ create table "better_supabase"."work_projects" (
   "tenant_id" uuid not null,
   "key" text not null constraint bsb_work_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
   "name" text not null constraint bsb_work_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_work_projects_description_check check ("description" is null or length("description") >= 1 and length("description") <= 10000),
   "owner_id" uuid,
+  "team_id" uuid,
   "status" text not null default 'planned' constraint bsb_work_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
+  "priority" smallint not null default 0 constraint bsb_work_projects_priority_check check ("priority" >= 0 and "priority" <= 4),
+  "icon" text constraint bsb_work_projects_icon_check check ("icon" is null or length("icon") >= 1 and length("icon") <= 50),
+  "color" text constraint bsb_work_projects_color_check check ("color" is null or length("color") >= 1 and length("color") <= 50),
+  "rank" text collate "C" not null default 'V',
+  "health" text constraint bsb_work_projects_health_check check ("health" is null or "health" in ('on_track', 'at_risk', 'off_track')),
+  "health_at" timestamptz,
   "start_on" date,
   "target_on" date,
+  "start_resolution" text constraint bsb_work_projects_start_resolution_check check ("start_resolution" is null or "start_resolution" in ('day', 'month', 'quarter', 'half', 'year')),
+  "target_resolution" text constraint bsb_work_projects_target_resolution_check check ("target_resolution" is null or "target_resolution" in ('day', 'month', 'quarter', 'half', 'year')),
+  "completed_at" timestamptz,
+  "canceled_at" timestamptz,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -63,7 +75,7 @@ create table "better_supabase"."work_items" (
   "body" text,
   "parent_id" uuid references "better_supabase"."work_items" ("id") on delete cascade,
   "team_id" uuid,
-  "project_id" uuid references "better_supabase"."work_projects" ("id") on delete set null,
+  "work_project_id" uuid references "better_supabase"."work_projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
   "priority" smallint not null default 0 constraint bsb_work_items_priority_check check ("priority" >= 0 and "priority" <= 4),
   "estimate" numeric(10, 2) constraint bsb_work_items_estimate_check check ("estimate" >= 0),
@@ -89,7 +101,7 @@ create table "better_supabase"."work_items" (
 );
 create index "work_items_board_idx" on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
 create index "work_items_parent_idx" on "better_supabase"."work_items" ("parent_id");
-create index "work_items_project_idx" on "better_supabase"."work_items" ("project_id");
+create index "work_items_work_project_idx" on "better_supabase"."work_items" ("work_project_id");
 create index "work_items_iteration_idx" on "better_supabase"."work_items" ("iteration_id");
 create index "work_items_due_idx" on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."work_items" enable row level security;
@@ -315,6 +327,49 @@ $$;
 revoke execute on function "better_supabase"."list_work_item_materials"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_work_item_materials"(uuid) to authenticated, service_role;
 
+alter table "better_supabase"."work_items" add column "milestone_id" uuid;
+alter table "better_supabase"."work_items" add column "duplicate_of" uuid;
+alter table "better_supabase"."work_items" add column "snoozed_until" timestamptz;
+alter table "better_supabase"."work_projects" add column "template" boolean not null default false;
+alter table "better_supabase"."iterations" add column "number" integer;
+alter table "better_supabase"."iterations" add column "description" text;
+
+create table "better_supabase"."milestones" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "work_project_id" uuid not null references "better_supabase"."work_projects" ("id") on delete cascade,
+  "name" text not null constraint bsb_milestones_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text,
+  "target_on" date,
+  "rank" text collate "C" not null default 'V',
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index milestones_work_project_idx on "better_supabase"."milestones" ("work_project_id", "rank");
+
+create table "better_supabase"."iteration_cadences" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "team_id" uuid not null,
+  "weeks" smallint not null constraint bsb_iteration_cadences_weeks_check check ("weeks" >= 1 and "weeks" <= 8),
+  "cooldown_days" smallint not null default 0 constraint bsb_iteration_cadences_cooldown_days_check check ("cooldown_days" >= 0 and "cooldown_days" <= 28),
+  "start_weekday" smallint not null default 1 constraint bsb_iteration_cadences_start_weekday_check check ("start_weekday" >= 1 and "start_weekday" <= 7),
+  "upcoming" smallint not null default 2 constraint bsb_iteration_cadences_upcoming_check check ("upcoming" >= 0 and "upcoming" <= 12),
+  "rollover" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "team_id")
+);
+
+create table "better_supabase"."iteration_snapshots" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "iteration_id" uuid not null references "better_supabase"."iterations" ("id") on delete cascade,
+  "day" date not null,
+  "scope" integer not null,
+  "started" integer not null,
+  "completed" integer not null,
+  unique ("iteration_id", "day")
+);
 alter table "better_supabase"."work_items" add column "waiting_on" integer not null default 0 constraint bsb_work_items_waiting_on_check check ("waiting_on" >= 0);
 alter table "better_supabase"."work_items" add column "held_at" timestamptz;
 alter table "better_supabase"."work_items" add column "hold_kind" text;
@@ -443,7 +498,7 @@ revoke execute on function "better_supabase"."work_item_claim"(uuid) from public
 grant execute on function "better_supabase"."work_item_claim"(uuid) to authenticated, service_role;
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
--- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
+-- projectId, iterationId, priority (0 none, 1 low, 2 medium, 3 high, 4 urgent), estimate,
 -- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
 -- extra columns, by name). assignees: user ids.
 create or replace function "better_supabase"."create_work_item"(tenant uuid, attrs jsonb, assignees uuid[])
@@ -476,6 +531,16 @@ begin
         using create_work_item.tenant, create_work_item.attrs;
     end if;
   end;
+        if (create_work_item.attrs ->> 'workProjectId')::uuid is not null and not exists (
+          select 1 from "better_supabase"."work_projects" r where r."id" = (create_work_item.attrs ->> 'workProjectId')::uuid and r."tenant_id" = create_work_item.tenant
+        ) then
+          raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
+        end if;
+        if (create_work_item.attrs ->> 'iterationId')::uuid is not null and not exists (
+          select 1 from "better_supabase"."iterations" r where r."id" = (create_work_item.attrs ->> 'iterationId')::uuid and r."tenant_id" = create_work_item.tenant
+        ) then
+          raise exception 'iteration not found' using errcode = 'P0002', hint = 'TASK_ITERATION_NOT_FOUND';
+        end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
@@ -488,11 +553,12 @@ begin
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."tenant_id" = create_work_item.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   end if;
+  
   begin
-    insert into "better_supabase"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
+    insert into "better_supabase"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "work_project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
     values (create_work_item.tenant, v_seq, v_identifier, trim(create_work_item.attrs ->> 'title'), create_work_item.attrs ->> 'body',
-      (create_work_item.attrs ->> 'parentId')::uuid, (create_work_item.attrs ->> 'teamId')::uuid, (create_work_item.attrs ->> 'projectId')::uuid,
+      (create_work_item.attrs ->> 'parentId')::uuid, (create_work_item.attrs ->> 'teamId')::uuid, (create_work_item.attrs ->> 'workProjectId')::uuid,
       (create_work_item.attrs ->> 'iterationId')::uuid, coalesce((create_work_item.attrs ->> 'priority')::smallint, 0),
       (create_work_item.attrs ->> 'estimate')::numeric, (create_work_item.attrs ->> 'progress')::smallint,
       (create_work_item.attrs ->> 'startAt')::timestamptz, (create_work_item.attrs ->> 'endAt')::timestamptz, (create_work_item.attrs ->> 'dueAt')::timestamptz,
@@ -533,7 +599,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid[]) from public, anon;
@@ -605,9 +671,19 @@ begin
         update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'teamId' then
         update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
-      when 'projectId' then
-        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+      when 'workProjectId' then
+        if (v_change -> 'value' #>> '{}')::uuid is not null and not exists (
+          select 1 from "better_supabase"."work_projects" r where r."id" = (v_change -> 'value' #>> '{}')::uuid and r."tenant_id" = (select i."tenant_id" from "better_supabase"."work_items" i where i."id" = v_item)
+        ) then
+          raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
+        end if;
+        update "better_supabase"."work_items" x set "work_project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'iterationId' then
+        if (v_change -> 'value' #>> '{}')::uuid is not null and not exists (
+          select 1 from "better_supabase"."iterations" r where r."id" = (v_change -> 'value' #>> '{}')::uuid and r."tenant_id" = (select i."tenant_id" from "better_supabase"."work_items" i where i."id" = v_item)
+        ) then
+          raise exception 'iteration not found' using errcode = 'P0002', hint = 'TASK_ITERATION_NOT_FOUND';
+        end if;
         update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'priority' then
         update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
@@ -925,11 +1001,11 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as value, x."number" as number
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as value, x."number" as number
     from "better_supabase"."work_items" x
     where x."tenant_id" = list_work_items.tenant and x."archived_at" is null
       and (list_work_items.filter ->> 'teamId' is null or x."team_id" = (list_work_items.filter ->> 'teamId')::uuid)
-      and (list_work_items.filter ->> 'projectId' is null or x."project_id" = (list_work_items.filter ->> 'projectId')::uuid)
+      and (list_work_items.filter ->> 'workProjectId' is null or x."work_project_id" = (list_work_items.filter ->> 'workProjectId')::uuid)
       and (list_work_items.filter ->> 'iterationId' is null or x."iteration_id" = (list_work_items.filter ->> 'iterationId')::uuid)
       and (list_work_items.filter ->> 'parentId' is null or x."parent_id" = (list_work_items.filter ->> 'parentId')::uuid)
       and (list_work_items.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_work_items.filter ->> 'assigneeId')::uuid))
@@ -949,7 +1025,8 @@ grant execute on function "better_supabase"."list_work_items"(uuid, jsonb, text,
 -- A tenant's active items as a keyset page, newest number first (ADR 1077). It
 -- runs as invoker, so the read policy decides which items are visible. filters
 -- is { state, priority, teamId, projectId, iterationId, parentId, assigneeId
--- (each a value or a list), open (true keeps unclosed items), templates
+-- (each a value or a list), open (true keeps unclosed items), dueFrom, dueTo,
+-- templates
 -- (include, only), search (title, identifier), sort (number, title, dueAt,
 -- createdAt), direction, facet, count, limit, after, offset, paged, total,
 -- totalCap }.
@@ -996,13 +1073,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     )
@@ -1023,13 +1104,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1050,7 +1135,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1059,13 +1144,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -1081,7 +1170,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1090,13 +1179,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -1112,7 +1205,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1121,13 +1214,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."number" asc, x."id" asc
@@ -1143,7 +1240,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."number")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1152,13 +1249,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."number" <= (v_after ->> 0)::bigint and ((x."number" < (v_after ->> 0)::bigint) or (x."number" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."number" desc, x."id" asc
@@ -1174,7 +1275,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1183,13 +1284,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."title") asc, x."id" asc
@@ -1205,7 +1310,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1214,13 +1319,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."title") desc, x."id" asc
@@ -1236,7 +1345,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((coalesce(x."due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((coalesce(x."due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1245,13 +1354,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -1267,7 +1380,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((coalesce(x."due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((coalesce(x."due_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1276,13 +1389,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -1298,7 +1415,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1307,13 +1424,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -1329,7 +1450,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_items" x
       where x."tenant_id" = page_work_items.tenant
@@ -1338,13 +1459,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -1364,13 +1489,17 @@ begin
         and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (x."state")::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
         and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
         and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
-        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
+        and (not (v_filters -> 'projectId' is not null and jsonb_typeof(v_filters -> 'projectId') <> 'null' and not (jsonb_typeof(v_filters -> 'projectId') = 'array' and jsonb_array_length(v_filters -> 'projectId') = 0)) or x."work_project_id" = any((case when jsonb_typeof(v_filters -> 'projectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'projectId')) else array[v_filters ->> 'projectId'] end)::uuid[]))
         and (not (v_filters -> 'iterationId' is not null and jsonb_typeof(v_filters -> 'iterationId') <> 'null' and not (jsonb_typeof(v_filters -> 'iterationId') = 'array' and jsonb_array_length(v_filters -> 'iterationId') = 0)) or x."iteration_id" = any((case when jsonb_typeof(v_filters -> 'iterationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'iterationId')) else array[v_filters ->> 'iterationId'] end)::uuid[]))
         and (not (v_filters -> 'parentId' is not null and jsonb_typeof(v_filters -> 'parentId') <> 'null' and not (jsonb_typeof(v_filters -> 'parentId') = 'array' and jsonb_array_length(v_filters -> 'parentId') = 0)) or x."parent_id" = any((case when jsonb_typeof(v_filters -> 'parentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'parentId')) else array[v_filters ->> 'parentId'] end)::uuid[]))
         and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or y."user_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::uuid[]))))
         and (not coalesce(nullif(coalesce(v_filters #>> '{open,0}', v_filters ->> 'open'), '') = 'true', false) or x."closed_at" is null)
         and (not coalesce(nullif(coalesce(v_filters #>> '{ready,0}', v_filters ->> 'ready'), '') = 'true', false) or (x."waiting_on" = 0 and x."closed_at" is null))
         and (not coalesce(nullif(coalesce(v_filters #>> '{waiting,0}', v_filters ->> 'waiting'), '') = 'true', false) or (x."waiting_on" > 0 and x."closed_at" is null))
+        and (v_filters ->> 'dueFrom' is null or x."due_at" >= (v_filters ->> 'dueFrom')::timestamptz)
+        and (v_filters ->> 'dueTo' is null or x."due_at" <= (v_filters ->> 'dueTo')::timestamptz)
+        and (v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x."state" = 'triage'))
+        and (v_filters ->> 'milestoneId' is null or x."milestone_id" = (v_filters ->> 'milestoneId')::uuid)
         and (v_search is null or x."title" ilike v_search or x."identifier" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1428,6 +1557,12 @@ begin
     'body', v_src."body",
     'parentId', v_src."parent_id",
     'teamId', v_src."team_id",
+    'projectId', v_src."work_project_id",
+    'iterationId', v_src."iteration_id",
+    'estimate', v_src."estimate",
+    'progress', v_src."progress",
+    'startAt', v_src."start_at",
+    'endAt', v_src."end_at",
     'dueAt', v_src."due_at",
     'priority', v_src."priority",
     'templateId', null,
@@ -1453,11 +1588,396 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."clone_work_item"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."clone_work_item"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."save_milestone"(tenant uuid, id uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."milestones";
+  v_project "better_supabase"."work_projects";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_project from "better_supabase"."work_projects" p
+  where p."id" = (save_milestone.attrs ->> 'projectId')::uuid
+    and p."tenant_id" = save_milestone.tenant;
+  if v_project."id" is null then
+    raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_project."tenant_id", 'tasks.manage'), false)) then
+    raise exception 'not allowed to change the project' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if save_milestone.id is null then
+    insert into "better_supabase"."milestones" ("tenant_id", "work_project_id", "name", "description", "target_on", "rank")
+    values (save_milestone.tenant, v_project."id", save_milestone.attrs ->> 'name', nullif(save_milestone.attrs ->> 'description', ''), nullif(save_milestone.attrs ->> 'targetOn', '')::date, coalesce(nullif(save_milestone.attrs ->> 'rank', ''), 'V'))
+    returning * into v_row;
+    perform "better_supabase".emit_event('work_project_milestone.created', jsonb_build_object('organizationId', v_row."tenant_id", 'workProjectId', v_row."work_project_id", 'milestoneId', v_row."id", 'subjectType', 'project_milestone', 'subjectId', v_row."id"::text, 'key', v_project."key", 'name', v_row."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'milestones/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  else
+    update "better_supabase"."milestones" x set
+      "name" = coalesce(save_milestone.attrs ->> 'name', x."name"),
+      "description" = case when save_milestone.attrs ? 'description' then nullif(save_milestone.attrs ->> 'description', '') else x."description" end,
+      "target_on" = case when save_milestone.attrs ? 'targetOn' then nullif(save_milestone.attrs ->> 'targetOn', '')::date else x."target_on" end,
+      "rank" = coalesce(nullif(save_milestone.attrs ->> 'rank', ''), x."rank"),
+      "updated_at" = now()
+    where x."id" = save_milestone.id and x."tenant_id" = save_milestone.tenant
+    returning * into v_row;
+    if v_row."id" is null then
+      raise exception 'milestone not found' using errcode = 'P0002', hint = 'TASK_MILESTONE_NOT_FOUND';
+    end if;
+    perform "better_supabase".emit_event('work_project_milestone.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workProjectId', v_row."work_project_id", 'milestoneId', v_row."id", 'subjectType', 'project_milestone', 'subjectId', v_row."id"::text, 'key', v_project."key", 'name', v_row."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'milestones/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_milestone"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_milestone"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."page_milestones"(project uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x."rank", x."id"), '[]'::jsonb)
+  from "better_supabase"."milestones" x where x."work_project_id" = page_milestones.project
+$$;
+revoke execute on function "better_supabase"."page_milestones"(uuid) from public, anon;
+grant execute on function "better_supabase"."page_milestones"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_milestone"(milestone uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."milestones";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."milestones" x
+  where x."id" = remove_milestone.milestone and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+  returning * into v_row;
+  if v_row."id" is null then
+    return false;
+  end if;
+  perform "better_supabase".emit_event('work_project_milestone.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'workProjectId', v_row."work_project_id", 'milestoneId', v_row."id", 'subjectType', 'project_milestone', 'subjectId', v_row."id"::text, 'key', v_project."key", 'name', v_row."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'milestones/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_milestone"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_milestone"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."set_work_project_health"(project uuid, health text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_projects";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if set_work_project_health.health is not null and set_work_project_health.health not in ('on_track', 'at_risk', 'off_track') then
+    raise exception 'health must be on_track, at_risk or off_track' using errcode = '22023', hint = 'TASK_PROJECT_INVALID';
+  end if;
+  update "better_supabase"."work_projects" x set
+    "health" = set_work_project_health.health,
+    "health_at" = now(),
+    "updated_at" = now()
+  where x."id" = set_work_project_health.project
+  returning * into v_row;
+  return v_row."id" is not null;
+end;
+$$;
+revoke execute on function "better_supabase"."set_work_project_health"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_work_project_health"(uuid, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."accept_work_item"(task uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."work_items" x set "state" = 'backlog', "updated_at" = now()
+  where x."id" = accept_work_item.task and x."state" = 'triage' and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+  returning * into v_row;
+  if v_row."id" is null then
+    raise exception 'no triage item to accept' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."accept_work_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."accept_work_item"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."decline_work_item"(task uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."work_items" x set "state" = 'canceled', "close_reason" = 'not_planned', "closed_at" = now(), "updated_at" = now()
+  where x."id" = decline_work_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+  returning * into v_row;
+  if v_row."id" is null then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."decline_work_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."decline_work_item"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."snooze_work_item"(task uuid, until timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."work_items" x set "snoozed_until" = snooze_work_item.until, "updated_at" = now()
+  where x."id" = snooze_work_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+  returning * into v_row;
+  if v_row."id" is null then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."snooze_work_item"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."snooze_work_item"(uuid, timestamptz) to authenticated, service_role;
+
+create or replace function "better_supabase"."mark_duplicate"(task uuid, original uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+  v_original "better_supabase"."work_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_original from "better_supabase"."work_items" x where x."id" = mark_duplicate.original;
+  select * into v_row from "better_supabase"."work_items" x where x."id" = mark_duplicate.task and x."tenant_id" = v_original."tenant_id";
+  if v_row."id" is null or v_original."id" is null then
+    raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.manage'), false)) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  update "better_supabase"."work_items" x set "state" = 'canceled', "close_reason" = 'duplicate', "duplicate_of" = v_original."id", "closed_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  insert into "better_supabase"."notification_subscriptions" ("user_id", "subject_type", "subject_id", "level", "tenant_id")
+  select s."user_id", s."subject_type", v_original."id"::text, s."level", s."tenant_id"
+  from "better_supabase"."notification_subscriptions" s
+  where s."subject_type" = 'work_item'
+    and s."subject_id" = v_row."id"::text
+    and not exists (
+      select 1 from "better_supabase"."notification_subscriptions" have
+      where have."user_id" = s."user_id"
+        and have."subject_type" = s."subject_type"
+        and have."subject_id" = v_original."id"::text
+    );
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."mark_duplicate"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."mark_duplicate"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."clone_work_project"(source uuid, shift_days integer default 0)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."work_projects";
+  v_row "better_supabase"."work_projects";
+  v_task record;
+  v_copy jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_src from "better_supabase"."work_projects" x where x."id" = clone_work_project.source;
+  if v_src."id" is null then
+    raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.manage'), false)) then
+    raise exception 'not allowed to change the project' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."work_projects" ("tenant_id", "key", "name", "status", "description", "template", "start_on", "target_on")
+  values (v_src."tenant_id", v_src."key" || 'C', v_src."name", 'planned', v_src."description", false, v_src."start_on" + clone_work_project.shift_days, v_src."target_on" + clone_work_project.shift_days)
+  returning * into v_row;
+  insert into "better_supabase"."milestones" ("tenant_id", "work_project_id", "name", "description", "target_on", "rank")
+  select m."tenant_id", v_row."id", m."name", m."description", m."target_on" + clone_work_project.shift_days, m."rank"
+  from "better_supabase"."milestones" m where m."work_project_id" = v_src."id";
+  for v_task in select i."id" from "better_supabase"."work_items" i where i."work_project_id" = v_src."id" and i."parent_id" is null loop
+    v_copy := "better_supabase"."clone_work_item"(v_task."id", jsonb_build_object('projectId', v_row."id"));
+  end loop;
+  update "better_supabase"."work_items" i set "start_at" = i."start_at" + make_interval(days => clone_work_project.shift_days) where i."work_project_id" = v_row."id" and clone_work_project.shift_days <> 0;
+  update "better_supabase"."work_items" i set "end_at" = i."end_at" + make_interval(days => clone_work_project.shift_days) where i."work_project_id" = v_row."id" and clone_work_project.shift_days <> 0;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."clone_work_project"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."clone_work_project"(uuid, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."save_iteration_cadence"(tenant uuid, team uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."iteration_cadences";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_iteration_cadence.tenant, 'tasks.manage'), false)) then
+    raise exception 'not allowed to change cycles' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."iteration_cadences" ("tenant_id", "team_id", "weeks", "cooldown_days", "start_weekday", "upcoming", "rollover")
+  values (save_iteration_cadence.tenant, save_iteration_cadence.team,
+    coalesce((save_iteration_cadence.attrs ->> 'weeks')::smallint, 2),
+    coalesce((save_iteration_cadence.attrs ->> 'cooldownDays')::smallint, 0),
+    coalesce((save_iteration_cadence.attrs ->> 'startWeekday')::smallint, 1),
+    coalesce((save_iteration_cadence.attrs ->> 'upcoming')::smallint, 2),
+    coalesce((save_iteration_cadence.attrs ->> 'rollover')::boolean, true))
+  on conflict ("tenant_id", "team_id") do update set
+    "weeks" = excluded."weeks",
+    "cooldown_days" = excluded."cooldown_days",
+    "start_weekday" = excluded."start_weekday",
+    "upcoming" = excluded."upcoming",
+    "rollover" = excluded."rollover"
+  returning * into v_row;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."save_iteration_cadence"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_iteration_cadence"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."iteration_burnup"(iteration uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'day', s."day",
+    'scope', s."scope",
+    'started', s."started",
+    'completed', s."completed"
+  ) order by s."day"), '[]'::jsonb)
+  from "better_supabase"."iteration_snapshots" s where s."iteration_id" = iteration_burnup.iteration
+$$;
+revoke execute on function "better_supabase"."iteration_burnup"(uuid) from public, anon;
+grant execute on function "better_supabase"."iteration_burnup"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."roll_iterations"()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer := 0;
+  v_iteration "better_supabase"."iterations";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  update "better_supabase"."work_items" x set "snoozed_until" = null, "updated_at" = now()
+  where x."snoozed_until" is not null and x."snoozed_until" <= now();
+  insert into "better_supabase"."iteration_snapshots" ("tenant_id", "iteration_id", "day", "scope", "started", "completed")
+  select i."tenant_id", i."id", current_date,
+    count(t.*)::integer,
+    count(t.*) filter (where t."state" = 'started')::integer,
+    count(t.*) filter (where t."state" = 'completed')::integer
+  from "better_supabase"."iterations" i
+  left join "better_supabase"."work_items" t on t."iteration_id" = i."id"
+  where current_date between i."starts_on" and i."ends_on"
+  group by i."tenant_id", i."id"
+  on conflict ("iteration_id", "day") do update set
+    "scope" = excluded."scope",
+    "started" = excluded."started",
+    "completed" = excluded."completed";
+  get diagnostics v_count = row_count;
+  update "better_supabase"."work_items" task set "iteration_id" = nxt."id"
+  from "better_supabase"."iterations" ended
+  join "better_supabase"."iteration_cadences" cadence on cadence."team_id" = ended."team_id" and cadence."rollover"
+  join lateral (
+    select i."id" from "better_supabase"."iterations" i
+    where i."team_id" = ended."team_id" and i."starts_on" > ended."ends_on"
+    order by i."starts_on"
+    limit 1
+  ) nxt on true
+  where ended."ends_on" = current_date - 1
+    and task."iteration_id" = ended."id"
+    and task."state" not in ('completed', 'canceled');
+  for v_iteration in select * from "better_supabase"."iterations" i where i."starts_on" = current_date loop
+    perform "better_supabase".emit_event('iteration.started', jsonb_build_object('organizationId', v_iteration."tenant_id", 'iterationId', v_iteration."id", 'subjectType', 'iteration', 'subjectId', v_iteration."id"::text, 'name', v_iteration."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'iterations/' || v_iteration."id"::text, (v_iteration."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end loop;
+  for v_iteration in select * from "better_supabase"."iterations" i where i."ends_on" = current_date - 1 loop
+    perform "better_supabase".emit_event('iteration.completed', jsonb_build_object('organizationId', v_iteration."tenant_id", 'iterationId', v_iteration."id", 'subjectType', 'iteration', 'subjectId', v_iteration."id"::text, 'name', v_iteration."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'iterations/' || v_iteration."id"::text, (v_iteration."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."roll_iterations"() from public, anon;
+grant execute on function "better_supabase"."roll_iterations"() to authenticated, service_role;
+
+create or replace function "better_supabase"."resolve_work_item_identifier"(tenant uuid, identifier text)
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(
+    (select x."id" from "better_supabase"."work_items" x where x."tenant_id" = resolve_work_item_identifier.tenant and x."identifier" = resolve_work_item_identifier.identifier),
+    (select k."work_item_id" from "better_supabase"."work_item_identifiers" k where k."tenant_id" = resolve_work_item_identifier.tenant and k."identifier" = resolve_work_item_identifier.identifier)
+  )
+$$;
+revoke execute on function "better_supabase"."resolve_work_item_identifier"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."resolve_work_item_identifier"(uuid, text) to authenticated, service_role;
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
@@ -1561,7 +2081,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = get_work_item.task
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = get_work_item.task
 $$;
 revoke execute on function "better_supabase"."get_work_item"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_work_item"(uuid) to authenticated, service_role;
@@ -1600,7 +2120,7 @@ begin
     do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
   end if;
   perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence'), 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) -> 'recurrence' from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) -> 'recurrence' from "better_supabase"."work_items" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."set_work_item_recurrence"(uuid, text, text) from public, anon;
@@ -1627,12 +2147,12 @@ begin
   end if;
   select x."id" into v_id from "better_supabase"."work_items" x where x."recurs_from" = v_src."id";
   if v_id is not null then
-    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
   end if;
   v_shift := coalesce(repeat_work_item.due_at - coalesce(v_src."due_at", v_src."end_at", v_src."start_at"), interval '0');
   v_next := "better_supabase"."create_work_item"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title", 'body', v_src."body", 'parentId', v_src."parent_id", 'teamId', v_src."team_id",
-    'projectId', v_src."project_id", 'priority', v_src."priority", 'estimate', v_src."estimate",
+    'workProjectId', v_src."work_project_id", 'priority', v_src."priority", 'estimate', v_src."estimate",
     'startAt', v_src."start_at" + v_shift, 'endAt', v_src."end_at" + v_shift, 'dueAt', repeat_work_item.due_at,
     'pipelineId', v_src."pipeline_id")),
     array(select y."user_id" from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_src."id"));
@@ -1642,7 +2162,7 @@ begin
   select y."tenant_id", v_id, y."title", y."rank", y."created_by" from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_src."id";
   update "better_supabase"."recurrence_rules" rr set "subject_id" = v_id::text
   where rr."tenant_id" = v_src."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = v_src."id"::text;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."repeat_work_item"(uuid, timestamptz) from public, anon, authenticated;
@@ -1691,42 +2211,61 @@ grant execute on function "better_supabase"."list_work_item_watchers"(uuid) to a
 -- name, ownerId, status, startOn, targetOn, archived, and the budget:
 -- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
 -- With accounting, the project is a value of the project dimension.
-create or replace function "better_supabase"."upsert_project"(tenant uuid, project uuid, attrs jsonb)
+create or replace function "better_supabase"."upsert_work_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := upsert_project.project;
+  v_id uuid := upsert_work_project.project;
+  v_created boolean := v_id is null;
+  v_was timestamptz;
+  v_project "better_supabase"."work_projects";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_project.tenant, 'tasks.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', upsert_work_project.tenant, 'tasks.manage'), false)) then
     raise exception 'not allowed to manage projects and iterations' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not v_created then
+    select x."archived_at" into v_was from "better_supabase"."work_projects" x where x."id" = v_id and x."tenant_id" = upsert_work_project.tenant;
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."work_projects" ("tenant_id", "key", "name", "owner_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
-      values (upsert_project.tenant, upper(upsert_project.attrs ->> 'key'), upsert_project.attrs ->> 'name', (upsert_project.attrs ->> 'ownerId')::uuid,
-        coalesce(upsert_project.attrs ->> 'status', 'planned'), (upsert_project.attrs ->> 'startOn')::date, (upsert_project.attrs ->> 'targetOn')::date,
-        (upsert_project.attrs ->> 'budgetAmount')::bigint, upper(upsert_project.attrs ->> 'budgetCurrency'), (upsert_project.attrs ->> 'budgetHours')::numeric)
+      insert into "better_supabase"."work_projects" ("tenant_id", "key", "name", "owner_id", "description", "team_id", "priority", "icon", "color", "rank", "health", "health_at", "start_resolution", "target_resolution", "completed_at", "canceled_at", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
+      values (upsert_work_project.tenant, upper(upsert_work_project.attrs ->> 'key'), upsert_work_project.attrs ->> 'name', (upsert_work_project.attrs ->> 'ownerId')::uuid, nullif(upsert_work_project.attrs ->> 'description', '')::text, nullif(upsert_work_project.attrs ->> 'teamId', '')::uuid, coalesce(nullif(upsert_work_project.attrs ->> 'priority', '')::smallint, 0), nullif(upsert_work_project.attrs ->> 'icon', '')::text, nullif(upsert_work_project.attrs ->> 'color', '')::text, coalesce(nullif(upsert_work_project.attrs ->> 'rank', ''), 'V'), nullif(upsert_work_project.attrs ->> 'health', '')::text, nullif(upsert_work_project.attrs ->> 'healthAt', '')::timestamptz, nullif(upsert_work_project.attrs ->> 'startResolution', '')::text, nullif(upsert_work_project.attrs ->> 'targetResolution', '')::text, nullif(upsert_work_project.attrs ->> 'completedAt', '')::timestamptz, nullif(upsert_work_project.attrs ->> 'canceledAt', '')::timestamptz,
+        coalesce(upsert_work_project.attrs ->> 'status', 'planned'), (upsert_work_project.attrs ->> 'startOn')::date, (upsert_work_project.attrs ->> 'targetOn')::date,
+        (upsert_work_project.attrs ->> 'budgetAmount')::bigint, upper(upsert_work_project.attrs ->> 'budgetCurrency'), (upsert_work_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "better_supabase"."work_projects" x set
-        "key" = coalesce(upper(upsert_project.attrs ->> 'key'), x."key"),
-        "name" = coalesce(upsert_project.attrs ->> 'name', x."name"),
-        "owner_id" = case when upsert_project.attrs ? 'ownerId' then (upsert_project.attrs ->> 'ownerId')::uuid else x."owner_id" end,
-        "status" = coalesce(upsert_project.attrs ->> 'status', x."status"),
-        "start_on" = case when upsert_project.attrs ? 'startOn' then (upsert_project.attrs ->> 'startOn')::date else x."start_on" end,
-        "target_on" = case when upsert_project.attrs ? 'targetOn' then (upsert_project.attrs ->> 'targetOn')::date else x."target_on" end,
-        "budget_amount" = case when upsert_project.attrs ? 'budgetAmount' then (upsert_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
-        "budget_currency" = case when upsert_project.attrs ? 'budgetCurrency' then upper(upsert_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
-        "budget_hours" = case when upsert_project.attrs ? 'budgetHours' then (upsert_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
-        "archived_at" = case when upsert_project.attrs ? 'archived' then (case when (upsert_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
+        "key" = coalesce(upper(upsert_work_project.attrs ->> 'key'), x."key"),
+        "name" = coalesce(upsert_work_project.attrs ->> 'name', x."name"),
+        "description" = case when upsert_work_project.attrs ? 'description' then nullif(upsert_work_project.attrs ->> 'description', '')::text else x."description" end,
+        "team_id" = case when upsert_work_project.attrs ? 'teamId' then nullif(upsert_work_project.attrs ->> 'teamId', '')::uuid else x."team_id" end,
+        "priority" = case when upsert_work_project.attrs ? 'priority' then nullif(upsert_work_project.attrs ->> 'priority', '')::smallint else x."priority" end,
+        "icon" = case when upsert_work_project.attrs ? 'icon' then nullif(upsert_work_project.attrs ->> 'icon', '')::text else x."icon" end,
+        "color" = case when upsert_work_project.attrs ? 'color' then nullif(upsert_work_project.attrs ->> 'color', '')::text else x."color" end,
+        "rank" = case when upsert_work_project.attrs ? 'rank' then nullif(upsert_work_project.attrs ->> 'rank', '')::text else x."rank" end,
+        "health" = case when upsert_work_project.attrs ? 'health' then nullif(upsert_work_project.attrs ->> 'health', '')::text else x."health" end,
+        "health_at" = case when upsert_work_project.attrs ? 'healthAt' then nullif(upsert_work_project.attrs ->> 'healthAt', '')::timestamptz else x."health_at" end,
+        "start_resolution" = case when upsert_work_project.attrs ? 'startResolution' then nullif(upsert_work_project.attrs ->> 'startResolution', '')::text else x."start_resolution" end,
+        "target_resolution" = case when upsert_work_project.attrs ? 'targetResolution' then nullif(upsert_work_project.attrs ->> 'targetResolution', '')::text else x."target_resolution" end,
+        "completed_at" = case when upsert_work_project.attrs ? 'completedAt' then nullif(upsert_work_project.attrs ->> 'completedAt', '')::timestamptz else x."completed_at" end,
+        "canceled_at" = case when upsert_work_project.attrs ? 'canceledAt' then nullif(upsert_work_project.attrs ->> 'canceledAt', '')::timestamptz else x."canceled_at" end,
+
+        "owner_id" = case when upsert_work_project.attrs ? 'ownerId' then (upsert_work_project.attrs ->> 'ownerId')::uuid else x."owner_id" end,
+        "status" = coalesce(upsert_work_project.attrs ->> 'status', x."status"),
+        "start_on" = case when upsert_work_project.attrs ? 'startOn' then (upsert_work_project.attrs ->> 'startOn')::date else x."start_on" end,
+        "target_on" = case when upsert_work_project.attrs ? 'targetOn' then (upsert_work_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when upsert_work_project.attrs ? 'budgetAmount' then (upsert_work_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when upsert_work_project.attrs ? 'budgetCurrency' then upper(upsert_work_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when upsert_work_project.attrs ? 'budgetHours' then (upsert_work_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
+        "archived_at" = case when upsert_work_project.attrs ? 'archived' then (case when (upsert_work_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = upsert_project.tenant;
+      where x."id" = v_id and x."tenant_id" = upsert_work_project.tenant;
       if not found then
         raise exception 'project not found' using errcode = 'P0002', hint = 'TASK_PROJECT_NOT_FOUND';
       end if;
@@ -1742,24 +2281,98 @@ begin
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'TASK_PROJECT_INVALID';
   end;
+  select * into v_project from "better_supabase"."work_projects" x where x."id" = v_id;
+  if v_created then
+    perform "better_supabase".emit_event('work_project.created', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  else
+    perform "better_supabase".emit_event('work_project.updated', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    if v_project."archived_at" is not null and v_was is null then
+      perform "better_supabase".emit_event('work_project.archived', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    elsif v_project."archived_at" is null and v_was is not null then
+      perform "better_supabase".emit_event('work_project.restored', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    end if;
+  end if;
 
   perform "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
   from "better_supabase"."work_projects" x where x."id" = v_id;
   return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."work_projects" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."upsert_project"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."upsert_project"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."upsert_work_project"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."upsert_work_project"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Archives a project, or brings it back when archived is false.
+create or replace function "better_supabase"."archive_work_project"(project uuid, archived boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_project "better_supabase"."work_projects";
+  v_was timestamptz;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."archived_at" into v_was from "better_supabase"."work_projects" x where x."id" = archive_work_project.project;
+  update "better_supabase"."work_projects" x set
+    "archived_at" = case when archive_work_project.archived then coalesce(x."archived_at", now()) end,
+    "updated_at" = now()
+  where x."id" = archive_work_project.project and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+  returning * into v_project;
+  if v_project."id" is null then
+    return false;
+  end if;
+  perform "better_supabase".emit_event('work_project.updated', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  if archive_work_project.archived and v_was is null then
+    perform "better_supabase".emit_event('work_project.archived', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  elsif not archive_work_project.archived and v_was is not null then
+    perform "better_supabase".emit_event('work_project.restored', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."archive_work_project"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_work_project"(uuid, boolean) to authenticated, service_role;
+
+-- Deletes a project that is already archived and unlinks its tasks.
+create or replace function "better_supabase"."remove_work_project"(project uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_project "better_supabase"."work_projects";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_project from "better_supabase"."work_projects" x
+  where x."id" = remove_work_project.project and x."archived_at" is not null
+    and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false));
+  if v_project."id" is null then
+    return false;
+  end if;
+  update "better_supabase"."work_items" y set "work_project_id" = null where y."work_project_id" = v_project."id";
+  delete from "better_supabase"."work_projects" x where x."id" = v_project."id";
+  perform "better_supabase".emit_event('work_project.deleted', jsonb_build_object('organizationId', v_project."tenant_id", 'workProjectId', v_project."id", 'subjectType', 'work_project', 'subjectId', v_project."id"::text, 'key', v_project."key", 'name', v_project."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_projects/' || v_project."id"::text, (v_project."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_work_project"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_work_project"(uuid) to authenticated, service_role;
 
 
 -- A tenant's projects as a keyset page, by name (ADR 1077). It runs as
 -- invoker. filters is { status, ownerId (each a value or a list), archived
 -- (true adds archived ones), search (name, key), sort (name, key, createdAt),
 -- direction, facet, count, limit, after, offset, paged, total, totalCap }.
-create or replace function "better_supabase"."page_projects"(tenant uuid, filters jsonb default '{}')
+create or replace function "better_supabase"."page_work_projects"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
@@ -1768,7 +2381,7 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_filters jsonb := coalesce(page_projects.filters, '{}'::jsonb);
+  v_filters jsonb := coalesce(page_work_projects.filters, '{}'::jsonb);
   v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
     else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
@@ -1796,7 +2409,7 @@ begin
     with s as (
       select (case v_facet when 'status' then (x."status"::text)::text end) as v
       from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1814,7 +2427,7 @@ begin
   if v_count then
     select count(*) into v_total from (
       select 1 from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1839,12 +2452,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1864,12 +2477,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1889,12 +2502,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1914,12 +2527,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1939,12 +2552,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1964,12 +2577,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -1989,12 +2602,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -2014,12 +2627,12 @@ begin
   into v_items, v_more, v_next
   from (
     select row_number() over () as n, to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
     )) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -2036,7 +2649,7 @@ begin
   if coalesce((v_filters ->> 'total')::boolean, false) then
     select count(*) into v_total from (
       select 1 from "better_supabase"."work_projects" x
-      where x."tenant_id" = page_projects.tenant
+      where x."tenant_id" = page_work_projects.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
@@ -2049,11 +2662,11 @@ begin
       else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
-revoke execute on function "better_supabase"."page_projects"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."page_projects"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."page_work_projects"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_work_projects"(uuid, jsonb) to authenticated, service_role;
 
 -- One project the caller can read, or null.
-create or replace function "better_supabase"."get_project"(project uuid)
+create or replace function "better_supabase"."get_work_project"(project uuid)
 returns jsonb
 language sql
 stable
@@ -2061,12 +2674,12 @@ security invoker
 set search_path = ''
 as $$
   select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
-    )) from "better_supabase"."work_projects" x where x."id" = get_project.project
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / nullif(count(*) filter (where y."state" <> 'canceled'), 0)) end
+      from "better_supabase"."work_items" y where y."work_project_id" = x."id" and y."archived_at" is null
+    )) from "better_supabase"."work_projects" x where x."id" = get_work_project.project
 $$;
-revoke execute on function "better_supabase"."get_project"(uuid) from public, anon;
-grant execute on function "better_supabase"."get_project"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."get_work_project"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_work_project"(uuid) to authenticated, service_role;
 
 
 -- Creates an iteration (a cycle or a sprint) or changes it: name, teamId,
@@ -2079,6 +2692,8 @@ set search_path = ''
 as $$
 declare
   v_id uuid := upsert_iteration.iteration;
+  v_created boolean := v_id is null;
+  v_iteration "better_supabase"."iterations";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2095,6 +2710,7 @@ begin
     else
       update "better_supabase"."iterations" x set
         "name" = coalesce(upsert_iteration.attrs ->> 'name', x."name"),
+        "team_id" = case when upsert_iteration.attrs ? 'teamId' then (upsert_iteration.attrs ->> 'teamId')::uuid else x."team_id" end,
         "starts_on" = coalesce((upsert_iteration.attrs ->> 'startsOn')::date, x."starts_on"),
         "ends_on" = coalesce((upsert_iteration.attrs ->> 'endsOn')::date, x."ends_on")
       where x."id" = v_id and x."tenant_id" = upsert_iteration.tenant;
@@ -2105,11 +2721,93 @@ begin
   exception when check_violation or not_null_violation then
     raise exception 'an iteration needs a name and ends on or after it starts' using errcode = '22023', hint = 'TASK_ITERATION_INVALID';
   end;
+  select * into v_iteration from "better_supabase"."iterations" x where x."id" = v_id;
+  if v_created then
+    perform "better_supabase".emit_event('iteration.created', jsonb_build_object('organizationId', v_iteration."tenant_id", 'iterationId', v_iteration."id", 'subjectType', 'iteration', 'subjectId', v_iteration."id"::text, 'name', v_iteration."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'iterations/' || v_iteration."id"::text, (v_iteration."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  else
+    perform "better_supabase".emit_event('iteration.updated', jsonb_build_object('organizationId', v_iteration."tenant_id", 'iterationId', v_iteration."id", 'subjectType', 'iteration', 'subjectId', v_iteration."id"::text, 'name', v_iteration."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'iterations/' || v_iteration."id"::text, (v_iteration."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  end if;
   return (select to_jsonb(x) from "better_supabase"."iterations" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."upsert_iteration"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."upsert_iteration"(uuid, uuid, jsonb) to authenticated, service_role;
+
+-- Iterations of a tenant, soonest first. filters: teamId, limit.
+create or replace function "better_supabase"."page_iterations"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(p.value order by p.starts_on, p.id), '[]'::jsonb)
+  from (
+    select to_jsonb(x) as value, x."starts_on" as starts_on, x."id" as id
+    from "better_supabase"."iterations" x
+    where x."tenant_id" = page_iterations.tenant
+      and ((page_iterations.filters ->> 'teamId' is null or x."team_id" = (page_iterations.filters ->> 'teamId')::uuid))
+    order by x."starts_on", x."id"
+    limit least(greatest(coalesce((page_iterations.filters ->> 'limit')::integer, 50), 1), 200)
+  ) p
+$$;
+revoke execute on function "better_supabase"."page_iterations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_iterations"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_iteration"(iteration uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(x) || jsonb_build_object(
+    'status', case
+      when x."ends_on" < current_date then 'completed'
+      when x."starts_on" > current_date then 'upcoming'
+      else 'active'
+    end,
+    'capacity', (
+      select round(avg(done)) from (
+        select sum(t."estimate") filter (where t."state" = 'completed') as done
+        from "better_supabase"."iterations" prev
+        join "better_supabase"."work_items" t on t."iteration_id" = prev."id"
+        where prev."tenant_id" = x."tenant_id" and prev."ends_on" < x."starts_on"
+        group by prev."id"
+        order by prev."ends_on" desc
+        limit 3
+      ) recent
+    )
+  ) from "better_supabase"."iterations" x where x."id" = get_iteration.iteration
+$$;
+revoke execute on function "better_supabase"."get_iteration"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_iteration"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_iteration"(iteration uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_iteration "better_supabase"."iterations";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  delete from "better_supabase"."iterations" x
+  where x."id" = remove_iteration.iteration
+    and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
+  returning * into v_iteration;
+  if v_iteration."id" is null then
+    return false;
+  end if;
+  perform "better_supabase".emit_event('iteration.deleted', jsonb_build_object('organizationId', v_iteration."tenant_id", 'iterationId', v_iteration."id", 'subjectType', 'iteration', 'subjectId', v_iteration."id"::text, 'name', v_iteration."name", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'iterations/' || v_iteration."id"::text, (v_iteration."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_iteration"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_iteration"(uuid) to authenticated, service_role;
 
 
 -- Who is acting, as { kind, name } for events and timelines. kind is the
@@ -2243,7 +2941,7 @@ begin
   foreach v_id in array array(select x from unnest(v_ids) x where not (x = any (v_old))) loop
     perform "better_supabase"."link"(v_row."tenant_id", 'blocks', 'work_item', v_id::text, 'work_item', v_row."id"::text, '{}'::jsonb);
   end loop;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."set_work_item_needs"(uuid, uuid[]) from public, anon;
@@ -2269,7 +2967,7 @@ declare
   v_id uuid;
   v_ref jsonb;
   v_prereqs uuid[];
-  v_known text[] := array['key', 'title', 'body', 'parentId', 'teamId', 'projectId', 'iterationId', 'priority', 'estimate', 'progress', 'startAt', 'endAt', 'dueAt', 'pipelineId', 'stageId', 'fields', 'assignees', 'needs'];
+  v_known text[] := array['key', 'title', 'body', 'parentId', 'teamId', 'workProjectId', 'iterationId', 'priority', 'estimate', 'progress', 'startAt', 'endAt', 'dueAt', 'pipelineId', 'stageId', 'fields', 'assignees', 'needs'];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2326,7 +3024,7 @@ begin
     end if;
   end loop;
   return jsonb_build_object(
-    'tasks', coalesce((select jsonb_agg(to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) order by array_position(v_ids, x."id")) from "better_supabase"."work_items" x where x."id" = any (v_ids)), '[]'::jsonb),
+    'tasks', coalesce((select jsonb_agg(to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) order by array_position(v_ids, x."id")) from "better_supabase"."work_items" x where x."id" = any (v_ids)), '[]'::jsonb),
     'keys', coalesce((select jsonb_object_agg(k.key, v_ids[(k.value #>> '{}')::integer]) from jsonb_each(v_keys) k), '{}'::jsonb));
 end;
 $$;
@@ -2393,7 +3091,7 @@ begin
     update "better_supabase"."work_items" x set "delegate_profile" = null where x."id" = v_row."id";
   end if;
   perform "better_supabase".emit_event('work_item.claimed', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'holderId', v_claim."holder_id", 'epoch', v_claim."epoch", 'expiresAt', v_claim."expires_at", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(claim_work_item.profile) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(claim_work_item.profile) ->> 'name'), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
+  return jsonb_build_object('task', (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id"), 'claim', jsonb_build_object('token', v_claim."token", 'epoch', v_claim."epoch", 'holderId', v_claim."holder_id", 'profile', v_claim."profile", 'claimedAt', v_claim."claimed_at", 'expiresAt', v_claim."expires_at"));
 end;
 $$;
 revoke execute on function "better_supabase"."claim_work_item"(uuid, integer, jsonb) from public, anon;
@@ -2401,7 +3099,7 @@ grant execute on function "better_supabase"."claim_work_item"(uuid, integer, jso
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
 -- lowest number. With claims.next "assigned" (the default) and for an agent
--- session, only tasks assigned to you qualify. filter narrows the pick: teamId, projectId, parentId, stageId,
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, workProjectId, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function "better_supabase"."claim_next_work_item"(tenant uuid, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -2438,7 +3136,7 @@ begin
       and (x."delegate_profile" is null or (x."delegate_profile" ->> 'name' is not distinct from v_name and (x."delegate_profile" ->> 'userId') is not distinct from auth.uid()::text) or (not coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false) and v_writer))
       and not exists (select 1 from "better_supabase"."work_item_claims" c where c."work_item_id" = x."id" and c."expires_at" > now())
       and (claim_next_work_item.filter ->> 'teamId' is null or x."team_id" = (claim_next_work_item.filter ->> 'teamId')::uuid)
-      and (claim_next_work_item.filter ->> 'projectId' is null or x."project_id" = (claim_next_work_item.filter ->> 'projectId')::uuid)
+      and (claim_next_work_item.filter ->> 'workProjectId' is null or x."work_project_id" = (claim_next_work_item.filter ->> 'workProjectId')::uuid)
       and (claim_next_work_item.filter ->> 'parentId' is null or x."parent_id" = (claim_next_work_item.filter ->> 'parentId')::uuid)
       and (claim_next_work_item.filter ->> 'stageId' is null or x."stage_id" = (claim_next_work_item.filter ->> 'stageId')::uuid)
       and (claim_next_work_item.filter ->> 'delegateProfile' is null or x."delegate_profile" ->> 'name' = claim_next_work_item.filter ->> 'delegateProfile')
@@ -2560,7 +3258,7 @@ begin
   if v_added then
     perform "better_supabase".emit_event('work_item.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(array(select y."user_id" from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id")), 'addedIds', jsonb_build_array(delegate_work_item.to_user), 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."delegate_work_item"(uuid, uuid, jsonb, text) from public, anon;
@@ -2658,7 +3356,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."work_items" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('work_item.held', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'kind', hold_work_item.kind, 'note', v_note, 'askUserIds', to_jsonb(v_ask), 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."hold_work_item"(uuid, text, text, uuid[]) from public, anon;
@@ -2693,7 +3391,7 @@ begin
   v_kind := v_row."hold_kind";
   update "better_supabase"."work_items" x set "held_at" = null, "hold_kind" = null, "hold_return_stage_id" = null where x."id" = v_row."id" returning * into v_row;
   perform "better_supabase".emit_event('work_item.hold_released', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'kind', v_kind, 'returnStageId', v_row."stage_id", 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."release_work_item_hold"(uuid) from public, anon;
@@ -2732,7 +3430,7 @@ begin
     raise exception 'not allowed to change this work item' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   if close_work_item.outcome = 'open' and v_row."closed_at" is null then
-    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
+    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
   end if;
   if close_work_item.outcome <> 'open' and v_row."closed_at" is not null then
     raise exception 'the task is already closed' using errcode = '55000', hint = 'TASK_CLOSED';
@@ -2768,7 +3466,7 @@ begin
   if close_work_item.outcome = 'failed' then
     perform "better_supabase".emit_event('work_item.failed', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'note', v_note, 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."close_work_item"(uuid, text, text, uuid) from public, anon;
@@ -2844,7 +3542,7 @@ begin
   update "better_supabase"."work_items" x set "stage_id" = v_stage, "rank" = v_rank where x."id" = v_row."id";
   select * into v_row from "better_supabase"."work_items" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('stageId', 'rank'), 'actorId', auth.uid(), 'actorKind', "better_supabase"."work_item_actor"(null) ->> 'kind', 'actorName', "better_supabase"."work_item_actor"(null) ->> 'name'), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb), 'subtasks', (select jsonb_build_object('done', count(*) filter (where ch."state" = 'completed'), 'total', count(*)) from "better_supabase"."work_items" ch where ch."parent_id" = x."id" and ch."archived_at" is null)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) || jsonb_build_object('claim', "better_supabase"."work_item_claim"(x."id")) from "better_supabase"."work_items" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."move_work_item"(uuid, uuid, uuid, uuid) from public, anon;
@@ -3121,14 +3819,18 @@ create trigger "bsb_search_work_item_index_u"
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_items deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_item","event_prefix":"work_item","archive_column":"archived_at"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_projects deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"project","event_prefix":"project","archive_column":"archived_at"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_projects deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_project","event_prefix":"work_project","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.iterations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"iteration","event_prefix":"iteration"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.milestones deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_project_milestone","event_prefix":"work_project_milestone"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_item_checklist_items deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
 
 -- Realtime for the module's entities (subject.realtime)
 create trigger bsb_realtime_insert after insert on "better_supabase"."work_items" referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
 create trigger bsb_realtime_update after update on "better_supabase"."work_items" referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
 create trigger bsb_realtime_delete after delete on "better_supabase"."work_items" referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+create trigger bsb_realtime_insert after insert on "better_supabase"."work_projects" referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+create trigger bsb_realtime_update after update on "better_supabase"."work_projects" referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+create trigger bsb_realtime_delete after delete on "better_supabase"."work_projects" referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3284,6 +3986,126 @@ as $$ select "better_supabase"."clone_work_item"($1, $2) $$;
 revoke execute on function "api"."clone_work_item"(uuid, jsonb) from public, anon;
 grant execute on function "api"."clone_work_item"(uuid, jsonb) to authenticated, service_role;
 
+create or replace function "api"."save_milestone"(tenant uuid, id uuid, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_milestone"($1, $2, $3) $$;
+revoke execute on function "api"."save_milestone"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."save_milestone"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."page_milestones"(project uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_milestones"($1) $$;
+revoke execute on function "api"."page_milestones"(uuid) from public, anon;
+grant execute on function "api"."page_milestones"(uuid) to authenticated, service_role;
+
+create or replace function "api"."remove_milestone"(milestone uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_milestone"($1) $$;
+revoke execute on function "api"."remove_milestone"(uuid) from public, anon;
+grant execute on function "api"."remove_milestone"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_work_project_health"(project uuid, health text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_work_project_health"($1, $2) $$;
+revoke execute on function "api"."set_work_project_health"(uuid, text) from public, anon;
+grant execute on function "api"."set_work_project_health"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."accept_work_item"(task uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accept_work_item"($1) $$;
+revoke execute on function "api"."accept_work_item"(uuid) from public, anon;
+grant execute on function "api"."accept_work_item"(uuid) to authenticated, service_role;
+
+create or replace function "api"."decline_work_item"(task uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."decline_work_item"($1) $$;
+revoke execute on function "api"."decline_work_item"(uuid) from public, anon;
+grant execute on function "api"."decline_work_item"(uuid) to authenticated, service_role;
+
+create or replace function "api"."snooze_work_item"(task uuid, until timestamptz)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."snooze_work_item"($1, $2) $$;
+revoke execute on function "api"."snooze_work_item"(uuid, timestamptz) from public, anon;
+grant execute on function "api"."snooze_work_item"(uuid, timestamptz) to authenticated, service_role;
+
+create or replace function "api"."mark_duplicate"(task uuid, original uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."mark_duplicate"($1, $2) $$;
+revoke execute on function "api"."mark_duplicate"(uuid, uuid) from public, anon;
+grant execute on function "api"."mark_duplicate"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."clone_work_project"(source uuid, shift_days integer default 0)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."clone_work_project"($1, $2) $$;
+revoke execute on function "api"."clone_work_project"(uuid, integer) from public, anon;
+grant execute on function "api"."clone_work_project"(uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."save_iteration_cadence"(tenant uuid, team uuid, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_iteration_cadence"($1, $2, $3) $$;
+revoke execute on function "api"."save_iteration_cadence"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."save_iteration_cadence"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."iteration_burnup"(iteration uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."iteration_burnup"($1) $$;
+revoke execute on function "api"."iteration_burnup"(uuid) from public, anon;
+grant execute on function "api"."iteration_burnup"(uuid) to authenticated, service_role;
+
+create or replace function "api"."roll_iterations"()
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."roll_iterations"() $$;
+revoke execute on function "api"."roll_iterations"() from public, anon;
+grant execute on function "api"."roll_iterations"() to authenticated, service_role;
+
+create or replace function "api"."resolve_work_item_identifier"(tenant uuid, identifier text)
+returns uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."resolve_work_item_identifier"($1, $2) $$;
+revoke execute on function "api"."resolve_work_item_identifier"(uuid, text) from public, anon;
+grant execute on function "api"."resolve_work_item_identifier"(uuid, text) to authenticated, service_role;
+
 create or replace function "api"."upsert_work_item_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language sql
@@ -3359,34 +4181,52 @@ as $$ select "better_supabase"."list_work_item_watchers"($1) $$;
 revoke execute on function "api"."list_work_item_watchers"(uuid) from public, anon;
 grant execute on function "api"."list_work_item_watchers"(uuid) to authenticated, service_role;
 
-create or replace function "api"."upsert_project"(tenant uuid, project uuid, attrs jsonb)
+create or replace function "api"."upsert_work_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."upsert_project"($1, $2, $3) $$;
-revoke execute on function "api"."upsert_project"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."upsert_project"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."upsert_work_project"($1, $2, $3) $$;
+revoke execute on function "api"."upsert_work_project"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."upsert_work_project"(uuid, uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."page_projects"(tenant uuid, filters jsonb default '{}')
+create or replace function "api"."archive_work_project"(project uuid, archived boolean)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_work_project"($1, $2) $$;
+revoke execute on function "api"."archive_work_project"(uuid, boolean) from public, anon;
+grant execute on function "api"."archive_work_project"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."remove_work_project"(project uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_work_project"($1) $$;
+revoke execute on function "api"."remove_work_project"(uuid) from public, anon;
+grant execute on function "api"."remove_work_project"(uuid) to authenticated, service_role;
+
+create or replace function "api"."page_work_projects"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."page_projects"($1, $2) $$;
-revoke execute on function "api"."page_projects"(uuid, jsonb) from public, anon;
-grant execute on function "api"."page_projects"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."page_work_projects"($1, $2) $$;
+revoke execute on function "api"."page_work_projects"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_work_projects"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."get_project"(project uuid)
+create or replace function "api"."get_work_project"(project uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."get_project"($1) $$;
-revoke execute on function "api"."get_project"(uuid) from public, anon;
-grant execute on function "api"."get_project"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."get_work_project"($1) $$;
+revoke execute on function "api"."get_work_project"(uuid) from public, anon;
+grant execute on function "api"."get_work_project"(uuid) to authenticated, service_role;
 
 create or replace function "api"."upsert_iteration"(tenant uuid, iteration uuid, attrs jsonb)
 returns jsonb
@@ -3396,6 +4236,35 @@ set search_path = ''
 as $$ select "better_supabase"."upsert_iteration"($1, $2, $3) $$;
 revoke execute on function "api"."upsert_iteration"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "api"."upsert_iteration"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."page_iterations"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_iterations"($1, $2) $$;
+revoke execute on function "api"."page_iterations"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_iterations"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_iteration"(iteration uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_iteration"($1) $$;
+revoke execute on function "api"."get_iteration"(uuid) from public, anon;
+grant execute on function "api"."get_iteration"(uuid) to authenticated, service_role;
+
+create or replace function "api"."remove_iteration"(iteration uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_iteration"($1) $$;
+revoke execute on function "api"."remove_iteration"(uuid) from public, anon;
+grant execute on function "api"."remove_iteration"(uuid) to authenticated, service_role;
 
 create or replace function "api"."work_item_actor"(profile jsonb default null)
 returns jsonb

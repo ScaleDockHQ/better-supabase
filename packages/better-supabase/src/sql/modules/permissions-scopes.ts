@@ -182,6 +182,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   deals: { read: "tenant", write: "tenant", manage: "tenant" },
   tasks: { read: "tenant", write: "tenant", manage: "tenant" },
+  projects: { read: "tenant", manage: "tenant" },
   quotes: { read: "tenant", write: "tenant", manage: "tenant" },
   invoices: {
     read: "tenant",

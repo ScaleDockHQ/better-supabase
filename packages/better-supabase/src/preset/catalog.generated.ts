@@ -859,6 +859,29 @@ export const PRESET_CATALOG: PresetCatalog = {
           "tables": [
             "attachments"
           ]
+        },
+        {
+          "name": "counts",
+          "function": "attachment_counts",
+          "args": {
+            "tenant": {
+              "param": "tenant",
+              "type": "id"
+            },
+            "subjectType": {
+              "param": "subject_type",
+              "type": "text"
+            },
+            "subjectIds": {
+              "param": "subject_ids",
+              "type": "text[]"
+            }
+          },
+          "result": "json",
+          "summary": "How many files each record has, keyed by record id.",
+          "tables": [
+            "attachments"
+          ]
         }
       ],
       "seeds": {
@@ -4397,6 +4420,40 @@ export const PRESET_CATALOG: PresetCatalog = {
         "pipelines",
         "subjects"
       ],
+      "reads": [
+        {
+          "name": "project",
+          "function": "get_project",
+          "args": {
+            "projectId": {
+              "param": "project",
+              "type": "id"
+            }
+          },
+          "result": "json",
+          "summary": "One project the caller can read, with its progress.",
+          "tables": [
+            "projects",
+            "items"
+          ]
+        },
+        {
+          "name": "board",
+          "function": "page_tasks",
+          "args": {
+            "organizationId": {
+              "param": "tenant",
+              "type": "id"
+            }
+          },
+          "result": "json",
+          "summary": "A tenant's tasks as a keyset page. Filters go through the page method.",
+          "tables": [
+            "items",
+            "assignees"
+          ]
+        }
+      ],
       "tenantNameClashes": [
         "team"
       ],
@@ -4435,11 +4492,37 @@ export const PRESET_CATALOG: PresetCatalog = {
           },
           "project": {
             "table": "projects",
-            "singular": "project"
+            "singular": "project",
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "manage",
+                "upload": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "key",
+                  "description"
+                ]
+              },
+              "realtime": true,
+              "history": [
+                "name",
+                "status",
+                "description"
+              ]
+            }
           },
           "iteration": {
             "table": "iterations",
             "singular": "iteration"
+          },
+          "project_milestone": {
+            "table": "milestones",
+            "singular": "project_milestone"
           },
           "checklist_item": {
             "table": "checklist",
@@ -4487,7 +4570,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "holdKind": "hold_kind",
               "holdReturnStage": "hold_return_stage_id",
               "delegateProfile": "delegate_profile",
-              "closeNote": "close_note"
+              "closeNote": "close_note",
+              "milestone": "milestone_id",
+              "duplicateOf": "duplicate_of",
+              "snoozedUntil": "snoozed_until"
             }
           },
           "projects": {
@@ -4497,10 +4583,23 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "key": "key",
               "name": "name",
+              "description": "description",
               "owner": "owner_id",
+              "team": "team_id",
               "status": "status",
+              "priority": "priority",
+              "icon": "icon",
+              "color": "color",
+              "rank": "rank",
+              "health": "health",
+              "healthAt": "health_at",
               "startOn": "start_on",
               "targetOn": "target_on",
+              "startResolution": "start_resolution",
+              "targetResolution": "target_resolution",
+              "completedAt": "completed_at",
+              "canceledAt": "canceled_at",
+              "template": "template",
               "budgetAmount": "budget_amount",
               "budgetCurrency": "budget_currency",
               "budgetHours": "budget_hours",
@@ -4518,7 +4617,23 @@ export const PRESET_CATALOG: PresetCatalog = {
               "name": "name",
               "startsOn": "starts_on",
               "endsOn": "ends_on",
+              "number": "number",
+              "description": "description",
               "createdAt": "created_at"
+            }
+          },
+          "milestones": {
+            "name": "milestones",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "project": "project_id",
+              "name": "name",
+              "description": "description",
+              "targetOn": "target_on",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
             }
           },
           "checklist": {
@@ -12512,6 +12627,101 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "projects",
+      "title": "Projects",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "tasks"
+      ],
+      "integrates": [
+        "notifications",
+        "housekeeping",
+        "outbox"
+      ],
+      "manifest": "projects",
+      "entities": {
+        "specs": {
+          "project_update": {
+            "table": "updates",
+            "singular": "project_update",
+            "subject": {
+              "title": "body",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "realtime": true,
+              "search": {
+                "title": "body",
+                "body": []
+              }
+            }
+          },
+          "initiative": {
+            "table": "initiatives",
+            "singular": "initiative",
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "description"
+                ]
+              },
+              "realtime": true
+            }
+          }
+        },
+        "tables": {
+          "updates": {
+            "name": "project_updates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "project": "project_id",
+              "author": "author_id",
+              "health": "health",
+              "body": "body",
+              "scope": "scope_count",
+              "started": "started_count",
+              "completed": "completed_count",
+              "createdAt": "created_at"
+            }
+          },
+          "initiatives": {
+            "name": "initiatives",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "description": "description",
+              "status": "status",
+              "priority": "priority",
+              "owner": "owner_id",
+              "targetOn": "target_on",
+              "parent": "parent_id",
+              "rank": "rank",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "initiatives.read",
+          "manage": "initiatives.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -12683,7 +12893,9 @@ export const PRESET_CATALOG: PresetCatalog = {
     },
     {
       "name": "projects",
-      "sql": [],
+      "sql": [
+        "projects"
+      ],
       "category": "work",
       "client": {
         "export": "projectsBlock",
@@ -12697,9 +12909,26 @@ export const PRESET_CATALOG: PresetCatalog = {
         "billable-time",
         "approvals",
         "invoices",
-        "meetings"
+        "meetings",
+        "comments",
+        "attachments",
+        "tags",
+        "timeline",
+        "relations",
+        "saved-views",
+        "subjects"
       ],
-      "defaults": {}
+      "defaults": {},
+      "entityPermissions": {
+        "project_update": {
+          "read": "initiatives.read",
+          "create": "initiatives.manage"
+        },
+        "initiative": {
+          "read": "initiatives.read",
+          "manage": "initiatives.manage"
+        }
+      }
     },
     {
       "name": "service",
@@ -14434,6 +14663,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "composedBy": [
         "collaboration",
+        "projects",
         "cms",
         "care",
         "filespace"
@@ -16502,7 +16732,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "provides": [],
       "composedBy": [
-        "collaboration"
+        "collaboration",
+        "projects"
       ],
       "record": [
         "add",
@@ -33444,7 +33675,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [],
       "composedBy": [
-        "collaboration"
+        "collaboration",
+        "projects"
       ]
     },
     {
@@ -35736,6 +35968,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "projects"
+      ],
       "entityTypes": [
         {
           "name": "Relation",
@@ -35991,6 +36226,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "projects"
+      ],
       "entityTypes": [
         {
           "name": "SavedView"
@@ -36449,6 +36687,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "composedBy": [
+        "projects"
+      ],
       "events": {
         "type": "SubjectsEvents",
         "types": [
@@ -36509,7 +36750,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [],
       "composedBy": [
-        "collaboration"
+        "collaboration",
+        "projects"
       ],
       "entityTypes": [
         {
@@ -37674,7 +37916,20 @@ export const PRESET_CATALOG: PresetCatalog = {
           "task.failed",
           "task.delegated",
           "task.held",
-          "task.hold_released"
+          "task.hold_released",
+          "project.created",
+          "project.updated",
+          "project.archived",
+          "project.restored",
+          "project.deleted",
+          "iteration.created",
+          "iteration.updated",
+          "iteration.deleted",
+          "iteration.started",
+          "iteration.completed",
+          "project_milestone.created",
+          "project_milestone.updated",
+          "project_milestone.deleted"
         ]
       },
       "actions": [
@@ -37705,7 +37960,11 @@ export const PRESET_CATALOG: PresetCatalog = {
             "assigneeId",
             "open",
             "ready",
-            "waiting"
+            "waiting",
+            "dueFrom",
+            "dueTo",
+            "triage",
+            "milestoneId"
           ],
           "search": [
             "title",

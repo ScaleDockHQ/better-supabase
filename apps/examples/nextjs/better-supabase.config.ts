@@ -942,13 +942,19 @@ export default defineConfig({
     {
       block: "tasks",
       tables: { projects: "work_projects" },
-      names: { task: { name: "work_item", url: "/work" } },
+      names: {
+        task: { name: "work_item", url: "/work" },
+        // The app table `public.projects` is already the `project` subject.
+        project: { name: "work_project" },
+      },
     },
-    // A second tasks instance: maintenance requests on leased units.
+    // A second tasks instance: maintenance requests on leased units. It
+    // renames project because a record type can't be shared, and it keeps
+    // no project or iteration table.
     {
       name: "facilities",
       block: "tasks",
-      names: { task: "maintenance_request" },
+      names: { task: "maintenance_request", project: "maintenance_project" },
       tables: { projects: null, iterations: null },
       options: { prefix: "MR" },
     },

@@ -76,7 +76,10 @@ describe("block contributions", () => {
     const files = render({
       pipelines: {},
       tasks: {},
-      tickets: { block: "tasks", entities: { task: "ticket" } },
+      tickets: {
+        block: "tasks",
+        entities: { task: "ticket", project: "ticket_project" },
+      },
     });
 
     const pipelines = sqlOf(files, "pipelines");

@@ -371,7 +371,7 @@ describe("blocks.generated.ts", () => {
           tasks: { names: { task: "todo" } },
           tickets: {
             block: "tasks",
-            entities: { task: "ticket" },
+            entities: { task: "ticket", project: "ticket_project" },
             uses: { pipelines: "pipelines" },
           },
         },
@@ -385,7 +385,7 @@ describe("blocks.generated.ts", () => {
       names: {
         functions: {
           create_task: "create_ticket",
-          upsert_project: "tickets_upsert_project",
+          upsert_project: "upsert_ticket_project",
         },
       },
     });

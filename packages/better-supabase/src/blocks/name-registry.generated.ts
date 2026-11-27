@@ -339,7 +339,7 @@ export interface BlockNameRegistry {
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
       readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
-    readonly functions: "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "page_attachments" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
+    readonly functions: "attachment_counts" | "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "page_attachments" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -587,10 +587,11 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "collections": "id" | "tenant" | "subjectType" | "scope" | "owner" | "team" | "name" | "description" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "entries": "collection" | "tenant" | "subjectType" | "subjectId" | "rank" | "addedBy" | "addedAt";
-      readonly "favorites": "user" | "tenant" | "subjectType" | "subjectId" | "rank" | "createdAt";
+      readonly "favorites": "user" | "tenant" | "subjectType" | "subjectId" | "rank" | "createdAt" | "folder";
+      readonly "folders": "id" | "user" | "tenant" | "name" | "rank";
       readonly "savedItems": "id" | "user" | "tenant" | "subjectType" | "subjectId" | "note" | "remindAt" | "remindedAt" | "completedAt" | "createdAt";
     };
-    readonly functions: "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "create_collection_entries" | "delete_collection_entries" | "delete_saved_item" | "get_collection" | "list_collections" | "list_saved_items" | "page_collections" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "rename_collection" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject" | "upsert_for_later";
+    readonly functions: "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "create_collection_entries" | "delete_collection_entries" | "delete_saved_item" | "get_collection" | "list_collections" | "list_saved_items" | "move_star" | "page_collections" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_star_folder" | "rename_collection" | "save_star_folder" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject" | "upsert_for_later";
     readonly actions: "read" | "write" | "share";
     readonly hooks: "before_collection_create" | "after_collection_create" | "before_collection_add" | "after_collection_add";
     readonly entities: {
@@ -1644,7 +1645,7 @@ export interface BlockNameRegistry {
   readonly "notifications": {
     readonly tables: {
       readonly "events": "id" | "tenant" | "type" | "actor" | "subjectType" | "subjectId" | "subjectLabel" | "summary" | "actionPath" | "actions" | "priority" | "data" | "key" | "createdBy" | "createdAt";
-      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "resolvedAt" | "resolution" | "deliveredAt" | "address" | "contact" | "createdAt";
+      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "snoozedUntil" | "resolvedAt" | "resolution" | "deliveredAt" | "address" | "contact" | "createdAt";
       readonly "deliveries": "id" | "recipient" | "tenant" | "channel" | "status" | "provider" | "providerMessageId" | "error" | "attempts" | "attemptedAt" | "nextAttemptAt" | "deliveredAt" | "providerStatus" | "providerStatusAt" | "templateKey" | "createdAt";
       readonly "deliveryEvents": "id" | "delivery" | "tenant" | "kind" | "provider" | "providerEventId" | "occurredAt" | "detail" | "createdAt";
       readonly "subscriptions": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "level" | "createdAt" | "updatedAt";
@@ -1652,7 +1653,7 @@ export interface BlockNameRegistry {
       readonly "digests": "id" | "user" | "tenant" | "channel" | "cadence" | "items" | "itemCount" | "status" | "attempts" | "attemptedAt" | "error" | "providerMessageId" | "sentAt" | "createdAt";
       readonly "suppressions": "id" | "channel" | "address" | "user" | "reason" | "provider" | "providerEventId" | "detail" | "createdAt";
     };
-    readonly functions: "broadcast_notification" | "claim_notification_deliveries" | "claim_notification_digests" | "complete_notification_delivery" | "complete_notification_digest" | "dismiss_notifications" | "get_notification" | "list_notification_preferences" | "list_notification_subscriptions" | "list_notification_suppressions" | "list_notifications" | "list_subject_deliveries" | "mark_notifications_read" | "mark_notifications_unread" | "notification_cadence" | "notification_counts" | "notification_enabled" | "notification_page" | "notify" | "purge_notifications" | "record_delivery_event" | "resolve_notifications" | "run_notification_digests" | "send_notification" | "send_notifications" | "set_notification_cadence" | "set_notification_preference" | "set_notification_subscription" | "suppress_notification_address" | "unsuppress_notification_address";
+    readonly functions: "broadcast_notification" | "claim_notification_deliveries" | "claim_notification_digests" | "complete_notification_delivery" | "complete_notification_digest" | "dismiss_notifications" | "get_notification" | "list_notification_preferences" | "list_notification_subscriptions" | "list_notification_suppressions" | "list_notifications" | "list_subject_deliveries" | "mark_notifications_read" | "mark_notifications_unread" | "notification_cadence" | "notification_counts" | "notification_enabled" | "notification_page" | "notify" | "purge_notifications" | "record_delivery_event" | "resolve_notifications" | "run_notification_digests" | "send_notification" | "send_notifications" | "set_notification_cadence" | "set_notification_preference" | "set_notification_subscription" | "snooze_notification" | "suppress_notification_address" | "unsuppress_notification_address";
     readonly actions: "send" | "read";
     readonly hooks: "notification_audience" | "before_notification_send" | "after_notify";
     readonly entities: {};
@@ -1866,6 +1867,21 @@ export interface BlockNameRegistry {
     readonly actions: never;
     readonly hooks: "after_profile_sync" | "before_profile_update" | "after_profile_update";
     readonly entities: {};
+    readonly primary: never;
+  };
+  readonly "projects": {
+    readonly tables: {
+      readonly "updates": "id" | "tenant" | "project" | "author" | "health" | "body" | "scope" | "started" | "completed" | "createdAt";
+      readonly "initiatives": "id" | "tenant" | "name" | "description" | "status" | "priority" | "owner" | "targetOn" | "parent" | "rank" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "links": "initiative" | "project" | "tenant";
+    };
+    readonly functions: "archive_initiative" | "get_initiative" | "link_initiative_project" | "page_initiatives" | "page_project_updates" | "remove_initiative" | "save_initiative" | "save_project_update";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "project_update": "id" | "tenant_id" | "project_id" | "author_id" | "health" | "body" | "scope_count" | "started_count" | "completed_count" | "created_at";
+      readonly "initiative": "id" | "tenant_id" | "name" | "description" | "status" | "priority" | "owner_id" | "target_on" | "parent_id" | "rank" | "archived_at" | "created_at" | "updated_at";
+    };
     readonly primary: never;
   };
   readonly "promotions": {
@@ -2379,22 +2395,27 @@ export interface BlockNameRegistry {
   };
   readonly "tasks": {
     readonly tables: {
-      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "estimatedMinutes" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "template" | "sourceTemplate" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt" | "waitingOn" | "heldAt" | "holdKind" | "holdReturnStage" | "delegateProfile" | "closeNote";
+      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "estimatedMinutes" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "template" | "sourceTemplate" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt" | "waitingOn" | "heldAt" | "holdKind" | "holdReturnStage" | "delegateProfile" | "closeNote" | "milestone" | "duplicateOf" | "snoozedUntil";
       readonly "claims": "task" | "tenant" | "token" | "epoch" | "holder" | "profile" | "claimedAt" | "expiresAt" | "expiredAt";
       readonly "specification": "id" | "tenant" | "item" | "description" | "quantity" | "unit" | "estimate" | "rank" | "createdAt";
       readonly "materials": "id" | "tenant" | "item" | "variant" | "quantity" | "unit" | "rank" | "createdAt";
       readonly "checklist": "id" | "tenant" | "item" | "title" | "done" | "doneAt" | "doneBy" | "rank" | "createdBy" | "createdAt";
       readonly "assignees": "tenant" | "item" | "user" | "createdAt";
-      readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "budgetAmount" | "budgetCurrency" | "budgetHours" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
+      readonly "projects": "id" | "tenant" | "key" | "name" | "description" | "owner" | "team" | "status" | "priority" | "icon" | "color" | "rank" | "health" | "healthAt" | "startOn" | "targetOn" | "startResolution" | "targetResolution" | "completedAt" | "canceledAt" | "template" | "budgetAmount" | "budgetCurrency" | "budgetHours" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "number" | "description" | "createdAt";
+      readonly "milestones": "id" | "tenant" | "project" | "name" | "description" | "targetOn" | "rank" | "createdAt" | "updatedAt";
+      readonly "cadences": "id" | "tenant" | "team" | "weeks" | "cooldownDays" | "startWeekday" | "upcoming" | "rollover" | "createdAt";
+      readonly "snapshots": "id" | "tenant" | "iteration" | "day" | "scope" | "started" | "completed";
+      readonly "identifiers": "tenant" | "identifier" | "item" | "createdAt";
     };
-    readonly functions: "archive_task" | "archive_tasks" | "claim_next_task" | "claim_task" | "clone_task" | "close_task" | "create_task" | "create_tasks" | "delegate_task" | "delete_task" | "delete_task_checklist_item" | "delete_tasks" | "expire_task_claims" | "get_project" | "get_task" | "hold_task" | "list_task_checklist" | "list_task_materials" | "list_task_specification" | "list_tasks" | "page_projects" | "page_tasks" | "release_task_claim" | "release_task_hold" | "renew_task_claim" | "set_task_assignees" | "task_actor" | "task_claim" | "task_claims_changed" | "task_stage_times" | "task_tree" | "tasks_changed" | "update_tasks" | "upsert_iteration" | "upsert_project" | "upsert_task_checklist_item" | "upsert_task_material_line" | "upsert_task_specification_line";
+    readonly functions: "accept_task" | "archive_project" | "archive_task" | "archive_tasks" | "claim_next_task" | "claim_task" | "clone_project" | "clone_task" | "close_task" | "create_task" | "create_tasks" | "decline_task" | "delegate_task" | "delete_task" | "delete_task_checklist_item" | "delete_tasks" | "expire_task_claims" | "get_iteration" | "get_project" | "get_task" | "hold_task" | "iteration_burnup" | "list_task_checklist" | "list_task_materials" | "list_task_specification" | "list_tasks" | "mark_duplicate" | "page_iterations" | "page_milestones" | "page_projects" | "page_tasks" | "release_task_claim" | "release_task_hold" | "remove_iteration" | "remove_milestone" | "remove_project" | "renew_task_claim" | "resolve_task_identifier" | "roll_iterations" | "save_iteration_cadence" | "save_milestone" | "set_project_health" | "set_task_assignees" | "snooze_task" | "task_actor" | "task_claim" | "task_claims_changed" | "task_stage_times" | "task_tree" | "tasks_changed" | "update_tasks" | "upsert_iteration" | "upsert_project" | "upsert_task_checklist_item" | "upsert_task_material_line" | "upsert_task_specification_line";
     readonly actions: "read" | "write" | "manage" | "create" | "delete" | "claim";
     readonly hooks: "before_task_create" | "after_task_create" | "before_task_update" | "after_task_update" | "before_task_clone" | "after_task_clone" | "before_task_close";
     readonly entities: {
-      readonly "task": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "estimated_minutes" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "template_id" | "source_template_id" | "recurs_from" | "created_by" | "created_at" | "updated_at" | "waiting_on" | "held_at" | "hold_kind" | "hold_return_stage_id" | "delegate_profile" | "close_note";
-      readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_id" | "status" | "start_on" | "target_on" | "budget_amount" | "budget_currency" | "budget_hours" | "archived_at" | "created_at" | "updated_at";
-      readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
+      readonly "task": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "estimated_minutes" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "template_id" | "source_template_id" | "recurs_from" | "created_by" | "created_at" | "updated_at" | "waiting_on" | "held_at" | "hold_kind" | "hold_return_stage_id" | "delegate_profile" | "close_note" | "milestone_id" | "duplicate_of" | "snoozed_until";
+      readonly "project": "id" | "tenant_id" | "key" | "name" | "description" | "owner_id" | "team_id" | "status" | "priority" | "icon" | "color" | "rank" | "health" | "health_at" | "start_on" | "target_on" | "start_resolution" | "target_resolution" | "completed_at" | "canceled_at" | "template" | "budget_amount" | "budget_currency" | "budget_hours" | "archived_at" | "created_at" | "updated_at";
+      readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "number" | "description" | "created_at";
+      readonly "project_milestone": "id" | "tenant_id" | "project_id" | "name" | "description" | "target_on" | "rank" | "created_at" | "updated_at";
       readonly "checklist_item": "id" | "tenant_id" | "task_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
     };
     readonly primary: "task";

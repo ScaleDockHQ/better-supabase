@@ -97,6 +97,12 @@ export type TasksSqlOptions = {
    * }` over them. Kinds whose `onReject` differ need the `hold_kind` column.
    * ADR 1219.
    */
+  /**
+   * `tenant` (default) numbers every task `TASK-12`. `project` numbers a task
+   * in project WEB as `WEB-130` from that project's counter. A move gives a new
+   * identifier and keeps the old one resolvable.
+   */
+  readonly identifiers?: "tenant" | "project";
   readonly hold?: {
     readonly stage?: TaskStageRef;
     readonly kinds?: readonly string[];
@@ -124,4 +130,5 @@ export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
     needs: option.unknown(),
     claims: option.unknown(),
     hold: option.unknown(),
+    identifiers: option.string({ default: "tenant" }),
   });

@@ -271,6 +271,7 @@ may be your own enum or domain.
   - `better_supabase.subject_collections`: `id`, `tenant_id`, `subject_type`, `scope`, `owner_id`, `team_id`, `name`, `archived_at`, `created_at`; typed: `scope`
   - `better_supabase.subject_collection_entries`: `collection_id`, `tenant_id`, `subject_type`, `subject_id`, `rank`
   - `better_supabase.collection_favorites`: `user_id`, `tenant_id`, `subject_type`, `subject_id`, `rank`
+  - `better_supabase.collection_star_folders`: `id`, `user_id`, `tenant_id`, `name`, `rank`
   - `better_supabase.saved_items`: `id`, `user_id`, `tenant_id`, `subject_type`, `subject_id`, `remind_at`, `reminded_at`, `completed_at`, `created_at`
 - `comments`
   - `better_supabase.comment_tasks`: `message_id`, `tenant_id`, `task_id`
@@ -593,7 +594,7 @@ may be your own enum or domain.
   - `better_supabase.moderation_appeals`: `id`, `tenant_id`, `statement_id`, `notice_id`, `reasons`, `appellant_id`, `status`, `outcome`, `decided_by`, `decided_at`, `created_at`
 - `notifications`
   - `better_supabase.notification_events`: `id`, `type`, `data`, `created_at`
-  - `better_supabase.notification_recipients`: `id`, `event_id`, `user_id`, `read_at`, `dismissed_at`, `created_at`
+  - `better_supabase.notification_recipients`: `id`, `event_id`, `user_id`, `read_at`, `dismissed_at`, `snoozed_until`, `created_at`
   - `better_supabase.notification_deliveries`: `id`, `recipient_id`, `channel`, `status`, `attempted_at`, `created_at`
   - `better_supabase.notification_delivery_events`, once mapped: `id`, `delivery_id`, `kind`, `provider_event_id`, `occurred_at`, `detail`, `created_at`
   - `better_supabase.notification_subscriptions`: `id`, `user_id`, `subject_type`, `subject_id`, `level`, `created_at`
@@ -661,6 +662,10 @@ may be your own enum or domain.
   - `better_supabase.posts`: `id`, `tenant_id`, `board_id`, `author_id`, `title`, `body`, `status`, `moderation_status`, `merged_into_id`, `created_at`; typed: `status`, `moderation_status`
 - `profiles`
   - `better_supabase.profiles`: `id`; typed: `locale`
+- `projects`
+  - `better_supabase.project_updates`: `id`, `tenant_id`, `project_id`, `author_id`, `health`, `body`, `scope_count`, `started_count`, `completed_count`, `created_at`
+  - `better_supabase.initiatives`: `id`, `tenant_id`, `name`, `description`, `status`, `priority`, `owner_id`, `target_on`, `parent_id`, `rank`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.initiative_projects`: `initiative_id`, `project_id`, `tenant_id`
 - `promotions`
   - `better_supabase.promotions`: `id`, `tenant_id`, `name`, `kind`, `percent`, `currency`, `amount`, `min_subtotal`, `scope`, `target_ids`, `starts_at`, `ends_at`, `usage_limit`, `per_customer_limit`, `redemptions`, `stackable`, `priority`, `automatic`, `active`, `created_at`, `updated_at`; typed: `kind`, `scope`
   - `better_supabase.promotion_codes`: `id`, `tenant_id`, `promotion_id`, `code`, `usage_limit`, `redemptions`, `created_at`
@@ -795,6 +800,10 @@ may be your own enum or domain.
   - `better_supabase.task_assignees`: `tenant_id`, `task_id`, `user_id`
   - `better_supabase.projects`: `id`, `tenant_id`, `key`, `name`, `status`, `archived_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.iterations`: `id`, `tenant_id`, `name`, `starts_on`, `ends_on`, `created_at`
+  - `better_supabase.milestones`: `id`, `tenant_id`, `project_id`, `name`, `description`, `target_on`, `rank`, `created_at`, `updated_at`
+  - `better_supabase.iteration_cadences`: `id`, `tenant_id`, `team_id`, `weeks`, `cooldown_days`, `start_weekday`, `upcoming`, `rollover`, `created_at`
+  - `better_supabase.iteration_snapshots`: `id`, `tenant_id`, `iteration_id`, `day`, `scope`, `started`, `completed`
+  - `better_supabase.task_identifiers`: `tenant_id`, `identifier`, `task_id`, `created_at`
 - `tax`
   - `better_supabase.tax_codes`: `id`, `tenant_id`, `code`, `name`, `type`, `return_boxes`, `created_at`, `updated_at`
   - `better_supabase.tax_rates`: `id`, `tenant_id`, `tax_code_id`, `rate_bps`, `valid_from`, `created_at`

@@ -14,3 +14,7 @@ export {
   projectsParts,
   type ProjectsParts,
 } from "./manifest.ts";
+
+export { projectsReadSets } from "./reads.ts";
+
+export type { ProjectCard, ProjectOverview } from "./overview.ts";

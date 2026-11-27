@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- snooze hides a notification until a time and adds lines past the limit. 1 finding. */
 import type { NotificationsEvents } from "../../blocks/notifications/events.ts";
 import type { NotificationDeliveryEventData } from "../../core/block-events.ts";
 import type {
@@ -19,6 +20,7 @@ import {
   schemaPreamble,
   updatedAt,
   revokeTable,
+  userGrant,
 } from "../shared.ts";
 import { subjectCascades, subjectsOption } from "../subjects.ts";
 import {
@@ -166,6 +168,7 @@ const NAMES: BlockSqlNames = {
         user: "user_id",
         readAt: "read_at",
         dismissedAt: "dismissed_at",
+        snoozedUntil: "snoozed_until",
         resolvedAt: "resolved_at",
         resolution: "resolution",
         deliveredAt: "delivered_at",
@@ -422,6 +425,7 @@ create table if not exists ${n.table("recipients")} (
     `${c("recipients", "user")} uuid${externalOn(ctx, n) ? "" : " not null"} references auth.users (id) on delete cascade`,
     `${c("recipients", "readAt")} timestamptz`,
     `${c("recipients", "dismissedAt")} timestamptz`,
+    `${c("recipients", "snoozedUntil")} timestamptz`,
     ...opt("recipients", "resolvedAt", "timestamptz"),
     ...opt("recipients", "resolution", "jsonb"),
     ...opt("recipients", "deliveredAt", "timestamptz not null default now()"),
@@ -437,7 +441,7 @@ create index if not exists notification_recipients_user_idx on ${n.table("recipi
 alter table ${n.table("recipients")} enable row level security;
 ${revokeTable(n.table("recipients"))}
 grant select on ${n.table("recipients")} to authenticated;
-grant update (${c("recipients", "readAt")}, ${c("recipients", "dismissedAt")}) on ${n.table("recipients")} to authenticated;
+grant update (${c("recipients", "readAt")}, ${c("recipients", "dismissedAt")}, ${c("recipients", "snoozedUntil")}) on ${n.table("recipients")} to authenticated;
 grant all on ${n.table("recipients")} to service_role;${policy(
     "recipients",
     "bsb_notification_recipients_read",
@@ -455,7 +459,27 @@ grant all on ${n.table("recipients")} to service_role;${policy(
       and r.${own(n, "recipients", "user")}
   )
 `,
-  })}`);
+  })}
+
+create or replace function ${ctx.fn("snooze_notification")}(id uuid, until timestamptz)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  update ${n.table("recipients")} rc
+  set ${c("recipients", "snoozedUntil")} = snooze_notification.until
+  where rc.${c("recipients", "id")} = snooze_notification.id
+    and rc.${c("recipients", "user")} = auth.uid();
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$$;
+${userGrant(`${ctx.fn("snooze_notification")}(uuid, timestamptz)`)}
+`);
 
   if (ctx.hasTable("deliveries")) {
     parts.push(`
@@ -901,6 +925,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "dismiss_notifications", args: ["uuid[]"], returns: "jsonb" },
     {
+      name: "snooze_notification",
+      args: ["uuid", "timestamptz"],
+      returns: "boolean",
+    },
+    {
       name: "purge_notifications",
       args: ["interval", "integer"],
       returns: "integer",
@@ -1000,7 +1029,7 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 11,
+  version: 12,
   names: NAMES,
   contract,
   upgrades: [
@@ -1071,6 +1100,13 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
         "notification_page sorts by order_by (newest, oldest, type, subject or status, each with a _desc form), filters on exclude_types, subject_ids and any_of groups, and returns the limit it applied; list_notifications and notification_page match search on the actor's name and return up to 500 items.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("notification_page")}(${ctx.idType}, text, text[], text[], text, integer, integer, boolean, boolean, boolean, timestamptz, uuid, integer);`,
+    },
+    {
+      from: 11,
+      description:
+        "A recipient can be snoozed until a time. Snoozed rows leave the inbox and the unread count until that time.",
+      sql: (ctx) =>
+        `alter table ${ctx.table("recipients")} add column if not exists ${ctx.col("recipients", "snoozedUntil")} timestamptz;`,
     },
   ],
   build,

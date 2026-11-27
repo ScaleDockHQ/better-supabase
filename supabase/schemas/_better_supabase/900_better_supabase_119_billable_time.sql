@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:8a8d36274ed9582d0c5fe70062be06a4f95a599ad2dc66e1a84fb40c3fd95d36
+-- @bsb-hash sha256:ab0104dbdfc74359aa5d29b386323826b39ece547c2a1700a9e558e7acd7a170
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1075,8 +1075,8 @@ begin
       )
     where x."tenant_id" = v_project."tenant_id"
       and x."ended_at" is not null and x."archived_at" is null
-      and ((x."subject_type" = 'project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'work_item' and x."subject_id" in (
-        select y."id"::text from "better_supabase"."work_items" y where y."project_id" = v_project."id"
+      and ((x."subject_type" = 'work_project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'work_item' and x."subject_id" in (
+        select y."id"::text from "better_supabase"."work_items" y where y."work_project_id" = v_project."id"
       )))
   ),
   totals as (

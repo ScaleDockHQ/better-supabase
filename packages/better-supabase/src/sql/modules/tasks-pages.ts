@@ -12,6 +12,27 @@ import {
 import { fail, userGrant } from "../shared.ts";
 import { asText } from "./over-app.ts";
 
+/**
+ * A project's progress: the share of its live items that are completed.
+ * Canceled items are left out, and a project with no live items (none, or only
+ * canceled ones) is null instead of dividing by zero.
+ */
+export function projectProgressSql(
+  items: string,
+  projectColumn: string,
+  projectId: string,
+  archivedAt: string,
+  state: (value: string, labels: readonly string[], negate?: boolean) => string,
+  stateColumn: string,
+): string {
+  const live = `count(*) filter (where ${state(stateColumn, ["canceled"], true)})`;
+
+  return `(
+      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where ${state(stateColumn, ["completed"])}) / nullif(${live}, 0)) end
+      from ${items} y where y.${projectColumn} = ${projectId} and y.${archivedAt} is null
+    )`;
+}
+
 /** What the page functions read from the task function builder. */
 interface PageHelpers {
   readonly w: (column: string) => string;
@@ -42,10 +63,14 @@ export function taskPageSql(
   const projectRow = (alias: string): string =>
     `${ctx.rowJson("projects", alias)}${budgetText.replaceAll("x.", `${alias}.`)} || jsonb_build_object('progress', ${
       has("project")
-        ? `(
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where ${state(`y.${w("state")}`, ["completed"])}) / count(*) filter (where ${state(`y.${w("state")}`, ["canceled"], true)})) end
-      from ${t("items")} y where y.${w("project")} = ${alias}.${p("id")} and y.${w("archivedAt")} is null
-    )`
+        ? projectProgressSql(
+            t("items"),
+            w("project"),
+            `${alias}.${p("id")}`,
+            w("archivedAt"),
+            state,
+            `y.${w("state")}`,
+          )
         : "null"
     })`;
 
@@ -90,6 +115,16 @@ export function taskPageSql(
       has("waitingOn")
         ? `(not ${filterFlag("waiting")} or (x.${w("waitingOn")} > 0 and x.${w("closedAt")} is null))`
         : `(not ${filterFlag("waiting")})`,
+      has("dueAt")
+        ? `(v_filters ->> 'dueFrom' is null or x.${w("dueAt")} >= (v_filters ->> 'dueFrom')::timestamptz)`
+        : `(v_filters ->> 'dueFrom' is null)`,
+      has("dueAt")
+        ? `(v_filters ->> 'dueTo' is null or x.${w("dueAt")} <= (v_filters ->> 'dueTo')::timestamptz)`
+        : `(v_filters ->> 'dueTo' is null)`,
+      `(v_filters ->> 'triage' is null or (v_filters ->> 'triage')::boolean = (x.${w("state")} = 'triage'))`,
+      has("milestone")
+        ? `(v_filters ->> 'milestoneId' is null or x.${w("milestone")} = (v_filters ->> 'milestoneId')::uuid)`
+        : `(v_filters ->> 'milestoneId' is null)`,
       `(v_search is null or x.${w("title")} ilike v_search or x.${w("identifier")} ilike v_search)`,
     ],
     keys: taskKeys,
@@ -214,7 +249,8 @@ ${userGrant(`${fn("get_project")}(uuid)`)}
 -- A tenant's active items as a keyset page, newest number first (ADR 1077). It
 -- runs as invoker, so the read policy decides which items are visible. filters
 -- is { state, priority, teamId, projectId, iterationId, parentId, assigneeId
--- (each a value or a list), open (true keeps unclosed items), templates
+-- (each a value or a list), open (true keeps unclosed items), dueFrom, dueTo,
+-- templates
 -- (include, only), search (title, identifier), sort (number, title, dueAt,
 -- createdAt), direction, facet, count, limit, after, offset, paged, total,
 -- totalCap }.

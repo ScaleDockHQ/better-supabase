@@ -538,6 +538,8 @@ export interface Notifications<
     readonly tenant?: string;
   }): AsyncResult<NotificationUpdate>;
   dismiss(ids: readonly string[]): AsyncResult<NotificationUpdate>;
+  /** Hides the notification until `until`. It returns to the inbox after that. */
+  snooze(id: string, until: string): AsyncResult<boolean>;
   /**
    * `read`, `unread` or `dismiss` for the given notifications in one call, as
    * the common `bulk(ids, action)` (ADR 0854): `{ succeeded, failed }`. An id

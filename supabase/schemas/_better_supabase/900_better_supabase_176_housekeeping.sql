@@ -1,6 +1,6 @@
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:0ffddbefc34ba3aad1d606a41b3684d84a44e1a168abbf038cc857164ab4a435
+-- @bsb-hash sha256:91e9bfac056801c1edbc45ec79bc33fafd119d6b39908dd36a41fada1a8b5a91
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,7 +37,8 @@ from (values
     ('purge_rate_limits', 'better_supabase.purge_rate_limits', interval '15 minutes'),
     ('purge_usage_events', '"better_supabase"."purge_usage_events"', interval '1 day'),
     ('purge_webhook_deliveries', '"better_supabase"."purge_webhook_deliveries"', interval '1 day'),
-    ('purge_webhooks', 'better_supabase.purge_webhooks', interval '1 day')
+    ('purge_webhooks', 'better_supabase.purge_webhooks', interval '1 day'),
+    ('roll_iterations', '"better_supabase"."roll_iterations"', interval '1 day')
   ) j (job, fn, every_interval)
 left join "better_supabase"."maintenance_state" s on s."job" = j.job;
 revoke all on "better_supabase"."maintenance_jobs" from public, anon, authenticated;

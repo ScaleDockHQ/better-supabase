@@ -156,6 +156,14 @@ export interface Tags<F extends object = Record<never, never>> {
    */
   list(params?: ListTagsParams): AsyncResult<readonly Tag<F>[]>;
   /**
+   * The tags on several records of one type, keyed by record id. A record with
+   * no tags is an empty list.
+   */
+  forSubjects(input: {
+    type: string;
+    ids: readonly string[];
+  }): AsyncResult<Readonly<Record<string, readonly Tag[]>>>;
+  /**
    * One keyset page of the tenant's tags in rank order. `filters` takes `kind`
    * as a list, `q` searches the name, slug and description, and `sort` is
    * `rank`, `name`, `kind` or `createdAt`.
@@ -356,6 +364,18 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
         return listed.andThen(fields.rows);
       }),
+    forSubjects: ({ type, ids }) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "subjects_tags",
+          { tenant: organizationId, subject_type: type, subject_ids: ids },
+          (value) => {
+            const found = isRecord(value) ? value : {};
+
+            return Object.fromEntries(ids.map((id) => [id, tagsOf(found[id])]));
+          },
+        ),
+      ),
     replace: ({ record, tagIds }) =>
       AsyncResult.from(async () => {
         // oxlint-disable-next-line typescript/no-deprecated -- `on` stays on list (ADR 1077)

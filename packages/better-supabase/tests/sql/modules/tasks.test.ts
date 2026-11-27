@@ -90,6 +90,42 @@ describe("tasks module", () => {
     expect(keyed).not.toContain('x."created_by" = auth.uid() or');
   });
 
+  it("keeps project progress defined when every live task is canceled", () => {
+    const sql = body("tasks");
+
+    expect(sql).toContain(
+      `nullif(count(*) filter (where y."state" <> 'canceled'), 0)`,
+    );
+    expect(sql.match(/nullif\(count\(\*\) filter/g)?.length).toBeGreaterThan(1);
+  });
+
+  it("keeps an iteration's team on update and refuses another tenant's project", () => {
+    const sql = body("tasks");
+
+    expect(sql).toContain(
+      `when upsert_iteration.attrs ? 'teamId' then (upsert_iteration.attrs ->> 'teamId')::uuid`,
+    );
+    expect(sql).toContain("TASK_PROJECT_NOT_FOUND");
+    expect(sql).toContain("TASK_ITERATION_NOT_FOUND");
+    expect(sql).toContain(`'projectId', v_src."project_id"`);
+    expect(sql).toContain(`'iterationId', v_src."iteration_id"`);
+    expect(sql).toContain(`'estimate', v_src."estimate"`);
+    expect(sql).toContain(`'startAt', v_src."start_at"`);
+    expect(sql).toContain(`'endAt', v_src."end_at"`);
+  });
+
+  it("gives a project a subject, events and the new columns", () => {
+    const sql = body("tasks", {}, ["outbox"]);
+
+    expect(sql).toContain("'project.created'");
+    expect(sql).toContain("'iteration.deleted'");
+    expect(sql).toContain('"description" text');
+    expect(sql).toContain("archive_project");
+    expect(sql).toContain("page_iterations");
+    expect(sql).toContain(`v_filters ->> 'dueFrom'`);
+    expect(sql).toContain("'subtasks'");
+  });
+
   it("renders projects and iterations unless turned off", () => {
     const all = body("tasks");
     expect(all).toContain('references "better_supabase"."projects"');

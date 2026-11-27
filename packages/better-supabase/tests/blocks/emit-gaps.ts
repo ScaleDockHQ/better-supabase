@@ -152,8 +152,6 @@ export const EMIT_GAPS: readonly string[] = [
   "support.support.create",
   "tasks.checklist_item.delete",
   "tasks.checklist_item.update",
-  "tasks.iteration.update",
-  "tasks.project.update",
   "tax.tax_rate.update",
   "templates.template.delete",
   "templates.template.update",

@@ -1784,7 +1784,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:66ddded8c867e70c88b25e8ab2eb7ee0e935c1e8a80aaef0235d8d7fe28b99c1
+-- @bsb-hash sha256:09bed5990cbc3939f6ea3db91f6967f829c64e25277bb78199d00017346e6cfb
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3091,6 +3091,7 @@ as $$
     ('user', 'better_supabase.employee_private_details', '"better_supabase"."employee_private_details"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.collection_favorites', '"better_supabase"."collection_favorites"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.collection_star_folders', '"better_supabase"."collection_star_folders"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_reports', '"better_supabase"."moderation_reports"', 'reporter_id', true, '{}'::text[], true),
     ('user', 'better_supabase.moderation_bans', '"better_supabase"."moderation_bans"', 'user_id', true, '{}'::text[], true),
@@ -3174,6 +3175,7 @@ as $$
     ('user', 'better_supabase.advisory_products', '"better_supabase"."advisory_products"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.vex_statements', '"better_supabase"."vex_statements"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.advisories', '"better_supabase"."advisories"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.project_updates', '"better_supabase"."project_updates"', 'author_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'tenant_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'tenant_id', true, array['token_hash']::text[], true),
@@ -3409,6 +3411,10 @@ as $$
     ('organization', 'better_supabase.task_assignees', '"better_supabase"."task_assignees"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.projects', '"better_supabase"."projects"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.iterations', '"better_supabase"."iterations"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.milestones', '"better_supabase"."milestones"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.iteration_cadences', '"better_supabase"."iteration_cadences"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.iteration_snapshots', '"better_supabase"."iteration_snapshots"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.task_identifiers', '"better_supabase"."task_identifiers"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipelines', '"better_supabase"."pipelines"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_stages', '"better_supabase"."pipeline_stages"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.pipeline_transitions', '"better_supabase"."pipeline_transitions"', 'tenant_id', true, '{}'::text[], true),
@@ -3453,6 +3459,7 @@ as $$
     ('organization', 'better_supabase.subject_collections', '"better_supabase"."subject_collections"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.subject_collection_entries', '"better_supabase"."subject_collection_entries"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.collection_favorites', '"better_supabase"."collection_favorites"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.collection_star_folders', '"better_supabase"."collection_star_folders"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.saved_items', '"better_supabase"."saved_items"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.hostnames', '"better_supabase"."hostnames"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.moderation_items', '"better_supabase"."moderation_items"', 'tenant_id', true, '{}'::text[], true),
@@ -3696,7 +3703,10 @@ as $$
     ('organization', 'better_supabase.guardrail_policies', '"better_supabase"."guardrail_policies"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.guardrail_decisions', '"better_supabase"."guardrail_decisions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.option_sets', '"better_supabase"."option_sets"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.option_set_items', '"better_supabase"."option_set_items"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.option_set_items', '"better_supabase"."option_set_items"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.project_updates', '"better_supabase"."project_updates"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.initiatives', '"better_supabase"."initiatives"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.initiative_projects', '"better_supabase"."initiative_projects"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
