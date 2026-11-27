@@ -148,13 +148,44 @@ begin
   v_expense := (better_supabase.create_expense('${TENANT}', '2099-03-02', 900, 'EUR') ->> 'id')::uuid;
   perform better_supabase.submit_expense(v_expense);
   select id into v_approval from better_supabase.approval_requests where subject_type = 'expense' and subject_id = v_expense::text;
-  if better_supabase.approval_eligible(v_approval) then
+  if better_supabase.approval_eligible(v_approval)
+    or v_approval = any (array(select better_supabase.approval_eligible_ids_in(array['${TENANT}'::uuid]))) then
     raise exception 'an owner without the approve key decides their own claim';
   end if;
 end;
 $$;`,
       ),
     ).resolves.toBeUndefined();
+  });
+
+  it("asks the expense set form once for the caller's own requests in approval_eligible_ids_in", () => {
+    const sql = renderBlocks(["expenses"], {
+      modules: {
+        expenses: {
+          tables: { reports: null, lines: null },
+          options: {
+            standaloneApprovals: true,
+            selfDecideWhenTopOfChain: true,
+          },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body =
+      /function "better_supabase"."approval_eligible_ids_in"[\s\S]*?\$\$;/u.exec(
+        sql,
+      )?.[0];
+
+    expect(body).toContain("self_decided as materialized");
+    expect(body).toContain(
+      '"better_supabase"."expense_self_decides_many"(own.bsb_ids)',
+    );
+    expect(body).not.toContain('"better_supabase"."expense_self_decides"(');
+    expect(body).toContain(
+      'case when q.bsb_me is distinct from q."requested_by" then true',
+    );
   });
 
   it("approves a claim at once when the app says it needs no approval", async () => {

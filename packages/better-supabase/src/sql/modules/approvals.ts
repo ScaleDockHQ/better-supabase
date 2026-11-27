@@ -262,6 +262,10 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     }
   }
 
+  // The request's subject id when it is a uuid, else null, as text.
+  const subjectText = (row: string): string =>
+    `(case when ${row}.${c("subjectId")} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then ${row}.${c("subjectId")} end)`;
+
   // A contributing block's `decides` or `selfDecides` for the request in
   // `row`, by its subject type; undefined when no block contributes one.
   const byBlock = (
@@ -277,7 +281,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       return check === undefined
         ? []
         : [
-            `when ${sqlString(each.subject)} then coalesce(${check({ id: `${row}.${c("id")}`, subjectId: `(case when ${row}.${c("subjectId")} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then ${row}.${c("subjectId")} end)`, comment: "null", approver: me })}, false)`,
+            `when ${sqlString(each.subject)} then coalesce(${check({ id: `${row}.${c("id")}`, subjectId: subjectText(row), comment: "null", approver: me })}, false)`,
           ];
     });
 
@@ -714,10 +718,63 @@ ${indent}end if;`;
 
   const setCore = `(${setMatch(approversIn("approvers"))}${escalates ? `\n    or (${escalatedSet} and ${setMatch(approversIn("escalateTo"))})` : ""}${delegatedHere}${providerFallback})`;
 
+  // selfDecides only matters for the caller's own requests. A block with a set
+  // form answers all of them in one call (self_decided); the others still ask
+  // per request, but only for the caller's own.
+  const selfMany = contributed.filter(
+    (each) =>
+      each.selfDecides !== undefined && each.selfDecidesMany !== undefined,
+  );
+
+  const selfDecidedCte =
+    selfMany.length === 0
+      ? ""
+      : `,
+  self_decided as materialized (
+    ${selfMany
+      .map(
+        (each) =>
+          `select ${sqlString(each.subject)}::text as bsb_type, x.bsb_id from (
+      select array_agg(${subjectText("q")}::uuid) as bsb_ids from q
+      where q.${c("subjectType")} = ${sqlString(each.subject)} and q.bsb_me = q.${c("requestedBy")}
+    ) own, lateral unnest(case when own.bsb_ids is null then '{}'::uuid[] else coalesce(${each.selfDecidesMany?.("own.bsb_ids")}, '{}'::uuid[]) end) as x(bsb_id)`,
+      )
+      .join("\n    union all\n    ")}
+  )`;
+
+  const selfWhens = contributed.flatMap((each) => {
+    if (each.selfDecides === undefined) {
+      return [];
+    }
+
+    const check =
+      each.selfDecidesMany === undefined
+        ? `coalesce(${each.selfDecides({ id: `q.${c("id")}`, subjectId: subjectText("q"), comment: "null", approver: "q.bsb_me" })}, false)`
+        : `exists (select 1 from self_decided sd where sd.bsb_type = ${sqlString(each.subject)} and sd.bsb_id = ${subjectText("q")}::uuid)`;
+
+    return [`when ${sqlString(each.subject)} then ${check}`];
+  });
+
+  const selfAllowed =
+    selfWhens.length === 0
+      ? `(q.bsb_me is distinct from q.${c("requestedBy")} or coalesce((${policyOf("q")} ->> 'selfApproval')::boolean, false))`
+      : `(case when q.bsb_me is distinct from q.${c("requestedBy")} then true
+          when coalesce((${policyOf("q")} ->> 'selfApproval')::boolean, false) then true
+          else (case q.${c("subjectType")} ${selfWhens.join(" ")} else false end) end)`;
+
+  // Each permission is checked once: the tenants the caller holds it in
+  // (the access contract's set), not one can() call per tenant and permission.
+  const grantedTenantless = tenantless
+    ? `
+    union all
+    select null, k.p from (select distinct n.p from needs n where n.t is null) k
+    where ${ctx.staff("k.p")}`
+    : "";
+
   const eligibleIdsBody = `with base as (
     select r.*, (select auth.uid()) as bsb_me from ${requests} r
     where r.${c("status")} = 'pending' and (select auth.uid()) is not null
-      and (approval_eligible_ids.tenant is null or r.${c("tenant")} = approval_eligible_ids.tenant)
+      and (approval_eligible_ids_in.tenants is null or r.${c("tenant")} = any (approval_eligible_ids_in.tenants))
   ),
   q as (
     select b.*, ${policyOf("b")} -> 'steps' -> ${stepOf("b")} as bsb_step from base b
@@ -728,9 +785,9 @@ ${indent}end if;`;
     where s.ap ->> 'permission' is not null
   ),
   granted as materialized (
-    select n.t, n.p from needs n
-    where ${tenantless ? `case when n.t is null then ${ctx.staff("n.p")} else ${ctx.can("tenant", "n.t", "n.p")} end` : ctx.can("tenant", "n.t", "n.p")}
-  )
+    select g.t, k.p from (select distinct n.p from needs n where n.t is not null) k
+    cross join lateral ${ctx.scope.ids("k.p")} as g(t)${grantedTenantless}
+  )${selfDecidedCte}
   select q.${c("id")} from q
   where not ${decidedHere("q")}${
     has("policy")
@@ -739,7 +796,7 @@ ${indent}end if;`;
       : ""
   }
     and ((q.bsb_me = q.${c("requestedBy")} and ${policyOf("q")} ->> 'mode' = 'confirm')
-      or ((q.bsb_me is distinct from q.${c("requestedBy")} or coalesce((${policyOf("q")} ->> 'selfApproval')::boolean, false)${selfDecidesBy("q", "q.bsb_me") === undefined ? "" : ` or ${selfDecidesBy("q", "q.bsb_me")}`})
+      or (${selfAllowed}
         and ${linkedSet.length === 0 ? setCore : `(case ${linkedSet.join("\n          ")}\n          else ${setCore} end)`}))`;
 
   const kit: ApprovalSqlKit = {
@@ -1059,22 +1116,63 @@ end;
 $$;
 ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 
--- The pending requests the caller may decide, as a set, for a policy or a list
--- (\`id in (select ${fn("approval_eligible_ids")}())\`): Postgres evaluates the set once per
+-- The pending requests the caller may decide in tenants (every tenant when
+-- null, tenantless requests included), as a set, for a policy or a list
+-- (\`id in (select ${fn("approval_eligible_ids_in")}())\`): Postgres evaluates the set once per
 -- statement, not once per row. It applies the rules of approval_eligible as
--- joins over the pending requests (a permission is checked once per tenant and
--- permission pair${provider ? ", an access provider's isApprover per request" : ""}), and a parity test keeps the two
--- in step. Pass a tenant to read one tenant's.
-create or replace function ${fn("approval_eligible_ids")}(tenant ${ctx.idType} default null)
+-- joins over the pending requests (each permission is checked once through the
+-- tenants the caller holds it in${provider ? ", an access provider's isApprover per request" : ""}), and a parity test keeps the two
+-- in step. A transaction that has written nothing keeps the answer in a
+-- transaction-local memo keyed by the caller's claims and the tenants, so the
+-- policy scans of one read reuse it; a write or other claims compute it again.
+create or replace function ${fn("approval_eligible_ids_in")}(tenants ${ctx.idType}[] default null)
 returns setof uuid
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_me uuid := auth.uid();
+  v_key text;
+  v_hit text;
+  v_ids uuid[];
+begin
+  if v_me is null then
+    return;
+  end if;
+  if pg_catalog.pg_current_xact_id_if_assigned() is null then
+    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
+      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
+      coalesce(approval_eligible_ids_in.tenants::text, '*')));
+    v_hit := better_supabase.memo_slot_get(v_key);
+    if v_hit is not null then
+      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
+      return;
+    end if;
+  end if;
+  v_ids := array(
+  ${eligibleIdsBody});
+  if v_key is not null then
+    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
+  end if;
+  return query select unnest(v_ids);
+end;
+$$;
+${userGrant(`${fn("approval_eligible_ids_in")}(${ctx.idType}[])`)}
+
+-- approval_eligible_ids_in for one tenant, or every tenant when null. It runs
+-- as the caller; approval_eligible_ids_in reads the requests as the owner.
+create or replace function ${fn("approval_eligible_ids")}(tenant ${ctx.idType} default null)
+returns setof uuid
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
 begin
   return query
-  ${eligibleIdsBody};
+  select x from ${fn("approval_eligible_ids_in")}(case when approval_eligible_ids.tenant is null then null else array[approval_eligible_ids.tenant] end) as x;
 end;
 $$;
 ${userGrant(`${fn("approval_eligible_ids")}(${ctx.idType})`)}
@@ -1528,7 +1626,7 @@ export const APPROVALS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   names: APPROVALS_NAMES,
   upgrades: [
     {
@@ -1560,6 +1658,12 @@ export const APPROVALS: BlockSqlDefinition = {
       description:
         "consume_approval moves a request to the new consumed status. Requests used before keep consumed_at with status approved; the upgrade sets them to consumed and adds a check that consumed_at is set exactly when the status is consumed.",
       sql: consumedUpgrade,
+    },
+    {
+      from: 6,
+      description:
+        "Adds approval_eligible_ids_in(tenants), the set form for several tenants or all of them in one call, with a transaction memo for reads; approval_eligible_ids(tenant) calls it. Each permission is checked once through tenant_ids_with, and a block's selfDecides runs only for the caller's own requests.",
+      sql: () => "",
     },
   ],
   contract,

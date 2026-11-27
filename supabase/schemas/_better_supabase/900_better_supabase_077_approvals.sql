@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
--- @bsb-block approvals@6 managed
--- @bsb-hash sha256:e53ca0811e761c8b0a96858070983dc703632b1ad39db00070adbe7ec5660775
+-- @bsb-block approvals@7 managed
+-- @bsb-hash sha256:066a987ec323536a1d9df976326154e26425e47e8b7c0747d2c5a4c618848f72
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -267,25 +267,46 @@ $$;
 revoke execute on function "better_supabase"."approval_eligible"(uuid) from public, anon;
 grant execute on function "better_supabase"."approval_eligible"(uuid) to authenticated, service_role;
 
--- The pending requests the caller may decide, as a set, for a policy or a list
--- (`id in (select "better_supabase"."approval_eligible_ids"())`): Postgres evaluates the set once per
+-- The pending requests the caller may decide in tenants (every tenant when
+-- null, tenantless requests included), as a set, for a policy or a list
+-- (`id in (select "better_supabase"."approval_eligible_ids_in"())`): Postgres evaluates the set once per
 -- statement, not once per row. It applies the rules of approval_eligible as
--- joins over the pending requests (a permission is checked once per tenant and
--- permission pair), and a parity test keeps the two
--- in step. Pass a tenant to read one tenant's.
-create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+-- joins over the pending requests (each permission is checked once through the
+-- tenants the caller holds it in), and a parity test keeps the two
+-- in step. A transaction that has written nothing keeps the answer in a
+-- transaction-local memo keyed by the caller's claims and the tenants, so the
+-- policy scans of one read reuse it; a write or other claims compute it again.
+create or replace function "better_supabase"."approval_eligible_ids_in"(tenants uuid[] default null)
 returns setof uuid
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_me uuid := auth.uid();
+  v_key text;
+  v_hit text;
+  v_ids uuid[];
 begin
-  return query
+  if v_me is null then
+    return;
+  end if;
+  if pg_catalog.pg_current_xact_id_if_assigned() is null then
+    v_key := 'approvals.ids.' || md5(concat_ws('|', v_me::text, current_setting('request.jwt.claims', true),
+      current_setting('request.jwt.claim', true), session_user::text, transaction_timestamp()::text,
+      coalesce(approval_eligible_ids_in.tenants::text, '*')));
+    v_hit := better_supabase.memo_slot_get(v_key);
+    if v_hit is not null then
+      return query select unnest(string_to_array(substr(v_hit, 2), ',')::uuid[]);
+      return;
+    end if;
+  end if;
+  v_ids := array(
   with base as (
     select r.*, (select auth.uid()) as bsb_me from "better_supabase"."approval_requests" r
     where r."status" = 'pending' and (select auth.uid()) is not null
-      and (approval_eligible_ids.tenant is null or r."tenant_id" = approval_eligible_ids.tenant)
+      and (approval_eligible_ids_in.tenants is null or r."tenant_id" = any (approval_eligible_ids_in.tenants))
   ),
   q as (
     select b.*, b."policy" -> 'steps' -> b."step" as bsb_step from base b
@@ -296,8 +317,8 @@ begin
     where s.ap ->> 'permission' is not null
   ),
   granted as materialized (
-    select n.t, n.p from needs n
-    where coalesce(better_supabase.can('tenant', n.t, n.p), false)
+    select g.t, k.p from (select distinct n.p from needs n where n.t is not null) k
+    cross join lateral better_supabase.tenant_ids_with(k.p) as g(t)
   )
   select q."id" from q
   where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
@@ -336,7 +357,28 @@ begin
       select 1 from "public"."memberships" mm
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me
     )))))
-    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end)));
+    or exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."decision" = 'delegated' and x."delegate_to" = q.bsb_me)) end))));
+  if v_key is not null then
+    perform better_supabase.memo_slot_set(v_key, '=' || array_to_string(v_ids, ','));
+  end if;
+  return query select unnest(v_ids);
+end;
+$$;
+revoke execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."approval_eligible_ids_in"(uuid[]) to authenticated, service_role;
+
+-- approval_eligible_ids_in for one tenant, or every tenant when null. It runs
+-- as the caller; approval_eligible_ids_in reads the requests as the owner.
+create or replace function "better_supabase"."approval_eligible_ids"(tenant uuid default null)
+returns setof uuid
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return query
+  select x from "better_supabase"."approval_eligible_ids_in"(case when approval_eligible_ids.tenant is null then null else array[approval_eligible_ids.tenant] end) as x;
 end;
 $$;
 revoke execute on function "better_supabase"."approval_eligible_ids"(uuid) from public, anon;
@@ -3260,6 +3302,16 @@ set search_path = ''
 as $$ select "better_supabase"."approval_eligible"($1) $$;
 revoke execute on function "api"."approval_eligible"(uuid) from public, anon;
 grant execute on function "api"."approval_eligible"(uuid) to authenticated, service_role;
+
+create or replace function "api"."approval_eligible_ids_in"(tenants uuid[] default null)
+returns setof uuid
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."approval_eligible_ids_in"($1) $$;
+revoke execute on function "api"."approval_eligible_ids_in"(uuid[]) from public, anon;
+grant execute on function "api"."approval_eligible_ids_in"(uuid[]) to authenticated, service_role;
 
 create or replace function "api"."approval_eligible_ids"(tenant uuid default null)
 returns setof uuid

@@ -556,12 +556,13 @@ $$;`),
       .join("\n");
 
     const body =
-      /function "better_supabase"."approval_eligible_ids"[\s\S]*?\$\$;/u.exec(
+      /function "better_supabase"."approval_eligible_ids_in"[\s\S]*?\$\$;/u.exec(
         sql,
       )?.[0];
 
     expect(body).toBeDefined();
     expect(body).not.toMatch(/"approval_eligible"\(/u);
+    expect(body).not.toMatch(/better_supabase\.can\(/u);
     expect(body).not.toMatch(/"approval_fact"\(/u);
   });
 });
