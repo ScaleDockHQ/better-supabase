@@ -51,6 +51,15 @@ export type TimeEntriesSqlOptions = {
    */
   readonly decider?: string;
   /**
+   * The set form of `decider`: an app function `"schema.function"`, `(ids
+   * uuid[]) returns uuid[]`, that answers in one call which of `ids` the caller
+   * decides. It must answer what `decider` answers for each id, and needs
+   * `decider`. The approvals block's eligible set (the read policy's
+   * `approval_eligible_ids_in`) calls it once per read instead of `decider`
+   * once per pending request.
+   */
+  readonly deciderMany?: string;
+  /**
    * An app function `schema.function(tenant, owner uuid) returns boolean` that
    * answers whether the caller may write another owner's time, such as a
    * manager for their reports. `owner` is the employee id with owner
@@ -91,6 +100,7 @@ export const timeEntriesSqlOptions: BlockOptionsSchema<TimeEntriesSqlOptions> =
     timers: option.string<"one" | "many">({ default: "one" }),
     lockedColumns: option.strings(),
     decider: option.string(),
+    deciderMany: option.string(),
     writer: option.string(),
     approvalRequired: option.string(),
     selfApproveWhenTopOfChain: option.boolean({ default: false }),

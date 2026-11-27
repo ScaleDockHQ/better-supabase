@@ -17,7 +17,12 @@ import { subjectUuid } from "../contributions.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { extraFieldsArg, schemaPreamble } from "../shared.ts";
-import { deciderCall, hasDecider, subjectRow } from "./direct-approver.ts";
+import {
+  deciderCall,
+  decidesMany,
+  hasDecider,
+  subjectRow,
+} from "./direct-approver.ts";
 import { expenseAccountingSources } from "./expenses-accounting.ts";
 import {
   EXPENSE_REPORT_RESERVED,
@@ -138,6 +143,7 @@ const NAMES: BlockSqlNames = {
     "invoicedColumn",
     "invoicedCheck",
     "decider",
+    "deciderMany",
     "standaloneApprovals",
     "policy",
     "approver",
@@ -491,6 +497,7 @@ const CONTRIBUTES: BlockContributes = {
                         subjectId,
                       ),
                     ).replace(/^ or /u, ""),
+                  ...decidesMany(own, "blocks.expenses.options"),
                 }
               : {}),
           },

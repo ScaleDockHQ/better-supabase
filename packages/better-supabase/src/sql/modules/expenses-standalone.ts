@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- options.deciderMany, the set form of the decider, adds lines past the limit. 1 finding. */
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 import type { BlockSqlUpgrade } from "../module-types.ts";
 import type { ApprovalPolicy } from "./approvals-policies.ts";
@@ -31,6 +32,7 @@ import { otherDecider } from "./approvals-tenant.ts";
 import {
   appFunction,
   deciderCall,
+  decidesMany,
   hasDecider,
   managerDecides,
 } from "./direct-approver.ts";
@@ -420,9 +422,12 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     }) as const;
 
   // Who may decide: the approve key, the owner's manager (options.approver),
-  // or a caller the app's options.decider function accepts.
-  const decides = (row: string): string =>
-    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`, managerArgs(row))})`;
+  // or a caller the app's options.decider function accepts (or `decider`, the
+  // clause of its set form, options.deciderMany).
+  const decides = (row: string, decider?: string): string =>
+    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${decider ?? deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`, managerArgs(row))})`;
+
+  const deciderMany = decidesMany(ctx, "blocks.expenses.options").decidesMany;
 
   const deciderOn = hasDecider(ctx);
 
@@ -994,10 +999,10 @@ security definer
 set search_path = ''
 as $$
   select coalesce(array_agg(v_row.${e("id")}), '{}'::uuid[])
-  from ${table} v_row
+  from ${table} v_row${deciderMany === undefined ? "" : `, (select ${deciderMany("expense_self_decides_many.expense_ids")} as bsb_ids) bsb_decided`}
   where v_row.${e("id")} = any (expense_self_decides_many.expense_ids)
     and auth.uid() is not null
-    and ${selfOf("v_row", "auth.uid()")} and ${decides("v_row")} and ${nobodyElse("v_row", creatorOf("v_row"))}
+    and ${selfOf("v_row", "auth.uid()")} and ${decides("v_row", deciderMany === undefined ? undefined : ` or coalesce(v_row.${e("id")} = any (bsb_decided.bsb_ids), false)`)} and ${nobodyElse("v_row", creatorOf("v_row"))}
 $$;
 ${userGrant(`${fn("expense_self_decides_many")}(uuid[])`)}
 

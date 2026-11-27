@@ -15,6 +15,7 @@ import {
 } from "../shared.ts";
 import {
   deciderCall,
+  decidesMany,
   hasDecider,
   subjectRow,
   writerCall,
@@ -330,7 +331,7 @@ ${userGrant(`${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date)`
 /** `options.decider`, for policy steps with `decider: true`. */
 function timesheetDecider(
   own: BlockSqlContext,
-): Pick<ApprovalContribution, "decides"> {
+): Pick<ApprovalContribution, "decides" | "decidesMany"> {
   const where = "blocks.time-entries.options";
 
   return hasDecider(own)
@@ -355,6 +356,7 @@ function timesheetDecider(
               subjectId,
             ),
           ).replace(/^ or /u, ""),
+        ...decidesMany(own, where),
       }
     : {};
 }

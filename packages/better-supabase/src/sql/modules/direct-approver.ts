@@ -64,6 +64,16 @@ const DECIDER_KINDS: Readonly<Record<string, string>> = {
  * `options.decider`, or the provider's `approverFor` under the provider model.
  */
 export function hasDecider(ctx: BlockSqlContext): boolean {
+  if (
+    DECIDER_KINDS[ctx.module] !== undefined &&
+    ctx.text("deciderMany", "") !== "" &&
+    ctx.text("decider", "") === ""
+  ) {
+    throw new TypeError(
+      `blocks.${ctx.module}.options.deciderMany is the set form of decider, so it needs decider too`,
+    );
+  }
+
   return (
     ctx.text("decider", "") !== "" ||
     (ctx.providerApproverFor !== undefined &&
@@ -143,6 +153,32 @@ export function deciderCall(
   const [schema = "", fn = ""] = name.split(".");
 
   return ` or coalesce(${sqlIdent(schema)}.${sqlIdent(fn)}(${id}), false)`;
+}
+
+/**
+ * `{ decidesMany }` for an approvals contribution when `options.deciderMany` is
+ * set: the set form of `options.decider`, an app function `(ids uuid[]) returns
+ * uuid[]` that answers in one call which of `ids` the caller decides. It must
+ * answer what `decider` answers for each id. `approval_eligible_ids_in` calls
+ * it once per subject type instead of `decider` once per request.
+ */
+export function decidesMany(
+  ctx: BlockSqlContext,
+  where: string,
+): { readonly decidesMany?: (subjectIds: string) => string } {
+  const many = appFunction(ctx, where, "deciderMany");
+
+  if (many === undefined) {
+    return {};
+  }
+
+  if (ctx.text("decider", "") === "") {
+    throw new TypeError(
+      `${where}.deciderMany is the set form of ${where}.decider, so it needs decider too`,
+    );
+  }
+
+  return { decidesMany: (subjectIds) => `${many}(${subjectIds})` };
 }
 
 /**

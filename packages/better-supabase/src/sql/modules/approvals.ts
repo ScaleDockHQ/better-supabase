@@ -71,7 +71,7 @@ import {
   tenantPoliciesOn,
 } from "./approvals-tenant.ts";
 import { approvalTests } from "./approvals-tests.ts";
-import { approverCheck } from "./approver.ts";
+import { approverCheck, approverSetCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers, roleThrough } from "./memberships.ts";
 import { permissionHolders } from "./notifications-audience.ts";
@@ -300,13 +300,11 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     approvers: string,
     row: string,
     me: string,
-  ): string => {
-    const decides = decidesBy(row, me);
-
-    return decides === undefined
+    decides: string | undefined = decidesBy(row, me),
+  ): string =>
+    decides === undefined
       ? ""
       : `\n    or (coalesce((${approvers} ->> 'decider')::boolean, false) and ${decides})`;
-  };
 
   const ownSubjects = own.map((each) => sqlString(each.subject)).join(", ");
 
@@ -656,12 +654,58 @@ ${indent}end if;`;
 
   // approval_eligible_ids answers the rules of approval_eligible for every
   // pending request in one statement: the approver kinds are joins, a
-  // permission is checked once per tenant and permission pair, and only a
-  // provider's isApprover still runs per request.
+  // permission is checked once per tenant and permission pair, a block's
+  // decides and selfDecides run once per subject type when the block has a set
+  // form, and a provider's isApprover runs once per distinct set of arguments,
+  // only for the requests nothing else lets the caller decide.
   const escalates = has("policy");
 
   const approversIn = (set: "approvers" | "escalateTo"): string =>
     `(q.bsb_step -> '${set}')`;
+
+  const escalatedSet = `coalesce((q.bsb_step ->> 'escalated')::boolean, false)`;
+
+  // A block with a set form decides all of its requests whose step sets
+  // decider in one call (block_decided); the others still ask per request.
+  const decidesMany = contributed.filter(
+    (each) => each.decides !== undefined && each.decidesMany !== undefined,
+  );
+
+  const deciderStep = `(coalesce((${approversIn("approvers")} ->> 'decider')::boolean, false)${escalates ? ` or (${escalatedSet} and coalesce((${approversIn("escalateTo")} ->> 'decider')::boolean, false))` : ""})`;
+
+  const blockDecidedCte =
+    decidesMany.length === 0
+      ? ""
+      : `,
+  block_decided as materialized (
+    ${decidesMany
+      .map(
+        (each) =>
+          `select ${sqlString(each.subject)}::text as bsb_type, x.bsb_id from (
+      select array_agg(${subjectText("q")}::uuid) as bsb_ids from q
+      where q.${c("subjectType")} = ${sqlString(each.subject)} and ${deciderStep}
+    ) own, lateral unnest(case when own.bsb_ids is null then '{}'::uuid[] else coalesce(${each.decidesMany?.("own.bsb_ids")}, '{}'::uuid[]) end) as x(bsb_id)`,
+      )
+      .join("\n    union all\n    ")}
+  )`;
+
+  const setDecidesWhens = contributed.flatMap((each) => {
+    if (each.decides === undefined) {
+      return [];
+    }
+
+    const check =
+      each.decidesMany === undefined
+        ? `coalesce(${each.decides({ id: `q.${c("id")}`, subjectId: subjectText("q"), comment: "null", approver: "q.bsb_me" })}, false)`
+        : `exists (select 1 from block_decided bd where bd.bsb_type = ${sqlString(each.subject)} and bd.bsb_id = ${subjectText("q")}::uuid)`;
+
+    return [`when ${sqlString(each.subject)} then ${check}`];
+  });
+
+  const setDecides =
+    setDecidesWhens.length === 0
+      ? undefined
+      : `(case q.${c("subjectType")} ${setDecidesWhens.join(" ")} else false end)`;
 
   const setMatch = (ap: string): string => {
     const tenantOf = `q.${c("tenant")}`;
@@ -679,10 +723,8 @@ ${indent}end if;`;
       select 1 from ${members.table("memberships")} mm
       where mm.${mt} = ${tenantOf} and mm.${mu} = q.bsb_me and mm.${mr} = ${roleValue(ctx, `${ap} ->> 'role'`, tenantOf)}
     ))
-    or (${ap} ->> 'team' is not null and ${teamMatch("q.bsb_me", `${ap} ->> 'team'`)})${managerClause}${deciderClause(ap, "q", "q.bsb_me")})`;
+    or (${ap} ->> 'team' is not null and ${teamMatch("q.bsb_me", `${ap} ->> 'team'`)})${managerClause}${deciderClause(ap, "q", "q.bsb_me", setDecides)})`;
   };
-
-  const escalatedSet = `coalesce((q.bsb_step ->> 'escalated')::boolean, false)`;
 
   const decidedHere = (row: string): string =>
     `exists (select 1 from ${decisions} x where x.${d("request")} = ${row}.${c("id")} and x.${d("step")} = ${stepOf(row)} and x.${d("approver")} = ${row}.bsb_me)`;
@@ -695,18 +737,37 @@ ${indent}end if;`;
     ? `case when ${escalatedSet} then ${approversIn("escalateTo")} else ${approversIn("approvers")} end`
     : approversIn("approvers");
 
+  // The provider's isApprover depends on its arguments and the caller only, so
+  // it runs once per distinct (kind, subject when the template names it,
+  // tenant, requester, approvers), over the requests nothing else matched.
+  const providerTemplate = layout.accessProvider?.functions.isApprover;
+  const providerSubject = providerTemplate?.includes("{subject}") === true;
+
   const providerSet = approverCheck(ctx, layout, {
-    kind: { sql: `q.${c("subjectType")} || '.' || q.${c("action")}` },
-    subject: `q.${c("subjectId")}::text`,
-    tenant: `q.${c("tenant")}`,
-    requester: `q.${c("requestedBy")}`,
-    approvers: `(coalesce(${stepApprovers}, '{}'::jsonb) || jsonb_build_object('required', coalesce(q.bsb_step -> 'required', '1'::jsonb)))`,
+    kind: { sql: "a.bsb_kind" },
+    subject: providerSubject ? "a.bsb_subject" : "null::text",
+    tenant: "a.bsb_tenant",
+    requester: "a.bsb_requester",
+    approvers: "a.bsb_approvers",
   });
 
-  const providerFallback =
-    providerSet === undefined
-      ? ""
-      : `\n    or (q.bsb_me is distinct from q.${c("requestedBy")} and coalesce((${providerSet.sql}), false))`;
+  const approversArg = `(coalesce(${stepApprovers}, '{}'::jsonb) || jsonb_build_object('required', coalesce(q.bsb_step -> 'required', '1'::jsonb)))`;
+
+  const providerKeys = [
+    `q.${c("subjectType")} || '.' || q.${c("action")} as bsb_kind`,
+    ...(providerSubject ? [`q.${c("subjectId")}::text as bsb_subject`] : []),
+    `q.${c("tenant")} as bsb_tenant`,
+    `q.${c("requestedBy")} as bsb_requester`,
+    `${approversArg} as bsb_approvers`,
+  ].join(", ");
+
+  const providerJoin = [
+    `a.bsb_kind = q.${c("subjectType")} || '.' || q.${c("action")}`,
+    ...(providerSubject ? [`a.bsb_subject = q.${c("subjectId")}::text`] : []),
+    `a.bsb_tenant is not distinct from q.${c("tenant")}`,
+    `a.bsb_requester is not distinct from q.${c("requestedBy")}`,
+    `a.bsb_approvers = ${approversArg}`,
+  ].join(" and ");
 
   const linkedSet = linked.flatMap((each) =>
     each.approvable === undefined
@@ -716,7 +777,16 @@ ${indent}end if;`;
         ],
   );
 
-  const setCore = `(${setMatch(approversIn("approvers"))}${escalates ? `\n    or (${escalatedSet} and ${setMatch(approversIn("escalateTo"))})` : ""}${delegatedHere}${providerFallback})`;
+  const linkedTypes = linked
+    .filter((each) => each.approvable !== undefined)
+    .map((each) => sqlString(each.subject));
+
+  const notLinked =
+    linkedTypes.length === 0
+      ? "true"
+      : `q.${c("subjectType")} not in (${linkedTypes.join(", ")})`;
+
+  const nativeCore = `(${setMatch(approversIn("approvers"))}${escalates ? `\n    or (${escalatedSet} and ${setMatch(approversIn("escalateTo"))})` : ""}${delegatedHere})`;
 
   // selfDecides only matters for the caller's own requests. A block with a set
   // form answers all of them in one call (self_decided); the others still ask
@@ -771,6 +841,54 @@ ${indent}end if;`;
     where ${ctx.staff("k.p")}`
     : "";
 
+  // The requests the provider may still let the caller decide: not the
+  // caller's own, not a linked type, not decided or excluded, and not already
+  // matched by a named user or a held permission (the cheap built-in checks).
+  // answers is computed only when the first request reaches the provider.
+  const asksFilter = `q.bsb_me is distinct from q.${c("requestedBy")} and ${notLinked}
+      and not ${decidedHere("q")}${
+        has("policy")
+          ? `
+      and not (coalesce(${policyOf("q")} -> 'excludedUserIds', '[]'::jsonb) ? q.bsb_me::text)`
+          : ""
+      }
+      and not (coalesce(${approversIn("approvers")} -> 'users', '[]'::jsonb) ? q.bsb_me::text)
+      and not (${approversIn("approvers")} ->> 'permission' is not null and exists (select 1 from granted g where g.t is not distinct from q.${c("tenant")} and g.p = ${approversIn("approvers")} ->> 'permission'))`;
+
+  // A provider with isApproverMany answers them in one call; else isApprover
+  // runs once per distinct set of arguments.
+  const providerMany = approverSetCheck(
+    ctx,
+    layout,
+    `(select coalesce(jsonb_agg(jsonb_build_object('id', q.${c("id")}::text, 'kind', q.${c("subjectType")} || '.' || q.${c("action")}, 'subject', q.${c("subjectId")}::text, 'tenant', q.${c("tenant")}, 'requester', q.${c("requestedBy")}, 'approvers', ${approversArg})), '[]'::jsonb)
+      from q where ${asksFilter})`,
+  );
+
+  const providerCtes =
+    providerSet === undefined
+      ? ""
+      : providerMany === undefined
+        ? `,
+  asks as materialized (
+    select distinct ${providerKeys}
+    from q
+    where ${asksFilter}
+  ),
+  answers as materialized (
+    select a.*, coalesce((${providerSet.sql}), false) as bsb_ok from asks a
+  )`
+        : `,
+  answers as materialized (
+    select r.id::text as bsb_id from ${providerMany} as r(id)
+  )`;
+
+  const providerMatch =
+    providerSet === undefined
+      ? ""
+      : `\n    or (q.bsb_me is distinct from q.${c("requestedBy")} and exists (select 1 from answers a where ${providerMany === undefined ? `a.bsb_ok and ${providerJoin}` : `a.bsb_id = q.${c("id")}::text`}))`;
+
+  const setCore = `(${nativeCore}${providerMatch})`;
+
   // The set over the pending requests `scope` picks: those in v_tenants, or
   // those outside it (tenantless included).
   const eligibleIdsBody = (scope: string): string => `with base as (
@@ -789,7 +907,7 @@ ${indent}end if;`;
   granted as materialized (
     select g.t, k.p from (select distinct n.p from needs n where n.t is not null) k
     cross join lateral ${ctx.scope.ids("k.p")} as g(t)${grantedTenantless}
-  )${selfDecidedCte}
+  )${selfDecidedCte}${blockDecidedCte}${providerCtes}
   select q.${c("id")} from q
   where not ${decidedHere("q")}${
     has("policy")
@@ -1129,7 +1247,7 @@ ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 --     and id in (select ${fn("approval_eligible_ids_in")}(outside => true)))
 -- Postgres evaluates each set once per statement, not once per row. It applies
 -- the rules of approval_eligible as joins over the pending requests (each
--- permission is checked once through the tenants the caller holds it in${provider ? ", the provider's isApprover per request" : ""}),
+-- permission is checked once through the tenants the caller holds it in${provider ? ", the provider's isApprover once per distinct set of arguments or isApproverMany once" : ""}),
 -- and a parity test keeps the two in step. It is PL/pgSQL so the body may name
 -- tables a later module creates.
 create or replace function ${fn("approval_eligible_ids_in")}(tenants ${ctx.idType}[] default null, outside boolean default false)
@@ -1626,7 +1744,7 @@ export const APPROVALS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   names: APPROVALS_NAMES,
   upgrades: [
     {
@@ -1663,6 +1781,12 @@ export const APPROVALS: BlockSqlDefinition = {
       from: 6,
       description:
         "Adds approval_eligible_ids_in(tenants, outside), the set form for the caller's member tenants (or the tenants passed) in one call, and for the requests outside them; approval_eligible_ids(tenant) calls it. Each permission is checked once through tenant_ids_with, and a block's selfDecides runs only for the caller's own requests.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        "approval_eligible_ids_in asks a block's decides once per subject type through its set form (options.deciderMany in leave, expenses and time entries), and the provider's isApprover once per distinct set of arguments, or once in all through the new isApproverMany template, only for the requests nothing else lets the caller decide.",
       sql: () => "",
     },
   ],

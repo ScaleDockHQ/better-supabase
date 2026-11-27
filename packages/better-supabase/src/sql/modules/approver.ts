@@ -77,3 +77,31 @@ export function approverCheck(
 
   return undefined;
 }
+
+/**
+ * The provider's `isApproverMany` for `requests`, a jsonb expression of `{ id,
+ * kind, subject, tenant, requester, approvers }` objects: a set of the text ids
+ * the caller may approve, used as `select r.id from <sql> as r(id)`.
+ * `undefined` when the provider sets no `isApproverMany` (or no `isApprover`),
+ * so the caller asks `isApprover` per request.
+ */
+export function approverSetCheck(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+  requests: string,
+): string | undefined {
+  const provider = layout.accessProvider;
+
+  if (provider === undefined || accessModel(ctx) !== "provider") {
+    return undefined;
+  }
+
+  const { isApprover, isApproverMany } = provider.functions;
+
+  return isApprover === undefined || isApproverMany === undefined
+    ? undefined
+    : fillTemplate("authorization.functions.isApproverMany", isApproverMany, {
+        requests,
+        scope: provider.scope,
+      });
+}
