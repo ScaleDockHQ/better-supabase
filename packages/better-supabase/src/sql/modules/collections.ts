@@ -252,6 +252,8 @@ create table if not exists ${t("folders")} (
 );
 alter table ${t("folders")} enable row level security;
 alter table ${t("favorites")} add column if not exists ${fa("folder")} uuid references ${t("folders")} (${names.c("folders", "id")}) on delete set null;
+create index if not exists ${sqlIdent(`${ctx.tableName("folders").name}_user_idx`)} on ${t("folders")} (${names.c("folders", "user")});
+create index if not exists ${sqlIdent(`${ctx.tableName("favorites").name}_folder_idx`)} on ${t("favorites")} (${fa("folder")}) where ${fa("folder")} is not null;
 
 create or replace function ${ctx.fn("save_star_folder")}(tenant ${ctx.idType}, id uuid, name text)
 returns jsonb
@@ -593,7 +595,9 @@ export const COLLECTIONS: BlockSqlDefinition = {
   ${ctx.col("folders", "rank")} text collate "C" not null default 'V'
 );
 alter table ${ctx.table("folders")} enable row level security;
-alter table ${ctx.table("favorites")} add column if not exists ${ctx.col("favorites", "folder")} uuid references ${ctx.table("folders")} (${ctx.col("folders", "id")}) on delete set null;`
+alter table ${ctx.table("favorites")} add column if not exists ${ctx.col("favorites", "folder")} uuid references ${ctx.table("folders")} (${ctx.col("folders", "id")}) on delete set null;
+create index if not exists ${sqlIdent(`${ctx.tableName("folders").name}_user_idx`)} on ${ctx.table("folders")} (${ctx.col("folders", "user")});
+create index if not exists ${sqlIdent(`${ctx.tableName("favorites").name}_folder_idx`)} on ${ctx.table("favorites")} (${ctx.col("favorites", "folder")}) where ${ctx.col("favorites", "folder")} is not null;`
           : "",
     },
   ],

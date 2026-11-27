@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_185_projects.sql
 -- better-supabase module: projects
 -- @bsb-block projects@1 managed
--- @bsb-hash sha256:b19ef9c3a6929cee03b1211a68fa76da75d8e4b380864016a8625277ecf9d107
+-- @bsb-hash sha256:f57a4dac2def95d73ab08fea853f1ef188f956e6e7b02915fd0956531a5d5f9d
 -- Project updates with a health snapshot, and initiatives that group projects. Tasks owns the project, milestone and iteration rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -35,6 +35,7 @@ create table "better_supabase"."initiatives" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create index initiatives_parent_idx on "better_supabase"."initiatives" ("parent_id") where "parent_id" is not null;
 
 create table "better_supabase"."initiative_projects" (
   "initiative_id" uuid not null references "better_supabase"."initiatives" ("id") on delete cascade,
@@ -42,6 +43,7 @@ create table "better_supabase"."initiative_projects" (
   "tenant_id" uuid not null,
   primary key ("initiative_id", "project_id")
 );
+create index initiative_projects_project_idx on "better_supabase"."initiative_projects" ("project_id");
 
 create or replace function "better_supabase"."save_project_update"(tenant uuid, project uuid, health text, body text)
 returns jsonb
@@ -275,7 +277,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_185_projects.sql
 -- better-supabase module: projects
 -- @bsb-block projects@1 managed
--- @bsb-hash sha256:f34323a056760df5a2cf524ba5f7dca5f3bf968cad5b0ceee9e495f279e4a7e4
+-- @bsb-hash sha256:4685bc24462a8e3b30971c3a5abec0474de2b2b9f7d40666db4e3f7a12bf73d4
 -- Project updates with a health snapshot, and initiatives that group projects. Tasks owns the project, milestone and iteration rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -309,6 +311,7 @@ create table "better_supabase"."initiatives" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create index initiatives_parent_idx on "better_supabase"."initiatives" ("parent_id") where "parent_id" is not null;
 
 create table "better_supabase"."initiative_projects" (
   "initiative_id" uuid not null references "better_supabase"."initiatives" ("id") on delete cascade,
@@ -316,6 +319,7 @@ create table "better_supabase"."initiative_projects" (
   "tenant_id" uuid not null,
   primary key ("initiative_id", "project_id")
 );
+create index initiative_projects_project_idx on "better_supabase"."initiative_projects" ("project_id");
 
 create or replace function "better_supabase"."save_project_update"(tenant uuid, project uuid, health text, body text)
 returns jsonb
@@ -566,7 +570,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_185_projects.sql
 -- better-supabase module: projects
 -- @bsb-block projects@1 managed
--- @bsb-hash sha256:839c99d18fd0905539e6ee0e9cc1179d64c349e4b734fa6943e2518c5ee62666
+-- @bsb-hash sha256:dad8e9eb1b8ea3fa335ae6e1d264fbae59d69f828c74eb2100a0e090b86176be
 -- Project updates with a health snapshot, and initiatives that group projects. Tasks owns the project, milestone and iteration rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -605,6 +609,7 @@ create table "app_private"."initiatives" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create index initiatives_parent_idx on "app_private"."initiatives" ("parent_id") where "parent_id" is not null;
 
 create table "app_private"."initiative_projects" (
   "initiative_id" uuid not null references "app_private"."initiatives" ("id") on delete cascade,
@@ -612,6 +617,7 @@ create table "app_private"."initiative_projects" (
   "tenant_id" uuid not null,
   primary key ("initiative_id", "project_id")
 );
+create index initiative_projects_project_idx on "app_private"."initiative_projects" ("project_id");
 
 create or replace function "app_private"."save_project_update"(tenant uuid, project uuid, health text, body text)
 returns jsonb
@@ -845,7 +851,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_185_projects.sql
 -- better-supabase module: projects
 -- @bsb-block projects@1 managed
--- @bsb-hash sha256:e04f9a1d937862a02ea1008e305e47b1c6083326c8ba92d2fd93120cf28bd595
+-- @bsb-hash sha256:60ae7b4cadbe61c1102700b4b04ff7cd86bc29c613e0b232f998dadef67ddd54
 -- Project updates with a health snapshot, and initiatives that group projects. Tasks owns the project, milestone and iteration rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -879,6 +885,7 @@ create table "better_supabase"."initiatives" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create index initiatives_parent_idx on "better_supabase"."initiatives" ("parent_id") where "parent_id" is not null;
 
 create table "better_supabase"."initiative_projects" (
   "initiative_id" uuid not null references "better_supabase"."initiatives" ("id") on delete cascade,
@@ -886,6 +893,7 @@ create table "better_supabase"."initiative_projects" (
   "tenant_id" uuid not null,
   primary key ("initiative_id", "project_id")
 );
+create index initiative_projects_project_idx on "better_supabase"."initiative_projects" ("project_id");
 
 create or replace function "better_supabase"."save_project_update"(tenant uuid, project uuid, health text, body text)
 returns jsonb
@@ -1198,7 +1206,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_185_projects.sql
 -- better-supabase module: projects
 -- @bsb-block projects@1 managed
--- @bsb-hash sha256:b2fe3fc0e02c1d22b8e47d1d5053f95a14fbc795c6b9cd4a61de0e322acea42b
+-- @bsb-hash sha256:f583e718cce3dc0924e4c701a27ed62e620fe76d9cc2d2afabb410135f569c2d
 -- Project updates with a health snapshot, and initiatives that group projects. Tasks owns the project, milestone and iteration rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1230,11 +1238,13 @@ alter table "better_supabase"."initiatives" add column if not exists "rank" text
 alter table "better_supabase"."initiatives" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."initiatives" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."initiatives" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists initiatives_parent_idx on "better_supabase"."initiatives" ("parent_id") where "parent_id" is not null;
 
 -- better_supabase.initiative_projects is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."initiative_projects" add column if not exists "initiative_id" uuid references "better_supabase"."initiatives" ("id") on delete cascade;
 alter table "better_supabase"."initiative_projects" add column if not exists "project_id" uuid references "better_supabase"."projects" ("id") on delete cascade;
 alter table "better_supabase"."initiative_projects" add column if not exists "tenant_id" uuid;
+create index if not exists initiative_projects_project_idx on "better_supabase"."initiative_projects" ("project_id");
 
 create or replace function "better_supabase"."save_project_update"(tenant uuid, project uuid, health text, body text)
 returns jsonb
@@ -1468,7 +1478,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_185_projects.sql
 -- better-supabase module: projects
 -- @bsb-block projects@1 managed
--- @bsb-hash sha256:0c6a8449905859f45f96dde3e48fed95aeee08e172ceaab6e8f0545a19cebbf6
+-- @bsb-hash sha256:9eed3403fd874cbfbfe1d85fac107d822e858b391a8829053a297ae54df3c3a4
 -- Project updates with a health snapshot, and initiatives that group projects. Tasks owns the project, milestone and iteration rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1502,6 +1512,7 @@ create table "better_supabase"."initiatives" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create index initiatives_parent_idx on "better_supabase"."initiatives" ("parent_id") where "parent_id" is not null;
 
 create table "better_supabase"."initiative_projects" (
   "initiative_id" uuid not null references "better_supabase"."initiatives" ("id") on delete cascade,
@@ -1509,6 +1520,7 @@ create table "better_supabase"."initiative_projects" (
   "org_id" uuid not null,
   primary key ("initiative_id", "project_id")
 );
+create index initiative_projects_project_idx on "better_supabase"."initiative_projects" ("project_id");
 
 create or replace function "better_supabase"."save_project_update"(tenant uuid, project uuid, health text, body text)
 returns jsonb

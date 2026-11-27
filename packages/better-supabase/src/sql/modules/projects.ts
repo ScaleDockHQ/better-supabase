@@ -193,6 +193,7 @@ create table if not exists ${ctx.table("initiatives")} (
   ${i("createdAt")} timestamptz not null default now(),
   ${i("updatedAt")} timestamptz not null default now()
 );
+create index if not exists ${ctx.naming.rename("initiatives_parent_idx")} on ${ctx.table("initiatives")} (${i("parent")}) where ${i("parent")} is not null;
 
 create table if not exists ${ctx.table("links")} (
   ${l("initiative")} uuid not null references ${ctx.table("initiatives")} (${i("id")}) on delete cascade,
@@ -200,6 +201,7 @@ create table if not exists ${ctx.table("links")} (
   ${l("tenant")} ${ctx.idType} not null,
   primary key (${l("initiative")}, ${l("project")})
 );
+create index if not exists ${ctx.naming.rename("initiative_projects_project_idx")} on ${ctx.table("links")} (${l("project")});
 
 create or replace function ${ctx.fn("save_project_update")}(tenant ${ctx.idType}, project uuid, health text, body text)
 returns jsonb

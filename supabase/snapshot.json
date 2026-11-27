@@ -342729,6 +342729,17 @@
         "checks": [],
         "indexes": [
           {
+            "name": "collection_favorites_folder_idx",
+            "columns": [
+              "folder_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": "(folder_id IS NOT NULL)"
+          },
+          {
             "name": "collection_favorites_pkey",
             "columns": [
               "user_id",
@@ -343032,6 +343043,17 @@
             ],
             "unique": true,
             "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "collection_star_folders_user_idx",
+            "columns": [
+              "user_id"
+            ],
+            "unique": false,
+            "primary": false,
             "partial": false,
             "method": "btree",
             "predicate": null
